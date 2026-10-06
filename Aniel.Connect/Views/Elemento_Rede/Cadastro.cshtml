@@ -1,0 +1,2415 @@
+﻿@model Aniel.Connect.Repository.Model.Elemento_RedeCadastroModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_ELEMENTO_REDE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    if (Model.Id == 0 || Model.Id == null)
+    {
+        Model.Situacao = Sinapse.Model.enumerados.Status_Elemento.Ativo;
+    }
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/csslayoutlimpo")
+
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default"></script>
+    <!-- Async script executes immediately and must be after any DOM elements used in callback. -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=@CONSTANTES.TokenGoogleAPI&v=3.64&libraries=places,drawing,geometry"></script>
+
+    <script>
+        let carregandoAddSelect;
+        let LatlngList = [];
+        let PolygonList = [];
+        let cor = "red";
+        var myStyles = [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            },
+            {
+                featureType: "transit",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            }
+        ];
+
+        function OSLink(id) {
+
+        console.log(id);
+        var _url = '@Url.Action("Index", "Acompanhamento_Servico")' + id;
+        parent.AddAba(_url, "Acompanhamento de Servico");
+
+        };
+
+        function gravarPoligonoL() {
+            var latlng = [];
+            console.log(polygon)
+            var coordinates = polygon.getPath().getArray();
+            for (var i = 0; i < coordinates.length; i++) {
+                latlng.push(coordinates[i].lat(), coordinates[i].lng());
+            };
+            LatlngList[0] = latlng;
+            $('#iAreaAtendimento').val(JSON.stringify(LatlngList));
+        };
+
+        // This example adds a search box to a map, using the Google Place Autocomplete
+    // feature. People can enter geographical searches. The search box will return a
+    // pick list containing a mix of places and predicted search terms.
+    // This example requires the Places library. Include the libraries=places
+    // parameter when you first load the API. For example:
+    // <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places">
+
+
+        const map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: -22.8365822664385, lng: -43.340056779660614 },
+            zoom: 13,
+            styles: myStyles,
+            mapTypeId: "roadmap",
+        });
+
+        function initDrawing(map) {
+
+            const image =
+                "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png";
+
+            let drawingManager = new google.maps.drawing.DrawingManager({
+                map: map,
+                drawingMode: google.maps.drawing.OverlayType.MARKER,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_DOWN,
+                    drawingModes: ['marker', 'polygon'],
+                },
+
+                markerOptions: {
+                    icon: image,
+                    visible: false,
+                },
+
+                polygonOptions: {  /*area de cobertura*/
+                    strokeColor: cor,
+                    fillColor: cor,
+                    fillOpacity: "0.15",
+                    strokeWeight: 3,
+                    tipo: 1,
+                },
+
+            });
+            //mãozinha (parar de desenhar
+
+            //drawingManager.setDrawingMode('polygon');
+            //drawingManager.setDrawingMode('marker');
+
+            drawingManager.setDrawingMode(null);
+            $("#Poligono").on("click", function () {
+                drawingManager.setDrawingMode('polygon');
+
+            });
+
+
+            //aciona assim que completar o poligono
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon) => {
+                drawingManager.setDrawingMode(null);
+                polygon.setEditable(true);
+                //Pegando as coordenadas em array
+                var latlng = [];
+                var coordinates = (polygon.getPath().getArray());
+                for (var i = 0; i < coordinates.length; i++) {
+                    latlng.push(coordinates[i].lat(), coordinates[i].lng());
+
+                }
+
+                console.log(latlng);
+                mapa_area_coberturamodel = new Object();
+
+                //Preenchendo o obj mapa_area_coberturamodel
+                @* mapa_area_coberturamodel.id = "@ViewBag.Id_Area_Cobertura";*@
+                mapa_area_coberturamodel.cor = polygon.strokeColor;
+                //mapa_area_coberturamodel.coordenadas = JSON.stringify(latlng);
+                console.log("Pos antes:" + polygon.posicao);
+                //LatlngList.splice(polygon.posicao, 1, latlng);
+                LatlngList.push(latlng);
+                var pos = LatlngList.findIndex(i => i === latlng);
+                polygon.posicao = pos;
+                console.log("Pos depois:" + pos);
+                /*consultar o enumerado Tipo_Poligono*/
+                mapa_area_coberturamodel.tipo = polygon.tipo;
+
+                console.log(mapa_area_coberturamodel)
+                console.log(JSON.stringify(mapa_area_coberturamodel))
+                PolygonList.splice(polygon.posicao, 1, polygon);
+
+                //Enviando PoligonoRetangulo
+                $('#iAreaAtendimento').val(JSON.stringify(LatlngList));
+
+            });
+        };
+
+        initDrawing(map);
+
+        @if(Model.AreaAtendimento != null)
+        {
+            <text>
+            LatlngList = @Model.AreaAtendimento;
+            let latlng = [];
+            for (var i = 0; i < LatlngList[0].length; i++)
+            {
+                var lat = LatlngList[0][i];
+                i = i + 1;
+                var lng = LatlngList[0][i];
+
+                latlng.push(new google.maps.LatLng(lat, lng));
+            }
+
+            let polygon = new google.maps.Polygon({
+                strokeColor: "red",
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: "red",
+                posicao: 1,
+                fillOpacity: 0.35,
+                editable: true,
+                map,
+                paths: latlng,
+            });
+
+            google.maps.event.addListener(polygon.getPath(), "set_at", gravarPoligonoL);
+            google.maps.event.addListener(polygon.getPath(), "insert_at", gravarPoligonoL);
+
+            let latlngCenter = {
+                lat: LatlngList[0][0],
+                lng: LatlngList[0][1]
+            };
+            map.setCenter(latlngCenter);
+
+            </text>
+        }
+
+
+        arrayObj = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Lista_Objetos));
+
+        const itensVinculados = [];
+
+        let fibraSelecionada = null,
+            TipoSelecionado = null;
+
+        let comboHelpers = {
+            objposte: { poste: true },
+            objcaixa: { caixa: true },
+            objcabo: { cabo: true }
+        };
+
+        let requestEndereco = null;
+        let requestEnderecoCondominio = null;
+
+        var blocoQuadraText = null;
+        var blocoQuadraId = null;
+
+        var apto_numeroText = null;
+        var apto_numeroId = null;
+
+        const handleContrato = function () {
+            $("#iContrato").on("select2:select select2:unselecting", function (e) {
+                const contratoSelecionado = e.params.data
+                if (contratoSelecionado) {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, contratoSelecionado.id, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+            })
+        }
+
+        const handleCidade = function () {
+            $("#iCidade").on("select2:select select2:unselecting", function (e) {
+                const cidadeSelecionada = e.params.data
+                if (cidadeSelecionada) {
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairrosDescricao",@CONSTANTES.PaginacaoRegistros, null, cidadeSelecionada.text, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairros",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+            })
+        }
+
+        const handleUf = function () {
+            $("#iUf").on("select2:select select2:unselecting", function (e) {
+                const ufSelecionado = e.params.data
+                if (ufSelecionado) {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadesDescricao?Uf=" + ufSelecionado.id,@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleCidade);
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairrosDescricao",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleCidade);
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairrosDescricao",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+            })
+        }
+
+         async function getGoogleLatLong() {
+             let link = 'https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&address=';
+
+            if ($('#iNumero').val()) {
+
+                link = link.concat(GetEndereco());
+
+                try {
+                    return await $.getJSON(link, async function (data) {
+
+                        if (data.results[0]) {
+                            if (!data.results[0].geometry.location.lat || !data.results[0].geometry.location.lng) {
+                                Notificar("@RsBase.ATENCAO_", "@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", "warning");
+                                $("#iLatitude").val(null);
+                                $("#iLongitude").val(null);
+
+                            }
+                        }
+
+                        let latitude = data.results[0].geometry.location.lat.toString().replace(".", ",");
+                        let longitude = data.results[0].geometry.location.lng.toString().replace(".", ",");
+
+                        $("#iLatitude").val(latitude);
+                        $("#iLongitude").val(longitude);
+
+                    })
+                }
+                catch (e) {
+                    Notificar("@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", e, "warning");
+                }
+             }
+         }
+
+    function GetEndereco() {
+
+        let endereco = "";
+
+        if ($("#iNumero").val()) {
+            endereco += " " + $("#iNumero").val();
+        }
+        else {
+            return false;
+        }
+
+        if ($("#iBairro").val() != "")
+            endereco += " " + $("#iBairro option:selected").text();
+        if ($("#iCidade").val() != "")
+            endereco += " " + $("#iCidade option:selected").text();
+        if ($("#iUF").val()!="")
+            endereco += " " + $("#iUF option:selected").text();
+        if ($("#iEndereco").val() != "")
+            endereco += " " + $("#iEndereco").val();
+        return endereco;
+        }
+
+    $("#iNumero").focusout(async () => await getGoogleLatLong());
+
+        $("#iCep").change(function () {
+            $(this).val().replace("-", "");
+        let cep = $("#iCep").val();
+        let CepApi = `@CONSTANTES.URLPortal/api/EnderecoApi/GetEnderecoByCep?cep=${cep}`;
+        $.getJSON(CepApi, function (data) {
+            $('#iEndereco').val(data.objeto.endereco);
+
+            $("#iUf").empty();
+            $("#iCidade").empty();
+            $("#iBairro").empty();
+
+            if (data.ok == false) {
+                $("#iUf").prepend($('<option></option>').val(null).text("Selecione"));
+                $("#iCidade").prepend($('<option></option>').val(null).text("Selecione"));
+                $("#iBairro").prepend($('<option></option>').val(null).text("Selecione"));
+                return;
+            }
+            $("#iUf").append($('<option></option>').attr('value', data.objeto.uf.toUpperCase()).text(data.objeto.uf));
+            $("#iCidade").append($('<option></option>').attr('value', data.objeto.cidade.toUpperCase()).text(data.objeto.cidade));
+            $("#iBairro").append($('<option></option>').attr('value', data.objeto.bairro.toUpperCase()).text(data.objeto.bairro));
+
+        });
+    });
+
+    async function getParamsElemento(param) {
+        let ElementoSelecionado = param.params.data;
+        $("#iContrato").empty();
+        $("#iProjeto").empty();
+        $("#iId_POP").empty();
+        $("#iId_OLT").empty();
+        $("#iId_Slot").empty();
+        $("#iId_Pon").empty();
+
+        $("#iContrato").append($("<option></option>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.contrato));
+        $("#iProjeto").append($("<option></option>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.projeto));
+        $("#iId_POP").append($("<option></option>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.pop));
+        $("#iId_OLT").append($("<option>Model/Lista_ObjetosLista_Objetos_Objetosoption>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.RsCadastroslt));
+        $("#iId_Slot").append($("<option>Model/Lista_ObjetosLista_Objetos_Objetosoption>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.SlotSelecionado));
+        $("#iId_Pon").append($("<option>Model/Lista_ObjetosLista_Objetos_Objetosoption>").attr("value", ElementoSelecionado.id).text(ElementoSelecionado.HandlePON));
+    }
+
+    $("#iPoste").on('select2:select select2:unselecting', async function (event) {
+        /*await getParamsElemento(event);*/
+    });
+        $("#iCabo").on('select2:select select2:unselecting', async function (event) {
+        /*await getParamsElemento(event);*/
+    });
+
+       //#region criacampos
+    /**funcao pai para criacao de campos
+     * */
+    //#endregion
+    async function CamposDynamic(id,name) {
+
+
+        let campos = [];
+
+        let url = "@CONSTANTES.URLPortal/api/Modelo_Elemento_RedeApi/GetCampoDinamico";
+        await $.ajax({
+            url: url,
+            type: "POST",
+            data: {
+                id_ : id,
+            },
+            dataType:"json"
+        }).done(function (data) {
+            if (data.ok) {
+
+                campos.push(data.objeto.lista[0]);
+            }
+        }).fail(function (data) {
+            Notificar("", data.mensagem, "");
+        });
+
+        for (let item of campos) {
+            if (item.tipo === 5) {
+                let opcoes = [];
+
+                link = `@CONSTANTES.URLPortal/api/Modelo_Elemento_RedeApi/GetOpcoesDinamico?Id=${item.id}`;
+                await $.ajax({
+                    url: link,
+                   type: "GET",
+                    dataType: "json"
+                }).done(function (data) {
+
+                    if (data.ok && data.objeto) {
+                        opcoes = data.objeto.opcao;
+                    }
+
+                }).fail(function (data) {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                });
+
+                opcoes = opcoes.map(p => {
+                    return {
+                        id: p.id,
+                        valor: p.resposta
+                    }
+                });
+
+                CriarCampoDinamico(`${name}`, item.id, item.descricao, item.tipo, opcoes);
+                let valorCampoDinamico = arrayObj.find(p => p.idDinamico == item.id)?.value;
+
+                if (valorCampoDinamico){
+                    $(`#i${item.descricao}_${item.id} option:contains("${valorCampoDinamico}")`).attr("selected", true);
+                }
+
+
+            }
+            else {
+                CriarCampoDinamico(`${name}`, item.id, item.descricao, item.tipo, []);
+                let valorCampoDinamico = arrayObj.find(p => p.idDinamico == item.id);
+                $(`#i${item.descricao}_${item.id}`).val(valorCampoDinamico?.value);
+            }
+        }
+    }
+        //#region pendente
+        /**função em pausa */
+       function verifica_row(number) {
+
+           let name = `ICamposDyn_${number}`;
+           let cols = $(`#${name}`).find('input').length;
+            return name;
+        }
+
+        //#endregion
+
+        //let HandlePadrao = function () {
+        //    $("").on('select2:select select2:unselecting', function (e) {
+        //    });
+
+        //};
+        var HandleTipoElemento = function () {
+
+            $('#iTipo').on('select2:select select2:unselecting', function (e) {
+
+                TipoSelecionado = e.params.data;
+
+                let values = @(Enum.GetValues(typeof(ColunaModeloElementoEnum)).Length - 1);
+                $("#ICampoDyn_0").empty();
+                $("#DescricaoModelo").empty();
+                if (TipoSelecionado != undefined) {
+
+                    //if(TipoSelecionado)
+                    let vinculo_modelo = `@RsCadastros.MODELO_ELEMENTO_REDE : ${TipoSelecionado.modelo_Vinculo}`;
+                    $("#DescricaoModelo").text(vinculo_modelo);
+
+                    let tamanho = TipoSelecionado.colunas.length - 1;
+                    let listaDinamicos = TipoSelecionado.colunas.filter(p => p.id_Dinamico);
+
+                    if (listaDinamicos.length > 0) {
+                        let col = 0;
+                        let row = 0;
+                        for (let dinamico of listaDinamicos) {
+
+                            if (col == 0 || col > 3) {
+                                col = 1;
+                                row++;
+                                let str = `<div id=\"ICamposDyn_${row}\"class=\"row\"> </div>`;
+                                let div = $.parseHTML(str);
+                                $("#ICampoDyn_0").append(div);
+                            }
+                            col++;
+                            let name = verifica_row(row);
+                            CamposDynamic(dinamico.id_Dinamico, name);
+
+                        }
+                    }
+
+                    for (let i = 0; i <= values; i++) {
+                        let listaFiltrada = TipoSelecionado.colunas ? TipoSelecionado.colunas.filter(p => p.coluna == i) : [];
+
+                        if (listaFiltrada.length > 0 && listaFiltrada[0].obrigatorio == true) {
+                            $(`.inputclass${i}`).addClass("obrigatorio");
+                        }
+                        else {
+                            $(`.inputclass${i}`).removeClass("obrigatorio");
+                        }
+
+                        if (listaFiltrada.length > 0) {
+                            $(`#iDiv${i}`).show();
+                        }
+                        else {
+                            $(`#iDiv${i}`).hide();
+                        }
+                    }
+                    if (!$("#iCapacidade").val()) {
+                        $("#iCapacidade").val(TipoSelecionado.capacidade);
+                    }
+
+                }
+                else {
+
+                    for (let iteration = 0; iteration < values; iteration++) {
+                        $(`#iDiv${iteration}`).hide();
+                        $(`.inputclass${iteration}`).removeClass("obrigatorio");
+
+                    }
+
+                }
+            });
+    };
+
+    /**captura a resposta local */
+    function get_response() {
+        let array_Obj = [];
+        let cols = $("#ICampoDyn_0").children().find("input, select");
+
+        for (let col of cols) {
+
+            let id = $(col).prop("id");
+            let descricao = id.substr(1, id.search("_")-1);
+            let idDinamico = id.substr(id.search("_") + 1, id.length);
+            if (col.localName == "input") { value = $(col).val(); } else if (col.localName == "select") { value = $(col.selectedOptions).text() }
+            let obj = {
+
+                idElemento: $("#iId").val(),
+                idDinamico: idDinamico,
+                descricao: descricao,
+                tipo: $(col).attr("tipo"),
+                value: value,
+            }
+            if (obj.idElemento == "") {obj.idElemento=0 }
+            array_Obj.push(obj);
+        }
+        $("#iObjeto").val(JSON.stringify(array_Obj));
+
+    }
+
+    $(document).ready(async function () {
+
+        AddSelect("iTipo", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdTipo", "@RsBase.SELECIONE", @(Model.Id != 0  && Model.Id.HasValue ? "true" : "false"), HandleTipoElemento);
+        AddSelect("iId_POP", "@CONSTANTES.URLPortal/api/POPapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_POP", "@RsBase.SELECIONE", false);
+
+
+        AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPais",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Pais", "@RsBase.SELECIONE", false);
+        AddSelect("iSelectEnderecoLogradouro", "@CONSTANTES.URLPortal/api/EnderecoLogradouroapi/GetComboElem_Rede",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iCondominioPredio", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboEndereco",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+
+
+
+
+        const HandleOLT = function () {
+            $('#iId_OLT').on('select2:select select2:unselecting', function (e) {
+                const OLTSelecionada = e.params.data;
+
+                AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, null, "@RsBase.SELECIONE", false, HandlePON);
+
+                $(".select2-selection").addClass("outlineNone")
+
+                return true;
+
+            });
+        }
+
+        AddSelect("iId_OLT", "@CONSTANTES.URLPortal/api/OLTApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_OLT", "@RsBase.SELECIONE", false, HandleOLT);
+
+                   const HandlePON = function () {
+       $('#iId_Slot').on('select2:select select2:unselecting', function (e) {
+           const SlotSelecionado = e.params.data;
+
+
+         AddSelect("iId_Pon", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, SlotSelecionado.id, null, "@RsBase.SELECIONE", false);
+
+
+           $(".select2-selection").addClass("outlineNone")
+
+           return true;
+
+       });
+
+       AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, "@Model.Id_OLT", "@Model.Id_Slot", "@RsBase.SELECIONE", false),
+
+       AddSelect("iId_Pon", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, "@Model.Id_Slot", "@Model.Id_Pon", "@RsBase.SELECIONE", false)
+   }
+
+
+
+        $('#iCondominioPredio').change(function () {
+            var condominioPredioId = $(this).val();
+            if (condominioPredioId) {
+                AddSelect("iBlocoQuadra", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboBloco", @CONSTANTES.PaginacaoRegistros, null, condominioPredioId, null, "@RsBase.SELECIONE", false);
+            } else {
+                $('#iBlocoQuadra').empty();
+                $('#iApartamentoNumero').empty();
+            }
+        });
+
+
+        $('#checkboxQuadra').click(function () {
+            if ($('#checkboxQuadra').is(':checked')) {
+                $('#checkboxApto_Numero').prop('checked', true);
+                DisableSelect("iBlocoQuadra")
+                DisableSelect("iApartamentoNumero")
+            } else {
+                AddSelect("iBlocoQuadra", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboBloco", @CONSTANTES.PaginacaoRegistros, null, $('#iCondominioPredio').val(), null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+        $('#checkboxApto_Numero').click(function () {
+            if ($('#checkboxApto_Numero').is(':checked')) {
+                $('#iApartamentoNumero').empty();
+                DisableSelect("iApartamentoNumero")
+            } else {
+                AddSelect("iApartamentoNumero", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboApartamento",@CONSTANTES.PaginacaoRegistros, $('#iCondominioPredio').val(), $('#iBlocoQuadra').val(), null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+        $('#iBlocoQuadra').change(function () {
+            blocoQuadraId = $("#iBlocoQuadra option:selected").val();
+            blocoQuadraText = $("#iBlocoQuadra option:selected").text();
+            if (blocoQuadraId) {
+                if (!$('#checkboxApto_Numero').is(':checked')) {
+                    AddSelect("iApartamentoNumero", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboApartamento",@CONSTANTES.PaginacaoRegistros, null, blocoQuadraId, null, "@RsBase.SELECIONE", false);
+                }
+            } else {
+                $('#iApartamentoNumero').empty();
+            }
+        });
+
+        $('#iApartamentoNumero').change(function () {
+            apto_numeroId = $("#iApartamentoNumero option:selected").val();
+            apto_numeroText = $("#iApartamentoNumero option:selected").text();
+        });
+
+        @if (Model.Id!= null)
+        {
+            if (Model.Fiber_Selection != null)
+            {
+                    <text>
+        AddSelect("fibraSeelct", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboConexoesFibra",@CONSTANTES.PaginacaoRegistros, null, @Model.Id, @Model.Fiber_Selection, "@RsBase.SELECIONE", false, HandleFibraCombo, null, null, null,true,);
+            </text>
+            }
+
+            else
+            {
+           <text>
+        AddSelect("fibraSeelct", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboConexoesFibra",@CONSTANTES.PaginacaoRegistros, null, @Model.Id, null, "@RsBase.SELECIONE", false, HandleFibraCombo, null, null, null);
+            </text>
+            }
+
+        }
+
+        AddSelect("itemVinculadoOrigem", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleElementoVinculadoOrigem, null, null, null);
+        AddSelect("itemVinculadoDestino", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleElementoVinculadoDestino, null, null, null);
+        //AddSelect("iUf","@CONSTANTES.URLPortal/api/Modelo_PainelVendaApi/GetComboUF/",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        await AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Contrato", "@RsBase.SELECIONE", false, handleContrato);
+        await AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Projeto", "@RsBase.SELECIONE", false);
+
+        await AddSelect("itemVinculado", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null, null);
+        await AddSelect("iUf", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUfDesc/",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Uf", "@RsBase.SELECIONE", false, handleUf);
+        await AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadesDescricao?Uf=@Model.Uf",@CONSTANTES.PaginacaoRegistros, null, "@Model.Uf", "@Html.Raw(Model.Cidade)", "@RsBase.SELECIONE", false, handleCidade);
+        await AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairrosDescricao",@CONSTANTES.PaginacaoRegistros, null, "@Html.Raw(Model.Cidade)", "@Html.Raw(Model.Bairro)", "@RsBase.SELECIONE", false);
+
+        @if (Model.Poste != null)
+        {
+            <text>
+        await AddSelect("iPoste", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboPoste",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Poste", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objposte);
+            </text>
+        }
+        else {
+            <text>
+        await AddSelect("iPoste", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboPoste",@CONSTANTES.PaginacaoRegistros, null, null, "@Request.Params["IdPoste"]", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objposte);
+            </text>
+        }
+
+        AddSelect("iCaixa", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cabo", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objcaixa);
+        AddSelect("iCabo", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCabo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cabo", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objcabo);
+
+        await AddSelect("iCaixa", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Caixa", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objcaixa);
+        await AddSelect("iCabo", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCabo",@CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cabo", "@RsBase.SELECIONE", false, null, null, null, comboHelpers.objcabo);
+
+        $('#iStatus').trigger('change');
+
+    });
+
+        let handleElementoVinculadoOrigem = () => {
+            $("#itemVinculadoOrigem").on("select2:select select2:unselect", function (event) {
+                const ElementoVinculado = event.params.data;
+                if (event.params._type == 'unselect') {
+
+                    let index = itensVinculados.findIndex(p => { p.id == ElementoVinculado.id });
+                    itensVinculados.splice(index, 1);
+
+                }
+                else {
+
+                    itensVinculados.push(ElementoVinculado);
+                }
+            });
+
+    };
+
+    let handleElementoVinculadoDestino = () => {
+        $("#itemVinculadoDestino").on("select2:select select2:unselect", function (event) {
+            const ElementoVinculado = event.params.data;
+            if (event.params._type == 'unselect') {
+
+                let index = itensVinculados.findIndex(p => { p.id == ElementoVinculado.id });
+                itensVinculados.splice(index, 1);
+
+            }
+            else {
+
+                itensVinculados.push(ElementoVinculado);
+            }
+        });
+
+    };
+
+
+        let HandleFibraCombo = () => {
+            $("#fibraSeelct").on("select2:select select2:unselect", function (evt) {
+
+                let typeOfEvent = evt.params._type == "unselect";
+                fibraSelecionada = typeOfEvent ? null : evt.params.data;
+
+                if ( typeOfEvent ) {
+                    return false;
+                }
+
+                $("#DescricaoPadraoCores").text(`Padrao Utilizado: ${fibraSelecionada.padraoUtilizado}`);
+            });
+        }
+
+    @if (Model.Id != null)
+    {
+        <text>
+    $("#iCriarConexao").on('click', async function () {
+        let errors = [];
+        try {
+
+            if (itensVinculados.length < 2) {
+                errors.push("Estrutura incompleta. Elemento de Origem/Destino Ausente");
+            }
+            if (fibraSelecionada == null) {
+                errors.push("Fibra não foi selecionada");
+            }
+
+            @*Teste conexão dupla*@
+            if (oDatatableConexoes.rows().count() > 0) {
+
+                oDatatableConexoes.rows().every(function (rowIdx, tableLoop, rowLoop) {
+                    let obj = this.data();
+                    // ... do something with data(), or this.node(), etc
+                    if (obj.Numero_Fibra == fibraSelecionada.Numero_Fibra && obj.numero_Loose == fibraSelecionada.Numero_Loose) {
+
+                        errors.push("Fibra selecionada já possui conexão definida");
+                        return;
+                    }
+                });
+            }
+
+            if (errors.length > 0) {
+
+                let textError = errors.length > 1 ? `${errors.length} erros` : "1 erro";
+                textError += `<br> ${errors.join(" <br> e <br> ")}`;
+
+                throw textError;
+            }
+            else {
+                let conexao_origem =  await getPortaConexao(itensVinculados[0].id),
+                    conexao_destino = await getPortaConexao(itensVinculados[1].id);
+
+                oDatatableConexoes.row.add({
+
+                    Id: 0,
+                    Id_Cabo: fibraSelecionada.cabo,
+                    Descricao_Cabo: `${fibraSelecionada.cabo} - ${fibraSelecionada.text}`,
+                    Id_FibraUtilizada: fibraSelecionada.id,
+                    Numero_Fibra:fibraSelecionada. numero_Fibra,
+                    Numero_Loose: fibraSelecionada.numero_Loose,
+
+                    Id_Origem: itensVinculados[0].id,
+                    Id_Conexao_Origem: conexao_origem.id,
+                    Tipo_Elemento_Origem: itensVinculados[0].id_Tipo,
+                    Descricao_Elemento_Origem: itensVinculados[0].text,
+                    portaOrigem: conexao_origem.porta,
+                    Descricao_Tipo_Elemento_Origem: itensVinculados[0].tipo,
+
+                    Id_Destino: itensVinculados[1].id,
+                    Id_Conexao_Destino: conexao_destino.id,
+                    Tipo_Elemento_Destino: itensVinculados[1].id_Tipo,
+                    Descricao_Elemento_Destino: itensVinculados[1].text,
+                    portaDestino: conexao_destino.porta,
+                    Descricao_Tipo_Elemento_Destino: itensVinculados[1].tipo,
+                });
+                oDatatableConexoes.draw(false);
+            }
+        }
+
+
+        catch (Exception) {
+            Notificar('@RsBase.ERRO', Exception, "warning");
+        }
+    });
+
+    async function getPortaConexao(elemento) {
+        const link = `@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetListByCaixa?IdCaixa=${elemento}`;
+        let retorno = null;
+        await $.ajax({
+            url: link,
+            type: "GET",
+            dataType:"json"
+
+        })
+            .done(data => {
+                if (data.hasOwnProperty('objeto'))
+                    retorno = data.objeto.find(p => p.status == 'Disponível');
+            });
+
+        return { id: retorno.id, porta: retorno.porta };
+
+
+    }
+
+         let oDatatableConexoes = null;
+        const Conexoes = @Html.Raw(Json.Encode(Model.Conexoes));
+        var nomeConexao = "Conexoes";
+        oDatatableConexoes = $("#datatableConexoes").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: Conexoes,
+            drawCallback: function () {
+                HandleExcluirConexao();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta) {
+                        let Data = `<a href="#" id="excluirconexao_${meta.row}__Id" name="excluirconexao[${meta.row}].Id"
+                                        class="excluirconexao" type="hidden" excluir="${row.Id}">
+                                    <i class="far fa-trash-alt" style="font-size:16px"></i></a>
+
+                                    <input type="hidden" id="${nomeConexao}_${meta.row}__id" name="${nomeConexao}[${meta.row}].Id" value="${TrataNulo(data)}">
+
+                                    <input type="hidden" id="${nomeConexao}_${meta.row}__Id_FibraUtilizada"
+                                           name="${nomeConexao}[${meta.row}].Id_FibraUtilizada"
+                                           value="${TrataNulo(row.Id_FibraUtilizada)}">`;
+                        return Data;
+                    }
+                },
+                {
+                    data: "Id_Cabo",
+                    title: "Cabo Utilizado",
+                    render: function (data, type, row, meta) {
+                        let Data = `${row.Descricao_Cabo} <input type="hidden" id="${nomeConexao}_${meta.row}__Cabo" name="${nomeConexao} [${meta.row}].Cabo" value="${TrataNulo(data)}">`;
+                        return Data;
+                    }
+                },
+
+                //Origem
+                {
+                    data: "Id_Origem",
+                    title: "Origem da Conexao",
+                    render: function (data, type, row, meta) {
+                        return `${row.Descricao_Elemento_Origem} - ${row.portaOrigem}
+
+                                <input type="hidden" id="${nomeConexao}_${meta.row}__Id_Origem"
+                                 name="${nomeConexao}[${meta.row}].Id_Origem" value="${TrataNulo(data)}">
+
+                                <input type="hidden" id="${nomeConexao}_${meta.row}__Id_Conexao_Origem"
+                                 name="${nomeConexao}[${meta.row}].Id_Conexao_Origem" value="${TrataNulo(row.Id_Conexao_Origem)}">
+
+                                <input type="hidden" id="${nomeConexao}_${meta.row}__portaOrigem"
+                                 name="${nomeConexao}[${meta.row}].portaOrigem" value="${TrataNulo(row.portaOrigem)}">`;
+                    }
+                },
+
+                {
+                    data: "Tipo_Elemento_Origem",
+                    title: "Tipo de Elemento (Origem)",
+                    render: function (data, type, row, meta) {
+                        return `${row.Descricao_Tipo_Elemento_Origem} <input type="hidden" id="${nomeConexao}_${meta.row}__Tipo_Elemento_Origem"
+                                         value="${TrataNulo(data)}"
+                                         name="${nomeConexao}[${meta.row}].Tipo_Elemento_Origem"> `;
+                    }
+                },
+
+                //Destino
+                {
+                    data: "Id_Destino",
+                    title: "Destino da Conexao",
+                    render: function (data, type, row, meta) {
+                        return `${row.Descricao_Elemento_Destino} - ${row.portaDestino}
+
+                                      <input type="hidden" id="${nomeConexao}_${meta.row}__Id_Destino"
+                                         value = "${TrataNulo(data)}"
+                                         name="${nomeConexao}[${meta.row}].Id_Destino">
+
+                                      <input type="hidden" id="${nomeConexao}_${meta.row}__Id_Conexao_Destino"
+                                             name="${nomeConexao}[${meta.row}].Id_Conexao_Destino" value="${TrataNulo(row.Id_Conexao_Destino)}">
+
+                                      <input type="hidden" id="${nomeConexao}_${meta.row}__portaDestino"
+                                         name="${nomeConexao}[${meta.row}].portaDestino"
+                                         value="${TrataNulo(row.portaDestino)}">`;
+                    }
+                },
+
+                {
+                    data: "Tipo_Elemento_Destino",
+                    title: "Tipo de Elemento (Destino)",
+                    render: function (data, type, row, meta) {
+                        return `${row.Descricao_Tipo_Elemento_Destino} <input type="hidden" id="${nomeConexao}_${meta.row}__Tipo_Elemento_Destino"
+                                         value="${TrataNulo(data)}"
+                                         name="${nomeConexao}[${meta.row}].Tipo_Elemento_Destino">`;
+                    }
+                }
+            ]
+
+        });
+
+       function HandleExcluirConexao() {
+            $(".excluirconexao").unbind('click');
+            $(".excluirconexao").on("click", function (e) {
+
+                let excluir = $(this).attr("excluir");
+                let trLinkButton = $(this).parents("tr");
+
+                e.preventDefault();
+
+                if (excluir == 0) {
+                    oDatatableConexoes.row(trLinkButton).remove(excluir).draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+                }
+                else {
+                    let link = "@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/RemoverConexao")";
+                    $.ajax({
+                        Type: "Post",
+                        DataType: "json",
+                        url: link,
+                        data: {
+
+                            Id_elemento:@Model.Id,
+                            Id_cabo: fibraSelecionada.cabo,
+                            Num_Fibra: fibraSelecionada.numero_Fibra,
+                        },
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableArquivo.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+                        })
+                }
+            });
+           }
+        </text>
+    }
+
+        //Clique para adicionar ao dataTable de fotos e arquivos
+        $("#iAnexo").change(function (e) {
+
+            let nome = "";
+            let tipo = "";
+            function getFile(filePath) {
+                return filePath.substr(filePath.lastIndexOf('\\') + 1).split('.')[0];
+            }
+
+            function getoutput() {
+                nome = getFile($("#iAnexo").val());
+                tipo = "." + $("#iAnexo").val().split('.')[1];
+            }
+
+            getoutput();
+
+            oDatatableArquivo.row.add({
+                Id: 0,
+                Descricao: nome,
+                Tipo: tipo,
+            }).draw(false);
+        });
+
+        // variavel para incluir na model de arquivos para o datatable
+    let oDatatableArquivo = null;
+
+        const arquivos = @Html.Raw(Json.Encode(Model.Arquivos));
+        var nomearquivos = "Arquivos";
+        oDatatableArquivo = $("#datatableArquivos").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: arquivos,
+            drawCallback: function () {
+                HandleExcluirArquivo();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta) {
+
+
+                        let Data = `<a href="#" id="excluiarquivo_${meta.row}__id" name="[${meta.row}].Id" class="excluiarquivo" type="hidden" excluir="${row.Id}"
+                            <i class="far fa-trash-alt" style="font-size:16px"></i></a>
+                            <input type="hidden" id="${nomearquivos}_${meta.row}__id" name="${nomearquivos}[${meta.row}].Id" value="${TrataNulo(data)}">`;
+                        return Data;
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "Descricao",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomearquivos}_${meta.row}__id" name="${nomearquivos}[${meta.row}].Descricao" value="${TrataNulo(data)}"`;
+                    }
+                },
+                {
+                    data: "Tipo", title: "Tipo de Arquivo",
+                    render: function (data, type, row, meta)
+                    {
+
+                        return `${data} <input type="hidden" id="${nomearquivos}_${meta.row}__id" name="${nomearquivos}[${meta.row}].Tipo" value="${TrataNulo(data)}"`;
+                    }
+                }
+            ]
+
+        });
+
+           function HandleExcluirArquivo() {
+            $(".excluiarquivo").unbind('click');
+            $(".excluiarquivo").on("click", function (e) {
+
+                let excluir = $(this).attr("excluir");
+                let trLinkButton = $(this).parents("tr");
+
+                e.preventDefault();
+
+                if (excluir == 0) {
+                    oDatatableArquivo.row(trLinkButton).remove(excluir).draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+                }
+                else {
+                    let link = `@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/DeleteFotoArquivo?id_foto=")'${excluir}`;
+                    $.ajax({
+                        Type: "Get",
+                        DataType: "json",
+                        url: link,
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableArquivo.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+                        })
+                }
+            });
+        }
+
+    var clicked = false;
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            erro = false;
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            var capacidade_banco_dados = "@Model.Capacidade" != null && "@Model.Capacidade" != undefined && "@Model.Capacidade" != "" && "@Model.Capacidade" != "0" ? parseInt("@Model.Capacidade") : 0;
+            var capacidade_tela = $("#iCapacidade").val() != null && $("#iCapacidade").val() != undefined && $("#iCapacidade").val() != "" && $("#iCapacidade").val() != "0" ? parseInt($("#iCapacidade").val()) : 0;
+            if (capacidade_tela < capacidade_banco_dados) {
+                Notificar("@RsBase.ATENCAO_", "Não é possível diminuir a capacidade de portas.", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            if ($("#ICampoDyn_0").children.length > 0) {
+                get_response();
+            }
+            $('#form').submit();
+            return true;
+        }
+
+    var rows_selected = [];
+
+    $("#btnInativar").on("click", function () {
+
+
+        if (rows_selected.length == 0) {
+
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        //Alterando para Inativo
+
+        AlterarStatusObj(0);
+    });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+
+                AlterarStatusObj(1);
+            });
+
+    //#region ConsultarPorta
+    /**
+     * Trafega para a área de portas de Elemento de Rede
+     * @@param _id
+     */
+    //#endregion
+        function consultarPorta(_id) {
+
+
+        if (_id === "") {
+            _id = null;
+            Notificar("@RsBase.ATENCAO_", "Não é possivel verificar as portas antes de terminar o cadastro deste Elemento", "warning");
+            return;
+        }
+        else {
+            let url = `@Url.Action("Index", "Elemento_Rede_Porta" @*new { id = "__id__" }*@)?caixa=${_id}`;
+           AddAba(url,"Consultar_Portas")/*.replace('__id__', _id)*/;
+        }
+        }
+    function visualizar_Mapa(_id) {
+
+        let lat = $("#iLatitude").val().replace(",", ".");
+        let lng = $("#iLongitude").val().replace(",", ".");
+
+        if (lat == "")
+        {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LATITUDE)", "warning"); return false;
+        }
+
+        if (lng == "")
+        {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LONGITUDE)", "warning"); return false;
+        }
+
+        let url = `@Url.Action("Index", "Mapa_Gestao_Rede" @*new { id = "__id__" }*@)`;
+        let formulario = document.createElement("form");
+
+        formulario.method = "POST";
+        $(formulario).attr({
+            action: url,
+            target: "_blank"
+        });
+            let obj = {
+                latitude: lat,
+                longitude:lng
+            };
+
+            let formdata = document.createElement("input");
+
+            $(formdata).attr({
+                type: "hidden",
+                name: "latlng",
+                value: JSON.stringify(obj)
+            }).appendTo(formulario);
+
+            $(document.body).append(formulario);
+
+            formulario.submit();
+        }
+
+
+      @*@if (Model.Id != null) {
+
+          <text>$("#iTipo").addClass("readonly");</text>
+      }*@
+
+    $('#visualizaMapa').on('click', function () {
+        visualizar_Mapa("@Model.Id")
+    });
+    $('#Consulta').on('click', function () {
+        consultarPorta("@Model.Id")
+    });
+
+    $("#iTipo").change(function () {
+        $("iDescricao").empty();
+    });
+
+    $("#iStatus").change(function () {
+        let value = $(this).val();
+        if (value == "1") {
+            $("#imedalha").css("color", "#e2dc1a");
+            $("#iTemCertificado").val(true);
+        }
+        else {
+            $("#imedalha").css("color", "lightgray");
+            $("#iTemCertificado").val(false);
+        }
+    })
+        //$("#imedalha").on("click", function () {
+        //    $("#iStatus").val() != 3 ? $("#iStatus").val(3) && $(this).css("color", "#e2dc1a") : $("#iStatus").val(0) && $(this).css("color","lightgray");
+
+
+        //})
+
+    const enderecos = @Html.Raw(Json.Encode(Model.Enderecos));
+
+    let nomeaddress = "Enderecos";
+        oDatatableEnderecos = $("#datatableEnderecos").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: enderecos,
+            drawCallback: async function () {
+                await HandleExcluirEndereco();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta) {
+
+
+                        let Data = `<a href="#" id="excluiarquivo_${meta.row}__id" name="[${meta.row}].Id" class="excluiendereco" excluir="${row.Id}">
+                            <i class="far fa-trash-alt" style="font-size:16px"></i></a>
+                            <input type="hidden" id="${nomeaddress}_${meta.row}__id" name="${nomeaddress}[${meta.row}].Id" value="${TrataNulo(data)}">
+                            <input type="hidden" id="${nomeaddress}_${meta.row}__id_Logradouro" name="${nomeaddress}[${meta.row}].Id_Logradouro" value="${TrataNulo(row.Id_Logradouro)}">`;
+                        return Data;
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "Descricao",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__id" name="${nomeaddress}[${meta.row}].Descricao" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Tipo_Atendimento_Zona",
+                    title: "Tipo de Zona de Atendimento",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__tipo_atendimento_zona" name="${nomeaddress}[${meta.row}].Tipo_Atendimento_Zona" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Tipo_Endereco_Logradouro", title: "Tipo de Endereço",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__tipo_endereco_logradouro" name="${nomeaddress}[${meta.row}].Tipo_Endereco_Logradouro" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Cep",
+                    title: "Cep",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__cep" name="${nomeaddress}[${meta.row}].Cep" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Bairro",
+                    title: "Bairro",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__bairro" name="${nomeaddress}[${meta.row}].Bairro" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Uf",
+                    title: "Uf",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__uf" name="${nomeaddress}[${meta.row}].Uf" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Numero",
+                    title: "Numero",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__numero" name="${nomeaddress}[${meta.row}].Numero" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Pais",
+                    title: "Pais",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddress}_${meta.row}__pais" name="${nomeaddress}[${meta.row}].Pais" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+            ]
+
+        })
+
+    async function HandleExcluirEndereco() {
+        $(".excluiendereco").unbind('click');
+        $(".excluiendereco").on("click", function (e) {
+
+            let excluir = $(this).attr("excluir");
+            let trLinkButton = $(this).parents("tr");
+
+            e.preventDefault();
+
+            if (excluir == 0) {
+                oDatatableEnderecos.row(trLinkButton).remove(excluir).draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+            }
+            else {
+                let link = `@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/Delete_Endereco_Vinculado?Id_Endereco_Logradouro=")${excluir}`;
+                $.ajax({
+                    Type: "Get",
+                    DataType: "json",
+                    url: link,
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableEnderecos.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+                    })
+            }
+        });
+        }
+
+
+
+    //Condomínio/Prédio datatable
+    const condominios = @Html.Raw(Json.Encode(Model.Condominios));
+
+    let nomeaddressCond = "Condominios";
+        oDatatableCondominios = $("#datatableCondominios").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: condominios,
+            drawCallback: async function () {
+                await HandleExcluirCondominio();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta) {
+
+
+                        let Data = `<a href="#" id="excluiarquivo_${meta.row}__id" name="[${meta.row}].Id" class="excluicondominio" excluir="${row.Id}">
+                            <i class="far fa-trash-alt" style="font-size:16px"></i></a>
+                            <input type="hidden" id="${nomeaddressCond}_${meta.row}__id" name="${nomeaddressCond}[${meta.row}].Id" value="${TrataNulo(data)}">
+                            <input type="hidden" id="${nomeaddressCond}_${meta.row}__id_Condominio" name="${nomeaddressCond}[${meta.row}].Id_Condominio" value="${TrataNulo(row.Id_Condominio)}"/>`;
+                        return Data;
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "Descricao",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__id" name="${nomeaddressCond}[${meta.row}].Descricao" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Tipo_Atendimento_Zona",
+                    title: "Tipo de Zona de Atendimento",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__tipo_atendimento_zona" name="${nomeaddressCond}[${meta.row}].Tipo_Atendimento_Zona" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Tipo_Endereco_Logradouro", title: "Tipo de Endereço",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__tipo_endereco_logradouro" name="${nomeaddressCond}[${meta.row}].Tipo_Endereco_Logradouro" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Cep",
+                    title: "Cep",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__cep" name="${nomeaddressCond}[${meta.row}].Cep" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Bairro",
+                    title: "Bairro",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__bairro" name="${nomeaddressCond}[${meta.row}].Bairro" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Uf",
+                    title: "Uf",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__uf" name="${nomeaddressCond}[${meta.row}].Uf" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Pais",
+                    title: "Pais",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__pais" name="${nomeaddressCond}[${meta.row}].Pais" value="${TrataNulo(data)}"/>`;
+                    }
+                },
+                {
+                    data: "Bloco",
+                    title: "Bloco",
+                    render: function (data, type, row, meta) {
+
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__bloco" name="${nomeaddressCond}[${meta.row}].Bloco" value="${TrataNulo(data)}"/>
+                        <input type="hidden" id="${nomeaddressCond}_${meta.row}__id_Bloco" name="${nomeaddressCond}[${meta.row}].Id_Bloco" value="${TrataNulo(row.Id_Bloco)}">`;
+                    }
+                },
+                {
+                    data: "Apto_Numero",
+                    title: "Apartamento/Número",
+                    render: function (data, type, row, meta) {
+                        return `${data} <input type="hidden" id="${nomeaddressCond}_${meta.row}__apto_numero" name="${nomeaddressCond}[${meta.row}].Apto_Numero" value="${TrataNulo(data)}"/>
+                        <input type="hidden" id="${nomeaddressCond}_${meta.row}__id_Apto_Numero" name="${nomeaddressCond}[${meta.row}].Id_Apto_Numero" value="${TrataNulo(row.Id_Apto_Numero)}">`;
+                    }
+                },
+            ]
+
+        })
+
+
+        $("#iCondominioPredio").on("select2:select select2:unselect", function ({ params: { _type: type, data } }) {
+
+            let valueSelect = data;
+            if (type == 'unselect') {
+                requestEnderecoCondominio = null;
+            }
+            else {
+                requestEnderecoCondominio = {
+                    Id: 0,
+                    Id_Condominio: valueSelect.id,
+                    Id_Logradouro: valueSelect.id_Logradouro,
+                    Id_Bloco: blocoQuadraId,
+                    Bloco: blocoQuadraText,
+                    Apto_Numero: apto_numeroText,
+                    Id_Apto_Numero: apto_numeroId,
+                    Descricao: valueSelect.descricao,
+                    Cep: valueSelect.cep,
+                    Bairro: valueSelect.bairro,
+                    Cidade: valueSelect.cidade,
+                    Uf: valueSelect.uf,
+                    Pais: valueSelect.pais,
+                    Tipo_Endereco_Logradouro: valueSelect.tipo_Endereco_Logradouro,
+                    Tipo_Atendimento_Zona: valueSelect.tipo_Atendimento_Zona,
+                    Status: valueSelect.status,
+                    Numero: valueSelect.numero,
+                };
+            }
+        });
+
+        $(".BtnAddEnderecoCondominio").on("click", function () {
+            let messages = [];
+
+            const cloneEnderecoCondominio = structuredClone(requestEnderecoCondominio);
+
+            if ($('#checkboxQuadra').is(':checked')) {
+                cloneEnderecoCondominio.Bloco = "@RsBase.TODOS";
+                cloneEnderecoCondominio.Id_Bloco = "";
+            } else {
+                cloneEnderecoCondominio.Bloco = blocoQuadraText;
+                cloneEnderecoCondominio.Id_Bloco = blocoQuadraId;
+            }
+
+            if ($('#checkboxApto_Numero').is(':checked')) {
+                cloneEnderecoCondominio.Apto_Numero = "@RsBase.TODOS";
+                cloneEnderecoCondominio.Id_Apto_Numero = "";
+            } else {
+                cloneEnderecoCondominio.Apto_Numero = apto_numeroText;
+                cloneEnderecoCondominio.Id_Apto_Numero = apto_numeroId;
+            }
+
+            if (cloneEnderecoCondominio == null) {
+                messages.push("Escolha o Condomínio/Prédio a ser vinculado");
+            }
+
+            if (cloneEnderecoCondominio != null) {
+                let itensEndereco = oDatatableCondominios.rows().data().toArray(),
+                    itemSelect = Number($("#iCondominioPredio").val());
+
+                let contem_registro = itensEndereco.find(p => p.Id_Condominio == itemSelect && p.Bloco == cloneEnderecoCondominio.Bloco && p.Apto_Numero == cloneEnderecoCondominio.Apto_Numero) !== undefined;
+
+                if (contem_registro) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.REGISTRO_DUPLICIDADE", "warning");
+                    return false;
+                }
+
+                oDatatableCondominios.row.add(cloneEnderecoCondominio).draw(false);
+                $("#iSelectEnderecoLogradouro").val(null).trigger('change');
+                return true;
+            }
+            else {
+                for (let message of messages) {
+                    Notificar("@RsBase.ATENCAO_", message, "warning");
+                }
+                return false;
+            }
+        });
+
+    async function HandleExcluirCondominio() {
+        $(".excluicondominio").unbind('click');
+        $(".excluicondominio").on("click", function (e) {
+
+            let excluir = $(this).attr("excluir");
+            let trLinkButton = $(this).parents("tr");
+
+            e.preventDefault();
+
+            if (excluir == 0) {
+                oDatatableCondominios.row(trLinkButton).remove(excluir).draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+            }
+            else {
+                let link = `@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/Delete_Endereco_Vinculado?Id_Endereco_Logradouro=")${excluir}`;
+                $.ajax({
+                    Type: "Get",
+                    DataType: "json",
+                    url: link,
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableCondominios.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+                    })
+            }
+        });
+    }
+
+
+        $("#iSelectEnderecoLogradouro").on("select2:select select2:unselect", function (e) {
+
+            let valueSelect = e.params.data;
+            if (e.params._type == 'unselect') {
+                requestEndereco = null;
+            }
+
+            else {
+                requestEndereco = {
+                    Id: 0,
+                    Id_Logradouro: valueSelect.id,
+                    Descricao: valueSelect.text,
+                    Cep: valueSelect.cep,
+                    Bairro: valueSelect.bairro,
+                    Cidade: valueSelect.cidade,
+                    Uf: valueSelect.uf,
+                    Pais: valueSelect.pais,
+                    Tipo_Endereco_Logradouro: valueSelect.tipo_Endereco_Logradouro,
+                    Tipo_Atendimento_Zona: valueSelect.tipo_Atendimento_Zona,
+                    Status: valueSelect.status,
+                    Numero: Number($("#iNumeroEndereco").val()),
+                };
+            }
+        });
+
+        $("#iSelectCondominio").on("select2:select select2:unselect", function ({ params: {_type:type, data } }) {
+
+            let valueSelect = data;
+            if (type == 'unselect') {
+                requestEndereco = null;
+            }
+            else {
+
+                requestEndereco = {
+                    Id: 0,
+                    Id_Condominio: valueSelect.id,
+                    Id_Logradouro: valueSelect.id_Logradouro,
+                    Descricao: valueSelect.descricao,
+                    Cep: valueSelect.cep,
+                    Bairro: valueSelect.bairro,
+                    Cidade: valueSelect.cidade,
+                    Uf: valueSelect.uf,
+                    Pais: valueSelect.pais,
+                    Tipo_Endereco_Logradouro: valueSelect.tipo_Endereco_Logradouro,
+                    Tipo_Atendimento_Zona: valueSelect.tipo_Atendimento_Zona,
+                    Status: valueSelect.status,
+                    Numero: valueSelect.numero,
+                };
+            }
+        });
+
+        $(".BtnAddEndereco").on("click", function () {
+            let messages = [];
+            //let numeroSelecionado = requestEndereco?.Numero;
+
+            let numeroSelecionado = Number($("#iNumeroEndereco").val());
+            requestEndereco.Numero = numeroSelecionado;
+
+            if (requestEndereco == null) {
+                messages.push("Escolha o endereço a ser vinculado");
+            }
+
+            if (numeroSelecionado == 0) {
+                messages.push("Número necessário para vínculo não foi preenchido");
+            }
+
+            if (requestEndereco != null && numeroSelecionado != 0) {
+                let itensEndereco = oDatatableEnderecos.rows().data().toArray(),
+                    itemSelect = Number($("#iSelectEnderecoLogradouro").val());
+
+                let contem_registro = itensEndereco.find(p => p.Id_Logradouro == itemSelect && p.Numero == numeroSelecionado) !== undefined;
+
+                if (contem_registro) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.REGISTRO_DUPLICIDADE", "warning");
+                    return false;
+                }
+                oDatatableEnderecos.row.add(requestEndereco).draw(false);
+
+                requestEndereco = null;
+                $("#iSelectEnderecoLogradouro").val(null).trigger('change');
+                return true;
+            }
+            else {
+                for (let message of messages) {
+                    Notificar("@RsBase.ATENCAO_", message, "warning");
+                }
+                return false;
+            }
+        });
+
+        $("#iSelectTipoEndereco").on("change", function ({ target: { value = "" } }) {
+            requestEndereco = null;
+
+            $("#iSelectEnderecoLogradouro").val(null).trigger("change");
+            $("#iSelectCondominio").val(null).trigger("change");
+            $("#iNumeroEndereco").val("");
+
+            if (value == '0') {
+                $("#iCadastroEnderecoLogradouro").removeClass("d-none");
+                $("#iCadastroCondominioPredio").addClass("d-none");
+            }
+            else if (value == '1') {
+                $("#iCadastroCondominioPredio").removeClass("d-none");
+                $("#iCadastroEnderecoLogradouro").addClass("d-none");
+            }
+            else {
+                $("#iCadastroCondominioPredio").addClass("d-none");
+                $("#iCadastroEnderecoLogradouro").addClass("d-none");
+            }
+        });
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-pencil-alt"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Elemento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_ELEMENTOS_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+    </div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="cadastro-tab" data-toggle="tab" href="#iTabCadastro" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.CADASTRO</a>
+        </li>
+        @*Elaboração das Conexões sómente após gravação prévia *@
+        @if (Model.Id != null)
+        {
+            <li class="nav-item">
+                <a class="nav-link " id="conexoes-tab" data-toggle="tab" href="#iTabConexoes" role="tab" aria-controls="conexao" aria-selected="false"><i class="fas fa-file-alt"></i> Conexão</a>
+            </li>
+        }
+
+        <li class="nav-item">
+            <a class="nav-link " id="endereco-tab" data-toggle="tab" href="#iTabEnderecos" role="tab" aria-controls="endereco" aria-selected="false"><i class="fas fa-address-book"></i> @RsCadastros.CADASTRO_ENDERECO_LOGRADOURO</a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link " id="condominio-tab" data-toggle="tab" href="#iTabCondominio" role="tab" aria-controls="condominio" aria-selected="false"><i class="fa fa-building"></i> @RsCadastros.CONDOMINIO_PREDIO</a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link " id="arquivo-tab" data-toggle="tab" href="#iTabArquivo" role="tab" aria-controls="foto" aria-selected="false"><i class="fas fa-file-alt"></i> @RsCadastros.FOTOS_ARQUIVOS </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link " id="area-tab" data-toggle="tab" href="#iTabArea" role="tab" aria-controls="foto" aria-selected="false"><i class="fas fa-map-marker-alt"></i> Área de Atendimento </a>
+        </li>
+    </ul>
+
+</div>
+<!--./main-->
+@using (Html.BeginForm("Cadastro", "Elemento_Rede", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.Coordenadas, new { id = "iCoordenadas" })
+    @Html.HiddenFor(model => model.AreaAtendimento, new { id = "iAreaAtendimento" })
+
+    <div style="padding:10px">
+        <div class="tab-content">
+
+            <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div id="cadastro" class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iId">@RsCadastros.ID</label>
+                                        @Html.TextBoxFor(model => model.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.DESCRICAO do @RsCadastros.ELEMENTO_REDE </label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control obrigatorio", id = "iDescricao", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iStatus">@RsCadastros.STATUS</label>
+                                        @Html.EnumDropDownListFor(model => model.Situacao, RsBase.SELECIONE, new { @class = "form-control", id = "iStatus", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+
+                                @*Certificado*@
+                                <div class="col-sm-1" id="iMedalha">
+                                    <div class="form-group">
+                                        <a href="#">
+                                            @Html.HiddenFor(p => p.Tem_Certificado, new { @id = "iTemCertificado" });
+                                            <i class="icofont-badge" id="imedalha" style="font-size:50px;color:lightgray"></i>
+                                        </a>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iTipo">@RsCadastros.TIPO de Elemento de Rede</label>
+                                        @Html.DropDownListFor(model => model.IdTipo, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iTipo", @autocomplete = "off" })
+                                        <p class="text-fade" id="DescricaoModelo"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row" style="display:none" id="iDiv21">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iMetragem">@RsCadastros.METRAGEM</label>
+                                        @Html.TextBoxFor(model => model.Metragem, new { @class = "form-control inputclass21", id = "iMetragem", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2" id="DivCorAtiva">
+                                    <div class="form-group">
+                                        <label for="iCor_Linha_Ativa">@RsCadastros.COR_ATIVO:</label>
+                                        @Html.TextBoxFor(model => model.Cor_Linha_Ativa, new { @type = "color", @class = "form-control inputclass20", id = "iCor_Linha_Ativa", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" id="DivCorInativa">
+                                    <div class="form-group">
+                                        <label for="iCor_Linha_Inativa">@RsCadastros.COR_INATIVO:</label>
+                                        @Html.TextBoxFor(model => model.Cor_Linha_Inativa, new { @type = "color", @class = "form-control inputclass20", id = "iCor_Linha_Inativa", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-3" style="display:none" id="iDiv0">
+                                    <div class="form-group">
+                                        <label for="iContrato">@RsCadastros.CONTRATO</label>
+                                        @Html.DropDownListFor(model => model.Contrato, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass0 ", id = "iContrato", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3" style="display:none" id="iDiv1">
+                                    <div class="form-group">
+                                        <label for="iProjeto">@RsCadastros.PROJETO</label>
+                                        @Html.DropDownListFor(model => model.Projeto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass1", id = "iProjeto", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-3" style="display:none" id="iDiv2">
+                                    <div class="form-group">
+                                        <label for="iId_POP">@RsCadastros.POP</label>
+                                        @Html.DropDownListFor(model => model.Id_POP, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass2", id = "iId_POP", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3" style="display:none" id="iDiv3">
+                                    <div class="form-group">
+                                        <label for="iId_OLT">@RsCadastros.OLT</label>
+                                        @Html.DropDownListFor(model => model.Id_OLT, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass3", id = "iId_OLT", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-3" style="display:none" id="iDiv7">
+                                    <div class="form-group">
+                                        <label for="iId_Slot">@RsCadastros.SLOT</label>
+                                        @Html.DropDownListFor(model => model.Id_Slot, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass3", id = "iId_Slot", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-3" style="display:none" id="iDiv8">
+                                    <div class="form-group">
+                                        <label for="iId_Pon">@RsCadastros.PON</label>
+                                        @Html.DropDownListFor(model => model.Id_Pon, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass3", id = "iId_Pon", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-1">
+                                <div class="col-sm-2" style="display:none" id="iDiv19">
+                                    <div class="form-group">
+                                        <label for="iPoste">@RsCadastros.POSTE</label>
+                                        @Html.DropDownListFor(model => model.Poste, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass19", id = "iPoste", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-1" style="display:none" id="iDiv20">
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCabo">@RsCadastros.CABO</label>
+                                        @Html.DropDownListFor(model => model.Cabo, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass20", id = "iCabo", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-1" @*style="display:none"*@ id="iDivx">
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCabo">@RsCadastros.CAIXA</label>
+                                        @Html.DropDownListFor(model => model.Caixa, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclassx", id = "iCaixa", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row" style="display:none" id="iDiv6">
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCapacidade">@RsCadastros.CAPACIDADE</label>
+                                        @Html.TextBoxFor(model => model.Capacidade, new { @class = "form-control inputclass6", @type = "number", id = "iCapacidade", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-primary mt-3" id="Consulta" onclick="Consultar_Portas">
+                                        <span>Consultar Portas</span>
+                                    </button>
+                                </div>
+
+
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-2" style="display:none" id="iDiv10">
+                                    <div class="form-group">
+                                        <label for="iLatitude">@RsCadastros.LATITUDE</label>
+                                        @Html.TextBoxFor(model => model.Latitude, new { @class = "form-control inputclass10", id = "iLatitude", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" style="display:none" id="iDiv11">
+                                    <div class="form-group">
+                                        <label for="iLongitude">@RsCadastros.LONGITUDE</label>
+                                        @Html.TextBoxFor(model => model.Longitude, new { @class = "form-control inputclass11", id = "iLongitude", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1" style="display:none" id="iDiv12">
+                                    <div class="form-group">
+                                        <label for="iCep">@RsCadastros.CEP</label>
+                                        @Html.TextBoxFor(model => model.Cep, new { @class = "form-control inputclass12", id = "iCep", autocomplete = "off", @maxlength = "9" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4" style="display:none" id="iDiv13">
+                                    <div class="form-group">
+                                        <label for="iEndereco">@RsCadastros.ENDERECO</label>
+                                        @Html.TextBoxFor(model => model.Endereco, new { @class = "form-control inputclass13", id = "iEndereco", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+
+
+                            <div class="row mt-1">
+
+                                <div class="col-sm-1" style="display:none" id="iDiv14">
+                                    <div class="form-group">
+                                        <label for="iNumero">@RsCadastros.NUMERO</label>
+                                        @Html.TextBoxFor(model => model.Numero, new { @class = "form-control inputclass14", id = "iNumero", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" style="display:none" id="iDiv15">
+                                    <div class="form-group">
+                                        <label for="iComplemento">@RsCadastros.COMPLEMENTO</label>
+                                        @Html.TextBoxFor(model => model.Complemento, new { @class = "form-control inputclass15", id = "iComplemento", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1" style="display:none" id="iDiv16">
+                                    <div class="form-group">
+                                        <label for="iUf">@RsCadastros.UF</label>
+                                        @Html.DropDownListFor(model => model.Uf, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), Model.Uf, new { @class = "form-control ", @id = "iUf", @autocomplete = "off" })
+
+
+                                        @*<select class="form-control filtro" id="iUf">
+                                        <option value="" selected></option>
+                                        <option value="AC">Acre</option>
+                                        <option value="AL">Alagoas</option>
+                                        <option value="AP">Amapá</option>
+                                        <option value="AM">Amazonas</option>
+                                        <option value="BA">Bahia</option>
+                                        <option value="CE">Ceará</option>
+                                        <option value="DF">Distrito Federal</option>
+                                        <option value="ES">Espírito Santo</option>
+                                        <option value="GO">Goiás</option>
+                                        <option value="MA">Maranhão</option>
+                                        <option value="MT">Mato Grosso</option>
+                                        <option value="MS">Mato Grosso do Sul</option>
+                                        <option value="MG">Minas Gerais</option>
+                                        <option value="PA">Pará</option>
+                                        <option value="PB">Paraíba</option>
+                                        <option value="PR">Paraná</option>
+                                        <option value="PE">Pernambuco</option>
+                                        <option value="PI">Piauí</option>
+                                        <option value="RJ">Rio de Janeiro</option>
+                                        <option value="RN">Rio Grande do Norte</option>
+                                        <option value="RS">Rio Grande do Sul</option>
+                                        <option value="RO">Rondônia</option>
+                                        <option value="RR">Roraima</option>
+                                        <option value="SC">Santa Catarina</option>
+                                        <option value="SP">São Paulo</option>
+                                        <option value="SE">Sergipe</option>
+                                        <option value="TO">Tocantins</option>
+                                    </select>*@
+
+                                    </div>
+                                </div>
+
+
+                                <div class="col-sm-2" style="display:none" id="iDiv22">
+                                    <div class="form-group">
+                                        <label for="iPais">@RsCadastros.PAIS</label>
+                                        @Html.DropDownListFor(m => m.Pais, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), Model.Cidade, new { @class = "form-control inputclass17", @id = "iPais", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2" style="display:none" id="iDiv17">
+                                    <div class="form-group">
+                                        <label for="iCidade">@RsCadastros.CIDADE</label>
+                                        @Html.DropDownListFor(m => m.Cidade, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), Model.Cidade, new { @class = "form-control inputclass17", @id = "iCidade", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" style="display:none" id="iDiv18">
+                                    <div class="form-group">
+                                        <label for="iBairro">@RsCadastros.BAIRRO</label>
+                                        @Html.DropDownListFor(m => m.Bairro, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), Model.Bairro, new { @class = "form-control inputclass17", @id = "iBairro", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <button type="button" id="visualizaMapa" class="btn btn-primary mt-3">
+                                        <i class="fas fa-map-marker-alt"></i><span>&ensp;</span>
+                                        <span>@RsCadastros.VISUALIZAR_MAPA</span>
+                                    </button>
+                                </div>
+
+                                <!--<div class="row" id="iCampoDyn2">
+                            <!--<h3 for="iCampoDyn2">Campos Dinamicos</h3>
+                        </div>-->
+                            </div>
+
+                            <!-- <div class="row d-none dinamico">-->
+                            <div id="ICampoDyn_0" class="mt-3">
+
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    @Html.TextBoxFor(model => model.Objeto, new { @class = "form-control d-none", id = "iObjeto", autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-7" style="display:none" id="iDiv9">
+                                    <div class="form-group">
+                                        <label for="iObservacao">@RsCadastros.OBSERVACAO</label>
+                                        @Html.TextAreaFor(model => model.Observacao, new { @class = "form-control inputclass9", id = "iObservacao", @rows = "6", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-3"  id="iDiv23">
+                                    <div class="form-group">
+                                        <label for="iNos">@RsCadastros.NUMERO_ORDEM_SERVICO : 
+                                            <a href="#" class="noRedirect"
+                                               onclick="OSLink('?CodCt=@Model.Contrato&Projeto=@Model.Projeto&Num_Obra=@Model.Nos&Num_Doc=@Model.NumDoc&UsuarioCriacao=@Model.UsuarioCriacao'); return false;">
+                                                @Model.Nos
+                                                <input type="hidden" name="Nos" value="@Model.Nos" />
+                                            </a>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3"  id="iDiv24">
+                                    <div class="form-group">
+                                        <label for="iUsuarioCriacao">@RsBase.USUARIO_CRIACAO : @Model.UsuarioCriacao </label>
+                                        <input type="hidden" name="UsuarioCriacao" value="@Model.UsuarioCriacao" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3"  id="iDiv25">
+                                    <div class="form-group">
+                                        <label for="iDataHoraCriacao">@RsBase.DATA_HORA_CRIACAO :  @Model.DataCriacao</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @*Elaboração das Conexões sómente após gravação prévia *@
+            @if (Model.Id != null)
+            {
+                <div role="tabpanel" class="tab-pane" id="iTabConexoes">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-2">
+                            <h5 class="mb-0">
+                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                    <span class="text-bold-card">Conexões</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                            <div class="card-body body-card-accord">
+                                <div class="row pb-4">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="fibraSeelct">
+                                                Fibras Sem Conexão:
+                                            </label>
+                                            @Html.DropDownListFor(model => model.Fiber_Selection, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "fibraSeelct", @autocomplete = "off" })
+                                            <p class="text-fade mt-2 ml-2" id="DescricaoPadraoCores"></p>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="itemVinculadoOrigem">
+                                                Selecione o elemento para adicionar uma conexão:
+                                            </label>
+                                            @Html.DropDownList("itemVinculadoOrigem", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control itemVinculado", @id = "itemVinculadoOrigem", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="itemVinculadoOrigem">
+                                                Selecione o elemento para adicionar uma conexão:
+                                            </label>
+                                            @Html.DropDownList("itemVinculadoDestino", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control itemVinculado", @id = "itemVinculadoDestino", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+
+                                            <button type="button" class="btn btn-success" id="iCriarConexao">
+                                                <span>&ensp;</span>
+                                                <span>Adicionar Conexoes ao Elemento</span>
+                                            </button>
+                                            @*<input type="file" multiple name="Files" style="display:none" id="iAnexo" />*@
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <table class="table table-hover nowrap" id="datatableConexoes" style="width:100%"></table>
+
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            }
+
+            @* Cadastro de Condomínios *@
+            <div role="tabpanel" class="tab-pane" id="iTabCondominio">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                <span class="text-bold-card">@RsCadastros.LISTA_COND_PRED_ELEM_REDE</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-4" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iCondominioPredio">Selecione o Condomínio/Prédio:</label>
+                                        <select id="iCondominioPredio" class="form-control"></select>
+                                    </div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iBlocoQuadra">Selecione o Bloco/Quadra:</label>
+                                        <select id="iBlocoQuadra" class="form-control"></select>
+                                        <p></p>
+                                        <input type="checkbox" id="checkboxQuadra" name="checkboxQuadra">
+                                        <label for="checkboxQuadra">Todos os Blocos/Quadras</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iApartamentoNumero">Selecione o Apartamento/Número:</label>
+                                        <select id="iApartamentoNumero" class="form-control"></select>
+                                        <p></p>
+                                        <input type="checkbox" id="checkboxApto_Numero" name="checkboxApto_Numero">
+                                        <label for="checkboxApto_Numero">Todos os Apartamentos/Números</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <br/>
+                                        <button type="button" class="btn btn-success BtnAddEnderecoCondominio" id="btnVincularCondPredio">
+                                            <span>&ensp;</span>
+                                            <span>@RsCadastros.VINCULAR_COND_PREDIOS</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatableCondominios" style="width:100%"></table>
+
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <div role="tabpanel" class="tab-pane" id="iTabArquivo">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.FOTOS_ARQUIVOS</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <button onclick="$(`#iAnexo`).click()" type="button" class="btn btn-success" id="iArquivo">
+                                            <span>&ensp;</span>
+                                            <span>Anexar @RsCadastros.FOTOS_ARQUIVOS</span>
+                                        </button>
+                                        <input type="file" multiple name="Files" style="display:none" id="iAnexo" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatableArquivos" style="width:100%"></table>
+
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane" id="iTabArea">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">Área de Atendimento</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                        <div class="card-body body-card-accord">
+                            <div id="map" style=" height: 60vh; width: 100%;"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane" id="iTabEnderecos">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.LISTAGEM_ENDERECOS_VINCULADOS_ELEMENTO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                        <div class="card-body body-card-accord">
+                            @*<div class="form-group ml-2">
+                                <div id="iTipoCadastroEndereco" class="row">
+                                    <label for="iSelectTipoEndereco"> Selecione o tipo de endereço a ser cadastrado:</label>
+                                </div>
+                                <div class="row">
+                                    @{
+                                        Dictionary<string, string> TiposEndereco = new Dictionary<string, string> {
+                                                                                                                    {"0", "Endereço/Logradouro"},
+                                                                                                                    {"1", "Condomínio/Prédio"}
+                                        };
+                                        SelectList selectTipoEndereco = new SelectList(TiposEndereco, "Key", "Value");
+                                    }
+                                    @Html.DropDownList("SelectTipoEndereco", selectTipoEndereco, RsBase.SELECIONE, new { @id = "iSelectTipoEndereco", @class = "form-control col-3" })
+                                </div>
+                            </div>*@
+
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iSelectEndereco">@RsCadastros.ENDERECO :</label>
+                                        @Html.DropDownList("iSelectEnderecoLogradouro", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iSelectEnderecoLogradouro" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iNumeroEndereco">@RsCadastros.NUMERO :</label>
+                                        @Html.TextBoxFor(model => model.Numero_Endereco, "iNumeroEndereco", new { @id = "iNumeroEndereco", @type = "number", @class = "form-control" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 mt-3">
+                                    <div class="form-group">
+                                        <button type="button" class="btn btn-success BtnAddEndereco" id="iBtnAddEnderecoLogradouro">
+                                            <span>&ensp;</span>
+                                            <span>@RsCadastros.VINCULAR_ENDERECO</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @*<div id="iCadastroEnderecoLogradouro" class="row d-none">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iSelectEndereco">@RsCadastros.ENDERECO :</label>
+                                        @Html.DropDownList("iSelectEnderecoLogradouro", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iSelectEnderecoLogradouro" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iNumeroEndereco">@RsCadastros.NUMERO :</label>
+                                        @Html.TextBoxFor(model => model.Numero_Endereco, "iNumeroEndereco", new { @id = "iNumeroEndereco", @type = "number", @class = "form-control" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 mt-3">
+                                    <div class="form-group">
+                                        <button type="button" class="btn btn-success BtnAddEndereco" id="iBtnAddEnderecoLogradouro">
+                                            <span>&ensp;</span>
+                                            <span>@RsCadastros.VINCULAR_ENDERECO</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="iCadastroCondominioPredio" class="row d-none">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iSelectCondominio">@RsCadastros.ENDERECO :</label>
+                                        @Html.DropDownList("iSelectCondominio", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iSelectCondominio" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2 mt-3">
+                                    <div class="form-group">
+                                        <button type="button" class="btn btn-success BtnAddEndereco" id="iBtnAddCondominio">
+                                            <span>&ensp;</span>
+                                            <span>@RsCadastros.VINCULAR_CONDOMINIO</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>*@
+                            <table class="table table-hover nowrap" id="datatableEnderecos" style="width:100%"></table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+
+}
+@*Button-Float*@
+<a href="@Url.Action("Index", "Elemento_Rede")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data - toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+

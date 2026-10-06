@@ -1,0 +1,476 @@
+﻿@model Aniel.Connect.Models.GraficoTempoOnlineOffline_Request
+
+@{
+    ViewBag.Title = RsCadastros.GRAFICO_TEMPO_ONLINE_OFFLINE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <style>
+        /*Download*/
+        .vis-graph-groupOnline {
+            /*fill: #47eb01 !important; -> verde forte original*/
+            fill: #28a745 !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #28a745 !important;
+            /*stroke: #47eb01 !important;*/
+        }
+
+        /*Upload*/
+        .vis-graph-groupOffline {
+            /*fill: #1638fe !important; -> azul forte original*/
+            fill: #1e90ff !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #11518f !important;
+            /*stroke: #021890 !important; -> verde marinho da borda original*/
+        }
+
+        .vis-timeline .vis-fill {
+            fill-opacity: .1 !important;
+            stroke: none !important;
+        }
+    </style>
+}
+
+@section scripts {  
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+
+    <script>
+        let model = @Html.Raw(Json.Encode(Model));               
+        var dataset = new vis.DataSet();
+        let graph2dOnline;
+        let graph2dOffline;                  
+
+        $(document).ready(async function () {
+            /*moment.updateLocale('pt-br', {
+                months : [
+                    "Janeiro", "Feveveiro", "Março", "Abril", "Maio", "Junho", "Julho",
+                    "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                ]
+            });*/
+            //await carregarDados();
+            ShowPageLoading();
+            await carregarDadosOnline();
+            await carregarDadosOffline();
+            $('#iPeriodoConsumo').trigger('change');
+            //console.log(objeto);            
+        });        
+
+        $('#iPeriodoConsumo').change(function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == "3") {
+                $('#divPeriodo').show();
+                $('#iDataInicial').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+                $('#iDataFinal').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+            }
+            else {
+                $('#divPeriodo').hide()
+                $('#iDataInicial').val('');
+                $('#iDataFinal').val('');
+            }
+        });
+
+        async function carregarDadosOnline() {
+            //ShowPageLoading();
+            //$('#divDadosConsumo').hide();
+            //while (isRunning) {
+                    $.ajax({
+                    url: "@CONSTANTES.URLPortal/api/Relatorio_Conexaoapi/GetGraficoTempoOnline",
+                    type: "POST",
+                    data:{                        
+                        periodo_Consumo: model.Periodo_Consumo,
+                        id_Login_Radius: model.Id_Login_Radius,
+                        data_Inicial: model.Data_Inicial,
+                        data_Inicial_String: model.Data_Inicial_String,
+                        data_Fim: model.Data_Fim,
+                        data_Fim_String: model.Data_Fim_String
+                    }
+                    })
+                    .done(function (data) {
+                        
+                        //Sempre vai desenhar o gráfico
+                        //Caso haja erro na API ela retorna um objeto default com dados para preencher 
+                        
+                        if (graph2dOnline === undefined || graph2dOnline === null) {
+                            desenharGraficoOnline(data.objeto);
+                        }
+                        else {
+                            graph2dOnline.destroy();
+                            desenharGraficoOnline(data.objeto);
+                        }                        
+                    
+                        if (!data.ok) {
+                            HidePageLoading();
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "info")
+                        }
+                        else if (data.ok && data.objeto.listaTempoOnlineOffline.length <= 0) {
+                            Notificar("@RsBase.ATENCAO_", "Não existem registros online para a data selecionada.", "info");
+                        }
+                    })
+
+                //await sleep(3000);
+            //}
+        }                
+
+        async function carregarDadosOffline() {
+            //ShowPageLoading();
+            //$('#divDadosConsumo').hide();
+            //while (isRunning) {
+                    $.ajax({
+                    url: "@CONSTANTES.URLPortal/api/Relatorio_Conexaoapi/GetGraficoTempoOffline",
+                    type: "POST",
+                    data:{                        
+                        periodo_Consumo: model.Periodo_Consumo,
+                        id_Login_Radius: model.Id_Login_Radius,
+                        data_Inicial: model.Data_Inicial,
+                        data_Inicial_String: model.Data_Inicial_String,
+                        data_Fim: model.Data_Fim,
+                        data_Fim_String: model.Data_Fim_String
+                    }
+                    })
+                    .done(function (data) {                        
+
+                        //Sempre vai desenhar o gráfico
+                        //Caso haja erro na API ela retorna um objeto default com dados para preencher 
+                        
+                        if (graph2dOffline === undefined || graph2dOffline === null) {
+                            desenharGraficoOffline(data.objeto);
+                        }
+                        else {
+                            graph2dOffline.destroy();
+                            desenharGraficoOffline(data.objeto);
+                        }                        
+                    
+                        if (!data.ok) {
+                        HidePageLoading();
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                        }
+                        else if (data.ok && data.objeto.listaTempoOnlineOffline.length <= 0) {
+                        Notificar("@RsBase.ATENCAO_", "Não existem registros offline para a data selecionada.", "info");
+                        }
+                    })
+
+                //await sleep(3000);
+            //}
+        }  
+
+        $('#iPesquisar').click(async function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == undefined || periodo === null || (periodo == "3" && (!$('#iDataInicial').val() || !$('#iDataFinal').val()))) {
+                Notificar("@RsBase.ATENCAO_", "É necessário selecionar um período de consumo", "info");
+                return false;
+            }
+
+            if (periodo != "3") {
+                model.Data_Inicial_String = null;
+                model.Data_Fim_String = moment().format('DD/MM/YYYY HH:mm:ss');
+            }
+            else {
+                model.Data_Inicial_String = $('#iDataInicial').val();
+                model.Data_Fim_String = $('#iDataFinal').val();
+            }
+
+            model.Periodo_Consumo = periodo;
+
+            ShowPageLoading();
+            await carregarDadosOffline();
+            await carregarDadosOnline();
+        });
+
+        function desenharGraficoOnline(objeto) {            
+            let array = [];
+            //let hora_start = vis.moment().add(-7, 'days').format('YYYY-MM-DD');
+            //let hora_end = vis.moment().add(1, 'days').format('YYYY-MM-DD');
+
+            let hora_start = objeto.dataHora_Inicio != undefined && objeto.dataHora_Inicio != null && objeto.dataHora_Inicio.length > 0 ? objeto.dataHora_Inicio : "";
+            let hora_end = objeto.dataHora_Fim != undefined && objeto.dataHora_Fim != null && objeto.dataHora_Fim.length > 0 ? objeto.dataHora_Fim : "";
+
+            array.push({ x: hora_start, y: 0, group: 'online' });            
+
+            objeto.listaTempoOnlineOffline.forEach(function (item) {
+                array.push({ x: moment(item.data_Conexao_String), y: item.horas_Online_Offline, group: 'online' });                
+            });
+
+            var container = document.getElementById('iGraficoOnline');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br', 
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        range: { min: 0, max: 24 },      
+                        title: { text: "@Html.Raw(RsCadastros.TEMPO_ONLINE)" },
+                        format: function (value) {
+                            return value + "h";                     
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'bottom' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                /*timeAxis: {
+                    scale: 'day',
+                    step: 1
+                },*/
+                autoResize: true,
+                min: hora_start,
+                max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 18000000, //5 horas em milisegundos
+                zoomMax: 691200000, //8 dias em milisegundos
+                //configure: true,
+                showCurrentTime: true,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'online',
+                content: 'Online',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupOnline',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });           
+
+            graph2dOnline = new vis.Graph2d(container, array, groups, options);
+
+            graph2dOnline.fit();
+            graph2dOnline.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+
+        function desenharGraficoOffline(objeto) {
+            let array = [];
+            //let hora_start = vis.moment().add(-7, 'days').format('YYYY-MM-DD');
+            //let hora_end = vis.moment().add(1, 'days').format('YYYY-MM-DD');
+
+            let hora_start = objeto.dataHora_Inicio != undefined && objeto.dataHora_Inicio != null && objeto.dataHora_Inicio.length > 0 ? objeto.dataHora_Inicio : "";
+            let hora_end = objeto.dataHora_Fim != undefined && objeto.dataHora_Fim != null && objeto.dataHora_Fim.length > 0 ? objeto.dataHora_Fim : "";
+            
+            array.push({ x: hora_start, y: 24, group: 'offline' });
+
+            objeto.listaTempoOnlineOffline.forEach(function (item) {
+                array.push({ x: moment(item.data_Conexao_String), y: item.horas_Online_Offline, group: 'offline' });                
+            });
+
+            var container = document.getElementById('iGraficoOffline');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br', 
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        title: { text: "@Html.Raw(RsCadastros.TEMPO_OFFLINE)" },
+                        range: { min: 0, max: 24 },                       
+                        format: function (value) {                            
+                            return value + "h"; 
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'bottom' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                /*timeAxis: {
+                    scale: 'day',
+                    step: 1
+                },*/
+                autoResize: true,
+                min: hora_start,
+                max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 18000000, //1 dia em milisegundos
+                zoomMax: 691200000,//86400000, //8 dias em milisegundos
+                //configure: true,
+                showCurrentTime: true,
+            };
+
+            var groups = new vis.DataSet();            
+
+            groups.add({
+                id: 'offline',
+                content: 'Offline',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group6'
+                className: 'vis-graph-groupOffline',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });
+
+            graph2dOffline = new vis.Graph2d(container, array, groups, options);
+
+            graph2dOffline.fit();
+            graph2dOffline.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+
+        //$('#iframeGraficoConexaoTempoReal')
+
+
+    </script>
+}
+
+<div class="row" style="width:100%">
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iDescLoginRadius">@RsCadastros.LOGIN:</label>
+            @Html.TextBoxFor(model => model.Desc_Login_Radius, new { @class = "form-control", @id = "iDescLoginRadius", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iDescCliente">@RsCadastros.CLIENTE:</label>
+            @Html.TextBoxFor(model => model.Desc_Cliente, new { @class = "form-control", @id = "iDescCliente", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iEnderecoIp">@RsCadastros.ENDERECO_IP:</label>
+            @Html.TextBoxFor(model => model.Ip_Login_Radius, new { @class = "form-control", @id = "iEnderecoIp", disabled = "disabled" })
+        </div>
+    </div>
+
+    @*<div class="col-sm-2">
+            <div class="form-group">
+                <label for="iPeriodoConsumo">@RsCadastros.PERIODO_CONSUMO:</label>
+                @Html.EnumDropDownListFor(m => m.Periodo_Consumo, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPeriodoConsumo", @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div id="divPeriodo" class="col-sm-5">
+            <div class="form-group form-inline" style="height:100%; vertical-align:middle;">
+
+                <label for="iDataInicial">@RsCadastros.PERIODO:</label>
+                @Html.TextBoxFor(model => model.Data_Inicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataInicial", @autocomplete = "off" })
+
+                <span>@RsBase.A</span>
+
+                @Html.TextBoxFor(model => model.Data_Fim, new { @tabindex = "2", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataFinal", @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="form-group col-sm-2" style="padding: 15px;">
+            <div class="text-center">
+                <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+            </div>
+        </div>*@
+    <div class="form-group col-sm-6" style="padding: 15px;">
+        <div class="text-right">
+            <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+        </div>
+    </div>
+</div>
+
+<div class="row" style="width:100%">
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iPeriodoConsumo">@RsCadastros.PERIODO_CONSUMO:</label>
+            @Html.EnumDropDownListFor(m => m.Periodo_Consumo, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPeriodoConsumo", @autocomplete = "off" })
+        </div>
+    </div>
+
+    <div id="divPeriodo" class="col-sm-5">
+        <div class="form-group form-inline" style="height:100%; vertical-align:middle;">
+
+            <label for="iDataInicial">@RsCadastros.PERIODO:</label>
+            @Html.TextBoxFor(model => model.Data_Inicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataInicial", @autocomplete = "off" })
+
+            <span>@RsBase.A</span>
+
+            @Html.TextBoxFor(model => model.Data_Fim, new { @tabindex = "2", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataFinal", @autocomplete = "off" })
+        </div>
+    </div>    
+</div>
+
+    <div class="row" style="width:100%">
+        <div class="col-sm-6">
+            <div class="form-group">
+                <div id="iGraficoOnline"></div>
+            </div>
+        </div>
+
+        <div class="col-sm-6">
+            <div class="form-group">
+                <div id="iGraficoOffline"></div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+    <!--<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+    </table>-->
+
+    <head>
+        <title>@ViewBag.Title</title>
+        <meta charset="utf-8">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.1/moment-with-locales.min.js"></script>
+        <!--<script type="text/javascript" src="~/Scripts/vis-timeline-graph2d.min.js"></script>
+        <script type="text/javascript" src="~/Scripts/moment-with-locales.min.js"></script>-->
+        <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+        <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+    </head>

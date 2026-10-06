@@ -1,0 +1,357 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@using Aniel.Connect.CustomHtmlHelper
+@model Aniel.Connect.Models.Configuracao_Canal_ComunicacaoCadastroModel
+@{
+    ViewBag.Title = RsCadastros.CONFIGURAWHATSAPP;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+<script>
+    var clicked = false;
+    function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        var erro = false;
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+        ShowPageLoading();
+        $('#form').submit();
+
+    }
+
+</script>
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: 'auto',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Canal_ComunicacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "statusAPI", title: "@RsCadastros.STATUS_API" },
+                    { data: "statusNumero", title: "@RsCadastros.STATUS_NUMERO" },
+                    { data: "numero", title: "@RsCadastros.NUMERO" },
+                    { data: "botVinculado", title: "@RsCadastros.BOT_VINCULADO" },
+                    @*{
+                        data: "acoes", title: "@RsCadastros.ACOES",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#"><i class="fas fa-pencil-alt"></i></a> <a href="#"><i class="fas fa-sync-alt"></i></a> <a href="#"><i class="fas fa-times"></i></a>';
+                        }
+                    },*@
+                    {
+                        data: "detalhes", title: "@RsCadastros.DETALHES",
+                        render: function (data, type, row, meta) {
+                            var _id = row.id;
+
+                            var url = '@Url.Action("Cadastro", "Canal_Comunicacao", new { id = "__id__" })';
+                            url = url.replace('__id__', _id);
+                            var retorno = `<a href="#" class="aConfig" onclick="AddAba('${url}')"><i class="far fa-file-alt"></i></a>`;
+
+                            @if (AcessoHelper.TemAcesso(_areas, "192") == false)
+                            {
+                                <text>
+                                retorno = `<a href="#" class="aConfig" onclick="Notificar('@RsBase.ATENCAO_','sem acesso','warning')"><i class="far fa-file-alt"></i></a>`;
+                                </text>
+                            }
+
+
+                            return retorno;
+                        }
+                    }
+
+                ]
+            });
+
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+             $('#datatable tbody').on('click', 'tr', function () {
+
+                @if (AcessoHelper.TemAcesso(_areas, "192"))
+                {
+                    <text>
+                    if (oDatatable.row(this).data() != null) {
+
+                        var _id = oDatatable.row(this).data().id;
+                        var _nome = oDatatable.row(this).data().nome;
+
+                        var url = '@Html.Raw(Url.Action("Index", "Configuracao", new { IdBot = "__id__", DescricaoBot = "__nome__" }))';
+                        window.location.href = url.replace('__id__', _id).replace('__nome__', _nome);
+
+                        ShowPageLoading();
+                    }
+                    </text>
+                    }
+                });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    @*var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("Cadastro", "Canal_Comunicacao", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();*@
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Configuracao_Canal_Comunicacao", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-auto mr-auto">
+
+                        <h4 class="title-page"><i class="fas fa-robot"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mt-25">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                        @*<span style="font-size:11px" id="dtLegend"></span>*@
+                    </div>
+                </div>
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <span class="text-bold-card pt-0">@ViewBag.Title</span>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+                            <div class="container-fluid" id="">
+                                <div class="row mt-5">
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iNomeAtendente" style="padding-right: 37px;" class="mr-3">@RsCadastros.NOME_ATENDENTE:</label><br>
+                                            @Html.CheckBoxFor(m => m.MostrarNomeAtendente, new { @class = "form-control", @id = "iNomeAtendente", @name = " iNomeAtendente", @data_toggle = "toggle",@data_off = "Não", @data_on = "Sim", @data_onstyle = "success", @data_offstyle = "light" } )
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mt-3">
+
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iDesconto_Captacao">@RsCadastros.ESCOLHER_EXIBICAO:</label>
+                                            @Html.EnumDropDownListFor(m => m.NomePrincipal, RsBase.SELECIONE, new { @class = "form-control", @id = "iDesconto_Captacao", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.NomePrincipal, "", new { @class = "text-danger" })
+                                        </div>
+
+                                        <p>Ou</p>
+
+                                        <div class="form-group">
+                                            @Html.EnumDropDownListFor(m => m.NomeSecundario, RsBase.SELECIONE, new { @class = "form-control", @id = "iNome1", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.NomeSecundario, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        <div class="container-fluid" id="">
+                            <!--main-->
+
+                            <div class="row">
+                                <div class="col-auto">
+                                    <div class="row title-page">
+                                        @if (AcessoHelper.TemAcesso(_areas, "192"))
+                                        {
+                                            <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Canal_Comunicacao")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                                        }
+                                        </div>
+                                </div>
+                            </div>
+                            <!--./main-->
+                        </div>
+
+                        <div id="divTable" class="mr-5 ml-5">
+                            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+
+    <a href="#" onclick="ValidaSubmit();" class="float-save" id="btnGravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}

@@ -1,0 +1,297 @@
+﻿@model Aniel.Connect.Models.Opinioes_DataTableRequest
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.VISUALIZAR_COMENTARIOS_OPINIOES;
+    ViewBag.Sessao = RsCadastros.PESQUISA_SATISFACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <style>
+        .table.dataTable td, .table th {
+            vertical-align: middle;
+            border-top: none;
+            font-size: 11px;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        var oDatatable = null;
+
+        $( document ).ready(function() {
+
+        });
+
+
+        var handleDataTableButtons = function () {
+
+            "use strict";
+
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+                oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '70vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/pesquisa_Satisfacaoapi/GetAllComentarios',
+                    type: 'POST',
+                    data: function (data) {
+                        // Read values
+                        data.Id_Pesquisa_Satisfacao = @Request.Params["Id_Pesquisa_Satisfacao"];
+                        data.Categoria_Opiniao = $('#iCategoria').val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    {
+                        title: "@RsCadastros.FOTOS",
+                        render: function (data, type, row, meta) {
+
+                            if (row.nome_Arquivo_Foto_Perfil) {
+                                return '<img src="@CONSTANTES.URLPortal/Arquivos/Cliente/' + row.id_Cliente + '/' + row.nome_Arquivo_Foto_Perfil + '" '+
+                                        'class="rounded-circle img-fluid" />';
+                            }
+                            else {
+                                return '<i class="fas fa-user-circle" style="font-size: 30px;"></i>';
+                            }
+
+                        }
+                    },
+                    { data: "nome", title: "Nome do Cliente" },
+                    { data: "data_Resposta", title: "@RsCadastros.DATA_HORA_RESPOSTA" },
+                    { data: "categoria", title: "Tipo de Opinião" },
+                    { data: "comentario_Truncate", title: "Comentário" },
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $('#iLimparFiltro').on("click", function () {
+
+                $('#txtSearch').val('')
+                $('#iCategoria').val('')
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+
+                $("#modal-filter").modal('hide');
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            // Popular lista de cidades
+
+            // Handle click on checkbox
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+            });
+
+
+            // Handle btn login event
+            $('#datatable tbody').on('click', '.btnLogin', function (e) {
+
+            });
+
+            // Handle click on table cells with checkboxes
+
+
+            // Handle click on "Select all" control
+
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+                //rows_selected = [];
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    </script>
+}
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none; height: 530px;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+
+
+            <div class="row" style="padding-top: 10px;">
+                <div class="col" style="margin-top: -10px">
+
+                    <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+
+                    <nav aria-label="breadcrumb" style="font-size:12px">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Indicadores", "Pesquisa_Satisfacao", new { Id = Request.Params["Id_Pesquisa_Satisfacao"]})" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PESQUISA_RESPOSTA</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-top:-18px">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+
+                    <span style="font-size:11px" id="dtLegend"></span>
+                </div>
+
+                <div class="row pr-4">
+                    <div class=" pl-4 pr-2">
+                        <input type="text" class="input-search" id="txtSearch" placeholder="Nome do Cliente" autocomplete="off">
+                        <i class="la la-search la-2x" style="color: #999"></i>
+                    </div>
+
+                    @*<button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>*@
+                    <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                        <a class="dropdown-item" href="#" onclick="return EnviarPesquisa();">@RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+                        <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    </div>
+                </div>
+
+            </div>
+            <div class="form-group align-vertical">
+                <div class="row" style="padding-top: 10px;">
+
+                    <div class="col-sm-4">
+                        <label for="iCategoria">Tipo de Opinião:</label>
+                        @Html.EnumDropDownListFor(m => m.Categoria_Opiniao, RsBase.TODAS, new { @class = "form-control", @id = "iCategoria" })
+                    </div>
+                    <div class="col-sm-2 mb-0">
+                        <button type="button" onclick="oDatatable.draw();" id="btnBuscar" class="btn btn-success mt-3"><i class="fas fa-search"></i> &nbsp; Carregar</button>
+                    </div>
+
+                </div>
+            </div>
+
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                <thead class="tb-head">
+
+                </thead>
+            </table>
+
+
+            <!--./main-->
+        </div>
+    </div>
+</div>
+
+<div id="divLogin"></div>
+
+<!--Modal Filters-->

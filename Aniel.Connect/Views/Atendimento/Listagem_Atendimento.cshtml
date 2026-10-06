@@ -1,0 +1,1611 @@
+﻿@model Aniel.Connect.Models.AtendimentoFiltroModel
+
+@using Microsoft.AspNet.Identity
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Model.enumerado
+ 
+@{
+    /**/
+
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    var StorageName = CONSTANTES.SIGLA_MODULO + " - " + ViewBag.Title + " - " + CONSTANTES.Versao;
+    IList<SelectListItem> Lista_PesquisaRapidaAtendimento = EnumHelper.GetSelectList(typeof(PesquisaRapidaAtendimento));
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .select2-dropdown {
+            z-index: 1500 !important;
+        }
+
+        h3.popover-header {
+            font-size: 0.8rem !important;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+<script>
+
+    var atendimentoSelecionado;
+
+    function VerificarDepartamento() {
+
+        const id_user = "@User.Identity.GetUserId()";
+
+        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/AcessoApi/GetFilialUsuario?id_usuario=")' + id_user;
+
+        $.ajax({
+        url: link,
+        type: 'POST',
+        data: {
+            id_Usuario: id_user
+        },
+        dataType: 'json',
+        beforeSend: function () {
+            ShowPageLoading();
+        },
+        complete: function () {
+            HidePageLoading();
+        }
+        }).done(function (data) {
+            if (data.id_Departamento == 0) {
+                Notificar("@RsCadastros.ATENCAO", "Você não tem Setor/Departamento definido para criar o Atendimento.", "warning");
+            } else {
+                window.location = '@Url.Action("Cadastro", "Atendimento")';
+            }
+        });
+    }
+
+
+        var rows_selected = [];
+        var oDatatable;
+        let global_iTotal = 0;
+
+
+        function findStoragedProperty(id) {
+            const storageItem = window.localStorage.getItem("@Html.Raw(StorageName)")
+            let filtros = storageItem ? JSON.parse(storageItem) : [];
+            let filtro = filtros.filter(p => p.id == id);
+
+            if (filtro.length > 0)
+                return filtro[0].value;
+            else
+                return null;
+        }
+
+        $(document).ready(async function () {
+
+            const storageItem = window.localStorage.getItem("@Html.Raw(StorageName)")
+            let filtros = storageItem ? JSON.parse(storageItem) : [];
+            for (const filtro of filtros) {
+                if ($(`#${filtro.id}`).attr('type') == 'checkbox' || $(`#${filtro.id}`).attr('type') == 'radio') {
+                    $(`#${filtro.id}`).prop('checked', filtro.checked)
+                }
+                else {
+                    $(`#${filtro.id}`).val(filtro.value)
+                }
+            }
+
+            $("input[type='radio'][name='periodo']").trigger('change');
+
+            await AddSelectSemPag('iModeloPainel', '@CONSTANTES.URLPortal/api/Modelo_PainelAtendimentoApi/GetCombo', null, null, findStoragedProperty('iModeloPainel'), '@RsBase.SELECIONE', false, HandleModeloPainel, "@User.Identity.GetUserId()");
+            AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false,HandleTipoAtendimento);
+            AddSelect("iMotivo_Status", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iSetor", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iCategoria_Atendimento", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iCategoria_Cliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iOrigem", "@CONSTANTES.URLPortal/api/Origemapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iUsuario_Responsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            await AddSelect("iCliente_Prospecto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboCPFAtendimento", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iPlano_Produto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iEtapa_Atual", "@CONSTANTES.URLPortal/api/FluxoAtendimentoApi/GetComboEtapa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iOrganizacao", "@CONSTANTES.URLPortal/api/Organizacaoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleOrganizacao);
+
+            if (!$('#iModeloPainel').val()) {
+                TableManageButtons.init();
+            }
+
+            @if (Request.Params["SemSetor"] == "S")
+            {
+                <text>
+            Notificar("@RsBase.ATENCAO_", "Você não tem Setor/Departamento definido para criar o Atendimento", "warning");
+                </text>
+            }
+
+            montarEnumeradorBuscaRapida();
+        });
+
+        var HandleModeloPainel = function () {
+
+            $('#iModeloPainel').unbind('select2:select select2:unselecting');
+            $('#iModeloPainel').on('select2:select select2:unselecting', function (e) {
+                let ModeloSelecionado = e.params.data;
+                TableManageButtons.init();
+            });
+        };
+
+    var HandleTipoAtendimento = function () {
+
+        $('#iTipoAtendimento').unbind('select2:select select2:unselecting');
+        $('#iTipoAtendimento').on('select2:select select2:unselecting', function (e) {
+            let TipoSelecionado = e.params.data;
+
+            if (TipoSelecionado) {
+                AddSelect("iEtapa_Atual", "@CONSTANTES.URLPortal/api/FluxoAtendimentoApi/GetComboEtapa",@CONSTANTES.PaginacaoRegistros, TipoSelecionado.id, null, null, "@RsBase.SELECIONE", false);
+            }
+
+            TableManageButtons.init();
+        });
+    };
+
+    var HandleOrganizacao = function() {
+        $('#iOrganizacao').unbind('select2:select select2:unselecting');
+        $('#iOrganizacao').on('select2:select select2:unselecting', function (e) {
+            let OrganizacaoSelecionada = e.params.data;
+
+            if (OrganizacaoSelecionada) {
+                AddSelect("iCliente_Prospecto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboCPFAtendimento", @CONSTANTES.PaginacaoRegistros, null, OrganizacaoSelecionada.id, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                AddSelect("iCliente_Prospecto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboCPFAtendimento", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+        });
+    }
+
+        function AbrirHistorio() {
+
+            var table = $('#datatable').DataTable();
+            var rows_selected = table.rows({ selected: true });
+
+            var teste = $('#datatable').DataTable().rows('.selected').data()[0].id;
+
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+            }
+            else {
+                var _id = rows_selected[0];
+                _id = teste;
+
+                window.location = '@Url.Action("HistoricoAtendimento", "Atendimento")' + "?IdAtendimento=" + _id;
+            }
+
+        };
+
+        function rowsSelectedMessage() {
+            if (rows_selected.length === global_iTotal) {
+                $("#dtLegendRecordsTotal").html("Todos os <strong> " + global_iTotal + " </strong> registros selecionados.");
+            }
+            else {
+                $("#dtLegendRecordsTotal").html(`<a href='#' onclick ='rowsSelectedAddAll()'style='font-size: 14px;' ><strong>${rows_selected.length}</strong> registros selecionados <i class='fas fa-hand-point-right'></i><strong style='font-size: 13px;' > Clique aqui para selecionar todos os ${global_iTotal} registros </strong></a>`);
+            }
+
+            //Confirma a seleção de todos os registros
+            $("#dtLegendRecordsTotal").click(function () {
+                $("#dtLegendRecordsTotal").html("<span style='font-size: 14px;'>Todos os <strong> " + global_iTotal + " </strong> registros selecionados.</span>");
+            });
+        }
+
+        function rowsSelectedAddAll() {
+            oDatatable.page.len(-1);
+
+            $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+            oDatatable.draw();
+        }
+
+
+        async function GetColunasModelo(id_modelo) {
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_PainelAtendimentoApi/getcolunas")' + `?id_modelo=${id_modelo}`;
+
+            var retorno = await $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json'
+            });
+
+            if (retorno.ok) {
+                let colunas = [];
+                let ordernar_por = null;
+                colunas.push({ title: "<input name='select_all' value='1' type='checkbox'>" });
+
+                for (let coluna of retorno.objeto.colunas) {
+                    switch (coluna) {
+                        case 0: {
+                            colunas.push({ data: "numero", title: "@RsCadastros.NUMERO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 1: {
+                            colunas.push({ data: "assunto", title: "@RsCadastros.ASSUNTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 2: {
+                            colunas.push({ data: "nomeAtendimento", title: "@RsCadastros.TIPO_ATENDIMENTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 3: {
+                            colunas.push({
+                                data: "sla",
+                                title: "@RsCadastros.SLA",
+                                orderable: true,
+                                render: function (data, type, row, meta) {
+                                    if (type === 'display') {
+                                        data = '<i class="fas fa-flag" style="color:' + data + '"></i>';
+                                    }
+                                    return data;
+                                }
+                            });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 4: {
+                            colunas.push({ data: "status_Atendimento", title: "@RsCadastros.STATUS" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 5: {
+                            colunas.push({ data: "motivo_Status", title: "@RsCadastros.MOTIVO_STATUS" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 6: {
+                            colunas.push({ data: "responsavel", title: "@RsCadastros.RESPONSAVEL_ATUAL" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 7: {
+                            colunas.push({ data: "dataHoraCriacao", title: "@RsCadastros.DATA_HORA_ABERTURA" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 8: {
+                            colunas.push({ data: "dataHoraFechamento", title: "@RsCadastros.DATA_HORA_ENCERRAMENTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 9: {
+                            colunas.push({ data: "setor", title: "@RsCadastros.SETOR" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 10: {
+                            colunas.push({ data: "prioridade_Padrao", title: "@RsCadastros.PRIORIDADE" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 11: {
+                            colunas.push({ data: "categoria_Atendimento", title: "@RsCadastros.CATEGORIA" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 12: {
+                            colunas.push({ data: "cliente", title: "@RsCadastros.CLIENTE" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 13: {
+                            colunas.push({ data: "categoria_Cliente", title: "@RsCadastros.CATEGORIA_CLIENTE" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 14: {
+                            colunas.push({ data: "login_Radius", title: "@RsCadastros.LOGIN" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 15: {
+                            colunas.push({ data: "email_Cliente", title: "@RsCadastros.EMAIL" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 16: {
+                            colunas.push({ data: "origem", title: "@RsCadastros.ORIGEM_ATENDIMENTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 17: {
+                            colunas.push({ data: "telefone", title: "@RsCadastros.TELEFONE" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 18: {
+                            colunas.push({ data: "celular", title: "@RsCadastros.CELULAR" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 19: {
+                            colunas.push({ data: "plano", title: "@RsCadastros.PLANO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 20: {
+                            colunas.push({ data: "produto", title: "@RsCadastros.PRODUTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+
+                        case 21: {
+                            colunas.push({ data: "etapa_Atual", title: "@RsCadastros.ETAPA_ATUAL" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                         case 22: {
+                            colunas.push({ data: "prazo_Atual", title: "@RsCadastros.PRAZO_ETAPA_ATUAL" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 23: {
+                            colunas.push({ data: "tempo_Gasto", title: "@RsCadastros.TEMPO_GASTO" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+
+                        case 24: {
+                            colunas.push({ data: "data_Sla_Etapa", title: "@RsCadastros.DATA_SLA_ETAPA" });
+                            if (retorno.objeto.ordenar_por == coluna)
+                                ordernar_por = [[colunas.length - 1, 'asc']]
+                            break;
+                        }
+                        case 25: {
+                            colunas.push(
+                                {
+
+                                    data: "id",
+                                    title: "OS’s Vinculadas",
+                                    className: "modal-ordem-servico",
+                                    render: function (data, type, row, meta) {
+                                        if (row.possuiOs) {
+                                             return `<a href="#" data-toggle="modal" data-target="#modal-OS" onclick="selecionarAtendimento(${row.numero})">@RsBase.VISUALIZAR</a>`;
+                                         }
+                                         else {
+                                             return  "N/A"
+                                         }
+                                    }
+                                });
+                            break;
+                        }
+
+
+                    }
+                }
+
+                return {
+                    colunas: colunas,
+                    ordenar_por: ordernar_por
+                };
+            }
+            else {
+                return {
+                    colunas: null,
+                    ordenar_por: null
+                };
+            }
+
+
+
+
+        }
+
+    function montarEnumeradorBuscaRapida() {
+        var enumList = @Html.Raw(Json.Encode(Lista_PesquisaRapidaAtendimento));
+        $('#iPesquisaRapida').empty();
+        $.each(enumList, function (key, value) {
+            $(`#iPesquisaRapida`).append($('<option>', {
+                value: value.Value,
+                text: value.Text,
+                selected: value.id == 1 ? true : false
+            }));
+        });
+    }
+
+    async function mesclarAtendimento() {
+
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        if (rows_selected.length > 5) {
+            Notificar("@RsBase.ATENCAO_", "Não é possivel mesclar mais de 5 atendimentos.", "info");
+            return;
+        }
+
+        let confirmacao = await Swal.fire({
+            title: 'Tem certeza que deseja Mesclar?',
+            showCancelButton: true,
+            cancelButtonText: 'Não',
+            confirmButtonText: 'Sim',
+            type: 'question',
+            allowOutsideClick: () => !Swal.isLoading(),
+        })
+
+        if (!confirmacao.value)
+            return false;
+
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/UnificarAtendimento")';
+
+        $.ajax({
+            url: link,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                ids: rows_selected
+            }
+        })
+            .done(function (data) {
+
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                    rows_selected = [];
+                    oDatatable.draw();
+
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+            });
+        rows_selected = [];
+        }
+
+        var handleDataTableButtons = async function () {
+            "use strict";
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty();
+            }
+
+            function AlterarStatusObj(Status,Status_Motivo) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status,
+                        motivo_status: Status_Motivo
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            var colunas_modelo = $('#iModeloPainel').val() ? await GetColunasModelo($('#iModeloPainel').val()) : null;
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    },
+                    {
+                        targets: 1,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center'
+                    }
+                ],
+                select: 'multi',
+                order: colunas_modelo?.ordenar_por == null ? [[3, 'desc']] : colunas_modelo.ordenar_por,
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+                stateSave: false, //statesave carregando datable com info antiga
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                pageLength: 10,
+                ajax: {
+                    url: baseUrl + '/api/atendimentoapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+
+                        window.localStorage.setItem(
+                            "@Html.Raw(StorageName)",
+                            JSON.stringify(
+                                $('.filtro').toArray().map(p => ({
+                                    id: $(p).attr('id'),
+                                    value: $(p).val(),
+                                    checked: $(p).prop('checked')
+                                }))
+                            )
+                        );
+
+                        var tipo_data = $("input[type='radio'][name='periodo']:checked").val();
+
+                        // Prioridade
+                        let lista_prioridade = [];
+                        if ($("#iAlta").prop("checked")) {
+                            //data.prioridade_Atendimento = 2;
+                            lista_prioridade.push(2);
+                        }
+                        if ($("#iMedia").prop("checked")) {
+                            //data.prioridade_Atendimento = 1;
+                            lista_prioridade.push(1);
+                        }
+                        if ($("#iBaixa").prop("checked")) {
+                            //data.prioridade_Atendimento = 0;
+                            lista_prioridade.push(0);
+                        }
+
+                        data.lista_PrioridadeAtendimento = lista_prioridade;
+
+                        // SLA
+                        data.dentro_Prazo = $("#iDentroPrazo").prop("checked") ? true : false;
+                        data.atencao = $("#iAtencao").prop("checked") ? true : false;
+                        data.vencimento_Proximo = $("#iVencimentoProximo").prop("checked") ? true : false;
+                        data.risco_Perda_Prazo = $("#iRiscoPerdaPrazo").prop("checked") ? true : false;
+                        data.prazo_Vencido = $("#iPrazoVencido").prop("checked") ? true : false;
+                        data.id_Modelo_PainelAtendimento = $("#iModeloPainel").val()
+
+                        // Período
+                        data.tipo_Data = tipo_data;
+                        data.data_Inicial = $("#iData_Inicial").val();
+                        data.data_Final = $("#iData_Final").val();
+
+                        data.motivo_Status = $("#ativarMotivo").prop("checked") ? $("#iMotivo_Status").val() : null;
+                        data.num_Os = $("#iNum_Os").val();
+                        data.status_Atendimento = $("#iStatus").val();
+                        data.statusAuditoria = $("#iStatusAuditoria").val();
+
+                        data.setor = $("#iSetor").val();
+                        data.categoria_Atendimento = $("#iCategoria_Atendimento").val();
+                        data.categoria_Cliente = $("#iCategoria_Cliente").val();
+
+                        data.tipo_Atendimento = $("#iTipoAtendimento").val();
+                        data.usuario_Logado = "@User.Identity.GetUserId()";
+                        data.id_DepartamentoUsuario_Logado = "@ViewBag.Departamento_Usuario";
+                        data.id_Origem_Atendimento = $('#iOrigem').val();
+                        data.id_Usuario_Responsavel = $('#iUsuario_Responsavel').val();
+                        data.id_Cliente_Prospecto = $('#iCliente_Prospecto').val();
+                        data.id_Plano_Produto = $('#iPlano_Produto').val();
+                        data.id_Etapa_Atual = $('#iEtapa_Atual').val();
+                        data.id_Organizacao = $('#iOrganizacao').val();
+
+                        //Busca Rápida
+                        data.pesquisaRapidaAtendimento = $("#iPesquisaRapida").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                             Total de Registros encontrados : <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                          </div> `);
+
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    global_iTotal = iTotal;
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                drawCallback: function () {
+
+                    var api = this.api();
+                    var len = api.page.len();
+
+                    if ($("input[name='select_all']").prop('checked') == true) {
+                        rowsSelectedMessage();
+                    }
+
+                    if (len === -1) {
+                        rows_selected = oDatatable.data().toArray().map(p => p.id);
+
+                        $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+                    }
+                },
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: colunas_modelo?.colunas != null ? colunas_modelo.colunas : [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "numero", title: "@RsCadastros.NUMERO"},
+                    { data: "nomeAtendimento", title: "@RsCadastros.TIPO_ATENDIMENTO" },
+                    { data: "etapa_Atual", title: "@RsCadastros.ETAPA_ATUAL" },
+                    { data: "prazo_Atual", title: "@RsCadastros.PRAZO_ETAPA_ATUAL" },
+                    { data: "tempo_Gasto", title: "@RsCadastros.TEMPO_GASTO" },
+                     { data: "data_Sla_Etapa", title: "@RsCadastros.DATA_SLA_ETAPA" },
+                     { data: "statusAuditoria", title: "Status Auditoria" },
+
+
+                    {
+                        data: "sla",
+                        title: "@RsCadastros.SLA",
+                        orderable: true,
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = '<i class="fas fa-flag" style="color:' + data + '"></i>';
+                            }
+                            return data;
+                        }
+                    },
+                    { data: "prioridade_Padrao", title: "@RsCadastros.PRIORIDADE"},
+                    { data: "origem", title: "@RsCadastros.ORIGEM"},
+                    //status
+                    { data: "status_Atendimento", title: "@RsCadastros.STATUS"},
+                    { data: "motivo_Status", title: "@RsCadastros.MOTIVO_STATUS" },
+                    { data: "responsavel", title: "@RsCadastros.RESPONSAVEL_ATUAL"},
+                    { data: "categoria_Atendimento", title: "@RsCadastros.CATEGORIA" },
+                    {
+                        data: "id",
+                        title: "OS’s Vinculadas",
+                        className: "modal-ordem-servico",
+                        render: function (data, type, row, meta) {
+                            if (row.possuiOs) {
+                                return `<a href="#" data-toggle="modal" data-target="#modal-OS" onclick="selecionarAtendimento(${row.numero})">@RsBase.VISUALIZAR</a>`;
+                            }
+                            else {
+                                return  "N/A"
+                            }
+                        }
+                    },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATA_HORA_ABERTURA" },
+                    { data: "dataHoraFechamento", title: "@RsCadastros.DATA_HORA_ENCERRAMENTO" },
+                    { data: "cliente", title: "@RsCadastros.CLIENTE" },
+                    { data: "organizacao_Cliente", title: "@RsCadastros.ORGANIZACAO_CLIENTE" },
+                    { data: "assunto", title: "@RsCadastros.ASSUNTO" },
+
+
+                    @*{ data: "setor", title: "@RsCadastros.SETOR" },*@
+                ]
+            });
+
+
+            $('#iSearchButton').off('click');
+            $('#iSearchButton').on("click", function () {
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            //fim datatable
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keypress(function (e) {
+                if (e.which == 13) {
+                    rows_selected = [];
+                    oDatatable.search($(this).val()).draw();
+                }
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+                // Prioridade
+                $("#iBaixa").prop("checked", false).change();
+                $("#iMedia").prop("checked", false).change();
+                $("#iAlta").prop("checked", false).change();
+
+                // SLA
+                $("#iDentroPrazo").prop("checked", false).change();
+                $("#iAtencao").prop("checked", false).change();
+                $("#iVencimentoProximo").prop("checked", false).change();
+                $("#iRiscoPerdaPrazo").prop("checked", false).change();
+                $("#iPrazoVencido").prop("checked", false).change();
+
+                $("#radioAbertura").prop("checked", false).change();
+                $("#radioEncerramento").prop("checked", false).change();
+
+                $("#iData_Inicial").val("");
+                $("#iData_Final").val("");
+
+                $("input[type='radio'][name='periodo']").trigger('change');
+
+                $("#ativarMotivo").prop("checked", false).change();;
+                $("#ativarMotivo").trigger("change");
+
+                $("#iNum_Os").val("");
+
+                $("#iMotivo_Status").val(null).trigger('change');
+                $("#iStatus").val(null).trigger('change');
+                $("#iSetor").val(null).trigger('change');
+                $("#iCategoria_Atendimento").val(null).trigger('change');
+                $("#iCategoria_Cliente").val(null).trigger('change');
+                $("#iTipoAtendimento").val(null).trigger('change');
+                $("#iOrigem").val(null).trigger('change');
+                $("#iUsuario_Responsavel").val(null).trigger('change');
+                $("#iCliente_Prospecto").val(null).trigger('change');
+                $("#iPlano_Produto").val(null).trigger('change');
+                $("#iEtapa_Atual").val(null).trigger('change');
+                $("#iOrganizacao").val(null).trigger('change');
+
+
+                $('#txtSearch').val("");
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+            });
+
+            $("#ativarMotivo").on("change", function () {
+
+                if ($("#ativarMotivo").prop("checked")) {
+
+                    EnableSelect('iMotivo_Status');
+                }
+                else {
+                    $("#iMotivo_Status").val(null).trigger('change');
+                    DisableSelect('iMotivo_Status');
+                }
+            });
+
+
+            $("#iPesquisar").on("click", function () {
+
+                $("#modal-filter").modal('hide');
+
+                var _data_ini_old = $("#iData_Inicial").val();
+                var _data_fim_old = $("#iData_Final").val();
+
+                var _data_ini = $("#iData_Inicial").val().replace(/\//g, ".").split(".");
+                var _data_fim = $("#iData_Final").val().replace(/\//g, ".").split(".");
+
+                var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+                var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+                if ( ($("#iData_Inicial").val() != "" || $("#iData_Final").val() != "") && ($("#iData_Inicial").val() == "" || $("#iData_Final").val() == "") ){
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                }
+                else if (!isNaN($("input[type='radio'][name='periodo']:checked").val()) && $("#iData_Inicial").val() == "" && $("#iData_Final").val() == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                }
+                else if (data_ini > data_fim) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                }
+                else {
+
+                    $("#iData_Inicial").val(_data_ini);
+                    $("#iData_Final").val(_data_fim);
+
+                    rows_selected = [];
+                    oDatatable.search($('#txtSearch').val()).draw();
+
+
+                    $("#iData_Inicial").val(_data_ini_old);
+                    $("#iData_Final").val(_data_fim_old);
+                }
+                return true;
+            });
+
+            $("input[type='radio'][name='periodo']").on("change", function () {
+
+                if (isNaN( $("input[type='radio'][name='periodo']:checked").val() )) {
+
+                    $("#iData_Inicial").val("");
+                    $("#iData_Inicial").prop("disabled", true);
+
+                    $("#iData_Final").val("");
+                    $("#iData_Final").prop("disabled", true);
+                }
+                else {
+
+                    $("#iData_Inicial").prop("disabled", false);
+                    $("#iData_Final").prop("disabled", false);
+                }
+            });
+
+
+            @*$("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });*@
+
+            $("#btnCancAtdSelecionados").on("click", function () {
+
+                //if (rows_selected.length == 0) {
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Deseja Cancelar todos atendimentos marcados?',
+                    showCancelButton: true,
+                    cancelButtonText: 'Não',
+                    confirmButtonText: 'Sim',
+                    type: 'question',
+                    allowOutsideClick: () => !Swal.isLoading(),
+                }).then(result => {
+                    if (result.value) {
+                        sweetAlertMotivo();
+                    }
+                });
+
+
+            });
+
+            async function sweetAlertMotivo() {
+
+                Swal.fire({
+                    title: 'Por favor selecione um motivo para cancelar os atendimentos.',
+                    html: '<select class="swal2-input" type="text" id="iDescMotivoCancelar" autocomplete="off">',
+                    showCancelButton: true,
+                    onOpen: function () {
+                        AddSelect("iDescMotivoCancelar", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, 3, null, "@RsBase.SELECIONE", false);
+                    },
+                    cancelButtonText: 'Não',
+                    confirmButtonText: 'Sim',
+                    type: 'question',
+                    allowOutsideClick: () => !Swal.isLoading(),
+                }).then(async input => {
+                    
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/VerificaAtendimentoChatMongo")';
+                    const result = await $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        beforeSend: function () {
+                            ShowPageLoading();
+                        },
+                        complete: function () {
+                            HidePageLoading();
+                        },
+                        data: {
+                            ids: rows_selected
+                        }
+                    });
+                    
+                    if (result.objeto.length > 0) {
+                        var protocolo = "";
+                        for (var i = 0; i < rows_selected.length; i++) {
+                            const item_array = rows_selected[i];
+                            const array_protocolo = result.objeto.filter(x => x.id == item_array);
+                            if (array_protocolo.length > 0) {
+                                rows_selected.splice(i, 1);
+
+                                if (protocolo != "") {
+                                    protocolo += ",";
+                                }
+                                protocolo += array_protocolo[0].protocolo;
+                            }
+                        }
+
+                        if (protocolo != "") {
+                            var html = `Atenção! Não foi possível cancelar o(s) protocolo(s) {protocolo}. Pois, se encontra em atendimento com o chat.`, protocolo_aux = '';
+                            var split = protocolo.includes(',') ? protocolo.split(',') : [protocolo];
+                            for (var i = 0; i < split.length; i++) {
+                                protocolo_aux += `${split[i]}\n`;
+                            }
+
+                            html = html.replace("{protocolo}", protocolo_aux);
+                            await Swal.fire({
+                                text: `${html}`,
+                                type: 'warning',
+                                confirmButtonColor: '#3085d6',
+                                confirmButtonText: 'OK',
+                            });
+                        }
+                    }
+
+                    if (input.value && $('#iDescMotivoCancelar').val()) {
+                        AlterarStatusObj(3, $('#iDescMotivoCancelar').val());
+                    }
+                    else if (input.value && !$('#iDescMotivoCancelar').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.MOTIVO_STATUS_ATENDIMENTO)", "warning");
+                    }
+                });
+
+            }
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+            $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                if ($("input[name='select_all']").prop("checked")) {
+
+                    //Exibe quantidade de linhas selecionadas
+                    rowsSelectedMessage()
+                    $("#dtLegendRecordsTotal").show();
+
+                } else {
+
+                    //Esconde quantidade de linhas selecionadas
+                    rowsSelectedMessage()
+                    $("#dtLegendRecordsTotal").hide();
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function (e) {
+                if ($(e.target).hasClass('modal-ordem-servico') || $(e.target).closest('.modal-ordem-servico').length > 0) {
+                    //selecionarAtendimento(oDatatable.row(this).data().numero);
+                } else {
+                    @if (AcessoHelper.TemAcesso(_areas, "02"))
+                    {
+                        <text>
+                        if (oDatatable.row(this).data() != null) {
+
+                            var _id = oDatatable.row(this).data().id;
+
+                            var url = '@Url.Action("Cadastro", "Atendimento", new { id = "__id__" })';
+                            //window.location.href = url.replace('__id__', _id);
+                            url = url.replace('__id__', _id);
+                            AddAba(url, 'Acompanhamento do Atendimento');
+                        }
+                        </text>
+                    }
+                }
+            });
+
+            //$('#datatable tbody').on('click', '.modal-ordem-servico', function (e) {
+
+            //    e.stopPropagation();
+            //});
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+</script>
+
+<script>
+
+        var oDatatableOS;
+
+        function selecionarAtendimento(id) {
+
+            var requestData = {
+
+                NumeroAtendimento: id
+
+            };
+            atendimentoSelecionado = id;
+
+            if (oDatatableOS != null) {
+                oDatatableOS.destroy();
+            }
+
+            oDatatableOS = $("#datatableOrdensServico").length && $("#datatableOrdensServico").DataTable({
+                serverSide: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '40vh',
+                stateSave: false, //statesave carregando datable com info antiga
+                fixedHeader: true,
+                lengthChange: false,
+                ordering: false,
+                paging: false,
+                ajax: {
+                    url: baseUrl + '/api/AtendimentoApi/HistoricoVincular/',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: requestData
+                    //data: function (data) {
+                    //    console.log(data);
+                    //},
+                    //error: function (e) {
+                    //    console.log(e);
+                    //},
+                    //dataSrc: function (d) {
+                    //    return d.data;
+                    //}
+                },
+                language: traducaoDataTableSimples,
+                columns:  [
+                    {
+                        data: "num_Os",
+                        title: "@RsCadastros.NUMERO_ORDEM_SERVICO",
+                        render: function (data, type, row, meta) {
+                            const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
+                            return `<a href="#" class="modal-ordem-servico" onclick="abrirOS(${rowData})">${data}</a>`;
+                        }
+                    },
+                    { data: "tipoServico", title: "@RsCadastros.TIPO_SERVICO" },
+                    { data: "subTipoServico", title: "@RsCadastros.SUBTIPO_SERVICO" },
+                    { data: "cliente", title: "@RsCadastros.CLIENTE" },
+                    { data: "dataCriacao", title: "@RsCadastros.DATAHORA_CRIACAO" },
+                    { data: "dataSla", title: "@RsCadastros.DATA_HORA_SLA" },
+                    { data: "usuario", title: "@RsCadastros.RESPONSAVEL" },
+                    { data: "status", title: "@RsCadastros.STATUS" }
+
+
+                ]
+            });
+        }
+
+        function abrirOS(row) {
+            const _url = `@Url.Action("Index", "Acompanhamento_Servico")?CodCt=${row.codCt}&Projeto=${row.projeto}&Num_Obra=${row.num_Os}&Num_Doc=${row.num_Doc}`;
+            AddAba(_url, 'Acompanhamento de Serviço');
+        }
+
+</script>
+
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mb-20">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Atendimento")" style="color:#367fa9">@RsCadastros.PAINEL_ATENDIMENTOS</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class="form-inline">
+                    <div class="pl-4 pr-2 form-group">
+                        <label for="iModeloPainel">Modelo de Painel de Atendimento:</label>
+                        <select class="form-control filtro" id="iModeloPainel" autocomplete="off">
+                            <option value="">@RsBase.SELECIONE</option>
+                        </select>
+                    </div>
+                    <div class="pl-4 pr-2" style=" margin: -1px 0px 0px 0;">
+                        <label for="iPesquisaRapida" style="font-size: 12px; margin: 0 0 0 -2rem;">Modelo de Busca Rápida:</label>
+                        @*@Html.EnumDropDownListFor(m => m.PesquisaRapidaAtendimento, new { @class = "form-control", @id = "iPesquisaRapida", @autocomplete = "off" })*@
+                        <select class="form-control" id="iPesquisaRapida">
+                        </select>
+                    </div>
+                    <div class="pl-4 pr-2">
+                        <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui para busca rápida" autocomplete="off" style="width: 20rem;">
+                        <i id="iSearchButton" class="la la-search la-2x" style="color: #999"></i>
+                    </div>
+                </div>
+                @if (AcessoHelper.TemAcesso(_areas, "02"))
+                {
+                    //<a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Atendimento")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                    <a class="btn btn-success btn-add" title="@RsBase.INCLUIR" onclick="VerificarDepartamento(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+
+                <div class="text-right">
+                    <div class="form-group col-sm-push-1 pl-2">
+                        <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda dos status de SLA de serviço"
+                           data-content="<div style='font-size: 10px'>
+                <span class='p-3'><i class='fas fa-flag' style='color:#00FF00'></i> Dentro do Prazo</span><br />
+                <span class='p-3'><i class='fas fa-flag' style='color:#FFFF00'></i> Atenção</span><br />
+                <span class='p-3'><i class='fas fa-flag' style='color:#FF8C00'></i> Próximo do Vencimento</span><br />
+                <span class='p-3'><i class='fas fa-flag' style='color:#FF0000'></i> Risco de Perda do Prazo</span><br />
+                <span class='p-3'><i class='fas fa-flag' style='color:#000000'></i> Prazo Vencido</span><br />
+                </div>"></i>
+                    </div>
+                </div>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    @*<a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>*@
+                    @*<a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>*@
+                    @if (AcessoHelper.TemAcesso(_areas, "03"))
+                    {
+                        <a class="dropdown-item" id="btnCancAtdSelecionados" href="#" onclick="return false;">@RsBase.CANCELAR_ATENDIMENTOS_SELECIONADOS</a>
+                    }
+                    @if (AcessoHelper.TemAcesso(_areas, "154"))
+                    {
+                        <a class="dropdown-item" href="@Url.Action("Index", "Modelo_PainelAtendimento")">@RsBase.GERENCIAR_MODELOS_DE_VISUALIZACAO</a>
+                    }
+                    @if (AcessoHelper.TemAcesso(_areas, "184"))
+                    {
+                        <a class="dropdown-item" onclick="mesclarAtendimento()">@RsCadastros.MESCLAR_ATENDIMENTO</a>
+                    }
+
+                </div>
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" return true;" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+    <div class="row justify-content-center p-1">
+        &nbsp;
+        <span id="dtLegendRecordsTotal" class="text-primary" style="font-size: 14px;"></span>
+    </div>
+    @*<div class="row ml-1 mt-4">
+            <div class="col fs-12" style="margin-top: -10px">
+                @RsCadastros.DENTRO_PRAZO <i class="fas fa-flag" style="color:#00FF00"></i>
+            </div>
+            <div class="col fs-12" style="margin-top: -10px">
+                @RsCadastros.ATENCAO <i class="fas fa-flag" style="color:#FFFF00"></i>
+            </div>
+            <div class="col fs-12" style="margin-top: -10px">
+                @RsCadastros.VENCIMENTO_PROXIMO <i class="fas fa-flag" style="color:#FF8C00"></i>
+            </div>
+            <div class="col fs-12" style="margin-top: -10px">
+                @RsCadastros.RISCO_PERDA_PRAZO <i class="fas fa-flag" style="color:#FF0000"></i>
+            </div>
+            <div class="col fs-12" style="margin-top: -10px">
+                @RsCadastros.PRAZO_VENCIDO <i class="fas fa-flag" style="color:#000000"></i>
+            </div>
+        </div>*@
+
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog" style="max-width:60%">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsCadastros.FILTROS_PAINEL_ATENDIMENTO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12" style="align-content:center;">
+
+                        <label style="font-size: 12px">@RsCadastros.SLA_ATENDIMENTO:</label><br />
+                        <div class="col-sm-12 pl-3 border_radius">
+
+                            <div class="form-group">
+                                <div class="form-check mt-2">
+                                    <div class="row">
+
+                                        <div class="col">
+                                            @Html.CheckBoxFor(m => m.Dentro_Prazo, new { @class = "form-check-input", @id = "iDentroPrazo", @autocomplete = "off" })
+                                            <label for="iDentroPrazo">@RsCadastros.DENTRO_PRAZO </label>
+                                        </div>
+
+                                        <div class="col">
+                                            @Html.CheckBoxFor(m => m.Atencao, new { @class = "form-check-input", @id = "iAtencao", @autocomplete = "off" })
+                                            <label for="iAtencao">@RsCadastros.ATENCAO </label>
+                                        </div>
+                                        <div class="col">
+                                            @Html.CheckBoxFor(m => m.Vencimento_Proximo, new { @class = "form-check-input", @id = "iVencimentoProximo", @autocomplete = "off" })
+                                            <label for="iVencimentoProximo">@RsCadastros.VENCIMENTO_PROXIMO </label>
+                                        </div>
+                                        <div class="col">
+                                            @Html.CheckBoxFor(m => m.Risco_Perda_Prazo, new { @class = "form-check-input", @id = "iRiscoPerdaPrazo", @autocomplete = "off" })
+                                            <label for="iRiscoPerdaPrazo">@RsCadastros.RISCO_PERDA_PRAZO </label>
+                                        </div>
+                                        <div class="col">
+                                            @Html.CheckBoxFor(m => m.Prazo_Vencido, new { @class = "form-check-input", @id = "iPrazoVencido", @autocomplete = "off" })
+                                            <label for="iPrazoVencido">@RsCadastros.PRAZO_VENCIDO </label>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                        <label style="font-size: 12px">@RsCadastros.PRIORIDADE_ATENDIMENTO:</label><br />
+                        <div class="col-sm-12 pt-1 pl-3 border_radius">
+
+                            <div class="form-group">
+                                <div class="form-check mt-2">
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            @Html.CheckBoxFor(m => m.Baixa, new { @class = "form-check-input", @id = "iBaixa", @autocomplete = "off" })
+                                            <label for="iBaixa">@RsCadastros.BAIXA </label>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            @Html.CheckBoxFor(m => m.Media, new { @class = "form-check-input", @id = "iMedia", @autocomplete = "off" })
+                                            <label for="iMedia">@RsCadastros.MEDIA </label>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            @Html.CheckBoxFor(m => m.Alta, new { @class = "form-check-input", @id = "iAlta", @autocomplete = "off" })
+                                            <label for="iAlta">@RsCadastros.ALTA </label>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-1">
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iCategoria_Atendimento">@RsCadastros.CATEGORIA_ATENDIMENTO:</label>
+                                    @Html.DropDownList("Categoria_Atendimento", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iCategoria_Atendimento", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <label for="iTipoAtendimento">@RsCadastros.TIPO_ATENDIMENTO:</label>
+                                    @Html.DropDownList("TipoAtendimento", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iTipoAtendimento", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label> @RsCadastros.ETAPA_ATUAL: </label>
+                                    @Html.DropDownListFor(m => m.Etapa_Atual, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEtapa_Atual", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Etapa_Atual, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-1">
+
+
+
+
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iSetor">@RsCadastros.SETOR:</label>
+                                    @Html.DropDownList("Setor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iSetor", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label> @RsCadastros.RESPONSAVEL_ATUAL: </label>
+                                    @Html.DropDownListFor(m => m.Responsavel_Atual, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUsuario_Responsavel", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Responsavel_Atual, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-1">
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iStatus">@RsCadastros.STATUS:</label>
+                                    @Html.EnumDropDownListFor(m => m.Status_Atendimento, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatus" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iStatus">@RsCadastros.STATUS Auditoria:</label>
+                                    @Html.EnumDropDownListFor(m => m.StatusAuditoria, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAuditoria" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-8">
+                                <div class="form-group">
+
+                                    @Html.CheckBox("ativarMotivo", false, new { @id = "ativarMotivo" })<label for="iMotivo_Status" class="pl-1">@RsCadastros.MOTIVO_STATUS_ATENDIMENTO:</label>
+
+                                    @Html.DropDownList("Motivo_Status", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iMotivo_Status", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-1">
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iNum_Os">@RsCadastros.NUMERO_ATENDIMENTO:</label>
+                                    @Html.TextBoxFor(m => m.Num_Os, new { @class = "form-control", @id = "iNum_Os" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label> @RsCadastros.ORIGEM: </label>
+                                    @Html.DropDownListFor(m => m.Origem, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iOrigem", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Origem, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label> @RsCadastros.PLANOS_E_PRODUTOS: </label>
+                                    @Html.DropDownListFor(m => m.Plano_Produto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano_Produto", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Plano_Produto, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-1">
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iCategoria_Cliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                    @Html.DropDownList("Categoria_Cliente", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iCategoria_Cliente", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iOrganizacao">@RsCadastros.ORGANIZACAO_CLIENTE:</label>
+                                    @Html.DropDownList("Organizacao", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iOrganizacao", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iCliente_Prospecto">@RsCadastros.CLIENTE_PROSPECTO:</label>
+                                    @Html.DropDownList("Cliente_Prospecto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iCliente_Prospecto", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                        </div>                        
+
+                        <div class="mt-1">
+
+                            <div class="form-group">
+                                <label for="divDatas" class="mb-2">@RsCadastros.PERIODO:</label><br />
+
+                                @Html.RadioButton("periodo", 0, false, new { @id = "radioAbertura" }) <label for="radioAbertura">@RsCadastros.DATA_ABERTURA</label><br />
+                                @Html.RadioButton("periodo", 1, false, new { @id = "radioEncerramento" }) <label for="radioEncerramento">@RsCadastros.DATA_ENCERRAMENTO</label><br />
+                                @Html.RadioButton("periodo", 2, false, new { @id = "radioSlaEtapa" }) <label for="radioSlaEtapa">@RsCadastros.DATA_SLA_ETAPA</label>
+
+                            </div>
+
+                            <div class="row pl-3" id="divDatas">
+
+                                @Html.TextBoxFor(m => m.Data_Inicial, new { @tabindex = "7", @class = "form-control datepicker mr-2", @data_provide = "datepicker", @id = "iData_Inicial", @autocomplete = "off" }) @RsBase.A
+                                @Html.TextBoxFor(m => m.Data_Final, new { @tabindex = "7", @class = "form-control datepicker ml-2", @data_provide = "datepicker", @id = "iData_Final", @autocomplete = "off" })
+
+                            </div>
+
+
+
+                        </div>
+                    </div>
+
+
+
+                </div>
+
+            </div>
+
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                </div>
+            </div>
+
+        </div>
+
+
+
+
+    </div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+<!--Modal Ordens Serviço-->
+<div class="modal" id="modal-OS">
+    <div class="modal-dialog modal-dialog-scrollable" style="max-width:40%">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">OS’s Vinculadas</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <table class="table table-hover" id="datatableOrdensServico">
+                </table>
+
+            </div>
+        </div>
+    </div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->

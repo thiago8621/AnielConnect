@@ -1,0 +1,996 @@
+﻿@model Aniel.Connect.Models.HistoricoFaturaCadastroModel
+@using Microsoft.AspNet.Identity;
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_FATURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        .swal-wide {
+            width: 650px !important;
+        }
+
+        .custom-modal {
+            max-width: 800px; /* Change width */
+        }
+
+            .custom-modal .modal-content {
+                height: 500px; /* Change height */
+            }
+
+        .modal-body {
+            overflow-x: auto;
+        }
+    </style>
+}
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+    <script>
+        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteapi/GetAllFaturasAberto")';
+
+        var oDatatable = null;
+        var oDatatableArquivos = null;
+        var rows_selected = [];
+
+        $('#btnImprimir').on("click", function () {
+            let tipoImprimir = $("input[name='tipoImprimir']:checked").val();
+
+            if (tipoImprimir == "carne")
+                DownloadPdf(true)
+            else
+                DownloadPdf(false)
+
+        })
+
+        async function DownloadPdf(carne) {
+            if (rows_selected.length < 1) {
+                Notificar("@RsBase.ATENCAO_", 'Nenhum registro selecionado.', "warning");
+
+                return;
+            }
+
+            if (!carne) {
+                for (let item of rows_selected) {
+                    var link = "@String.Concat(@CONSTANTES.URLFinanceiro + "/api/Faturamentoapi/DownloadFaturasFaturamentoPdf")";
+                    var urlFatura = "@String.Concat(@CONSTANTES.URLFinanceiro + "/pt-BR/Faturamento/FaturaExportar?Ids_Faturamento_Cliente=")" + item;
+                    var faturas = null;
+
+                    var obj = {
+                        url: urlFatura,
+                        idFaturamento: item,
+
+                    }
+
+                    ShowPageLoading();
+
+                    await $.ajax({
+                        url: link,
+                        type: 'POST',
+                        data: obj
+                    })
+                        .done(function (data) {
+                            faturas = data;
+
+                            var filename = "fatura.pdf"
+                            var aTag = document.createElement('a');
+                            aTag.setAttribute('download', 'fatura.pdf');
+                            aTag.setAttribute('href', '@Url.Action("Download","File")' + "?Path=" + faturas + `&FileName=${filename}` + `&ispdf=s`);
+                            aTag.click();
+
+                            HidePageLoading();
+
+                        }).fail(function () {
+                            Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a emissão da fatura", "warning");
+                            HidePageLoading();
+                        });
+                }
+            }
+            else
+            {
+                var link = "@String.Concat(@CONSTANTES.URLFinanceiro + "/api/Faturamentoapi/GetPdfBoletos")";
+
+
+                var obj = {
+                    Ids_boleto_faturamento: rows_selected,
+                    FormatoCarne: true
+                }
+
+                ShowPageLoading();
+
+                await $.ajax({
+                    url: link,
+                    type: 'POST',
+                    data: obj
+                })
+                    .done(function (retorno) {
+                        if (!retorno.ok) {
+                            Notificar("@RsBase.ATENCAO_", retorno.mensagem, "warning")
+                        }
+
+                        let data = retorno.objeto;
+
+                        faturas = data[0];
+                        var filename = "carne.pdf"
+                        var aTag = document.createElement('a');
+                        aTag.setAttribute('download', 'carne.pdf');
+                        aTag.setAttribute('href', '@Url.Action("Download","File")' + "?Path=" + faturas + `&FileName=${filename}` + `&ispdf=s`);
+                        aTag.click();
+
+                        HidePageLoading();
+
+                    }).fail(function () {
+                        Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a emissão da fatura", "warning");
+                        HidePageLoading();
+                    });
+            }
+        }
+
+        function switchTabInIframe() {
+            if (oDatatable != null) {
+                TableManageButtons.init();
+            }
+        };
+
+        function formatarData(data) {
+            return data.split("/");;
+        }
+
+        function MostrarDetalhes(Id_Faturamento_Cliente) {
+            var url = '@Url.Action("ModalDetalhesFaturamento", "Faturamento_Cliente")' + '?Id_Faturamento_Cliente=' + Id_Faturamento_Cliente;
+            ShowDialog(true, true, 'Detalhes Faturamento', url, 'divLog', 900, 600, 'iframeLog');
+        }
+
+        function VisualisarLog(Id_Protocolo, IdFaturamentoCliente, Id_Cliente) {
+
+            var url = '@Url.Action("VisualizarLog", "Faturamento_Cliente")' + '?Id_Protocolo=' + Id_Protocolo;
+
+            if (Id_Cliente)
+                url = url + '&Id_Cliente=' + Id_Cliente;
+            if (IdFaturamentoCliente)
+                url = url + '&IdFaturamentoCliente=' + IdFaturamentoCliente;
+
+            ShowDialog(true, true, 'Visualização do Log', url, 'divLog', 900, 600, 'iframeLog');
+        }
+
+        function FiltrarDataTable() {
+
+            var date1 = new Date(parseInt($("#iDtInicialFiltro").val().substring(6, 10)), parseInt($("#iDtInicialFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtInicialFiltro").val().substring(0, 2)));
+            var date2 = new Date(parseInt($("#iDtFinalFiltro").val().substring(6, 10)), parseInt($("#iDtFinalFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtFinalFiltro").val().substring(0, 2)));
+
+            const diffTime = Math.abs(date2 - date1);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 366) {
+                Notificar("@RsBase.ATENCAO_", "O período filtrado é maior que 12 meses", "warning");
+                return false;
+            }
+
+            if ($("#iDtInicialFiltro").val() == "" || $("#iDtFinalFiltro").val() == "") {
+                Notificar("@RsBase.ATENCAO_", "Período Inválido", "warning");
+                return false;
+            }
+
+            var sDateStart = formatarData($("#iDtInicialFiltro").val());
+            var sDateEnd = formatarData($("#iDtFinalFiltro").val());
+
+            var dateStart = new Date(sDateStart[2], sDateStart[1], sDateStart[0]);
+            var dateEnd = new Date(sDateEnd[2], sDateEnd[1], sDateEnd[0]);
+
+            if (dateStart > dateEnd) {
+                Notificar("@RsBase.ATENCAO_", "Data Inicial, é MAIOR que Data Final!", "warning");
+                return false;
+            }
+
+            oDatatable.draw();
+            return true;
+        }
+
+
+        var handleDataTableButtonsArquivos = function (dataRequest) {
+
+            if (oDatatableArquivos != null) {
+                oDatatableArquivos.destroy();
+                $("#datatableNotaFiscal").empty();
+                oDatatableArquivos = null;
+            }
+
+            "use strict";
+            //"Blfrtip"
+            oDatatableArquivos = $("#datatableNotaFiscal").length && $("#datatableNotaFiscal").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                processing: true,
+                ordering: true,
+                destroy: true,
+                deferRender: true,
+                autoWidth: true,
+                autoHeight: true,
+                paging:false,
+                ajax: {
+                    url: baseUrl + '/api/Historico_NfApi/ObterNotasFatura',
+                    type: 'POST',
+                    data: function (data) {
+                        data.IdFatura = dataRequest;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: function () {
+
+                    $(".iRealizarDownload").on("click", function () {
+                        var $row = $(this).closest('tr');
+                        var rowData = oDatatableArquivos.row($row).data();
+                        var downloads = rowData.urlNota;
+
+                        if (downloads == null || downloads.length == 0 ||
+                            downloads == undefined || downloads == "") {
+                            Notificar("ATENÇÃO!", "Fatura seleciona não possui NF atreladas!", "warning")
+                            return false;
+                        }
+
+                        var aTag = document.createElement('a');
+                        aTag.setAttribute('target', '_blank');
+                        aTag.setAttribute('href', downloads);
+                        aTag.click();
+                    });
+
+
+                    HidePageLoading();
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                initComplete: dataTableInitComplete,
+                columns: [
+                    { data: "descricaoModeloNota", title: "Modelo Nota Fiscal", class: "text-center"},
+                    {
+                        data: "urlNota", title: "Download", class: "text-center", render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = `<a  class="text-center pl-2 iRealizarDownload" value="${data}" href="#"> <i class="fas fa-print"></i></a>`;
+                            }
+                            return data;
+                        },
+                    }
+                ]
+            });
+
+            $('#txtSearch').val(oDatatableArquivos.search());
+            $('#txtSearch').keyup(function () {
+                oDatatableArquivos.search($(this).val()).draw();
+            });
+
+            $('#datatableNotaFiscal tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+                var rowData = oDatatableArquivos.row($row).data();
+                var index = $.inArray(rowData, rows_selected);
+                if (this.checked && index === -1) {
+                    rows_DocsTermo.push(rowData);
+                } else if (!this.checked && index !== -1) {
+                    rows_DocsTermo.splice(index, 1);
+                }
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+                e.stopPropagation();
+            });
+
+            $('#datatableNotaFiscal').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            $('thead input[name="select_all"]', oDatatableArquivos.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatableNotaFiscal tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatableNotaFiscal tbody input[type="checkbox"]:checked').trigger('click');
+                }
+                e.stopPropagation();
+            });
+
+
+            $("#iBaixarDocs").on("click", function () {
+
+                var downloads = oDatatableArquivos.rows().data().toArray();
+
+                if (downloads == null || downloads.length == 0 || downloads == undefined) {
+                    Notificar("ATENÇÃO!", "Fatura seleciona não possui NF atreladas!", "warning")
+                    return false;
+                }
+
+                const temDocs = downloads.filter((x) => x.urlNota != null &&
+                                                        x.urlNota != "" &&
+                                                        x.urlNota != undefined &&
+                                                        x.urlNota.length != 0);
+
+
+                if (temDocs == null || temDocs.length == 0 || temDocs == undefined) {
+                    Notificar("ATENÇÃO!", "Fatura seleciona não possui NF atreladas!", "warning")
+                    return false;
+                }
+
+                downloads.forEach((item) => {
+                    var aTag = document.createElement('a');
+                    aTag.setAttribute('target', '_blank');
+                    aTag.setAttribute('href', item.urlNota);
+                    aTag.click();
+                });
+            });
+        },
+        TableManageButtonsArquivos = function () {
+            "use strict";
+            return {
+                init: function (data) {
+                    handleDataTableButtonsArquivos(data);
+                }
+            }
+        }();
+
+
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty();
+                oDatatable = null;
+            }
+
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: /*"<'row'<'col-sm-4'l><'col-sm-8'p>>" + */"Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                /*{
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }*/],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+
+                    url: link,
+                    type: 'POST',
+                    data: function (data) {
+                        //data.draw = 1; data.length = 18; data.order = [{ column: 1, dir: "asc" }]; data.search = { regex: false, value: null }; data.start = 0;
+                        data.Id_Forma_Pagamento = null;
+                        data.Data_Emissao_Fatura_Ini = $("#iDtInicialFiltro").val();
+                        data.Data_Emissao_Fatura_Fim = $("#iDtFinalFiltro").val();
+                        data.Data_Vencimento = null;
+                        data.Status_Faturamento = $("#iStatusFatura").val();
+                        data.Id_Cliente = $("#iIdClienteHisFat").val();
+                        data.Id_Contrato = $("#iContrato").val();
+                        data.Id_Endereco = $("#iEndereco").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: () => {
+
+                    $(".vizualizarBoleto").on("click", function () {
+                        var elem = $(this)[0];
+                        var id_fatura = parseInt($(elem).attr("id_fatura"));
+
+                        var link = '@String.Concat(CONSTANTES.URLFinanceiro, "/api/Faturamentoapi/GetPdfBoletos")';
+
+                        $.ajax({
+                            url: link,
+                            type: "POST",
+                            data: {
+                                Ids_boleto_faturamento: [id_fatura]
+                            },
+                            beforeSend: function () {
+                                ShowPageLoading();
+                            },
+                            complete: function () {
+                                HidePageLoading();
+                            }
+
+
+                        }).done(function (retorno) {
+                            if (!retorno.ok) {
+                                Notificar("@RsBase.ATENCAO_", retorno.mensagem, "warning")
+                            }
+
+                            let data = retorno.objeto;
+
+
+
+                            if (data.length == 0) {
+                                Notificar("@RsBase.ATENCAO_", "Não foi encontrado boleto para essa fatura!", "warning");
+                            } else {
+                                for (var i = 0; i < data.length; i++) {
+                                    var filename = data[i].split('\\Tmp')[1];
+                                    var aTag = document.createElement('a');
+                                    aTag.setAttribute('download', 'your.pdf');
+                                    aTag.setAttribute('href', '@Url.Action("Download","File")' + "?Path=" + data[i] + `&FileName=${filename}` + `&ispdf=s`);
+                                    aTag.click();
+                                }
+                            }
+                        });
+                    });
+
+                    $(".vizualizarNota").on("click", function () {
+                        @*var elem = $(this)[0];
+                        var id_conta_receber = parseInt($(elem).attr("id_conta_receber")) ;
+                        $.getJSON("@CONSTANTES.URLFinanceiro/api/Nota_FiscalApi/GetUrlNotaFiscalContaReceber?Id_Conta_Receber=" + id_conta_receber,
+
+                            function myfunction(data) {
+
+                                if (data.ok) {
+
+                                    if (data.objeto) {
+                                        var url = data.objeto;
+                                        var aTag = document.createElement('a');
+                                        aTag.setAttribute('target', '_blank');
+                                        aTag.setAttribute('href', url);
+                                        aTag.click();
+                                    }
+                                    else {
+                                        Notificar("@RsBase.ATENCAO_", "Nota Fiscal não encontrada", "warning");
+                                    }
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            });*@
+
+                        var $row = $(this).closest('tr');
+
+                        var idFatura = oDatatable.row($row).data().id;
+
+                        TableManageButtonsArquivos.init(idFatura);
+
+                        $("#iModalVisualizarNotas").modal("show");
+                    });
+
+                    $(".reenviarFatura").on("click", function () {
+                        var elem = $(this)[0];
+                        var id_fatura = parseInt($(elem).attr("id_fatura"));
+                        $.ajax({
+                            url: "@CONSTANTES.URLFinanceiro/api/Cobrancaapi/EnviarContratoBoleto",
+                            type: "POST",
+                            data: {
+                                ids: [id_fatura]
+                            }
+                        })
+                            .done(function (data) {
+                                if (data.ok)
+                                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                                else if (data.mensagens.length > 0) {
+                                    for (var item of data.mensagens) {
+                                        Notificar("@RsBase.ATENCAO_", item.mensagem, "warning");
+                                    }
+                                }
+                            });
+                    });
+
+                    $(".gerarSegundaVia").on("click", function () {
+
+                        var elem = $(this)[0];
+                        var id_conta_receber = parseInt($(elem).attr("id_conta_receber"));
+                        Swal.fire({
+                            title: "@Html.Raw("Preencha os campos para segunda via")",
+                            text: "@Html.Raw(RsFinanceiro.NAO_SERA_POSSIVEL_RETORNAR_ACAO)",
+                            type: 'question',
+                            showCancelButton: true,
+                            cancelButtonText: 'Cancelar',
+                            html: '<div class="text-center">' +
+                                '<div class = "row mt-3 mb-3"> ' +
+                                '<div class= "col pl-0">' +
+                                '<label for="iDataVencimentoSwal">@RsFinanceiro.DATAVENCIMENTO:</label>' +
+                                '<input autocomplete="off" class="form-control datepicker" data-provide="datepicker" data-val="true" data-val-date="The field Data de Recebimento must be a date." id="iDataVencimentoSwal" placeholder="00/00/0000" tabindex="7" type="text" value="" maxlength="10"></div>' +
+                                '</div > ' +
+                                '</div>',
+                            preConfirm: async (data) => {
+
+
+                                ShowPageLoading();
+                                var link = `@String.Concat(CONSTANTES.URLFinanceiro, "/api/Faturamentoapi/EmitirSegundaVia")`;
+                                await $.post({
+                                    url: link,
+                                    type: 'POST',
+                                    dataType: 'json',
+                                    error: function (XMLHttpRequest, textStatus, errorThrown) {
+                                        HidePageLoading();
+                                        Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a emissão dos boletos", "warning");
+                                    },
+                                    data: {
+                                        Id_Conta_Receber: id_conta_receber,
+                                        Data_Vencimento: $('#iDataVencimentoSwal').val(),
+                                        Usuario: "@User.Identity.GetUserId()"
+                                    }
+                                })
+                                    .done(function (data) {
+
+                                        if (data.ok) {
+                                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                                        }
+                                        else {
+                                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                        }
+
+                                        HidePageLoading();
+                                        oDatatable.draw(false);
+                                    })
+                                    .fail(function (data) {
+                                        if (datam.mensagem) {
+                                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                        }
+                                        HidePageLoading();
+                                    });
+
+                            },
+                            onOpen: function () {
+
+                                $(".datepicker").mask("00/00/0000");
+                                $('.datepicker').datepicker({
+                                    format: 'dd/mm/yyyy',
+                                    language: 'pt-BR',
+                                    todayHighlight: 'true',
+                                    autoclose: true
+                                }).on('changeDate', function (e) {
+                                    if ($(this).val().length === 10)
+                                        return $(this).trigger('focusout');
+                                    else
+                                        return true;
+                                }).after(function () {
+
+                                    return ($(this).is(".readonly") || $(this).prop("readonly")) ?
+                                        //$("<span class='pl-1 pr-3'><i class='far fa-calendar-alt'></i></span>")
+                                        //$("<div class='form-inline'><i class='far fa-calendar-alt fs-15 color-icon-date'></i></div>")
+                                        $("<i class='far fa-calendar-alt fs-15 color-icon-date pl-1 pr-1'></i>")
+                                        :
+                                        //$("<a href='javascript: void(0);' class='pl-1 pr-3'><i class='far fa-calendar-alt'></i></a>").click(function () {
+                                        $("<a href='javascript: void(0);' class='pl-1 pr-1'><i class='far fa-calendar-alt fs-15 color-icon-date'></i></a>").click(function () {
+                                            $(this).prev().datepicker('show');
+                                        });
+                                }
+                                );
+                            },
+                            confirmButtonColor: '#3085d6',
+                            confirmButtonText: '@RsBase.CONFIRMAR',
+                            allowOutsideClick: false
+                        });
+                    });
+
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id_Conta_Receber", title: "@RsCadastros.ID", orderable: false },
+                    { data: "protocolo", title: "@RsCadastros.PROTOCOLO", orderable: false },
+                    { data: "valor_Previsto", title: "@RsCadastros.VALOR_FATURA", orderable: false },
+                    { data: "forma_Pagamento", title: "@RsCadastros.FORMA_PAGAMENTO", orderable: false },
+                    { data: "data_Vencimento", title: "@RsCadastros.DATA_VENCIMENTO_", orderable: false },
+                    { data: "status", title: "@RsCadastros.STATUS", orderable: false },
+                    { data: "data_Recebimento", title: "@RsCadastros.DATA_PAGAMENTO", orderable: false },
+                    { data: "valor_Recebido", title: "@RsCadastros.VALOR_PAGO", orderable: false },
+                    {
+                        data: "id_Conta_Receber",
+                        title: "@RsCadastros.BOLETO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (row.id_Conta_Receber != null) {
+                                    if (row.status == 'Baixado' || row.status == 'Cancelado') {
+                                        data = "";
+                                    } else {
+                                        data = `<a  class="btnBoleto vizualizarBoleto pl-2" id_fatura=${row.id} href="#"  ><i  class="fas fa-print"></i></a>`;
+                                    }
+                                }
+                            }
+                            return data;
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "id_Conta_Receber",
+                        title: "@RsCadastros.NOTA_FISCAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (row.id_Conta_Receber != null) {
+                                    data = `<a  class="btnBoleto vizualizarNota pl-2" id_conta_receber=${row.id_Conta_Receber} href="#"  ><i  class="fas fa-print"></i></a>`;
+                                }
+                            }
+                            return data;
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "id_Conta_Receber",
+                        title: "@RsCadastros.REENVIO_FATURA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (row.id_Conta_Receber != null) {
+                                    data = `<a  style="font-size:12px;text-align:center;color:white" class="btnBoleto btn btn-primary reenviarFatura pl-2" id_fatura=${row.id}   >Reenviar Fatura</a>`;
+                                }
+                            }
+                            return data;
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "",
+                        title: "Detalhes",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+
+                            if (type === 'export')
+                                return ""
+                            else
+                                return '<button type="button" class="btn btn-success btn-add" onclick="MostrarDetalhes(' + row.id + '); return true;"><i class="la la-plus"> </i> ' + '   </button>';
+                        }
+                    },
+                    {
+                        data: "",
+                        title: "Log",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+
+                            if (type === 'export')
+                                return ""
+                            else
+                                return '<button type="button" class="btn btn-primary btn-datatable" onclick="VisualisarLog(' + row.id_Faturamento_Protocolo + ',' + row.id + ',' + row.id_Cliente + ');"><i class="fas fa-history"> </i> ' + '   </button>';
+                        }
+                    }
+                    @*{
+                        data: "id_Conta_Receber",
+                        title: "@RsFinanceiro.SEGUNDA_VIA_BOLETO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (row.id_Conta_Receber != null) {
+                                    if (row.status == 'Baixado' || row.status == 'Cancelado') {
+                                        data = "";
+                                    }else {
+                                        data = `<a  style="font-size:12px;text-align:center;color:white" class="btn btn-primary  btnBoleto gerarSegundaVia pl-2" id_conta_receber=${row.id_Conta_Receber}  >Gerar 2ª Via</a>`;
+                                    }
+                                }
+                            }s
+                            return data;
+                        },
+                        orderable: false
+                    },*@
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Aqui
+            $("#btnFiltro").on("click", function () {
+
+                //if (rows_selected.length == 0) {
+                //    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                //    return;
+                //}
+
+
+                //AlterarStatusObj(1);
+            });
+
+            $('#datatable tbody').on('click', 'tr', function (e) {
+                if (oDatatable.row(this).data() != null) {
+                    var _id = oDatatable.row(this).data().id;
+                    e.stopPropagation();
+                }
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                if (rowId == 0) {
+                    rows_selected.splice(index, 1);
+                    $row.removeClass('selected');
+
+                    $('input[type="checkbox"]', $row).prop('checked', false);
+
+                    Notificar("@RsBase.ATENCAO_", "Não foi possível selecionar o registro, pois não contém FATURAMENTO.", "warning");
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+                e.stopPropagation();
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+    </script>
+
+    <script>
+
+        $(document).ready(function () {
+            AddSelect("iContrato", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente", @CONSTANTES.PaginacaoRegistros, null, @Model.Id_Cliente, null, "@RsBase.SELECIONE", false, null, null, null, null, false);
+            AddSelect("iEndereco", "@CONSTANTES.URLPortal/api/clienteapi/GetComboEnderecosCliente", @CONSTANTES.PaginacaoRegistros, null, @Model.Id_Cliente, null, "@RsBase.SELECIONE", false, null, null, null, null, false);
+        });
+
+    </script>
+
+}
+
+
+@*@section styles
+    {
+        <link href="~/Content/timeline.css" rel="stylesheet" />
+    }*@
+
+
+
+@Html.HiddenFor(model => model.Id_Cliente, new { @id = "iIdClienteHisFat" })
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+            <div class="card-header title-card" id="heading_1">
+                <div class="d-flex">
+                    <div class="col-auto">
+                        <h5 class="mb-1">
+                            <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                                <span class="text-bold-card">@RsCadastros.HISTORICO_FATURA</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div class="col" style="text-align: end;">
+                        <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                        </button>
+
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                            <a class="dropdown-item" href="#" id="btnImprimirFaturas" data-toggle="modal" data-target="#iModalImprimir"><i class="fa fa-print" aria-hidden="true"></i>&nbsp;Imprimir Faturas Selecionadas</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label class="" for="iNome">@RsCadastros.PERIODO:</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3 ">@RsCadastros.DE:</label>
+                        </div>
+                        <input type="text" class="form-control datepicker" value="@DateTime.Today.AddMonths(-6).Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDtInicialFiltro">
+
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.PARA:</label>
+                        </div>
+                        <input type="text" class="form-control datepicker" value="@DateTime.Today.Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDtFinalFiltro">
+
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label id="iLblGrau_Ligacao">Status da Fatura:</label>
+                        </div>
+                        @Html.EnumDropDownListFor(m => m.Status_Conta_Receber, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusFatura" })
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label id="iLblGrau_Ligacao">Contrato:</label>
+                        </div>
+                        @Html.EnumDropDownListFor(m => m.Status_Conta_Receber, RsBase.SELECIONE, new { @class = "form-control", @id = "iContrato" })
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label id="iLblGrau_Ligacao">Endereço de Cobrança:</label>
+                        </div>
+                        @Html.EnumDropDownListFor(m => m.Status_Conta_Receber, RsBase.SELECIONE, new { @class = "form-control", @id = "iEndereco" })
+                    </div>
+
+                    <div class="col mt-4 pb-2">
+                        <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                    </div>
+
+                </div>
+
+                <!--.Filtros-->
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="divLog"></div>
+
+<div class="modal fade" id="iModalImprimir" data-backdrop="static" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle"> Selecione o modelo de impressão</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+
+                        <label class="fs-12" for="opcao1">
+                            <input type="radio" name="tipoImprimir" value="fatura"> Modelo Tamanho Normal
+                        </label><br>
+                        <label class="fs-12" for="opcao2">
+                            <input type="radio" name="tipoImprimir" value="carne"> Modelo Carne
+                        </label><br>
+
+                        <button type="button" class="btn btn-danger" data-dismiss="modal" id="btnCancelar">@RsBase.CANCELAR</button>
+                        <button type="button" class="btn btn-success" id="btnImprimir">@RsBase.IMPRIMIR</button>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="modal fade" id="iModalVisualizarNotas" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog custom-modal" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="exampleModalLongTitle"><b>Selecione a Nota Fiscal Emitida</b></h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="divTable" style="overflow-x: auto;">
+                    <table class="table table-hover nowrap" id="datatableNotaFiscal" style="width:100%">
+                    </table>
+                </div>
+                <div class="row form-group mt-5">
+                    <div class="col-sm-4">
+                        <button type="button" class="btn btn-success" id="iBaixarDocs">Baixar Todas as Notas</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

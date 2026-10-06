@@ -1,0 +1,377 @@
+﻿@model  Aniel.Connect.Models.Modelo_ContratoListaModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTA_CONTRATO;
+    ViewBag.Sessao = RsCadastros.MODELO_CONTRATO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_ContratoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+
+            //if ($("#datatable").length != null && $("#datatable").length < 1) {
+var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+    dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Modelo_ContratoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.CODIGO" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO" },
+                    { data: "arquivo_Doc", title: "@RsCadastros.ARQUIVO_DOC" },
+                    { data: "status", title: "@RsCadastros.STATUS" }
+
+                    ]
+                });
+
+           $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            //$('#iLimparFiltro').on('click', function () {
+
+            //    $('#txtSearch').val('');
+            //    rows_selected = [];
+            //    oDatatable.search($('#txtSearch').val()).draw();
+            //});
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+           $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+           $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_ContratoApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            });
+
+             // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+                    @if (AcessoHelper.TemAcesso(_areas,"55"))
+                    {
+                        <text>
+                    var url = '@Url.Action("Cadastro", "Modelo_Contrato", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                    </text>
+                    }
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-file-signature"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+                @if (AcessoHelper.TemAcesso(_areas, "53"))
+                {
+                    <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Modelo_Contrato")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+                @*   <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>*@
+
+                @*<button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>*@
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "54"))
+                    {
+                        <a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                        <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>

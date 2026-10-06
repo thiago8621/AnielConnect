@@ -1,0 +1,793 @@
+﻿@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect
+
+@{
+    ViewBag.Title = "Painel de Trocas de Titulares";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+    var possuiAcesso402 = true;
+
+    if(!AcessoHelper.TemAcesso(_areas, "402"))
+    {
+        possuiAcesso402 = false;
+    }
+}
+
+@section styles
+{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/bin/Content/connect.css")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <style>
+        #datatable_length {
+            margin-right: auto !important;
+            margin-top: 12px;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+
+        #divTable {
+            margin-right: 20px;
+            padding-top: 13px;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        th.dt-center, td.dt-center {
+            text-align: center;
+        }
+    </style>
+
+}
+
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+<script>
+        var oDatatable;
+        var oDatatableErros;
+        var rows_selected = [];
+        var valoresChecados = [];
+        var errosData = null;
+        var possuiAcesso402 = "@Html.Raw(possuiAcesso402)";
+
+        $(document).ready(function () {
+            $("#iClienteContrato").prop("disabled", true);
+            AddSelect('iClienteCriar', '@CONSTANTES.URLPortal/api/clienteapi/GetCombo',@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false)
+        });
+
+        $("#iClienteCriar").on('change', function () {
+            var cliente = $("#iClienteCriar option:selected").val();
+
+            if (cliente != null && cliente != "" && cliente != undefined) {
+                $("#iClienteContrato").prop("disabled", false);
+                AddSelect('iClienteContrato', '@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente',@CONSTANTES.PaginacaoRegistros, null, cliente, null, "@RsBase.SELECIONE", false)
+            }
+            else {
+                $("#iClienteContrato").prop("disabled", true);
+            }
+        });
+
+    var handleDataTableButtons = function () {
+            "use strict";
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: false,
+                searching: true,
+                processing: true,
+                ordering: true,
+                destroy: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                autoWidth: false,
+                scrollY: '79vh',
+                scrollX: true,
+                layout: {
+                    bottomEnd: {
+                        paging: {
+                            firstLast: false
+                        }
+                    }
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/TrocaTitularidadeApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.tipoPeriodo = $("input[name='checkStatus']:checked").val();
+                        data.DataInicial = $("#iMesInicio").val();
+                        data.DataFinal = $("#iMesFim").val();
+                        data.StatusTrocaTitularidade = $("#iStatusTroca option:selected").val();
+                        data.TipoPessoaAtual = $("#iTipoPessoaAtual option:selected").val();
+                        data.TipoPessoaNovo = $("#iTipoPessoaNovo option:selected").val();
+                        data.EtapaAtual = $("#iEtapaAtual option:selected").val();
+                        data.TermoAssinado = $("#iTermoAssinado option:selected").val();
+                        data.ChecklistPreenchido = $("#iChecklist option:selected").val();
+                        data.PossuiAcesso = possuiAcesso402.toLowerCase();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                               Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                            </div> `);
+                        return d.data;
+                    }
+                },
+                drawCallback: function () {
+                    HidePageLoading();
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                initComplete: dataTableInitComplete,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "numero", title: "@RsCadastros.NUMERO", orderable: false },
+                    { data: "statusTroca", title: "@RsCadastros.STATUS_TROCA", orderable: false },
+                    { data: "tipoPessoaTitularAtual", title: "@RsCadastros.TIPO_PESSOA_TITULAR", orderable: false },
+                    { data: "nomeFantasiaTitularAtual", title: "@RsCadastros.NOME_FANTASIA_ATUAL", orderable: false },
+                    { data: "documentoTitularAtual", title: "@RsCadastros.CPF_CNPJ_ATUAL", orderable: false },
+                    { data: "tipoPessoaTitularNovo", title: "@RsCadastros.TIPO_PESSOA_NOVO", orderable: false },
+                    { data: "nomeFantasiaTitularNovo", title: "Nome/Fantasia Novo", orderable: false },
+                    { data: "documentoTitularNovo", title: "@RsCadastros.CPF_CNPJ_NOVO", orderable: false },
+                    { data: "categoriaTitularNovo", title: "@RsCadastros.CATEGORIA_TITULAR", orderable: false },
+                    { data: "usuarioCriacao", title: "@RsCadastros.USUARIO @RsCadastros.CRIACAO", orderable: false },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATAHORA_CRIACAO", orderable: false },
+                    { data: "usuarioAprovacao", title: "Usuário Aprovação", orderable: false },
+                    { data: "dataAprovacao", title: "Data e Hora Aprovação", orderable: false },
+                    { data: "usuarioCancelamento", title: "Usuário Cancelamento", orderable: false },
+                    { data: "dataCancelamento", title: "Data e Hora Cancelamento", orderable: false },
+                    { data: "etapaAtual", title: "@RsCadastros.ETAPA_ATUAL", orderable: false },
+                    { data: "checklistPreenchido", title: "@RsCadastros.CHECKLIST Preenchido - Titular Novo", orderable: false },
+                    { data: "termoTitularNovo", title: "Termo Assinado - Titular Novo", orderable: false },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                e.stopPropagation();
+
+            });
+
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                e.stopPropagation();
+            });
+        },
+    TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+    var handleDataTableButtonsErros = function () {
+            "use strict";
+
+            //"Blfrtip"
+            oDatatableErros = $("#datatableErros").length && $("#datatableErros").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                { "className": "dt-center", "targets": "_all" }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                destroy: true,
+                autoWidth: false,
+                scrollY: '79vh',
+                scrollX: true,
+                layout: {
+                    bottomEnd: {
+                        paging: {
+                            firstLast: false
+                        }
+                    }
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                data: errosData,
+                drawCallback: function () {
+                    HidePageLoading();
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons:[
+                    'excel',
+                ],
+                initComplete: dataTableInitComplete,
+                columns: [
+                    { data: "id", title: "Nº da Troca de Titularidade", orderable: false, },
+                    { data: "statusTroca", title: "Status da Troca", orderable: false },
+                    { data: "termoAdesao", title: "Termo de Adesão Assinado?", orderable: false },
+                    { data: "motivo", title: "@RsCadastros.MOTIVO", orderable: false, class: "dt-center" }
+                ]
+            });
+    },
+
+    TableManageButtonsErros = function () {
+       "use strict";
+       return {
+           init: function () {
+               handleDataTableButtonsErros();
+           }
+       }
+    }();
+
+    TableManageButtons.init();
+
+    function ConverterData(data) {
+
+        let parts = data.split("/");
+
+        let month = parseInt(parts[0]) - 1;
+        let year = parseInt(parts[1]);
+
+        let dateObject = new Date(year, month, 1);
+
+        return dateObject;
+    }
+
+    function PesquisarTrocas() {
+
+        var erro = false;
+
+        var checkadoPeriodo = $("input[name='checkStatus']").is(":checked");
+
+        if (checkadoPeriodo) {
+            if (!$('#iMesInicio').val() || !$('#iMesFim').val()){
+              Notificar("@RsBase.ATENCAO_", "É necessário informar o Mês de Início e Fim", "warning");
+              erro = true;
+            }
+
+            var dateIni = ConverterData($('#iMesInicio').val());
+            var dateFim = ConverterData($('#iMesFim').val());
+
+            if (dateFim < dateIni) {
+               Notificar("@RsBase.ATENCAO_", "Data Fim não pode ser menor que a Data Inicial", "warning");
+               erro = true;
+            }
+        }
+
+        if (erro) {
+            return false;
+        }
+
+        $("#iModalFiltros").modal('hide');
+
+        if ($.fn.DataTable.isDataTable("#datatable")) {
+            $("#datatable").DataTable().clear().destroy();
+            TableManageButtons.init();
+        }
+        else {
+            TableManageButtons.init();
+        }
+    }
+
+    function LimparFiltros() {
+        $("#iStatusTroca").val("").trigger('change');
+        $("#iTipoPessoaAtual").val("").trigger('change');
+        $("#iTipoPessoaNovo").val("").trigger('change');
+        $("#iEtapaAtual").val("").trigger('change');
+        $("#iTermoAssinado").val("").trigger('change');
+        $("#iChecklist").val("").trigger('change');
+
+        $("#iMesInicio").val(null).trigger('change');
+        $("#iMesFim").val(null).trigger('change');
+        $("#iTodosPeriodos").prop("checked", true).trigger('change');
+        $("input[name='checkStatus']:checked").prop("checked", false);
+
+        //oDatatable.search($('#txtSearch').val()).draw(false);
+        valoresChecados = [];
+/*        TagFilter("FiltrosUtilizados", filter_state());*/
+    }
+
+    $("#iLimparFiltros").unbind("click");
+    $("#iLimparFiltros").on("click", function () {
+        LimparFiltros();
+
+        if ($.fn.DataTable.isDataTable("#datatable")) {
+            $("#datatable").DataTable().clear().destroy();
+            TableManageButtons.init();
+        }
+        else {
+            TableManageButtons.init();
+        }
+    });
+
+    $("#iLimparFiltroModal").unbind("click");
+    $("#iLimparFiltroModal").on("click", function () {
+        LimparFiltros();
+
+        if ($.fn.DataTable.isDataTable("#datatable")) {
+            $("#datatable").DataTable().clear().destroy();
+            TableManageButtons.init();
+        }
+        else {
+            TableManageButtons.init();
+        }
+    });
+
+    $("#iCriarTroca").on("click", function(){
+        $("#iCriarTrocaTitular").modal('show');
+    });
+
+    function LimparFiltrosGerarContrato() {
+        $("#iClienteCriar").val(null).trigger('change');
+        $("#iClienteContrato").val(null).trigger('change');
+    }
+
+    async function GerarTrocaTitularidade() {
+        var cliente = $("#iClienteCriar option:selected").val();
+
+        if (cliente == null || cliente == "" || cliente == undefined) {
+            Notificar("ATENÇÃO", "Cliente não selecionado!", "warning")
+            return false;
+        }
+
+        var contrato = $("#iClienteContrato option:selected").val();
+
+        if (contrato == null || contrato == "" || contrato == undefined) {
+            Notificar("ATENÇÃO!", "Contrato não selecionado!", "warning")
+            return false;
+        }
+
+        let validacaoTroca;
+
+        await $.ajax({
+            url: baseUrl + `/api/TrocaTitularidadeApi/ValidarCriacaoTroca?IdCliente=${cliente}&IdContrato=${contrato}`,
+            method: 'POST',
+            dataType: 'json',
+        }).done(async function (response) {
+            if (response.ok) {
+                Notificar("", response.mensagem, "success")
+                validacaoTroca = true;
+            }
+            else {
+                Notificar("ATENÇÃO!", response.mensagem, "warning")
+                validacaoTroca = false;
+              return false;
+            }
+        });
+
+        if (!validacaoTroca)
+            return false;
+
+        window.location.href = '@Url.Action("Cadastro", "TrocaTitularidade")' + '?idCliente=' + cliente + '&numeroContrato=' + contrato + '&idTrocaTitularidade=0';
+        ShowPageLoading();
+    }
+
+    function ValidaCancelarTroca() {
+
+        var idsSelecionados = rows_selected;
+
+        if (idsSelecionados.length == 0 ||
+            idsSelecionados == undefined ||
+            idsSelecionados == []) {
+            Notificar("Atenção!", "Nenhum registro selecionado", "warning")
+            return false;
+        }
+
+        Swal.fire({
+            html: `<h4>Deseja Cancelar todas as Trocas de Titularidades selecionadas?</h4> <br/>
+                   <p>Não será possível retornar essa ação</p>`,
+            showCancelButton: true,
+            confirmButtonText: "Sim",
+            cancelButtonText: `Não`,
+            type: "question",
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#FF0000"
+        }).then((result) => {
+            if (result.value) {
+                CancelarTrocaTitularidade(idsSelecionados);
+            }
+        });
+    }
+
+    function CancelarTrocaTitularidade(idsSelecionados) {
+
+        let request = { ids: idsSelecionados };
+
+        $.ajax({
+            url: baseUrl + `/api/TrocaTitularidadeApi/Cancelar`,
+            type: 'POST',
+            dataType: 'json',
+            data: request
+        }).done(function (response) {
+            if (!response.ok) {
+                Swal.fire({
+                    html: ` <h5>Devido algumas restrições da Venda, não foi possível
+                            cancelar algumas Trocas de Titularidade.
+                            Deseja visualizar as Trocas não Canceladas?
+                            </h5><br/>
+                          `,
+                    showCancelButton: true,
+                    confirmButtonText: "Sim",
+                    cancelButtonText: `Não`,
+                    type: "question",
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#FF0000"
+                }).then((result) => {
+                    if (result.value) {
+                        ExibirModalErros(response);
+                    }
+                    else {
+                        window.location.reload();
+                    }
+                });
+            }
+            else {
+                Swal.fire({
+                    html: `<h4>Trocas de Titularidade canceladas com sucesso!</h4>`,
+                    showCancelButton: false,
+                    confirmButtonText: "OK",
+                    type: "success",
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#FF0000"
+                }).then((result) => {
+                    if (result.value) {
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    }
+
+    function ExibirModalErros(response) {
+        errosData = response.idObjeto;
+        TableManageButtonsErros.init();
+        $("#iModalErrosCancelamento").modal("show");
+    }
+
+    $('#datatable tbody').on('click', 'tr', function (e) {
+         if (oDatatable.row(this).data() != null) {
+
+             var _id = oDatatable.row(this).data().id;
+
+             var url = '@Url.Action("Cadastro", "TrocaTitularidade")' + "?idTrocaTitularidade=" + _id;
+             AddAba(url, 'Cadastro de Troca de Titularidade');
+             e.stopPropagation();
+         }
+     });
+
+</script>
+
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fa-solid fa-people-arrows"></i> @ViewBag.Title</h4>
+
+            <nav class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class="pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Digite CPF/CNPJ ou Nome" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                @if (AcessoHelper.TemAcesso(_areas, "403"))
+                {
+                    <text>
+                        <div>
+                            <button class="btn btn-success btn-add" type="button" title="Incluir" id="iCriarTroca" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="la la-plus"></i>
+                            </button>
+                        </div>
+                    </text>
+                }
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#iModalFiltros" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+                <div class="col-auto">
+                    <button class="btn btn-default btn-add" type="button" title="Opções" data-toggle="dropdown" aria- aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </button>
+
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdown">
+                        <a class="dropdown-item" href="#" onclick="oDatatable.buttons('.buttons-excel').trigger(); return false;">@RsBase.EXPORTAREXCEL</a>
+                        <a class="dropdown-item" href="#" id="iCancelarTroca" onclick="ValidaCancelarTroca();">Cancelar Trocas em Massa</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <div id="divSubTitle">
+                <div id="FiltrosUtilizados" class="mb-1 mr-2 ml-2"></div>
+            </div>
+        </div>
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+
+<div class="modal fade" id="iModalFiltros" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLongTitle"><b>Filtros</b></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row form-group">
+                    <div class="col-1">
+                        <label><b>Período:</b></label>
+                    </div>
+                    <div class="col-2">
+                        <input type="radio" name="checkStatus" id="iPeriodoCriacao" value="1" />
+                        <label for="iInstalacao">Data Criação</label>
+                    </div>
+                    <div class="col-2">
+                        <input type="radio" name="checkStatus" id="iPeriodoAprovacao" value="2" />
+                        <label for="iServicos">Data Aprovação</label>
+                    </div>
+                    <div class="col-2">
+                        <input type="radio" name="checkStatus" id="iPeriodoCancelamento" value="3" />
+                        <label for="iMulta">Data Cancelamento</label>
+                    </div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-auto">
+                        <label for="iMesInicio">Data Inicial:</label> <br />
+                        <input id="iMesInicio" type="date" class="form-control" />
+                    </div>
+                    <div class="col-auto">
+                        <label for="iMesFim">Data Final:</label><br />
+                        <input id="iMesFim" type="date" class="form-control" />
+                    </div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-sm-6">
+                        <label><b>Status da Troca:</b></label>
+                        <select id="iStatusTroca" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="1">Análise Cliente</option>
+                            <option value="2">Cancelado</option>
+                            <option value="3">Aprovado</option>
+                            <option value="4">Reprovado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Tipo de Pessoa - Titular Atual:</b></label>
+                        <select id="iTipoPessoaAtual" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="0">Física</option>
+                            <option value="1">Física Rural</option>
+                            <option value="2">Jurídica</option>
+                            <option value="3">Jurídica Rural</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label><b>Tipo de Pessoa - Titular Novo:</b></label>
+                        <select id="iTipoPessoaNovo" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="0">Física</option>
+                            <option value="1">Física Rural</option>
+                            <option value="2">Jurídica</option>
+                            <option value="3">Jurídica Rural</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Etapa Atual:</b></label>
+                        <select id="iEtapaAtual" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="0">Dados Gerais</option>
+                            <option value="2">Pendência Financeira - Titular Atual</option>
+                            <option value="11">Pendência Financeira - Titular Novo</option>
+                            <option value="3">Pendência de Endereço - Titular Atual</option>
+                            <option value="4">Consulta de Crédito - Titular Novo</option>
+                            <option value="7">Checklist - Titular Novo</option>
+                            <option value="9">Termo de Adesão - Titular Novo</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label><b>Termo Assinado:</b></label>
+                        <select id="iTermoAssinado" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="1">Sim</option>
+                            <option value="2">Não</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Checklist Preenchido:</b></label>
+                        <select id="iChecklist" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="1">Sim</option>
+                            <option value="2">Não</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-danger" id="iLimparFiltroModal">Limpar Filtro</button>
+                <button type="button" class="btn btn-success" id="iPesquisar" onclick="PesquisarTrocas();">Pesquisar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="iCriarTrocaTitular" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row form-group">
+                    <div class="col-12" style="justify-content:center;text-align:center;">
+                        <h5><b>Selecione o Cliente e o Contrato que sofrerá a Troca de Titularidade</b></h5>
+                    </div>
+                </div>
+                <div class="row form-group mt-4">
+                    <div class="col-sm-12">
+                        <select id="iClienteCriar" class="form-control">
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-4">
+                    <div class="col-sm-12">
+                        <select id="iClienteContrato" class="form-control">
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-4">
+                    <div class="col-sm-12">
+                        <label><b>Regras:</b></label>
+                        <ul class="form-control" style="border: none; font-size: 14px;">
+                            <li>O Titular atual <b style="color:red">não</b> pode ter débitos em abertos, vencidos, valores parcelados ou negociações;</li>
+                            <li>O Titular atual deverá possuir pelo menos <b>1 Contrato Ativo e 1 Plano Habilitado;</b> </li>
+                            <li><b style="color:red">Não</b> poderá possuir vendas em andamento para Titular atual ou novo;</li>
+                            <li>Todos os planos contidos no Contrato <b style="color:red">não</b> poderá possuir troca de endereço em andamento; </li>
+                            <li>Todos os planos contidos no Contrato <b style="color:red">não</b> poderá possuir Mudança de Plano em andamento; </li>
+                            <li>Todos os planos contidos no Contrato <b style="color:red">não</b> poderá possuir Troca de Titularidade em andamento; </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-secondary" onclick="LimparFiltrosGerarContrato();" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="iConfirmarTroca" onclick="GerarTrocaTitularidade()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="iModalErrosCancelamento" role="dialog">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>Trocas de Titularidade não canceladas:</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="divTable">
+                    <table class="table table-hover nowrap" id="datatableErros" style="width:100%">
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-secondary" onclick="oDatatableErros.buttons('.buttons-excel').trigger(); return false;">
+                    @RsBase.EXPORTAREXCEL
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

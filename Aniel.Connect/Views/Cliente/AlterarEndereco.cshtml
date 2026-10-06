@@ -1,0 +1,586 @@
+﻿@model Aniel.Connect.Models.AlterarEnderecoClienteViewModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Sinapse.Model.enumerados;
+@{
+    ViewBag.Title = "AlterarEndereco";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<Aniel.Connect.Models.T5.AreaModuloModel> _areas = (List<Aniel.Connect.Models.T5.AreaModuloModel>)ViewBag.AreasAcesso;
+    IEnumerable<bool> restricoes = new List<bool> { Model.ConsultaViabilidadeHabilitada, Model.ConsultaPendenciaFinanceiraHabilitada, Model.ConsultaPendenciaEnderecoHabilitada, Model.ConsultaCreditoHabilitada };
+    var camposObrigatorios = (Dictionary<string, bool>)ViewBag.CamposObrigatorios;
+    var VisualizaRestricoes = new Dictionary<string, bool>
+{
+        {"CONSULTA_VIABILIDADE", Model.ConsultaViabilidadeVendedorVisualiza},
+        {"CONSULTA_PENDENCIA_ENDERECO", Model.ConsultaPendenciaEnderecoVendedorVisualiza},
+        {"CONSULTA_PENDENCIA_FINANCEIRA", Model.ConsultaPendenciaFinanceiraVendedorVisualiza},
+        {"CONSULTA_CREDITO", Model.ConsultaCreditoVendedorVisualiza}
+    };
+}
+@section Styles
+    {
+    <style>
+        .circle-consulta-pendente {
+            font-size: 1.5em;
+            color: #CCCCCC;
+        }
+
+        .circle-consulta-aprovada {
+            font-size: 1.5em;
+            color: #8BC53F;
+        }
+
+        .circle-consulta-reprovada {
+            font-size: 1.5em;
+            color: #FF0000;
+        }
+    </style>
+}
+@section variaveis{
+    <script>
+        //Utilizado no Partial de Endereco
+        const ufs = @(Html.GetArrayEnum<UF>());
+        const [latitudeBanco, longitudeBanco] = ["@Model.EnderecoInstalacao.Latitude", "@Model.EnderecoInstalacao.Longitude"];
+        const [VIABILIDADE_APROVADA, VIABILIDADE_APROVADA_RESSALVA, VIABILIDADE_REPROVADA] = [@((int)StatusConsultaViabilidade.Aprovado), @((int)StatusConsultaViabilidade.Aprovado_Ressalva), @((int)StatusConsultaViabilidade.Reprovado)];
+
+        const [STATUS_CONSULTA_PENDENTE, STATUS_CONSULTA_APROVADA, STATUS_CONSULTA_REPROVADA, STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR] = [0, 1, 2, 3];
+        const [CONSULTA_VIABILIDADE, CONSULTA_PENDENCIA_FINANCEIRA, CONSULTA_PENDENCIA_ENDERECO,
+            CONSULTA_CREDITO] = [0, 1, 2, 3];
+        const vendedorVisualiza = Object.freeze(@Html.Raw(Json.Encode(VisualizaRestricoes)));
+    </script>
+}
+@section scripts
+{
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&libraries=places,geometry" async defer></script>
+    <script>
+
+        $(document).ready(async function () {
+            await AddSelect("iTipo_ImovelInstalacao", "@CONSTANTES.URLPortal/api/Tipo_ImovelAnielapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.EnderecoInstalacao.Id_Tipo_Imovel", "@RsBase.SELECIONE", false);
+            await AddSelect("iPaisInstalacao", "@CONSTANTES.URLPortal/api/PaisApi/GetComboConnect", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.EnderecoInstalacao.Id_Pais", "@RsBase.SELECIONE", false);
+
+            //$('#iSalvar').prop('disabled', true);
+
+            //$('#form input').on('input', function () {
+            //    var isValid = $('#form')[0].checkValidity();
+            //    $('#iSalvar').prop('disabled', !isValid);
+            //});
+
+        });
+
+        //let clicked = false;
+        let erro = false;
+
+        function ValidaSubmit() {
+            //if (clicked) {
+            //    return false;
+            //}
+
+            erro = false;
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.PAIS))
+            {
+             <text>
+            if (!$("#iPaisInstalacao option:selected").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PAIS + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.CEP))
+            {
+            <text>
+            if (!$("#iCEPInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CEP + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.PONTO_REFERENCIA))
+            {
+            <text>
+            if (!$("#iReferenciaInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PONTO_REFERENCIA + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.COMPLEMENTO))
+            {
+            <text>
+            if (!$("#iComplementoInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.COMPLEMENTO + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.TIPO_IMOVEL))
+            {
+            <text>
+            if (!$("#iTipo_ImovelInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_IMOVEL + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.LOGRADOURO))
+            {
+            <text>
+            if (!$("#iLogradouroInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOGRADOURO + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.NUMERO))
+            {
+            <text>
+            if (!$("#iNumeroInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.UF))
+            {
+            <text>
+            if (!$("#iUFInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.BAIRRO))
+            {
+            <text>
+            if (!$("#iBairroInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.BAIRRO + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.GRUPO_AREA))
+            {
+            <text>
+            if (!$("#iGrupoAreaInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.GRUPO_AREA + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.AREA))
+            {
+            <text>
+            if (!$("#iAreaInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.AREA + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.LOCALIDADE))
+            {
+            <text>
+            if (!$("#iLocalidadeInstalacao").val() && !$("#iEndereco_Instalacao").prop("checked") && $("#iEndereco_Instalacao").prop("checked") !== undefined) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOCALIDADE + " Instalação")", "warning");
+                erro = true;
+            }
+            </text>
+            }
+
+            //clicked = true;
+
+                ShowPageLoading();
+                //$('#iSalvar').prop('enable', true);
+                parent.salvou = true;
+                $('#form').submit();
+
+                try {
+                if (!erro) {
+                    parent.dial.dialog('close');
+                }
+                else { stopPageLoading(); }
+            }
+                catch (ex) {
+                    console.log(ex);
+                }
+            }
+
+        $("#btnConsultaViabilidade").on("click", async function () {
+            let latitude = Number(latitudeBanco.replace(",", "."));
+            let longitude = Number(longitudeBanco.replace(",", "."));
+
+            if (latitude == 0 && longitude == 0) {
+                latitude = Number($("#iLatitudeInstalacao").val().replace(",", "."));
+                longitude = Number($("#iLongitudeInstalacao").val().replace(",", "."));
+            }
+
+            const logradouro = $("#iId_Endereco_LogradouroInstalacao").val();
+            const numero = $("#iNumeroInstalacao").val();
+
+            const descricaoLogradouro = $("#iLogradouroInstalacao").val();
+            const cidade = $("#iCidadeInstalacao").val();
+
+            //Condomínio
+            const bloco = $("#iBlocoSelectInstalacao").val();
+            const apto_numero = $("#iApartamentoSelectInstalacao").val();
+            const condominio = $("#iId_Condominio_PredioInstalacao").val();
+
+            try {
+                $("#divProgress").show();
+                const result = await ExecutarConsultaViabilidade(latitude, longitude, logradouro, numero, descricaoLogradouro, cidade, condominio, bloco, apto_numero);
+                consultaViabilidadeResult = result;
+                if (result != null && result.ok) {
+                    let possuiDisponibilidade = null;
+                    possuiDisponibilidade = result.objeto.possuiDisponibilidade;
+
+                    if (possuiDisponibilidade == VIABILIDADE_APROVADA) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_APROVADA);
+                    }
+                    else if (possuiDisponibilidade == VIABILIDADE_APROVADA_RESSALVA) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR)
+                    }
+                    else {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_REPROVADA);
+                    }
+
+                    @if (AcessoHelper.TemAcesso(_areas, "322"))
+                    {
+                    <text>
+                    @*
+                        Renderiza o botão da exibição de resultados da consulta de viabilidade
+                        caso ele ainda não tenha sido renderizado
+                    *@
+                    if ($("#btnResultadoConsultaViabilidade").length == 0) {
+                        RenderResultadosConsultaViabilidade(result);
+                    }
+                    </text>
+                    }
+                }
+
+                Notificar("@RsBase.INFORMACAO", "Consulta de viabilidade concluída", "info");
+            }
+            catch {
+                Notificar("@RsBase.ATENCAO_", "Um erro ocorreu durante a consulta de viabilidade", "warning");
+            }
+            finally {
+                $("#divProgress").hide();
+            }
+        });
+
+        async function ExecutarConsultaViabilidade(
+        latitude,
+        longitude,
+        logradouro = null,
+        numero = null,
+        logradouroStr = "",
+        cidade = null,
+        condominio,
+        bloco,
+        apto_numero
+        )
+        {
+
+        const requestConsultaViabilidade = {
+            Latitude: latitude,
+            Longitude: longitude
+        };
+
+        if (logradouro) {
+            requestConsultaViabilidade.IdEnderecoLogradouro = logradouro
+        }
+
+        if (numero) {
+            requestConsultaViabilidade.Numero = numero;
+        }
+
+        if (logradouroStr) {
+            requestConsultaViabilidade.Logradouro = logradouroStr;
+        }
+
+        if (cidade) {
+            requestConsultaViabilidade.IdCidade = cidade;
+        }
+
+        if (condominio) {
+            requestConsultaViabilidade.IdCondominio = condominio;
+        }
+
+        if (bloco) {
+            requestConsultaViabilidade.IdBloco = bloco;
+        }
+
+        if (apto_numero) {
+            requestConsultaViabilidade.IdApto_Numero = apto_numero;
+        }
+
+        return await $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/Consulta_ViabilidadeApi/ExecutarConsultaViabilidade",
+                dataType: "json",
+                data: requestConsultaViabilidade
+            });
+
+        }
+
+        function AtualizarIndicadorStatusConsulta(consulta, status) {
+            let statusClass = null;
+            switch (status) {
+                case STATUS_CONSULTA_PENDENTE:
+                    statusClass = "circle-consulta-pendente";
+                    break;
+                case STATUS_CONSULTA_APROVADA:
+                    statusClass = "circle-consulta-aprovada";
+                    break;
+                case STATUS_CONSULTA_REPROVADA:
+                case STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR:
+                    statusClass = "circle-consulta-reprovada";
+                    break;
+            }
+
+            if (statusClass != null) {
+                let statusElemSelector = null;
+
+                switch (consulta) {
+                    case CONSULTA_VIABILIDADE:
+                        statusElemSelector = "#statusConsultaViabilidade";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_VIABILIDADE, statusClass);
+
+                        statusConsultaViabilidade = status;
+                        $("#iStatusConsultaViabilidade").val(status);
+                        break;
+                    case CONSULTA_PENDENCIA_FINANCEIRA:
+                        statusElemSelector = "#statusConsultaPendenciaFinanceira";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_PENDENCIA_FINANCEIRA, statusClass);
+
+                        $("#iStatusConsultaPendenciaFinanceira").val(status);
+                        break;
+                    case CONSULTA_PENDENCIA_ENDERECO:
+                        statusElemSelector = "#statusConsultaPendenciaEndereco";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_PENDENCIA_ENDERECO, statusClass);
+
+                        $("#iStatusConsultaPendenciaEndereco").val(status);
+                        break;
+                    case CONSULTA_CREDITO:
+                        statusElemSelector = "#statusConsultaCredito";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_CREDITO, statusClass);
+
+                        $("#iStatusConsultaCredito").val(status);
+                        break;
+                }
+            }
+        }
+
+        function AtualizaStatusConsulta(element, visualiza, classe) {
+            $(element).removeClass("circle-consulta-pendente");
+            $(element).removeClass("circle-consulta-aprovada");
+            $(element).removeClass("circle-consulta-reprovada");
+
+            if (@Html.Raw(Json.Encode(AcessoHelper.TemAcesso(_areas, "322")))) {
+                $(element).addClass(classe);
+            }
+            else if (visualiza) {
+                $(element).addClass(classe);
+            }
+            else {
+                $(element).addClass("circle-consulta-pendente");
+            }
+        }
+
+        @* Ações da Consulta de Viabilidade *@
+        function RenderResultadosConsultaViabilidade(consulta = null) {
+            $("#rowConsultaViabilidade").append(
+                `<div class="col-3 d-flex">
+                    <a href="javascript:void(0)"
+                       id="btnResultadoConsultaViabilidade"
+                       class="btn btn-success">Resultado</a>
+                </div>`
+            );
+
+            if (consulta != null) {
+                $("#btnResultadoConsultaViabilidade").on("click", function () {
+                    notificacaoViabilidade(consulta);
+                    $("#iModalConsultaViabilidade").modal("show");
+
+                });
+            }
+
+            $("#iVerificarMapa").on("click", function () {
+                let url = "@Url.Action("Index", "Viabilidade")";
+                let latitude =  $("#iLatitudeInstalacao").val().replace(",", ".");
+                let longitude = $("#iLongitudeInstalacao").val().replace(",", ".");
+
+                url = `${url}?latitude=${latitude}&&longitude=${longitude}`;
+                parent.AddAba(url);
+            })
+        }
+
+        function notificacaoViabilidade(request = null) {
+            let mensagemRetorno = "";
+            let mensagens = [];
+            let motivos = [];
+            if (!request || request?.objeto?.caixas?.length == 0 || request?.objeto?.idConsultaViabilidade == 0) {
+                mensagemRetorno = `<span>Aguardando realização da consulta de viabilidade</span>`;
+            }
+            else {
+                //Sem Viabilidade
+                for (var passo of request.objeto.passos) {
+                    mensagemRetorno = mensagemRetorno.concat(` <br> <span> ${passo} </span> `);
+                }
+                if ((request.objeto.possuiDisponibilidade == VIABILIDADE_REPROVADA)) {
+
+                    request.objeto.motivos.forEach(obj => motivos.push(obj.motivo));
+                    mensagemRetorno = mensagemRetorno.concat(` <br> <span> Resultado da consulta de viabilidade: ${motivos.join(" - ")} </span> `);
+
+                    @* Criação do div de alerta *@
+                }
+                else if (request.objeto.caixas.length > 0) {
+                    //Com Viabilidade
+                    mensagens.push(`Caixa reservada: ${request.objeto.caixas[0].descricao}`);
+                    mensagens.push(`Porta reservada: ${request.objeto.caixas[0].portasDisponiveis[0]}`);
+                }
+            }
+
+            $("#spanMotivoAprovManualViabiliadade").text("");
+
+            if (request?.objeto?.motivoAprovacaoManual) {
+                $("#divMotivoAprovManualViabilidade").show();
+                $("#spanMotivoAprovManualViabiliadade").text(request?.objeto?.motivoAprovacaoManual);
+            }
+
+            let div = $("#iResultadoViabilidade");
+            let alerta = $("#iAlertaViabilidade");
+
+            $("#iResultadoViabilidade").empty();
+            $("#iAlertaViabilidade").empty();
+
+            for (let mensagem of mensagens) {
+                if (!mensagemRetorno) {
+                    mensagemRetorno = mensagem;
+                }
+                else {
+                    mensagemRetorno = `${mensagemRetorno} <br> ${mensagem}`;
+                }
+            }
+            div.append($.parseHTML(mensagemRetorno));
+            alerta.append($.parseHTML(mensagemRetorno));
+
+            alerta.removeClass("d-none");
+            alerta.parent().removeClass("d-none");
+            $("#iVerificarMapa").attr("hidden", false);
+        }
+        $("#iButtonConfirmarMap").on("click", function (data) {
+
+            confirmarLocalizacao()
+
+        });
+    @if (!String.IsNullOrEmpty(Request.Params["atendimento"]))
+    {
+        <text>
+        $('#iId_Atendimento').val(@Request.Params["atendimento"]);
+        </text>
+    }
+
+    @if (!String.IsNullOrEmpty(Request.Params["IdClientePlanoProduto"]))
+    {
+        <text>
+                $('#iId_ClientePlanoProduto').val(@Request.Params["IdClientePlanoProduto"]);
+        </text>
+    }
+    </script>
+
+    @*@{ Html.RenderPartial("EnderecoClienteViewModel2_Scripts", Model.EnderecoInstalacao); }*@
+    @{ Html.RenderPartial("EnderecoClienteViewModel_Scripts", Model.EnderecoInstalacao); }
+    @{ Html.RenderPartial("~/Views/Maps/BuscarGeolocalizacaoClientes_Scripts.cshtml", Model.Mapa); }
+}
+
+@using (Html.BeginForm("AlterarEndereco", "Cliente", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @Html.HiddenFor(model => model.Id_Atendimento, new { @id = "Id_Atendimento" })
+
+    @Html.HiddenFor(model => model.Id_ClientePlanoProduto, new { @id = "iId_ClientePlanoProduto" })
+
+    @*@{ Html.RenderPartial("EnderecoClienteViewModel2", Model.EnderecoInstalacao); }*@
+    <div class="bloco-contexto-endereco container-fluid px-3" data-tipo-contexto="Instalacao">
+        <div class="accordion" id="accordionPrincipal">
+            @{ Html.RenderPartial("EnderecoClienteViewModel", Model.EnderecoInstalacao); }
+        </div>
+    </div>
+
+    Html.RenderPartial("~/Views/Acompanhamento_Servico/BuscarGeolocalizacao.cshtml", Model.Mapa);
+
+    <div class="form-group" id="teste2">
+        <div class="row p-1" id="rowConsultaViabilidade">
+            <div class="col-3 d-flex">
+                <div class="row inherit-width">
+                    <div class="col-2">
+                        <i id="statusConsultaViabilidade"
+                           class="fas fa-circle circle-consulta-pendente"></i>
+                    </div>
+                    <div class="col-10">Consulta de Viabilidade</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mapa"></div>
+}
+
+<div class="form-group col-sm-12" style="padding: 15px;" id="teste3">
+    <div class="form-group">
+        <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal" data-dismiss="modal">Cancelar</button>
+        <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iSalvar">Salvar</button>
+        <button type="button" id="btnConsultaViabilidade" class="btn btn-primary">Consultar Viabilidade</button>
+    </div>
+</div>
+
+<div class="modal fade" id="iModalConsultaViabilidade" data-backdrop="static" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle"> @RsCadastros.CONSULTA_VIABILIDADE</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label for="iResultadoViabilidade">Resumo Consulta:</label>
+                                <div id="iResultadoViabilidade"></div>
+
+                                <div class="row pt-3">
+                                    <div class="col">
+                                        <input id="iVerificarMapa"
+                                               class="btn btn-primary"
+                                               type="button"
+                                               value="Verificar Mapa de viabilidade"
+                                               hidden />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+

@@ -1,0 +1,386 @@
+﻿@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_PAINEL_ACOMPANHAMENTO_ALERTA_SOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<Aniel.Connect.Models.T5.AreaModuloModel> _areas = ViewBag.Areas;
+    int minutos_atualizacao = ViewBag.Tempo_Atualizacao_Alerta_SOS != null ? Convert.ToInt32(ViewBag.Tempo_Atualizacao_Alerta_SOS) : 1;
+}
+
+@section styles{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        .swal-wide {
+            width: 450px !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        .dataTables_scrollHeadInner {
+            width: 100% !important;
+        }
+
+            .dataTables_scrollHeadInner table {
+                width: 100% !important;
+            }
+
+        .no-copy {
+            user-select: none;
+            pointer-events: none;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script type="text/javascript">
+
+        var oDatatable = null;
+        var filtro_monitor = null;
+        var filtro_supervisor = null;
+        let minutosAtualizacao = @minutos_atualizacao;
+        let intervaloId = null;
+
+        $(document).ready(async () => {
+            await carregaSelect2();
+            await oDatatableFunction();
+        });
+
+        function iniciarAtualizacao() {
+            if (intervaloId) clearInterval(intervaloId);
+            intervaloId = setInterval(gerarRelatorio, minutosAtualizacao * 60 * 1000);
+        }
+
+        iniciarAtualizacao();
+
+        async function carregaSelect2() {
+            await AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleSupervisor);
+            await AddSelect("iMonitor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleMonitor);
+        };
+
+        let HandleMonitor = function () {
+            $('#iMonitor').unbind('select2:select select2:unselecting');
+            $('#iMonitor').on('select2:select select2:unselecting', function (e) {
+                var monitor_param = e.params.data;
+                if (monitor_param) {
+                    filtro_monitor = monitor_param.codEquipe;
+                }
+                else {
+                    filtro_monitor = null;
+                }
+            });
+        };
+
+        let HandleSupervisor = function () {
+            $('#iSupervisor').unbind('select2:select select2:unselecting');
+            $('#iSupervisor').on('select2:select select2:unselecting', function (e) {
+                var supervisor_param = e.params.data;
+                if (supervisor_param) {
+                    filtro_supervisor = supervisor_param.codEquipe;
+                }
+                else {
+                    filtro_supervisor = null;
+                }
+            });
+        };
+
+        "use strict";
+
+        var handleDataTableButtons = function () {
+            if (oDatatable != null) {
+                oDatatable.destroy();
+            }
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'>>" + "Bfrti", // removido <'p'> da paginação
+                select: { style: 'multi' },
+                serverSide: false,
+                searching: true,
+                ordering: false,
+                paging: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: () => { ResizeTable('divTable'); },
+                lengthMenu: [[-1], ["Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/relatorioapi/PainelAcompanhamentoAlertaSOS',
+                    type: 'POST',
+                    /* async: false,*/
+                    data: function (data) {
+                        data.DataHoraIni = $('#iDataInicio').val();
+                        data.DataHoraFim = $("#iDataFim").val();
+
+                        data.Supervisor = filtro_supervisor;
+                        data.Monitor = filtro_monitor;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                           Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                        </div> `);
+
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                preDrawCallback: function () {
+                    $("#divProgress").show();
+                },
+                drawCallback: function () {
+                    $("#divProgress").hide();
+                },
+                pageLength: 10,
+                order: [],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTableRelatorioPaginado({
+                    title: "@Html.Raw(ViewBag.Title)"
+                }),
+                columns: [
+                    { data: "tecnico", className: "text-center", title: "@RsCadastros.TECNICO", orderable: false },
+                    { data: "supervisor", className: "text-center", title: "@RsCadastros.SUPERVISOR", orderable: false },
+                    { data: "monitor", className: "text-center", title: "@RsCadastros.MONITOR", orderable: false },
+                    { data: "dataHoraEnvio", className: "text-center", title: "@RsCadastros.DATAHORA_ENVIO", orederable: false },
+                    { data: "resposta", className: "text-center", title: "@RsCadastros.TIPO_NOTIFICACAO", orderable: false },
+                    { data: "gerouNotificacao", className: "text-center", title: "@RsCadastros.GEROU_NOTIFICACAO", orderable: false },
+                    { data: "dthGerouNotificacao", className: "text-center", title: "@RsCadastros.DATA_GEROU_NOTIFICACAO", orderable: false },
+                    { data: "confirmadoCiencia", className: "text-center", title: "@RsCadastros.CONFIRMADO_CIENCIA", orderable: false },
+                    { data: "dataHoraConfirmacao", className: "text-center", title: "@RsCadastros.DATAHORA_CONFIRMACAO", orderable: false },
+                    { data: "usuarioConfirmacao", className: "text-center", title: "@RsCadastros.USUARIO_CONFIRMACAO", orderable: false },
+                    { data: "latitude", className: "text-center", title: "@RsCadastros.LATITUDE", orderable: false },
+                    { data: "longitude", className: "text-center", title: "@RsCadastros.LONGITUDE", orderable: false },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $('#datatable tbody').on('click', 'tr.dtrg-level-0', function () {
+
+                var rowsCollapse = $(this).nextUntil('.dtrg-level-0');
+
+                if (!$(this).hasClass("collapsed") && !$(this).hasClass("not-collapsed")) {
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                else if ($(this).hasClass("collapsed")) {
+                    $(this).removeClass("collapsed");
+                    $(this).addClass("not-collapsed");
+                    rowsCollapse.removeClass("d-none");
+                }
+
+                else if ($(this).hasClass("not-collapsed")) {
+                    $(this).removeClass("not-collapsed");
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                oDatatable.columns.adjust();
+            });
+
+            oDatatable.on('draw', function () {
+                rows_selected = [];
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        async function oDatatableFunction() {
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            if ($('#iDataInicio').val() && $('#iDataFim').val()) {
+
+                const momentInicio = moment($('#iDataInicio').val(), "DD/MM/YYYY")
+                const momentFinal = moment($('#iDataFim').val(), "DD/MM/YYYY")
+
+                if ((momentFinal.diff(momentInicio, 'days')) > 30) {
+                    Notificar("@RsBase.ATENCAO_", "Periodo deve atender limite de 30 dias", "warning");
+                    return false
+                }
+            }
+
+            TableManageButtons.init();
+
+            $('#modal-filter').modal('hide')
+        };
+
+        async function gerarRelatorio() {
+            try {
+                await oDatatableFunction();
+            } catch (erro) {
+                Notificar("@RsBase.ATENCAO_", `"Erro ao gerar relatório:" ${erro}`, "warning");
+            }
+        }
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(async () => {
+            $('#iSupervisor').val(null).trigger('change');
+            $('#iMonitor').val(null).trigger('change');
+
+            await carregaSelect2();
+
+            filtro_monitor = null;
+            filtro_supervisor = null;
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        })
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page"><i class="fas fa-tags"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 form-inline"></div>
+        <div id="lbAgrupadoPor" class="fs-12 mr-2 ml-2 form-inline"></div>
+        <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+    </div>
+</div>
+
+<div id="divTable" style="width: 97.5vw; margin: auto">
+    <table class="table table-hover nowrap display" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group border_radius">
+                    <div class="row">
+                        <div class="col form-inline text-center mt-1" style="display:block">
+                            <input class="form-control obrigatorio datepicker mb-1" id="iDataInicio" type="text" value="@DateTime.Now.Date" autocomplete="off" placeholder="00/00/0000" disabled/>
+
+                            <span class="pl-3 pr-3">@RsBase.A</span>
+
+                            <input class="form-control obrigatorio datepicker-period mb-1" id="iDataFim" type="text" value="@DateTime.Now.Date" autocomplete="off" placeholder="00/00/0000" disabled/>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                            <select class="form-control" id="iSupervisor"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iMonitor">@RsCadastros.MONITOR:</label>
+                            <select class="form-control" id="iMonitor"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction(); $('#modal-filter').modal('hide');" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

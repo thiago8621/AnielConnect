@@ -1,0 +1,456 @@
+﻿@model  Aniel.Connect.Models.Horario_ListModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+
+@{
+    ViewBag.Title = RsCadastros.LOG_INTEGRACAO_ORDENS_SERVICO;
+    ViewBag.Sessao = RsCadastros.RELATORIO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .select2-dropdown {
+            z-index: 1500 !important;
+        }
+
+        h3.popover-header {
+            font-size: 0.8rem !important;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+
+    <script>
+
+        var rows_selected = [];
+        let oDatatable = null;
+        let columnsArquivos = [];
+        let columnsMensagens = [];
+        let urlGetLogArquivos = baseUrl + '/api/IntegracaoConfigIntegratorApi/GetAllLog';
+        let urlGetLogMensagens = baseUrl + '/api/IntegracaoConfigIntegratorApi/GetLogMessages';
+        let tipoSelecionado = null;
+
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show');
+
+            if ($('input[name="iModelo"]:checked').val() == '0') {
+                $('#divMomentoErro').hide();
+                $('#divStatusErro').hide();
+            } else {
+                $('#divMomentoErro').show();
+                $('#divStatusErro').show();
+            }
+        })
+
+        $('input[name="iModelo"]').on('change', function () {
+
+            var modelo = $('input[name="iModelo"]:checked').val();
+            if (modelo === '1') {
+                $('#divMomentoErro').show();
+                $('#divStatusErro').show();
+            } else {
+                $('#divMomentoErro').hide();
+                $('#divStatusErro').hide();
+            }
+        });
+
+        columnsArquivos = [
+            { data: "nome", title: "@RsCadastros.NOME" },
+            { data: "data", title: "@RsCadastros.DATAEHORA_ALTERACAO" },
+            {
+                data: "nome",
+                title: "@RsCadastros.DOWNLOAD",
+                className: "text-center",
+                render: function (data, type, row, meta) {
+                    return `<a href="@Url.Action("DownloadLogFile", "IntegracaoConfigIntegrator")?Name=${data}"><i class="fas fa-file-download fa-2x"></i></a>`;
+                }
+            }
+        ];
+
+        columnsMensagens = [
+            { title: "<input name='select_all' value='1' type='checkbox'>" },
+            {
+                data: "numOrdemServico",
+                title: "Ordem de Serviço",
+                render: function (data, type, row, meta)
+                {
+                    if (row.momento !== 'Integracao_Atualizacao')
+                    {
+                        return data; // Exibe como texto simples
+                    }
+                    return `<a href="javascript:void(0);" onclick="acompanhaServicoOS('${row.codCt}', '${row.projeto}', '${row.numOrdemServico}', ${row.nuM_DOC})">${data}</a>`;
+                }
+            },
+            { data: "projeto", title: "projeto", orderable: false },
+            { data: "codCt", title: "Cod ct", orderable: false },
+            { data: "nuM_DOC", title: "Num Doc", orderable: false },
+            { data: "mensagem", title: "Mensagem", orderable: false },
+
+            { data: "jsonEnvio", title: "Json Envio", orderable: false },
+            { data: "jsonRetorno", title: "Json Retorno", orderable: false },
+
+            {
+                data: 'situacao', title: '@RsCadastros.STATUS', orderable: false, render: function (data) {
+                    return data === true ? "@RsCadastros.CONCLUIDO" : "@RsCadastros.PENDENTE"
+                }
+            },
+            { data: "data", title: "@RsCadastros.DATA", orderable: false },
+            { data: "momento", title: "Momento Gerado o Log", orderable: false }
+        ];
+
+        var dadosExibir = null;
+
+        async function Pesquisar()
+        {
+            var modeloSelected = $('input[name="iModelo"]:checked').val();
+            tipoSelecionado = modeloSelected;
+            dadosExibir = null;
+
+            if (!$('#iData').val()) {
+                Notificar("@RsBase.ATENCAO_", "Selecione a Data e Hora de Alteracao", "info")
+                return;
+            }
+
+            if (modeloSelected == '1') {
+                $('#btnMarcarResolvido').show();
+            }
+            else {
+                $('#btnMarcarResolvido').hide();
+            }
+
+
+            TagFilter("FiltrosUtilizados", filter_state);
+
+
+            TableManageButtons.init();
+
+        }
+
+        $("#btnMarcarResolvido").on("click", function () {
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            //Alterando para Resolvido
+            AlterarStatusObj(1);
+
+        });
+
+        function AlterarStatusObj(Status)
+        {
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/IntegracaoConfigIntegratorApi/alterarstatus")';
+
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    ids: rows_selected,
+                    status: Status
+                }
+            }).done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        Pesquisar();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+        }
+
+        var filter_state = {
+            data: {
+                label: "@RsCadastros.DATAHORA_ALTERACAO",
+                getDisplay: () => { return Boolean($('#iData').val()) ? $('#iData').val() : "" },
+                removable: false
+            },
+            modelo: {
+                label: "Modelo de Visualização",
+                getDisplay: () => { return Boolean($('input[name="iModelo"]:checked').val() === "1") ? "Mensagens" : "Arquivos" },
+                removable: false
+            },
+            tipoLog: {
+                label: "Momento Gerado o Log",
+                getDisplay: () => { return Boolean($('#iTipoLog').val()) ? $('#iTipoLog option:selected').text() : "" },
+                removable: false
+            },
+            buscarOs: {
+                label: "Nº Ordem de Serviço",
+                getDisplay: () => { return Boolean($('#iBuscarOS').val()) ? $('#iBuscarOS').val() : "" },
+                removable: false
+            }
+        }
+
+    var handleDataTableButtons = function () {
+        "use strict";
+
+        if ($.fn.DataTable.isDataTable('#datatable')) {
+            $('#datatable').DataTable().destroy();
+            $('#datatable').empty();
+        }
+        oDatatable = $('#datatable').DataTable({
+            dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+            columnDefs: tipoSelecionado === "0" ? [{ "className": "dt-center", "targets": "_all" }] : [
+                {
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                }
+            ],
+            columns: tipoSelecionado === "0" ? columnsArquivos : columnsMensagens,
+            ajax: {
+                url: tipoSelecionado == "0" ? urlGetLogArquivos : urlGetLogMensagens,
+                type: 'POST',
+                data: function (request) {
+                    request.data = $('#iData').val();
+                    request.idMomentoLog = tipoSelecionado == "0" ? null : $('#iTipoLog').val();
+                    request.numeroOrdemServico = tipoSelecionado == "0" ? null : $('#iBuscarOS').val();
+                    request.status = tipoSelecionado == "0" ? null : $('#iStatusLog').val();
+
+                },
+                dataSrc: function (d) {
+                    //Mostrar o Total de Ordens de Serviços encontradas
+                    if ($('#Count_listing').length === 0)
+                        $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                    $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                                     Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                                  </div> `);
+
+                    return d.data;
+                }
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                var str = "@RsCadastros.INFODATATABLE";
+                if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                $("#dtLegend").html(str);
+
+                return "";
+            },
+            select: 'multi',
+            serverSide: true,
+            searching: true,
+            ordering: true,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '79vh',
+            /*stateSave: true,*/
+            scrollX: true,
+            initComplete: dataTableInitComplete,
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+            buttons: buttonsDataTable,
+            drawCallBack: function () {
+                HidePageLoading();
+            }
+        });
+
+        $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+            var $row = $(this).closest('tr');
+
+            var rowId = oDatatable.row($row).data().id;
+            var index = $.inArray(rowId, rows_selected);
+
+            if (this.checked && index === -1) {
+                rows_selected.push(rowId);
+            } else if (!this.checked && index !== -1) {
+                rows_selected.splice(index, 1);
+            }
+
+            if (this.checked) {
+                $row.addClass('selected');
+            } else {
+                $row.removeClass('selected');
+            }
+
+            e.stopPropagation();
+        });
+
+        },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        function acompanhaServicoOS(codct, projeto, num_obra, num_doc){
+
+
+
+            parent.AddAba("@Url.Action("Index", "Acompanhamento_Servico")" + `?CodCt=${codct}&Projeto=${projeto}&Num_Obra=${num_obra}&Num_Doc=${num_doc}`);
+
+    }
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="far fa-clock"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" id="btnMarcarResolvido" href="#" onclick="return false;">Marcar Resolvido</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div id="FiltrosUtilizados" class="mt-2 mr-2 ml-2">
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row ml-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iData" style="font-size: 12px"><b>DATA: </b></label><br>
+                            <input id="iData" autocomplete="off" placeholder="00/00/0000" class="form-control obrigatorio datepicker" type="text" />
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iModeloVisualizacao"><b>Modelo de Visualização dos Logs:</b></label>
+                        </div>
+                        <div class="form-group">
+                            <input type="radio" name="iModelo" id="iArquivos" value="0" checked />
+                            <label for="iArquivos">Arquivos</label>
+                            <input type="radio" name="iModelo" id="iMensagens" value="1" style="margin-left: 6px;" />
+                            <label for="iMensagens">Mensagens de Erros</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3 ml-3" id="divMomentoErro">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iTipoLog" style="font-size: 12px"><b>Ação que gerou o LOG:</b></label><br>
+                            <select id="iTipoLog" class="form-control">
+                                <option value="">Selecione</option>
+
+                                <option value="2">Integração OS (Sistema Origem x Aniel)</option>
+                                <option value="0">Atualização de OS (Aniel x Sistema Origem)</option>
+                                <option value="1">Integração Acionada pelo Usuário</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iBuscarOS" style="font-size: 12px"><b>Procurar por número da Ordem de Serviço:</b></label><br>
+                            <input id="iBuscarOS" type="text" class="form-control" placeholder="Informe o número da OS" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3 ml-3" id="divStatusErro">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iStatusLog" style="font-size: 12px"><b>@RsCadastros.STATUS:</b></label><br>
+                            <select id="iStatusLog" class="form-control">
+                                <option value="">Selecione</option>
+                                <option value="0">@RsCadastros.PENDENTE</option>
+                                <option value="1">@RsCadastros.CONCLUIDO</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-success" onclick="Pesquisar();" id="iPesquisar"> Filtrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

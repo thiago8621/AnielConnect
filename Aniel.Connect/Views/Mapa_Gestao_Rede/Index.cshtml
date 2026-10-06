@@ -1,0 +1,1966 @@
+﻿@model Aniel.Connect.Models.T5.Mapa_Gestao_RedeListaModel
+@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Models
+@using Sinapse.Model.enumerados
+@{
+    ViewBag.Title = RsCadastros.MAPA_GESTAO_REDE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@using Aniel.Connect.Core.Helpers
+
+<script>
+    //codigo escrito para evitar problema onde marcadores nao aparecem: Uncaught TypeError: a.url.substr is not a function
+    window.onerror = function (e) {
+        try {
+            var marketExcluir = new google.maps.Marker({
+                position: new google.maps.LatLng(0, 0),
+                icon: "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png",
+                map: map,
+                title: ""
+            });
+        }
+        catch (e) {
+            console.log(e);
+        }
+    }
+</script>
+@section styles{
+
+    <style>
+
+
+        #map {
+            height: 85% !important;
+        }
+
+        /* Optional: Makes the sample page fill the window. */
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        /*Collapse*/
+        .collapse {
+            visibility: hidden;
+        }
+
+            .collapse.show {
+                visibility: visible;
+                display: block;
+            }
+
+        .collapsing {
+            position: relative;
+            height: 0;
+            overflow: hidden;
+            -webkit-transition-property: height, visibility;
+            transition-property: height, visibility;
+            -webkit-transition-duration: 0.35s;
+            transition-duration: 0.35s;
+            -webkit-transition-timing-function: ease;
+            transition-timing-function: ease;
+        }
+
+            .collapsing.width {
+                -webkit-transition-property: width, visibility;
+                transition-property: width, visibility;
+                width: 0;
+                height: auto;
+            }
+
+        .icons-bar {
+            color: #999;
+            font-size: 1.3rem;
+        }
+
+        .icons-bar-add {
+            color: #57b96d;
+            font-size: 1.3rem;
+            background-color: #fff;
+        }
+
+        ::marker {
+            display: none
+        }
+
+        .popover-header {
+            color: #357ca5;
+            background-color: transparent;
+            border: none;
+        }
+
+        .select2-container--open .select2-dropdown--below {
+            border-top: none;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            z-index: 10000 !important;
+        }
+
+        /*        .popover-body {
+            width: 60%;
+            overflow-y: auto;
+        }*/
+    </style>
+}
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsTreeview")
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/treejsMaster")
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+
+    <div id="map"></div>
+
+    <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default"></script>
+
+    <script>
+        const listagemTiposConexao = @Html.Raw(Json.Encode(Enum.GetNames(typeof(Estilo_LinhaEnum))));
+
+        //Google Maps
+        let markersAdicionados = [];
+
+        const ElementosSelecionados = [];
+
+        async function initDrawing(map) {
+            const image = {
+                url: "",
+            };
+
+            async function Gerar_Conexoes(elements) {
+                let arrayConexoes = [],
+                    errors = [];
+                try {
+
+                    if (elements.length <=1) {
+                        errors.push("Elementos insuficientes para gerar conexão");
+                    }
+
+                    if (errors.length > 0) {
+
+                        let textError = errors.length > 1 ? `${errors.length} erros` : "1 erro";
+                        textError += `<br> ${errors.join(" <br> e <br> ")}`;
+
+                        throw textError;
+                    }
+
+                    @*iterar pela quantidade de elementos parametrizados em busca de criar as conexões*@
+                    for (let origem = 0, destino = 1; destino < elements.length; origem++, destino++) {
+
+                        @*captura das portas*@
+
+                        let conexao_origem = await getPortaConexao(itensVinculados[origem].id),
+                            conexao_destino = await getPortaConexao(itensVinculados[destino].id);
+
+                        @*Criação das conexões aqui!*@
+                        arrayConexoes.push({
+
+                            Elemento_Origem:elements[origem].id,
+                            Porta_Origem:conexao_origem,
+
+                            Elemento_Destino: elements[destino].id,
+                            Porta_Destino:conexao_destino,
+                        });
+                    }
+                }
+
+                catch (exception) {
+                    console.log(exception);
+                    Notificar("@RsBase.ERRO", `${exception}`, 'warning');
+                }
+
+
+            }
+
+            let drawingManager = new google.maps.drawing.DrawingManager({
+                map: map,
+                drawingMode: null,
+                drawingControl: false,
+                drawingControlOptions: {
+                    position: null,
+                    drawingModes: ['marker', 'polygon']
+
+                },
+                markerOptions: {
+                    icon: image,
+                    visible: true,
+                },
+
+                /*area de cobertura*/
+
+                polygonOptions: {
+                    strokeColor: "#F00",
+                    strokeWeight: 3,
+                },
+
+                circleOptions: {
+                    strokeColor: "#F00",
+                    fillColor: "#F00",
+                    fillOpacity: 0.15,
+                    strokeWeight: 3,
+                    clickable: true,
+                    zIndex: 1,
+                },
+
+
+            });
+
+            $("#btnVisualizar").on("click", function () {
+                document.getElementById("iconVisualizar").style.color = "#57b96d";
+                document.getElementById("iconEditar").style.color = "#5f5f5f";
+                $("#btnIncluir").hide();
+                $("#btnRegistro").hide();
+                drawingManager.setDrawingMode(null);
+                drawingManager.setOptions({ drawingControl: false });
+            });
+
+            $("#btnEditar").click(function () {
+                document.getElementById("iconVisualizar").style.color = "#5f5f5f";
+                document.getElementById("iconEditar").style.color = "#57b96d";
+                $("#btnIncluir").show();
+                $("#btnRegistro").show();
+
+                /* drawingManager.setDrawingMode('marker');*/
+                //drawingManager.setOptions({ drawingControl: true });
+            });
+
+            let tipoescolhido = { value: false, text: "", id: "", idGrupo: "", iconeCor: "", iconePath: "", e_Cabo: false };
+            let newElemento = { coordenadas: [], lat: 0, lng: 0, idTipo: "", descricao: "", cor: "", path: "", metragem: 0};
+
+            google.maps.event.addListener(drawingManager, 'polylinecomplete', (poly) => {
+                let errorsBeforeRequest = [];
+
+                try {
+                    //verificaErros
+                    if (tipoescolhido.value == false) {
+                        //$("#modal-add").modal('show');
+                        errorsBeforeRequest.push("É necessário selecionar um Tipo de Elemento de Rede no botão de Inclusão!");
+                    }
+
+                    if (errorsBeforeRequest.length > 0) {
+
+                        let textError = errors.length > 1 ? `${errors.length} erros` : "1 erro";
+                        textError += `<br> ${errors.join(" <br> e <br> ")}`;
+
+                        throw textError;
+                    }
+
+                    TamanhoLine = google.maps.geometry.spherical.computeLength(poly.getPath());
+                    poly.setEditable(true);
+                    newElemento.idTipo = tipoescolhido.id
+
+
+                    let coordinates = (poly.getPath().getArray());
+                    let length_posicoes = coordinates.length;
+                    console.log(coordinates);
+
+                    for (var i = 0; i < length_posicoes; i++) {
+                        lat = coordinates[i].lat();
+                        lng = coordinates[i].lng();
+                        newElemento.coordenadas.push(lat, lng);
+                        //console.log(laModel, lng);
+
+                    }
+
+                    let elemento_rede = {
+                        id: 0,
+                        num_Coordenadas: length_posicoes,
+                        coordenadas: JSON.stringify(newElemento.coordenadas),
+                        idTipo: newElemento.idTipo,
+                        latitude: newElemento.coordenadas[0],
+                        longitude: newElemento.coordenadas[1],
+                        metragem: TamanhoLine,
+                        conexoes: arrayConexoes,
+                    }
+
+                    let urlElemento = "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GravarFromMap";
+                    let json = JSON.stringify(elemento_rede);
+
+                    $.ajax
+                        ({
+                            type: 'POST',
+                            url: urlElemento,
+                            data: json,
+                            contentType: 'application/json'
+                        })
+                        .done(function (data) { })
+                        .fail(function (data) { Notificar("@RsBase.ATENCAO_", data.mensagem, "warning"); })
+                        .always({});
+
+                }
+                catch (ex) {
+
+                    console.log(ex);
+                    Notificar('@RsBase.ERRO', ex, "warning");
+                }
+            });
+
+            $("#iTipoElemento").on('select2:select select2:unselecting', function (e) {
+
+                var dashedLineSymbol = {
+                    path: 'M 0,-1 0,1',
+                    strokeOpacity: 1,
+                    scale: 4,
+                };
+                var dottedLineSymbol = {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    strokeOpacity: 1,
+                    scale: 4
+                };
+                let optionObject = e.params.data;
+                tipoescolhido.value = true;
+                tipoescolhido.text = $("#iTipoElemento option:selected").text();
+                tipoescolhido.id = $("#iTipoElemento option:selected").val();
+                tipoescolhido.modelo = optionObject.idModelo;
+                tipoescolhido.iconeCor = optionObject.iconeCor;
+                tipoescolhido.iconePath = optionObject.iconePath;
+                tipoescolhido.e_Cabo = optionObject.e_Cabo;
+                tipoescolhido.estiloLinhaAtiva = optionObject.estiloLinhaAtiva;
+                tipoescolhido.espessura = optionObject.espessura;
+
+                switch (tipoescolhido.e_Cabo) {
+                    case true:
+                        let icon;
+
+                        switch (tipoescolhido.estiloLinhaAtiva) {
+                            case "dashed": {
+                                icon = dashedLineSymbol
+                                break;
+                            }
+                            case "dotted": {
+                                icon = dottedLineSymbol
+                                break;
+                            }
+                        }
+
+                        drawingManager.setDrawingMode('polyline');
+                        drawingManager.setOptions({ drawingControl: true });
+                        if (icon) {
+
+                            drawingManager.setOptions({
+                                polylineOptions: {
+                                    icons: [{
+                                        icon: icon,
+                                        offset: '0',
+                                        repeat: '20px'
+                                    }],
+                                    strokeOpacity: 0.3,
+                                    strokeColor: tipoescolhido.iconeCor,
+                                    strokeWeight: tipoescolhido.espessura * 3,
+                                },
+                            });
+                        }
+                        else {
+                            drawingManager.setOptions({
+                                polylineOptions: {
+                                    strokeOpacity: 1,
+                                    strokeColor: tipoescolhido.iconeCor,
+                                    strokeWeight: tipoescolhido.espessura * 3,
+                                },
+                            });
+                        }
+                        break;
+                    case false:
+                        drawingManager.setDrawingMode('marker');
+                        drawingManager.setOptions({ drawingControl: true });
+                        break;
+                }
+
+                if (tipoescolhido.modelo != '6') {
+
+                    $("#modal-add").modal('hide');
+                    //$(".rowCable").addClass('d-none');
+
+                }
+                else {
+                    $("#modal-add").modal('hide');
+
+                    //$(".rowCable").removeClass('d-none');
+                    //$("#iQuantidade").val(1);
+
+                }
+            });
+
+        
+
+            //Aciona assim que o icone de marcacao for inserido
+           google.maps.event.addListener(drawingManager, 'markercomplete', (marker) => {
+
+               try {
+
+                   if (tipoescolhido.value == false) {
+                       //$("#modal-add").modal('show');
+                       Notificar("@RsBase.ATENCAO_", "É necessário selecionar um Tipo de Elemento de Rede no botão de Inclusão!", "warning");
+                       return false;
+                       new google.maps.Polyline({})
+                   }
+
+                   newElemento.lat = marker.getPosition().lat();
+                   newElemento.lng = marker.getPosition().lng();
+                   //newElemento.posicao.push(newElemento.lat, newElemento.lng);
+                   newElemento.idTipo = tipoescolhido.id;
+                   newElemento.descricao = tipoescolhido.text;
+                   newElemento.cor = tipoescolhido.iconeCor;
+                   newElemento.path = tipoescolhido.iconePath;
+
+                   const svgMarker = {
+                       path: newElemento.path,
+                       fillColor: newElemento.cor,
+                       fillOpacity: 0.6,
+                       strokeWeight: 2,
+                       rotation: 0,
+                       scale: 1,
+                       anchor: new google.maps.Point(15, 30)
+                   };
+
+                   let latlng = [];
+                   latlng.push(newElemento.lat, newElemento.lng);
+
+                   new google.maps.Marker({
+                       position: new google.maps.LatLng(latlng[0], latlng[1]),
+                       icon: svgMarker,
+                       map: map,
+                       title: newElemento.descricao
+                   });
+
+                   let elemento_rede = {
+                       id: 0, latitude: newElemento.lat, longitude: newElemento.lng,
+                       IdTipo: newElemento.idTipo, metragem: TamanhoLine
+                   }
+
+                   let urlElemento = "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GravarFromMap";
+                   let json = JSON.stringify(elemento_rede);
+
+                   $.ajax
+                       ({
+                           type: 'POST',
+                           url: urlElemento,
+                           data: json,
+                           contentType: 'application/json'
+                       })
+                       .done(function (data) { })
+                       .fail(function (data) { Notificar("@RsBase.ATENCAO_", data.mensagem, "warning"); })
+                       .always({});
+               }
+               catch (ex) {
+                   console.log(ex);
+               }
+           });
+
+            $(".iLimparFiltro").on("click", function () {
+                $("#iElemento_Filtro").val(null).trigger("change");
+                $("#iTipoElemento_Filtro").val(null).trigger("change");
+                $("#iSituacaoFTTH_Filtro").val(null).trigger("change");
+                $("#iSituacaoFibra_Filtro").val(null).trigger("change");
+                $("#iCliente_Filtro").val(null).trigger("change");
+                $("#iCategoriaCliente_Filtro").val(null).trigger("change");
+                $("#iStatusConexao_Filtro").val(null).trigger("change");
+                $("#iPlanoProd_Filtro").val(null).trigger("change");
+                $("#iTecnologia_Filtro").val(null).trigger("change");
+                $("#iLogin_Filtro").val(null).trigger("change");
+
+                $("#iPotenciaONU_Filtro").val(null).trigger("change");
+                $("#iCampanha").val(null).trigger('change');
+                $("#iMeio_Captacao").val(null).trigger('change');
+                $("#iStatus_Venda").val(null).trigger('change');
+                $("#iVendas_Andamento").val(null).trigger('change');
+                $("#iValor").val(null).trigger('change');
+                $("#iCpf_Cnpj").val(null).trigger('change');
+                $("#iNome").val(null).trigger('change');
+                $("#iTipo_Pessoa").val(null).trigger('change');
+                $("#iCategoria_Cliente").val(null).trigger('change');
+
+                $("#iSexo").val(null).trigger('change');
+                $("#iEstado_Civil").val(null).trigger('change');
+                $("#iGrau_Instrucao").val(null).trigger('change');
+                $("#iStatus_Prospect").val(null).trigger('change');
+                $("#iUF").val(null).trigger('change');
+                $("#iCidade").val(null).trigger('change');
+                $("#iOrigem_Lead").val(null).trigger('change');
+                $("#iPlanoProduto").val(null).trigger('change');
+                $("#iTecnologia").val(null).trigger('change');
+                $("#iStatus_Caixa").val(null).trigger('change');
+
+                $("#iSituacao_Das_Portas").val(null).trigger('change');
+                $("#iArea_Cobertura").val(null).trigger('change');
+                $("#iCaixa").val(null).trigger('change');
+                $("#iCliente").val(null).trigger('change');
+                $("#iLead").val(null).trigger('change');
+                $("#iProspect").val(null).trigger('change');
+                $("#iSelect").val(null).trigger('change');
+
+                tipoescolhido.value = false;
+            });
+
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon) => {
+
+                polygon.setEditable(true);
+                /*var area = google.maps.geometry.spherical.computeArea(polygon.getPath());*/
+                var area = google.maps.geometry.spherical.computeArea(polygon.getPath());
+                var caminho = polygon.getPath();
+                //console.log(caminho);
+
+                coordinates = (polygon.getPath().getArray());
+                //console.log(coordinates);
+
+                var j = 0;
+
+                for (var i = 0; i < coordinates.length; i++) {
+                    lat = coordinates[i].lat();
+                    lng = coordinates[i].lng();
+
+                    for (var x = 0; j <= 1; j++) {
+                        var lati = lat;
+                        var lngi = lng;
+
+                    }
+                }
+            });
+        };
+
+       @* let afterInsertElement = function () {
+            $("#iElementos").on("select2:select select2:unselect", function (e) {
+                let objeto = e.params.data;
+                if (e.params._type == "select") {
+
+                    ElementosSelecionados.push(objeto);
+                }
+                else if (e.params._type == "unselect") {
+                    let index = ElementosSelecionados.findIndex(parametro => parametro.id == objeto.id);
+                    ElementosSelecionados.splice(index, 1);
+
+                }
+            });
+
+        }
+
+        function EnableSelectMulti(contador) {
+            AddSelectMulti("iElementos", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, afterInsertElement, null, null, null, null, contador)
+        };
+
+        async function Distancia_Conexao_elementos(...itens) {
+                const posicoes = [],
+                      regex = /,/g;
+            let distancia = 0, distanciaTotal = 0;
+            try {
+                Aqui ao inserir um elemento, temos a origem. Todos os seguintes vão adicionar à metragem do cabo
+
+                itens.forEach(elementos =>
+                    elementos.forEach(elemento => {
+                        let
+                            lat = parseFloat(elemento.latitude.replace(regex,".")),
+                            lng = parseFloat(elemento.longitude.replace(regex,"."));
+
+                        posicoes.push({ lat:lat , lng:lng  });
+                        //posicoes.push(new google.maps.LatLng({ lat:lat , lng:lng  }));
+                    })
+                );
+                for (let index = posicoes.length - 1; index != 0; ) {
+
+                    distancia = google.maps.geometry.spherical.computeDistanceBetween(posicoes[index], posicoes[--index]);
+                    distanciaTotal += distancia;
+                }
+            }
+            catch (Exception) {
+                console.log(Exception);
+            }
+            return posicoes;
+            //return distanciaTotal;
+        }
+           *@
+
+        function createPolyline(obj) {
+
+            var cascadiaFault = new google.maps.Polyline({      //Lê e marca no mapa
+                path: [
+                    new google.maps.LatLng(-34.16508999942275, 148.93837255859376),
+                    new google.maps.LatLng(-34.48717933111127, 149.48219580078126),
+                    new google.maps.LatLng(-34.11507833074702, 149.55910009765626),
+                    new google.maps.LatLng(-34.16508999942275, 148.93837255859376)
+                ]
+            });
+            return cascadiaFault;
+        }
+
+        let iniciando = true;
+        async function initMap() {
+            /*Hide transit and poi*/
+            var myStyles = [
+                {
+                    featureType: "poi",
+                    elementType: "labels",
+                    stylers: [
+                        { visibility: "off" }
+                    ]
+                },
+                {
+                    featureType: "transit",
+                    elementType: "labels",
+                    stylers: [
+                        { visibility: "off" }
+                    ]
+                }
+            ];
+
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: -22.8690004, lng: -43.4790957 },
+                zoom: 15,
+                styles: myStyles,
+                disableDefaultUI: false,
+            });
+
+            if (iniciando) {
+                getLocation();
+                iniciando = false;
+            }
+
+
+            initDrawing(map);
+        }
+
+
+        async function Visualizar_ElementoCadastrado() {
+            var teste = @Html.Raw(Json.Encode(ViewBag.LatLong));
+            teste.latitude = parseFloat(teste.latitude.replace(",", "."));
+            teste.longitude = parseFloat(teste.longitude.replace(",", "."));
+
+
+
+            let drawingManager = new google.maps.drawing.DrawingManager({
+                map: map,
+                drawingMode: null,
+                drawingControl: false,
+                drawingControlOptions: {
+                    position: null,
+                    drawingModes: ['marker', 'polygon','polyline']
+
+                },
+                markerOptions: {
+                    icon: "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png",
+                    visible: true,
+                },
+
+
+                /*area de cobertura*/
+
+                polygonOptions: {
+                    strokeColor: "#F00",
+                    strokeWeight: 3,
+                },
+
+                circleOptions: {
+                    strokeColor: "#F00",
+                    fillColor: "#F00",
+                    fillOpacity: 0.15,
+                    strokeWeight: 3,
+                    clickable: true,
+                    zIndex: 1,
+                }
+            });
+
+            if ( teste!= null) {
+                latlng = { lat: teste.latitude, lng: teste.longitude}
+
+                var marker = new google.maps.Marker({
+                    position: latlng,
+                    map: map,
+                    title: "",
+
+                });
+                var x = google.maps.event.addListener(drawingManager, 'markercomplete', (marker) => { });
+
+                map.setCenter(latlng);
+            }
+            else {
+                return false;
+            }
+        }
+
+        //#region specs_teste
+        /**
+         * @@param {object} objfiltro parametro para filtragem no desenho do mapa.
+         */
+        //#endregion
+         function teste(objfiltro = null) {
+            var url = "@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/Gestao_Rede_Consulta")";
+            if (MasterTree.selectedNodes.length > 0) {
+                let vetor = recebecheck();
+                if (objfiltro != null)
+                {
+                     vetor = Object.assign(vetor, objfiltro);
+                }
+
+                $.ajax({
+                    url: url,
+                    data: vetor,
+                    type: "POST",
+                    dataType: "json",
+                })
+                    .done(async function (data) {
+                        await initMap(map);
+
+                        if (data.objeto.filter(p => p.latitude && p.longitude).length > 0) {
+
+                            var lat = data.objeto.filter(p => p.latitude && p.longitude)[0].latitude;
+                            let lng = data.objeto.filter(p => p.latitude && p.longitude)[0].longitude;
+
+                            latlng = { lat: lat, lng: lng };
+                            map.setCenter(latlng)
+                        }
+
+                        for (var obj of data.objeto) {
+                            if (obj.id_Area != null && obj.coordenadas_Area) {
+
+
+                                for(var coordenada of obj.coordenadas_Area)
+                                {
+                                    var latlng = [];
+                                    for (var i = 0; i < coordenada.length; i++) {
+
+                                        var lat = coordenada[i];
+                                        i = i + 1;
+                                        var lng = coordenada[i];
+
+                                        latlng.push(new google.maps.LatLng(lat, lng));
+                                        //console.log(latlng);
+                                    }
+
+
+                                    const polygon = new google.maps.Polygon({
+                                        strokeColor: obj.cor_Area,
+                                        strokeOpacity: 0.8,
+                                        strokeweight: 2,
+                                        fillColor: obj.cor_Area,
+                                        fillOpacity: 0.35,
+                                        editable: false,
+                                        map,
+                                        paths: latlng
+                                    });
+
+                                }
+
+
+                            }
+                            if (obj.id_Elemento != null) {
+
+                                if (obj.coordenadas_Elemento && obj.coordenadas_Elemento.length > 0) {
+
+                                    var latlng = [];
+                                    for (var i = 0; i < obj.coordenadas_Elemento.length; i++) {
+
+                                        var lat = obj.coordenadas_Elemento[i];
+                                        i = i + 1;
+                                        var lng = obj.coordenadas_Elemento[i];
+
+                                        latlng.push(new google.maps.LatLng(lat, lng));
+                                    }
+
+                                    let linha;
+
+                                    if (obj.situacao == "1") {
+                                        if (obj.estilo_Linha_Ativa == "solid") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 1.0,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                        if (obj.estilo_Linha_Ativa == "dashed") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                icons: [{
+                                                    icon: {
+                                                        path: 'M 0,-1 0,1',
+                                                        strokeOpacity: 1,
+                                                        scale: 4,
+                                                    },
+                                                    offset: '0',
+                                                    repeat: '20px'
+                                                }],
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 0.3,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                        if (obj.estilo_Linha_Ativa == "dotted") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                icons: [{
+                                                    icon: {
+                                                        path: google.maps.SymbolPath.CIRCLE,
+                                                        strokeOpacity: 1,
+                                                        scale: 4,
+                                                    },
+                                                    offset: '0',
+                                                    repeat: '20px'
+                                                }],
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 0.3,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                    }
+                                    else {
+                                        if (obj.estilo_Linha_Inativa == "solid") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 1.0,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                        if (obj.estilo_Linha_Inativa == "dashed") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                icons: [{
+                                                    icon: {
+                                                        path: 'M 0,-1 0,1',
+                                                        strokeOpacity: 1,
+                                                        scale: 4,
+                                                    },
+                                                    offset: '0',
+                                                    repeat: '20px'
+                                                }],
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 0.3,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                        if (obj.estilo_Linha_Inativa == "dotted") {
+                                            linha = new google.maps.Polyline({
+                                                path: latlng,
+                                                icons: [{
+                                                    icon: {
+                                                        path: google.maps.SymbolPath.CIRCLE,
+                                                        strokeOpacity: 1,
+                                                        scale: 4,
+                                                    },
+                                                    offset: '0',
+                                                    repeat: '20px'
+                                                }],
+                                                geodesic: true,
+                                                strokeColor: obj.situacao == "1" ? obj.corLinhaAtiva : obj.corLinhaInativa,
+                                                strokeOpacity: 0.3,
+                                                strokeWeight: obj.espessura * 3,
+                                            });
+                                        }
+                                    }
+
+                                    linha.setMap(map);
+
+                                }
+                                else {
+                                    const svgMarker_tree = {
+                                        path: obj.path,
+                                        fillColor: obj.cor,
+                                        fillOpacity: 0.6,
+                                        strokeWeight: 2,
+                                        rotation: 0,
+                                        scale: 1,
+                                        anchor: new google.maps.Point(15, 30)
+                                    };
+
+
+                                    let latlng = [];
+                                    latlng.push(obj.latitude, obj.longitude);
+
+                                   let markerAdicionado = new google.maps.Marker({
+                                       position: new google.maps.LatLng(latlng[0], latlng[1]),
+                                       icon:svgMarker_tree,
+                                       map,
+                                       title: obj.descricao,
+                                       elemId: obj.id_Elemento
+                                   });
+
+                                    const infowindow = new google.maps.InfoWindow({
+                                        content: '<div id="content" >' +
+                                            '<div id="siteNotice" style="display:flex">' +
+                                            `   <h4 id="firstHeading" class="firstHeading">Descrição: ${obj.descricao}</h4>` +
+
+                                            `   <i class="fas fa-trash ml-2"
+                                                onclick="apagarElemento(${obj.id_Elemento})">
+                                                </i>
+
+                                                <i class="icofont-connection ml-2"
+                                                onclick="verificarConexoes(${obj.id_Elemento})">
+                                                </i>
+
+                                                <i class="fas fa-pencil-alt ml-2"
+                                                onclick="editarElemento(${obj.id_Elemento})">
+                                                </i>
+                                            ` +
+                                            "</div>" +
+
+                                            `<div id="bodyContent">'
+                                                <p>Tipo de elemento : ${obj.descricao_Tipo}</p>
+                                                <p>Latitude : ${latlng[0]} | Longitude: ${latlng[1]}</p>
+                                            </div>` +
+                                            "</div>",
+                                    });
+
+                                    const actionwindow = obj.poste ? new google.maps.InfoWindow({
+                                        content: '<div id="content" >' +
+                                            '<div id="siteNotice" style="display:flex">' +
+                                                `<h4 id="firstHeading" class="firstHeading">Ações</h4>` +
+                                            "</div>" +
+
+                                            `<div id="bodyContent">
+                                                <p><button onclick="VincularPosteCaixa(${obj.id_Elemento})" type="button" class="btn">Vincular Caixa</button></p>
+                                                <p><button type="button" onclick="AdicionarCaixa(${obj.id_Elemento})" class="btn">Adicionar Caixa</button></p>
+                                            </div>` +
+                                            "</div>",
+                                    }) : undefined;
+
+                                    markerAdicionado.addListener("click", () => {
+
+                                        if (actionwindow)
+                                            actionwindow.close();
+                                        infowindow.open({
+                                            anchor: markerAdicionado,
+                                            map,
+                                            shouldFocus: false,
+                                        });
+                                    });
+
+                                    google.maps.event.addListener(markerAdicionado, 'rightclick', function (mouseEvent) {
+                                        infowindow.close();
+                                        if (actionwindow) {
+                                            actionwindow.open({
+                                                anchor: markerAdicionado,
+                                                map,
+                                                shouldFocus: false,
+                                            });
+                                        }
+                                    });
+
+                                    markersAdicionados.push(markerAdicionado);
+
+                                }
+                            }
+                        }
+                    });
+            }
+            else {
+                return false;
+            }
+         }
+
+         function recebecheck()
+        {
+             var newId = []
+             var arrayarea=[]
+             var array = MasterTree.selectedNodes;
+             for (var check of array) {
+                 if (check.id.includes("Area Cobertura")) {
+                     var areanovo = check.id.split("-");
+                     if (areanovo.length > 1) {
+                         arrayarea.push(areanovo[1]);
+                     }
+                 }
+                 else {
+                     var novo = check.id.split("-");
+                     if (novo.length > 4) {
+                         newId.push(novo[novo.length - 1]);
+                     }
+                 }
+             }
+
+             var retorno = {
+                 ids_Elemento: newId,
+                 ids_Area: arrayarea
+             }
+             return retorno;
+        }
+        $("#iPesquisaFiltro").on("click", function () {
+            var obj = {
+
+                Ref_Id_Elemento : $("#iElemento_Filtro").val(),
+                Ref_Tipo_Elemento : $("#iTipoElemento_Filtro").val(),
+                Ref_Tecnologia: $("#iTecnologia_Filtro").val(),
+                Ref_Porta_Login: $("#iLogin_Filtro").val(),
+                Ref_Plano: $("#iPlanoProd_Filtro").val(),
+                Ref_Cliente: $("#iCliente_Filtro").val(),
+
+                Ref_Categoria_Cliente: $("#iCategoriaCliente_Filtro").val(),
+                Ref_Status_Cliente: $("#iStatusCliente_Filtro").val(),
+                Ref_Potencia_ONU: $("#iPotenciaONU_Filtro").val(),
+                Ref_Fibra: $("#iSituacaoFibra_Filtro").val(),
+                Ref_Caixa_Ftth: $("#iSituacaoFTTH_Filtro").val(),
+                X: "",
+            };
+            teste(obj);
+
+        });
+        registro_elemento = { Id: 0 };
+        $("#iElemento_Registro").on("select2:select select2:unselecting", async function (e) {
+            var data = e.params.data;
+            registro_elemento.Id = data.id;
+            data.latitude = data.latitude.replace(",",".");
+            data.longitude = data.longitude.replace(",", ".");
+            var CepApi = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${data.latitude},${data.longitude}&result_type=street_address&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`;
+            await $.getJSON(CepApi, function (obj) {
+                var span = `<span style="margin-left:20px;">Endereço: ${obj.results[0].formatted_address}</span>`;
+                    $("#iendereco_elemento").html(span);
+            });
+        });
+        $("#iEditar_Registro").on("click", function () {
+            var url="@Url.Action("Cadastro", "Elemento_Rede", new { id = "__id__" })";
+            AddAba(url.replace("__id__", registro_elemento.Id),"@RsCadastros.ELEMENTO_REDE.Insert(0,"Editar ")");
+        })
+
+        $("#iApagar_Registro").on("click", function () {
+
+            if (registro_elemento.Id === 0) {
+                Notificar("@RsBase.ATENCAO_","@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+                return false;
+            }
+            var url = "@CONSTANTES.URLPortal/api/Elemento_RedeApi/Excluir";
+            $.ajax({
+                url: url,
+                type: "POST",
+                dataType: "json",
+                data: { Objeto: registro_elemento.Id }
+            }).done(function () {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            });
+        });
+
+        @*function ElaborarDiagrama() {
+            showDialog(true,true,"Diagrama de Fusao","@Url.Action("Conexoes","Mapa_Gestao_Rede",new Aniel.Connect.Models.T5.DiagramaFusaoRequestModel { })",900,600)
+        }*@
+        function CheckItem_Diagram(id_Elemento_Rede) {
+
+        }
+
+        async function verificarConexoes(id) {
+                if (!id || id == 0) {
+                Notificar("@RsBase.ATENCAO_","@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+                return false;
+            }
+            let url = "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/Ellaborate_DiagramaFusao";
+            @* CAIXA||CABO||POSTE *@
+
+            await $.post({ url: url, data: { 'Id': id, 'Origem':'CAIXA' } })
+                .done(function (data) { })
+                .error(function (data) { });
+
+            let conexoesDiagrama = "";
+        }
+
+        async function apagarElemento(id) {
+
+            if (!id || id == 0) {
+                Notificar("@RsBase.ATENCAO_","@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+                return false;
+
+            }
+
+            let result = await Swal.fire({
+                title: 'Certeza que deseja excluir o elemento?',
+                text: 'O elemento excluído não pode ser recuperado.',
+                confirmButtonText: '@RsCadastros.SIM',
+                cancelButtonText: '@RsCadastros.NAO',
+                heightAuto: false,
+                showCancelButton: true,
+            });
+
+            if (result.value) {
+                let url = "@CONSTANTES.URLPortal/api/Elemento_RedeApi/Excluir";
+                $.ajax({
+                    url: url,
+                    type: "POST",
+                    dataType: "json",
+                    data: { Objeto: id }
+                }).done(function () {
+
+                    let markerFiltrado = markersAdicionados.filter(p => p.elemId == id);
+                    if (markerFiltrado.length > 0)
+                    {
+                        markerFiltrado[0].setMap(null);
+                    }
+
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                });
+            } else {
+                return false;
+            }
+        }
+
+        async function VincularPosteCaixa(id) {
+
+            if (!id || id == 0) {
+                Notificar("@RsBase.ATENCAO_","@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+                return false;
+            }
+
+            let idCaixa;
+
+            let result = await Swal.fire({
+                title: 'Escolha a caixa que deseja vincular',
+                preConfirm: () => {
+                    idCaixa = $(`#iCaixarVincular`).val()
+                },
+                onOpen: () => {
+                    AddSelect("iCaixarVincular", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                },
+                html: `<div class="row mb-4 mt-4 text-center">
+                            <div class="col text-center">
+                                <select class="swal2-input" id="iCaixarVincular" autocomplete="off">
+                                    <option>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                        `,
+                confirmButtonText: '@RsCadastros.SIM',
+                cancelButtonText: '@RsBase.CANCELAR',
+                heightAuto: false,
+                showCancelButton: true,
+            });
+
+            if (!idCaixa || idCaixa == 0) {
+                Notificar("@RsBase.ATENCAO_","@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+                return false;
+            }
+
+            if (result.value) {
+                var url = "@CONSTANTES.URLPortal/api/Elemento_RedeApi/VincularPosteCaixa";
+                $.ajax({
+                    url: url,
+                    type: "POST",
+                    dataType: "json",
+                    data: {
+                        IdPoste: id,
+                        IdCaixa: idCaixa,
+                        Usuario: "@User.Identity.GetUserId()",
+                    }
+                }).done(function () {
+
+
+                });
+            } else {
+                return false;
+            }
+        }
+
+        function AdicionarCaixa(idPoste) {
+
+            let url="@Url.Action("Cadastro", "Elemento_Rede", new { IdPoste = "__poste__" })";
+            AddAba(url.replace("__poste__", idPoste),"@RsCadastros.ELEMENTO_REDE.Insert(0,"Inserir ")");
+
+        }
+
+        function editarElemento(id) {
+
+            let url="@Url.Action("Cadastro", "Elemento_Rede", new { id = "__id__" })";
+            AddAba(url.replace("__id__", id),"@RsCadastros.ELEMENTO_REDE.Insert(0,"Editar ")");
+
+        }
+
+    </script>
+    <!-- Async script executes immediately and must be after any DOM elements used in callback. -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=@CONSTANTES.TokenGoogleAPI&v=3.64&callback=initMap&libraries=places,drawing,geometry"
+            async defer></script>
+
+    <script>
+
+        @*(Html.GetArrayEnum<Status_Cliente>())*@
+
+        $("#iSalvarPreferencia").on("click", function () {
+            window.localStorage.setItem("Descricao_TreeView", OpcoesArraySelected);
+            window.localStorage.setItem("Opcoes_Id", descricaoSelecionada);
+        });
+
+        let marcadorAutoComplete,
+            TamanhoLine = 0;
+
+        let autocomplete
+        function setAutoComplete() {
+
+            if (!autocomplete)
+            {
+
+                let elementPesquisa = document.getElementById("iPesquisaMap");
+                autocomplete = new google.maps.places.Autocomplete(elementPesquisa);
+            }
+        }
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition);
+            } else {
+                x.innerHTML = "Geolocation is not supported by this browser.";
+            }
+        }
+
+        function showPosition(position) {
+            latlng = { lat: position.coords.latitude, lng: position.coords.longitude };
+            map.setCenter(latlng);
+        }
+
+        async function PesquisaMapa()
+        {
+            try {
+
+                let pesquisa = $("#iPesquisaMap").val();
+                var service = new google.maps.places.PlacesService(map);
+
+                var request = {
+                    query: pesquisa,
+                    fields: ['name', 'geometry'],
+                };
+
+                service.findPlaceFromQuery(request, function (results, status) {
+
+
+                    if (marcadorAutoComplete) {
+                        marcadorAutoComplete.setMap(null);
+                    }
+
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                        if (results.length > 0) {
+
+                            let latlng = {
+                                lat: results[0].geometry.location.lat(),
+                                lng: results[0].geometry.location.lng()
+                            };
+
+                            marcadorAutoComplete = new google.maps.Marker({
+                                position: latlng,
+                                map: map,
+                                title: "Resultado da Busca"
+                            });
+
+                            map.setCenter(results[0].geometry.location);
+                        }
+                    }
+                });
+
+            }
+            catch (e) {console.log(e) }
+        }
+        var rows_Selected = [];
+        $(document).ready(function () {
+
+
+            @if (ViewBag.LatLong != null) {
+                <text>
+                Visualizar_ElementoCadastrado();
+                </text>
+            }
+
+
+            let objreverse = { reverse: true }
+
+
+            function setDropdownPosition(e) {
+                var bodyOffsets = document.body.getBoundingClientRect();
+                tempX = e.pageX - bodyOffsets.left;
+                tempY = e.pageY;
+
+                $("#xxx").css({ 'top': tempY, 'left': tempX });
+            }
+            document.getElementById("iconVisualizar").style.color = "#57b96d";
+            $("#btnIncluir").hide();
+            $("#btnRegistro").hide();
+
+            AddSelect("iElemento_Registro", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null, objreverse)
+            AddSelect("iTipoElemento", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iElemento_Filtro", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTipoElemento_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTecnologia_Filtro", "@CONSTANTES.URLPortal/api/TecnologiaApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iPlanoProd_Filtro", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelectMulti("iElementos", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, afterInsertElement, null, null, null, null, 1)
+            //AddSelect("iStatusCliente_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelect("iStatusConexao_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iCategoriaCliente_Filtro", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iCliente_Filtro", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelect("iSituacaoFibra_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelect("iSituacaoFTTH_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelect("iPotenciaONU_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetComboOptGroup",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iLogin_Filtro", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboLogin",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            //AddSelect("iLogin_Filtro", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        });
+
+        //#region TreeJsMaster
+        let MasterTree = "";
+        //#region specs
+        /**
+         *
+         * @@param {string}  dados
+         *  dados inicia como Json que se origina do cookie.
+         *  dados passam null enquanto não houver registro no cookie.
+         *  @@param {string} text_reference
+         *  string para filtragem na treeview
+         */
+        //#endregion
+        async function MasterTreeView(dados = null,text_reference = '' ) {
+            url = `@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/GetTreeView_Gestao")`;
+            if (text_reference != '')
+            {
+                $("#iDescricao").val(text_reference);
+                url = url + `?text_Reference=${$("#iDescricao").val()} `;
+                window.localStorage.removeItem("Descricao_TreeView");
+
+            }
+
+            if (dados != null)
+            {
+                dados = JSON.parse(dados);
+                await $.ajax({
+                    url: url,
+                    type: "GET",
+                    dataType: "json"
+                    })
+                    .done(function (data) {
+                        MasterTree = new Tree('.treeclass', {
+                            data: data.objeto,
+                            closeDepth: text_reference ? 4 : 1,
+                            loaded: function () { this.values = dados }
+                        });
+
+                    })
+
+                    .fail(function () {
+
+                        Notificar("@RsBase.ATENCAO_", "Houve um erro na Obtenção dos dados", "warning");
+
+                    });
+                window.localStorage.removeItem("Opcoes_Id");
+            }
+            else {
+                await $.ajax({
+                    url: url,
+
+                    type: "GET",
+                    dataType: "json"
+                })
+                    .done(function (data) {
+                        MasterTree = new Tree('.treeclass', {
+                            data: data.objeto,
+                            closeDepth: text_reference ? 4 : 1,
+                        });
+                    })
+                    .fail(function () {
+                        Notificar("@RsBase.ATENCAO_", "Houve um erro na Obtenção dos dados", "warning");
+                    });
+        } }
+
+        $("#iExibir").on("click", function () {
+            var opcoes = OpcoesArraySelected
+            var text = descricaoSelecionada;
+            if (opcoes != null && text != '')
+                MasterTreeView(opcoes, text);
+
+            else if (opcoes != null)
+                MasterTreeView(opcoes);
+            else
+                MasterTreeView();
+
+            visao();
+        });
+
+        //#endregion
+
+        //#region Visao
+        //Cookie Salvar visao
+        /**
+         * Salva a visão dos nós selecionados em um cookie*/
+        //#endregion
+        var OpcoesArraySelected = window.localStorage.getItem("Descricao_TreeView");
+        var OpcoesArraySelected = window.localStorage.getItem("Descricao_TreeView");
+        var descricaoSelecionada = window.localStorage.getItem("Opcoes_Id");
+        function visao() {
+            if (typeof MasterTree.selectedNodes !== 'undefined' && MasterTree.selectedNodes != []) {
+                OpcoesArraySelected = JSON.stringify(MasterTree.selectedNodes.filter(function (x) { return x.text.includes("Elemento") }).map(function (p) { return p.id }));
+                descricaoSelecionada = $("#iDescricao").val();
+
+            } else {
+                @*Notificar("@RsBase.ATENCAO_", "não há nós selecionados", "warning")*@
+                return false;
+            }
+        }
+
+        //lembrar de incluir uma forma de incluir as areas de cobertura e elementos de rede
+
+
+        var rows_Selected = [];
+
+        //#region tabela certificacao -- js
+        var odatatableMedal = null;
+        odatatableMedal = $("#idatatablemedal").length && $("#idatatablemedal").DataTable({
+            dom: "Bfrti",
+            columnDefs: [
+                {
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                }
+            ],
+            language: traducaoDataTableSimples,
+            order: [[1, 'asc']],
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            scroller: {
+                loadingIndicator: true,
+                rowHeight: 40,
+                boundaryScale: 0.5,
+                displayBuffer: 3
+            },
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: `${baseUrl}/api/Elemento_RedeApi/GetAll`, type: "POST", data: function (data) {
+                    let certificado = "0";
+                    data.certificado = certificado;
+                }
+            },
+            error: function (error) {
+                console.log(error);
+            },
+            dataSrc: function (source) {
+                return source.data;
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                var str = "@RsCadastros.INFODATATABLE";
+                if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                $("#dtLegend").html(str);
+
+                return "";
+            },
+            rowCallback: function (row, data, dataIndex) {
+                // Get row ID
+                var rowId = data.id;
+
+                // If row ID is in the list of selected row IDs
+                if ($.inArray(rowId, rows_Selected) !== -1) {
+                    $(row).find('input[type="checkbox"]').prop('checked', true);
+                    $(row).addClass('selected');
+                }
+            },
+            drawCallback: function (settings) {
+                odatatableMedal.columns.adjust();
+            },
+            buttons: buttonsDataTable,
+            pageLength: 10,
+            columns: [
+                { title: "<input name='select_all' value='1' type='checkbox'>" },
+                { data: "descricao", title: "@RsCadastros.ELEMENTO_REDE" },
+                { data: "descricao_Tipo", title: "Tipo de Elemento de Rede" },
+                { data: "descricao_Modelo", title: "Modelo de Elemento de Rede" },
+                { data: "latitude", title: "@RsCadastros.LATITUDE" },
+                { data: "longitude", title: "@RsCadastros.LONGITUDE" }
+            ]
+
+        });
+        //#endregion
+
+            // Handle click on checkbox
+        $('#idatatablemedal tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+            var rowId = odatatableMedal.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+        $('#idatatablemedal tbody').on('click', 'tr', function () {
+
+            if (odatatableMedal.row(this).data() != null) {
+
+                let _id = odatatableMedal.row(this).data().id;
+
+                    let url = '@Url.Action("Cadastro", "Elemento_Rede", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+        $('#idatatablemedal').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+        });
+
+        // Handle click on "Select all" control
+        $('thead input[name="select_all"]', odatatableMedal.table().container()).on('click', function (e) {
+            if (this.checked) {
+                $('#idatatablemedal tbody input[type="checkbox"]:not(:checked)').trigger('click');
+            } else {
+                $('#idatatablemedal tbody input[type="checkbox"]:checked').trigger('click');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        $("#btnMedalha").click(function () {
+            $('#modal-medal').modal('show');
+            odatatableMedal.columns.adjust();
+        });
+
+        let TipoIconesCabo = [];
+        listagemTiposConexao.forEach(estilo => {
+
+            let obj = null;
+
+            switch (estilo) {
+                case "dashed":
+                    obj = {
+                        descricao: estilo,
+                        path: 'M 0,-1 0,1',
+                        strokeOpacity: 1,
+                        scale: 4,
+                    };
+                    break;
+
+                case "dotted":
+                    obj = {
+                        descricao: estilo,
+                        path: 'M10, 50a40, 40 0 1, 0 80, 0a40, 40 0 1, 0 -80, 0',
+                        strokeOpacity: 1,
+                        scale: 4,
+                        offset: '0',
+                        repeat: '20px'
+                    };
+                    break;
+                case "groove":
+                    obj = {
+                        descricao: estilo,
+                        //path: google.maps.SymbolPath.CIRCLE,
+                        strokeOpacity: 1,
+                        scale: 4
+                    };
+                    break;
+                case "inset":
+                    obj = {
+                        descricao: estilo,
+                        //path: 'M 0,-1 0,1',
+                        strokeOpacity: 1,
+                        scale: 4,
+                    };
+                    break;
+
+                case "ridge":
+                    obj = {
+                        descricao: estilo,
+                        //path: google.maps.SymbolPath.CIRCLE,
+                        strokeOpacity: 1,
+                        scale: 4
+                    };
+                    break;
+
+                case "solid":
+                    obj = {
+                        descricao: estilo,
+                        //path: google.maps.SymbolPath.CIRCLE,
+                        strokeOpacity: 1,
+                        scale: 4
+                    };
+
+                    break;
+                case "outset":
+                    obj = {
+                        descricao: estilo,
+                        //path: google.maps.SymbolPath.CIRCLE,
+                        strokeOpacity: 1,
+                        scale: 4
+                    };
+
+                    break;
+            }
+            TipoIconesCabo.push(obj);
+        });
+
+    </script>
+
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row mb-1">
+
+        <div class="col-md-8 col-sm-10">
+
+            <h4 class="title-page mb-0">
+                <i class="fas fa-map-marked-alt"></i>
+                @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb pt-3 pl-2">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <div class="form-group row">
+                <strong class="ml-4">Endereço:</strong>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control ml-2 mr-1" id="iPesquisaMap" onclick="setAutoComplete()" autocomplete="off" onfocusout=" PesquisaMapa(); return false;">
+                </div>
+                <i class="la la-search la-2x" style="color: #999"></i>
+            </div>
+        </div>
+
+        <div class="col-md-4 col-sm-2">
+            <div class="row text-right">
+                <div class="col-sm-12 fs-12">
+
+                    <a class="btn btn-success btn-add-2 m-2 " href="javascript:parent.refreshTab();" id="btnAtualizar" title="Atualizar" data-toggle="tooltip" @*onclick="return true;"*@>
+                        <i class="fas fa-sync-alt mr-4" style="color: #fff"></i>
+                    </a>Mapa Atualizado às
+
+                    @*29/01/2021 11:32*@
+
+                    @{var atualizado = DateTime.Now.Date.ToString().Replace("00:00", DateTime.Now.Hour.ToString() + ":" + DateTime.Now.Minute.ToString());}
+                    @atualizado.Replace(":00", "")
+
+
+                </div>
+                <div class="col-sm-12 d-flex justify-content-end">
+                    <button class="btn btn-default btn-add mr-4 ml-2" id="btnMedalha">
+                        <i class="icofont-badge" style="font-size:30px; color:red" title="Certificar" data-placement="top" data-toggle="tooltip"></i>
+                    </button>
+
+                    <button class="btn btn-default btn-add mr-4 ml-2" id="btnVisualizar">
+                        <i class="icofont-eye-alt icons-bar" title="@RsBase.VISUALIZAR" data-toggle="tooltip" id="iconVisualizar"></i>
+                    </button>
+
+                    <button class="btn btn-default btn-add mr-4 ml-2" id="btnEditar">
+                        <i class="icofont-edit icons-bar" title="@RsBase.EDITAR" data-toggle="tooltip" id="iconEditar"></i>
+                    </button>
+
+                    @*<button class="btn btn-default btn-add mr-4 ml-2" data-toggle="modal" data-target="#modal-registro" id="btnRegistro">
+                            <i class="icofont-trash icons-bar-add mt-1" id="iconDeletar"></i>
+                        </button>*@
+
+                    <button class="btn btn-default btn-add mr-4 ml-2" data-toggle="modal" data-target="#modal-add" id="btnIncluir">
+                        <i class="icofont-plus-square icons-bar-add mt-1" data-toggle="tooltip" title="O que você deseja incluir ?" id="iconIncluir">
+                        </i>
+                    </button>
+
+                    <div class=" mr-4 ml-2" title="@RsCadastros.EXIBIR_ELEMENTOS_NO_MAPA" id="iExibir" data-toggle="tooltip">
+                        <i class="fa fa-sitemap mt-1" style="color: #999;" data-toggle="popover" data-placement="bottom" title="O que deseja visualizar no mapa ?" data-html="true" data-content='
+
+                       <div class="container-fluid" id="divTable">
+
+                        <div class="row">
+
+                            <label for=" iPesquisa_Elemento"></label>
+                            @Html.TextBox("Pesquisa_Elemento", null, new { id = "iDescricao", @style="width:60%", @class = "form-control", @autocomplete = "off",@oninput="MasterTreeView(null,this.value)" })
+                        <a href="#" id="iConsulta" onclick="teste()"><i class="fas fa-search ml-2" style="font-size:18px; float:right"></i></a>
+                    @*<button type="button"class="" id="iConsulta2"> click!
+                    </button>*@
+
+
+                        </div>
+                    <div class="row">
+
+                    <div class="col-sm pl-0 pr-0">
+
+                    <div id = "div_tree" class = "treeclass"></div>
+                    @*<div class="treeclass"></div>*@
+
+                    </div>
+
+                    </div>
+
+                    </div>'>
+                    </i>
+                    </div>
+                    <button class="btn btn-default btn-add mr-2 ml-2" data-toggle="modal" data-target="#modal-filter">
+                        <i class="la la-filter icons-bar" title="@RsBase.FILTRO" data-toggle="tooltip"></i>
+                    </button>
+
+                    <button class="btn btn-default btn-add iLimparFiltro mr-2" title="@RsBase.LIMPAR_FILTRO" data-toggle="tooltip">
+                        <i class="la la-eraser icons-bar"></i>
+                    </button>
+
+                    <button class="btn btn-default btn-add mr-2" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v icons-bar" title="@RsBase.MAIS_OPCOES" data-toggle="tooltip"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right mr-4" aria-labelledby="dropdownMenuButton">
+                        <a id="iSalvarPreferencia" class="dropdown-item" onclick="">Salvar Preferencias</a>
+
+                        <a id="iCliente" class="dropdown-item" onclick="AddAba('@Url.Action("Index","Cliente")', 'Cliente'); return;">Listagem de Clientes</a>
+                        <a id="iLogin" class="dropdown-item" onclick=" AddAba('@Url.Action("Index", "LoginRadius")','Radius'); return;">Listagem de Logins</a>
+                        <a id="iONU" class="dropdown-item" onclick="AddAba('@Url.Action("ListagemONU", "EstruturaFibra")','ONU'); return;">Listagem de ONU's</a>
+
+                        <a id="iAtendimento" class="dropdown-item" onclick=" AddAba('@Url.Action("Listagem_Atendimento","Atendimento")','Atendimento'); return;">Painel de Atendimento</a>
+                        <a id="iServico" class="dropdown-item" onclick="AddAba('@Url.Action("Index","Painel_Servicos")','Servicos'); return;">Painel de Serviços</a>
+                        @*<a id="iCadastro_Manutencao" class="dropdown-item" href="#" onclick='AddAba("@Url.Action("Cadastro","Manutencao")","@RsCadastros.CADASTRO_MANUT_REDE")'>@RsCadastros.CADASTRO_MANUTENCAO_REDE</a>*@
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!--./main-->
+</div>
+
+<!--#region Modal de Medalhas-->
+
+<div class="modal" id="modal-medal">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Elementos Pendentes de Certificacao</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div style="padding-left:2px">
+                <div class="card" style="border:none;">
+
+                    <table class="table table-hover-nowrap" id="idatatablemedal" style="width:100%"></table>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--#endregion-->
+<!--#region AdicionarElementos-->
+<div class="modal" id="modal-add">
+    <div class="modal-dialog  modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 align="center" class="modal-title text-muted"> Adicionar Elementos</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="padding-left:5px">
+
+                    <div class="content-left-container">
+                        <div class="row">
+                            <div class="col-sm-10 d-flex justify-content-center">
+                                <label for="iTipo_Elemento_Rede">Tipo de Elemento de Rede</label>
+                                @Html.DropDownList("TipoElemento", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoElemento", @autocomplete = "off", @data_IconePath = "" })
+
+                            </div>
+                        </div>
+                        @*<div class="row d-none rowCable">
+                                <div class="col-sm-2">
+                                    <label for="IQuantidade">Quantidade de Elementos Associados?</label>
+                                    @Html.TextBox("Quantidade", new SelectList(new List<Aniel.Connect.ControllersWebApi.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iQuantidade", @autocomplete = "off", @type = "number", @min = 1 })
+
+                                </div>
+                                <div class="col-sm-6">
+                                    <label for="IElementos">Tipo de Elemento de Rede</label>
+                                    @Html.DropDownList("Elementos", new SelectList(new List<Aniel.Connect.ControllersWebApi.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iElementos", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                            <div class="row d-none rowCable mt-4 ml-4">
+                                <div>
+                                    <input type="button" class=" btn btn-success" id="iGenerateLine" name="GerarDesenhoBaseConexoes" value="Gerar Desenho" />
+                                </div>
+                            </div>*@
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--#endregion-->
+
+<div class="modal" id="modal-registro">
+    <div class="modal-dialog  modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 align="center" class="modal-title text-muted"> Editar_Elemento</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="padding-left:5px">
+
+                    <div class="content-left-container">
+                        <div class="row">
+                            <div class="col">
+                                <label for="iElemento_Registro">@RsCadastros.ELEMENTO_REDE</label>
+                                @Html.DropDownList("iElemento_Registro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iElemento_Registro", @autocomplete = "off", })
+
+
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6 d-flex justify-content-center" id="iendereco_elemento">
+                            </div>
+                        </div>
+                        <div class="row pt-3">
+                            <div class="col">
+                                <div class="text-center">
+                                    <button type="button" class="btn btn-danger" id="iApagar_Registro">@RsBase.EXCLUIR</button>
+                                    <button type="button" class="btn btn-success" id="iEditar_Registro">@RsBase.EDITAR</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--#region filtro-->
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 align="center" class="modal-title text-muted"> Filtros</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group" style="padding-left:5px">
+                    <div class="container">
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iElemento_Filtro" class="text-dark" style="font-size:14px"> @RsCadastros.ELEMENTO_REDE :   </label>
+                                @Html.DropDownList("iElemento_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iElemento_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iTipoElemento_Filtro" class="text-dark" style="font-size:14px">Tipo de Elemento :</label>
+                                @Html.DropDownList("iTipoElemento_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iTipoElemento_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iSituacaoFTTH_Filtro" class="text-dark" style="font-size:14px">Situação Caixa FTTH :</label>
+                                @Html.DropDownList("iSituacaoFTTH_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iSituacaoFTTH_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iSituacaoFibra_Filtro" class="text-dark" style="font-size:14px"> Situação da Fibra :</label>
+                                @Html.DropDownList("iSituacaoFibra_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iSituacaoFibra_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iCliente_Filtro" class="text-dark" style="font-size:14px">Cliente :</label>
+                                @Html.DropDownList("iCliente_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iCliente_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iCategoriaCliente_Filtro" class="text-dark" style="font-size:14px">Categoria do Cliente :</label>
+                                @Html.DropDownList("iCategoriaCliente_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iCategoriaCliente_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iStatusConexao_Filtro" class="text-dark" style="font-size:14px">Status Conexão do Cliente :</label>
+                                @Html.DropDownList("iStatusConexao_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iStatusConexao_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iStatusCliente_Filtro" class="text-dark" style="font-size:14px">Status do Cliente :</label>
+
+                                @Html.EnumDropDownListFor(model => model.Status, RsBase.TODOS, new { @class = "form-control", @id = "iStatusCliente_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iPlanoProd_Filtro" class="text-dark" style="font-size:14px">Plano/Produto :</label>
+                                @Html.DropDownList("iPlanoProd_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iPlanoProd_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iTecnologia_Filtro" class="text-dark" style="font-size:14px">Tecnologia :</label>
+                                @Html.DropDownList("iTecnologia_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iTecnologia_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col">
+                                <label for="iLogin_Filtro" class="text-dark" style="font-size:14px">Login :</label>
+                                @Html.DropDownList("iLogin_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iLogin_Filtro", @autocomplete = "off" })
+                            </div>
+                            <div class="col">
+                                <label for="iPotenciaONU_Filtro" class="text-dark" style="font-size:14px">Potencia_ONU :</label>
+                                @Html.DropDownList("iPotenciaONU_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iPotenciaONU_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    @*<div class="row mt-3 text-right">*@
+                    <div class="row mt-3 text-center">
+                        <div class="col">
+                            <div class="form-group">
+                                <button type="button" class="btn btn-danger mr-2 iLimparFiltro">Limpar</button>
+                                <button type="button" class="btn btn-success" id="iPesquisaFiltro" onclick="">Pesquisar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--#endregion-->

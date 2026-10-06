@@ -1,0 +1,458 @@
+﻿@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_PROJECAO_VENDAS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        .toggle.btn {
+            min-width: 3.7rem;
+            min-height: 0.15rem;
+            border-radius: 1rem;
+            width: 6rem !important;
+            height: 23px !important;
+        }
+    </style>
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script>
+        var oDatatable = null;
+        let cod_supervisor = null;
+        var HandleContrato = function () {
+
+            $('#iContrato').unbind('select2:select select2:unselecting');
+            $('#iContrato').on('select2:select select2:unselecting', function (e) {
+
+                Contrato = e.params.data
+                if (Contrato) {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, Contrato.id, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+            });
+
+        };
+
+        var handleSupervisor = function () {
+            $('#iSupervisor').unbind('select2:select select2:unselecting');
+            $('#iSupervisor').on('select2:select select2:unselecting', function (e) {
+                const iSupervisor = e.params.data
+                if (iSupervisor) {
+                    cod_supervisor = iSupervisor.codSuperv;
+                } else {
+                    cod_supervisor = null;
+                }
+            });
+        };
+
+        function carregaSelect2() {
+            const date = new Date();
+            const currentYear = date.getFullYear();
+            $("#iAno").val(currentYear).trigger('change');
+
+            $("#iFilial").prop("disabled", true);
+            AddSelect("iVendedor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false,null,null,null,null,false);
+            AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleSupervisor);
+            AddSelect("iEmpresa", "@CONSTANTES.URLPortal/api/Empresaapi/GetComboEmpresaAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        $('#iEmpresa').change(function () {
+            if ($('#iEmpresa').val()) {
+                $("#iFilial").prop("disabled", false);
+                AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, $('#iEmpresa').val(), null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+
+
+        var filter_state = {
+            ano: {
+                removable: false,
+                onclick: () => null,
+                label: "@RsBase.ANO",
+                getDisplay: () => { return Boolean($('#iAno').val()) ? $('#iAno option:selected').text() : "" },
+                onclick: () => {
+                    $('#modal-filter').modal('show');
+                }
+            },
+            mes: {
+                label: "@RsBase.MES",
+                getDisplay: () => { return Boolean($('#iMes').val()) ? $('#iMes option:selected').text() : "" },
+                onclick: () => {
+
+                },
+                removable: false
+            },
+            vendedor: {
+                label: "@RsCadastros.VENDEDOR",
+                getDisplay: () => { return Boolean($('#iVendedor').val()) ? $('#iVendedor option:selected').text() : "" },
+                onclick: () => {
+                    $('#iVendedor').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            supervisor: {
+                label: "@RsCadastros.SUPERVISOR",
+                getDisplay: () => { return Boolean($('#iSupervisor').val()) ? $('#iSupervisor option:selected').text() : "" },
+                onclick: () => {
+                    $('#iSupervisor').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            empresa: {
+                label: "@RsCadastros.EMPRESA",
+                getDisplay: () => { return Boolean($('#iEmpresa').val()) ? $('#iEmpresa option:selected').text() : "" },
+                onclick: () => {
+                    $('#iEmpresa').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            filial: {
+                label: "@RsCadastros.FILIAL",
+                getDisplay: () => { return Boolean($('#iFilial').val()) ? $('#iFilial option:selected').text() : "" },
+                onclick: () => {
+                    $('#iFilial').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+        }
+
+        $("#iAno").on('change', function () {
+            var meses = [
+                "Janeiro",
+                "Fevereiro",
+                "Março",
+                "Abril",
+                "Maio",
+                "Junho",
+                "Julho",
+                "Agosto",
+                "Setembro",
+                "Outubro",
+                "Novembro",
+                "Dezembro"
+            ];
+
+            const date = new Date();
+            const currentYear = date.getFullYear();
+
+            $("#iMes").find("option").remove();
+
+            if ($(this).val() == currentYear) {
+                for (var mes = date.getMonth() - 1; mes < 12; mes++) {
+                    $('#iMes').append($('<option>', {
+                        value: mes,
+                        text: meses[mes]
+                    }));
+                }
+            } else {
+                for (var mes = 0; mes < 12; mes++) {
+                    $('#iMes').append($('<option>', {
+                        value: mes,
+                        text: meses[mes]
+                    }));
+                }
+            }
+        });
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+
+            $('#iFilial').val(null).trigger('change');
+            $('#iEmpresa').val(null).trigger('change');
+            $('#iSupervisor').val(null).trigger('change');
+            $('#iVendedor').val(null).trigger('change');
+            $('#iAno').val(null).trigger('change');
+
+            carregaSelect2()
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        })
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show')
+            carregaSelect2()
+        })
+
+        "use strict";
+
+        function RenderValorRelatorio(data, type, row, meta) {
+            if (data === null || data === undefined) return "0,00";
+            else {
+                if (type === "export")
+                    return data
+                        .replace("R$ ", "")
+                        .replace("R$", "")
+                        .replace(".", "")
+                        .replace(",", ".");
+                else {
+
+                    return data;
+                }
+            }
+        }
+
+        var handleDataTableButtons = function () {
+
+                oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                    dom: "Bfrti",
+                    select: {
+                        style: 'multi'
+                    },
+                    serverSide: true,
+                    searching: true,
+                    ordering: false,
+                    paging: false,
+                    deferRender: true,
+                    scrollResize: true,
+                    scrollY: '66vh',
+                    stateSave: true,
+                    scrollX: true,
+                    fixedHeader: true,
+                    initComplete: dataTableInitComplete,
+                    drawCallback: () => {
+                        TagFilter("FiltrosUtilizados", filter_state);
+                        ResizeTable('divTable');
+                    },
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/relatorioapi/RelatorioProjecaoVendas',
+                        type: 'POST',
+                        async: false,
+                        data: function (data) {
+                            data.Id_Filial = $('#iFilial').val();
+                            data.Id_Supervisor = cod_supervisor;
+                            data.Id_Empresa = $('#iEmpresa').val();
+                            data.Id_Vendedor = $('#iVendedor').val();
+                            data.Mes = $('#iMes').val();
+                            data.Ano = $('#iAno').val();
+                        },
+                        beforeSend: function () {
+                            $("#divProgress").show();
+                        },
+                        complete: function () {
+                            $("#divProgress").hide();
+                        },
+                        error: function (e) {
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+                            return d.data;
+                        }
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                        var str = "@RsCadastros.INFODATATABLE";
+                        if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                        str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                        $("#dtLegend").html(str);
+
+                        return "";
+                    },
+                    pageLength: 5,
+                    order: [],
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTableRelatorio({
+                        title: "@Html.Raw(ViewBag.Title)",
+                        pageSize: "A3"
+                    }),
+                    columns: [
+                        { data: "vendedor", className: "text-center", title: "@RsCadastros.VENDEDOR", orderable: false },
+                        { data: "supervisor", className: "text-center", title: "@RsCadastros.SUPERVISOR", orderable: false },
+                        { data: "meta_atual_vinculada", className: "text-center", title: "@RsCadastros.META_ATUAL_VINCULADA", orderable: false },
+                        { data: "meta_mes", className: "text-center", title: "@RsCadastros.META_MES", orderable: false },
+                        { data: "dias_uteis", className: "text-center", title: "@RsCadastros.DIAS_UTEIS", orderable: false },
+                        { data: "meta_diaria", className: "text-center", title: "@RsCadastros.META_DIARIA", orderable: false },
+                        { data: "realizado_mes", className: "text-center", title: "@RsCadastros.REALIZADO_MES", orderable: false },
+                        { data: "pontos_pl_pr_vendidos", className: "text-center", title: "@RsCadastros.PONTOS_PLANOS_PRODUTOS_VENDIDOS", orderable: false },
+                        { data: "vendas_os_finalizadas", className: "text-center", title: "@RsCadastros.VENDAS_OS_FINALIZADAS", orderable: false },
+                        { data: "vendas_atingir_meta", className: "text-center", title: "@RsCadastros.VENDAS_ATINGIR_META", orderable: false },
+                        { data: "meta_dia", className: "text-center", title: "@RsCadastros.META_DIA", orderable: false },
+                        { data: "vendas_perdidas", className: "text-center", title: "@RsCadastros.VENDAS_PERDIDAS", orderable: false },
+                        { data: "ticket_medio", className: "text-center", title: "@RsCadastros.TICKET_MEDIO", orderable: false }
+                     ]
+                });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+                // Handle table draw event
+                oDatatable.on('draw', function () {
+                    // Update state of "Select all" control
+                    rows_selected = [];
+                });
+            },
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        function oDatatableFunction() {
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            $("#divProgress").show();
+
+            if (oDatatable == null) {
+                TableManageButtons.init();
+            }
+            else {
+                oDatatable.draw()
+            }
+
+            $('#modal-filter').modal('hide')
+        }
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-chart-line"></i> @ViewBag.Title
+            </h4>
+            @*<h4 class="title-page"><i class="fa fa-line-chart" aria-hidden="true"></i> @ViewBag.Title</h4>*@
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                </div>
+
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 form-inline"></div>
+        <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+    </div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group row">
+                    <div class="row container">
+                        <div class="col">
+                            <label for="iAno">@RsBase.ANO:</label>
+                            @Html.DropDownList("ano", new SelectList(ViewBag.Anos, "IdString", "Descricao", DateTime.Now.Year), new { @class = "form-control", @id = "iAno", @style = "width: 100%" })
+                        </div>
+
+                        <div class="col">
+                            <label for="iMes">@RsBase.MES:</label>
+                            <select class="form-control obrigatorio" id="iMes"></select>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iVendedor">@RsCadastros.VENDEDOR:</label>
+                            @Html.DropDownList("Vendedor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iVendedor", @autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                            @Html.DropDownList("select2Supervisor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iSupervisor", @autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iEmpresa">@RsCadastros.EMPRESA:</label>
+                            <select class="form-control" id="iEmpresa"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iFilial">@RsCadastros.FILIAL:</label>
+                            <select class="form-control" id="iFilial"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction();" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>

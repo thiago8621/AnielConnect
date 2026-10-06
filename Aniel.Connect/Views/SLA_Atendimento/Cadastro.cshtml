@@ -1,0 +1,480 @@
+﻿@model Aniel.Connect.Models.SLA_AtendimentoCadastroModel
+
+@{
+
+
+    ViewBag.Title = RsCadastros.CADASTRO_SLA_ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script>
+
+    reloadData("@(CONSTANTES.URLPortal + "/api/Tipo_AtendimentoApi/busca")", "id_Tipo_Atendimento", "iTipo_Atendimento_Desc");
+
+    $("#iContagem_Prazo").change(function () {
+
+        if ($("#iContagem_Prazo").val() == 1) {
+            $("#iHorario").attr('disabled',true);
+        }
+        else {
+            $("#iHorario").attr('disabled',false);
+        }
+
+
+    });
+
+    $("#iSla_PlanoProduto").is(":checked") ? $("#PlanoProdutotab").show() : $("#PlanoProdutotab").hide();
+
+    $("#iSla_PlanoProduto").change(function () {
+        $("#iSla_PlanoProduto").is(":checked") ? $("#PlanoProdutotab").show() : $("#PlanoProdutotab").hide();
+
+    });
+
+    var erro = false;
+
+
+
+    $(document).ready(function () {
+
+
+        $('#iContagem_Prazo').trigger('change');
+        $('#iHorario').val(@ViewBag.HorariosPadrao);
+    });
+          var listaPlanos =  @Html.Raw(Json.Encode(ViewBag.Planos));
+            function findPlano(id) {
+
+                return $.grep(listaPlanos, function (item) {
+                    return item.Id == id;
+                });
+    };
+
+            var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.PlanosProdutos));
+
+            var nome_lista = "PlanosProdutos";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id +'"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Tipo" name="' + nome_lista + '[' + meta.row + '].Tipo" type="hidden" value="' + TrataNulo(row.Tipo) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id_Plano_Produto" name="' + nome_lista + '[' + meta.row + '].Id_Plano_Produto" type="hidden" value="' + TrataNulo(row.Id_Plano_Produto) + '">';
+                        }
+                    },
+                    {
+                        data: "Descricao",
+                        title: "@RsCadastros.PLANOS_E_PRODUTOS",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/SLA_AtendimentoApi/ExcluirGrid?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+            handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+                if (!$("#iPlano").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PLANO)", "warning");
+                    erro = true;
+                }
+
+
+                 for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                    if (oDatatable.rows().data()[i].Id_Plano_Produto == $("#iPlano option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.PLANOS_E_PRODUTOS)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+
+                var idPlano = $("#iPlano option:selected").val();
+                var objPlano = findPlano(idPlano);
+
+                oDatatable.row.add({
+                    Id_Plano_Produto: $("#iPlano option:selected").val(),
+                    Descricao: $("#iPlano option:selected").text(),
+                    Tipo: objPlano[0].Tipo,
+                    Id: 0
+                }).draw(false);
+
+                $("#iPlano").val("");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    var clicked = false;
+    function ValidaSubmit()
+    {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+        erro = false;
+
+        if ($('#iContagem_Prazo option:selected').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CONTAGEM_PRAZO)", "warning");
+            erro = true;
+        }
+
+        if ($('#iHoras').val() == 0 || $('#iHoras').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.HORAS)", "warning");
+            erro = true;
+        }
+        if ($("#iSla_PlanoProduto").is(":checked")) { 
+         if ($('#datatable').DataTable().data().row().length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.ADICONE, RsCadastros.PLANO_PRODUTO)", "warning");
+            erro = true;
+        }
+        }
+        @*if ($('#iCategoria_Cliente option:selected').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CATEGORIA_CLIENTE)", "warning");
+            erro = true;
+        }*@
+
+        if ($('#id_Tipo_Atendimento').val() == 0 || $('#id_Tipo_Atendimento').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_ATENDIMENTO)", "warning");
+            erro = true;
+        }
+
+        if ($('#iContagem_Prazo option:selected').val() == 0 && $('#iHorario option:selected').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "Para a contagem de prazo em horas úteis é necessário informar um horário de atendimento", "warning");
+            erro = true;
+        }
+
+        $('#iHoras').trigger('focusout');
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        Hora = document.getElementById("iHoras");
+        hrs = (Hora.value.substring(0, 2));
+        min = (Hora.value.substring(3, 5));
+
+        estado = "";
+        if ((hrs < 00) || (hrs > 99) || (min < 00) || (min > 59)) {
+            document.getElementById("iHoras").style.borderColor = "red";
+            estado = "errada";
+            erro = true;
+
+        }
+        if (Hora == "") {
+            document.getElementById("iHoras").style.borderColor = "red";
+            estado = "errada";
+            erro = true;
+
+        }
+        if (estado == "errada") {
+            document.getElementById("iHoras").style.borderColor = "red";
+            document.getElementById("iHoras").focus();
+            erro = true;
+
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+        else {
+            document.getElementById("iHoras").style.borderColor = "";
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+
+    }
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "SLA_Atendimento", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-flag"></i> @ViewBag.Title</h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "SLA_Atendimento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINELSLA_ATENDIMENTO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                        <span style="font-size:11px" id="dtLegend"></span>
+                    </div>
+                </div>
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-1">
+                            <h5 class="mb-0">
+                                <span class="text-bold-card">@ViewBag.Title</span>
+                            </h5>
+                        </div>
+                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                            <div class="card-body body-card-accord">
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTipo_Atendimento_Desc">@RsCadastros.TIPO_ATENDIMENTO:</label>
+                                            <div class="input-group">
+                                                @Html.HiddenFor(m => m.Id_Tipo_Atendimento, new { @id = "id_Tipo_Atendimento" })
+                                                @Html.TextBoxFor(m => m.Tipo_Atendimento_Desc, new { @class = "form-control", @id = "iTipo_Atendimento_Desc", @autocomplete = "off", @required = true, @placeholder = RsCadastros.TIPO_ATENDIMENTO })
+                                                @Html.ValidationMessageFor(model => model.Tipo_Atendimento_Desc, "", new { @class = "text-danger" })
+                                                <div class="input-group-append">
+                                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <div class="col-sm-3">
+                                        <label for="iPrioridade_Atendimento" class="mr-3">@RsCadastros.PRIORIDADE_ATENDIMENTO:</label>
+                                        <div class="form-group">
+                                            @Html.EnumDropDownListFor(m => m.Prioridade_Atendimento, new { @class = "form-control", @id = "iPrioridade_Atendimento" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iCategoria_Cliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+
+                                            @Html.DropDownListFor(m => m.Id_Categoria_Cliente, new SelectList(ViewBag.Categorias_Cliente, "Id", "Descricao"), RsBase.INDIFERENTE, new { @class = "form-control", @id = "iCategoria_Cliente", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Categoria_Cliente, "", new { @class = "text-danger" })
+
+
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            @if (Model.Id != 0)
+                                            {
+                                                <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label>
+                                                <div class="form-group">
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div class="row">
+
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iHoras">@RsCadastros.HORAS:</label>
+                                            @Html.TextBoxFor(m => m.Horas, new { @class = "form-control hora99", @placeholder = "000:00", @id = "iHoras" })
+                                            @Html.ValidationMessageFor(m => m.Horas, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-3">
+                                        <label for="iContagem_Prazo" class="mr-3">@RsCadastros.CONTAGEM_PRAZO:</label>
+                                        <div class="form-group">
+                                            @Html.EnumDropDownListFor(m => m.Contagem_Prazo, new { @class = "form-control", @id = "iContagem_Prazo" })
+                                        </div>
+                                    </div>
+
+
+                                    <div id="divHorario" class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iStatus" class="mr-3">@RsCadastros.HORARIO_ATENDIMENTO:</label>
+                                            <div class="form-group">
+                                                @Html.DropDownListFor(m => m.Id_Horario, new SelectList(ViewBag.Horarios, "Id", "Descricao"), new { @class = "form-control", @id = "iHorario", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Horario, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iSla_PlanoProduto" class="mr-3">@RsCadastros.SLA_PLAN_PROD_ESPECIFICO?</label><br>
+                                            @Html.CheckBoxFor(model => model.Sla_PlanoProduto, new { @class = "form-control", @id = "iSla_PlanoProduto", @name = "Sla_PlanoProduto", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" id="PlanoProdutotab">
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Defina @RsCadastros.PLANOS_E_PRODUTOS.Replace(" e ", "/")</span>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+
+
+
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <div class="form-group">
+                                                <label for="iPlano">@RsCadastros.PLANO_PRODUTO</label>
+                                                @Html.DropDownListFor(m => m.Id_Plano_Produto, new SelectList(ViewBag.Planos, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPlano", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Plano_Produto, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-12 text-right mt-3">
+                                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Defina @RsCadastros.LISTA_PLANO_PRODUTO_ADICIONADOS</span>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+
+                                    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "SLA_Atendimento")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit(); return false;">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+}

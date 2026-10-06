@@ -1,0 +1,1996 @@
+﻿@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = "Painel de Gestão Operacional";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+
+        .nowrap th td {
+            white-space: nowrap !important;
+        }
+
+        .text-center th td {
+            text-align: center !important;
+        }
+
+
+        tr, td {
+            text-align: center;
+        }
+
+        .dtfc-fixed-left {
+            background: white;
+        }
+
+        td.dtfc-fixed-left {
+            text-align: left !important;
+        }
+
+        .table.dataTable.stripe tbody tr.odd {
+            background-color: #f9f9f9;
+        }
+
+        .table td {
+            padding: 0.4rem;
+            white-space: normal !important;
+        }
+
+        .table th {
+            padding: 0.3rem;
+            white-space: normal !important;
+            min-width: 60px !important;
+            vertical-align: middle;
+        }
+
+        .table td {
+            padding: 0.4rem;
+            white-space: normal !important;
+            min-width: 60px !important;
+        }
+
+
+        td.colunaAgrupamento {
+            white-space: nowrap !important;
+        }
+
+        .toggle.btn {
+            min-width: 3.7rem !important;
+            min-height: 1.7rem !important;
+        }
+    </style>
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+    <script src="https://cdn.datatables.net/fixedcolumns/4.0.2/js/dataTables.fixedColumns.min.js"></script>
+
+    <script>
+        let oDatatable = null;
+        let oDatatableTecnicos = null;
+        let objetoTecnico = null;
+        const STORAGE_FILTER_KEY = "filtrosPainelGestaoOperacional";
+
+        function saveFilters() {
+            const filters = {
+                data: $('#iDataFimDemanda').val(),
+                contrato: $('#iContrato').val(),
+                projeto: $('#iProjeto').val(),
+                equipe: $('#iEquipe').val(),
+                grupoArea: $("#iGrupoArea").val(),
+                area: $("#iArea").val(),
+                localidade: $("#iLocalidade").text(),
+                natureza: $("#iNaturezaProducao").val(),
+                tipoServico: $("#iTipoServico").val(),
+                supervisor: $("#iSupervisor").val(),
+                monitor: $("#iMonitor").val(),
+                periodo: $("#iPeriodo").val(),
+                dataInicioDemanda: $('#iDataInicioDemanda').val()
+            };
+
+            localStorage.setItem(STORAGE_FILTER_KEY, JSON.stringify(filters))
+        }
+
+        let HandleContrato = function () {
+            $('#iContrato').unbind('select2:select select2:unselecting');
+            $('#iContrato').on('select2:select select2:unselecting', function (e) {
+
+                Contrato = e.params.data
+                if (Contrato) {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, Contrato.id, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+            });
+        };
+
+        var HandleGrupo = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+
+                GrupoSelecionado = e.params.data
+                if (GrupoSelecionado) {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(GrupoSelecionado.id), null, "@RsBase.SELECIONE", false, HandleArea);
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+                else {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+                }
+
+            });
+        };
+
+        var HandleArea = function () {
+            $('#iArea').on('select2:select select2:unselecting', function (e) {
+
+                AreaSelecionada = e.params.data
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id) , null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+        function carregaSelect2() {
+            AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleContrato);
+            AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iMaterial", "@CONSTANTES.URLPortal/api/Material_TarefaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iFamiliaMaterial", "@CONSTANTES.URLPortal/api/Material_TarefaApi/GetComboFamiliaMaterial", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iGrupoMaterial", "@CONSTANTES.URLPortal/api/Material_TarefaApi/GetComboGrupoMaterial", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iEquipe", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTipoServico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iNaturezaProducao", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleGrupo);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+            AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iMonitor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iPeriodo", "@CONSTANTES.URLPortal/api/PeriodoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        var filter_state = {
+            dataAgendamento: {
+                label: "@RsCadastros.DATA_AGENDAMENTO", getDisplay: () => {
+
+                    return Boolean($('#iDataInicioDemanda').val()) ? $('#iDataInicioDemanda').val() + " a " + $('#iDataFimDemanda').val() : "";
+
+                },
+                removable: false, onclick: () => { $('#modal-filter').modal('show') }
+            },
+            contrato: {
+                label: "@RsCadastros.CONTRATO",
+                getDisplay: () => { return Boolean($('#iContrato').val()) ? $('#iContrato option:selected').text() : "" },
+                onclick: () => {
+                    $('#iContrato').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            projeto: {
+                label: "@RsCadastros.PROJETO",
+                getDisplay: () => { return Boolean($('#iProjeto').val()) ? $('#iProjeto option:selected').text() : "" },
+                onclick: () => {
+                    $('#iProjeto').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            equipe: {
+                label: "@RsCadastros.TECNICO",
+                getDisplay: () => { return Boolean($('#iEquipe').val()) ? $('#iEquipe option:selected').text() : "" },
+                onclick: () => {
+                    $('#iEquipe').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            supervisor: {
+                label: "@RsCadastros.SUPERVISOR",
+                getDisplay: () => { return Boolean($('#iSupervisor').val()) ? $('#iSupervisor option:selected').text() : "" },
+                onclick: () => {
+                    $('#iSupervisor').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            material: {
+                label: "@RsCadastros.MATERIAL",
+                getDisplay: () => { return Boolean($('#iMaterial').val()) ? $('#iMaterial option:selected').text() : "" },
+                onclick: () => {
+                    $('#iMaterial').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            classificacaoMaterial : {
+                label: "@RsCadastros.CLASSIFICAO_MATERIAL",
+                getDisplay: () => { return Boolean($('#iClassificacaoMaterial').val()) ? $('#iClassificacaoMaterial option:selected').text() : "" },
+                onclick: () => {
+                    $('#iClassificacaoMaterial').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            naturezaProducao : {
+                label: "@RsCadastros.NATUREZA",
+                getDisplay: () => { return Boolean($('#iNaturezaProducao').val()) ? $('#iNaturezaProducao option:selected').text() : "" },
+                onclick: () => {
+                    $('#iNaturezaProducao').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            tipo_servico : {
+                label: "@RsCadastros.TIPO_SERVICO",
+                getDisplay: () => { return Boolean($('#iTipoServico').val()) ? $('#iTipoServico option:selected').text() : "" },
+                onclick: () => {
+                    $('#iTipoServico').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            familia : {
+                label: "@RsCadastros.FAMILIA_MATERIAL",
+                getDisplay: () => { return Boolean($('#iFamiliaMaterial').val()) ? $('#iFamiliaMaterial option:selected').text() : "" },
+                onclick: () => {
+                    $('#iFamiliaMaterial').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            grupo_familia : {
+                label: "@RsCadastros.GRUPO_MATERIAL",
+                getDisplay: () => { return Boolean($('#iGrupoMaterial').val()) ? $('#iGrupoMaterial option:selected').text() : "" },
+                onclick: () => {
+                    $('#iGrupoMaterial').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            periodo : {
+                label: "@RsCadastros.PERIODO",
+                getDisplay: () => { return Boolean($('#iPeriodo').val()) ? $('#iPeriodo option:selected').text() : "" },
+                onclick: () => {
+                    $('#iPeriodo').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            }
+        }
+
+
+
+
+
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+
+            $('#iNaturezaProducao').val(null).trigger('change');
+            $('#iSupervisor').val(null).trigger('change');
+            $('#iTipoServico').val(null).trigger('change');
+            $('#iEquipe').val(null).trigger('change');
+            $('#iGrupoMaterial').val(null).trigger('change');
+            $('#iFamiliaMaterial').val(null).trigger('change');
+            $('#iMaterial').val('').trigger('change');
+            $('#iProjeto').val(null).trigger('change');
+            $('#iContrato').val(null).trigger('change');
+            $('#iClassificacaoMaterial').val(null).trigger('change');
+
+            carregaSelect2()
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        })
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show')
+            localStorage.removeItem(STORAGE_FILTER_KEY);
+            carregaSelect2()
+        });
+
+        $("#iExtratoAnalitico").on("click", function () {
+            ShowDialog(true, true, '', '@Url.Action("PainelGestaoOperacionalExtratoAnalitico", "Gestao_Equipe")', 'divExtratoAnalitico', 1500, 720, 'iframeExtratoAnalitico')
+        })
+
+        $('input[type=radio][name=AreaAtuacaoFormato]').change(function () {
+            oDatatableFunction();
+        });
+
+        $('input[type=radio][name=InstalacaoReparo]').change(function () {
+            oDatatableFunction();
+        });
+
+        $('input[type=radio][name=ServicosHoras]').change(function () {
+            oDatatableFunction();
+        });
+
+        $('#iFormatoVisu').change(function () {
+
+            const valor = $(this).val();
+
+            if (valor == 0)
+            {
+                $('#iFormatoAreasAtuacao').show();
+            }
+            else {
+                $('#iFormatoAreasAtuacao').hide();
+            }
+
+            oDatatableFunction();
+        });
+
+        let dados = null;
+
+        function ResetarHeader() {
+            $("#divTable").empty();
+
+            const priorizarInstalacaoReparo = $('input[name=InstalacaoReparo]:checked').val();
+
+            stringTh = "";
+            totalColspan = 0;
+
+            if ($('#iFormatoVisu').val() == 0) {
+                const formatoAreasAtuacao = $('input[name=AreaAtuacaoFormato]:checked').val();
+                if (formatoAreasAtuacao === "grupoarea") {
+                    stringTh = `<th>Grupo Área</th>`;
+                    totalColspan = 1;
+                }
+                if (formatoAreasAtuacao === "area") {
+                    stringTh = `<th>Grupo Área</th><th>Área</th>`;
+                    totalColspan = 2;
+                }
+                if (formatoAreasAtuacao === "localidade") {
+                    stringTh = `<th>Grupo Área</th><th>Área</th><th>Localidade</th>`;
+                    totalColspan = 3;
+                }
+            }
+            else if ($('#iFormatoVisu').val() == 1)
+            {
+                stringTh = `<th>Supervisor</th>`;
+                totalColspan = 1;
+            }
+            else if ($('#iFormatoVisu').val() == 2)
+            {
+                stringTh = `<th>Monitor</th>`;
+                totalColspan = 1;
+            }
+            else if ($('#iFormatoVisu').val() == 3) {
+                stringTh = `<th>Técnico</th>`;
+                totalColspan = 1;
+            }
+            else if ($('#iFormatoVisu').val() == 4) {
+                stringTh = `<th>Período</th>`;
+                totalColspan = 1;
+            }
+
+
+
+
+
+
+            $("#divTable").html(`<table class="table table-hover nowrap" id="datatable" style="width:100%;border-collapse: separate;border-spacing: 5px ">
+                                    <thead>
+                                        <tr>
+                                            <th style="border-radius: 10px;border: solid 2px;font-size: 12px;" colspan="${totalColspan}">Totais</th>
+                                            <th id="totalColuna${totalColspan}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 1}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 2}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 3}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 4}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 5}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 6}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 7}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 8}" style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 9}"  style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 10}"  style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                            <th id="totalColuna${totalColspan + 11}"  style="border-radius: 10px;border: solid 2px;font-size: 12px;">-</th>
+                                        </tr>
+
+                                        <tr>
+                                            ${stringTh}
+                                            <th>Agendado sem Técnico</th>
+                                            <th>Despachados</th>
+                                            <th>A Iniciar</th>
+                                            <th>Em Deslocamento</th>
+                                            <th>Em Atendimento</th>
+                                            <th>Paralisado</th>
+                                            <th>Cancelado</th>
+                                            <th>Fechado Produtivo</th>
+                                            <th>Fechado Improdutivo</th>
+                                            <th>% Eficiência</th>
+                                            <th>Fechado Dentro do Prazo</th>
+                                            <th>Fechado Fora do Prazo</th>
+                                        </tr>
+                                    </thead>
+                                </table>`);
+        }
+
+        async function GetDados(keys)
+        {
+            const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PlanejamentoCapacidadeRoteirizacaoApiController/GestaoOperacional")';
+            let resultado = dados == null ? await $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    data: $('#iDataFimDemanda').val(),
+                    contrato: $('#iContrato').val(),
+                    projeto: $('#iProjeto').val(),
+                    equipe: $('#iEquipe').val(),
+                    grupoArea: $("#iGrupoArea").val(),
+                    area: $("#iArea").val(),
+                    localidade: $("#iLocalidade").text(),
+                    natureza: $("#iNaturezaProducao").val(),
+                    tipoServico: $("#iTipoServico").val(),
+                    supervisor: $("#iSupervisor").val(),
+                    monitor: $("#iMonitor").val(),
+                    periodo: $("#iPeriodo").val(),
+                    dataInicioDemanda: $('#iDataInicioDemanda').val()
+                }
+            }) : dados;
+
+            let tecnicosTemp = resultado.tecnicos.map(p => {
+
+                for (let localidade of p.localidades) {
+
+
+
+                    localidade.nome = p.nome;
+                    localidade.equipe = p.equipe;
+                    localidade.escalado = p.escalado;
+                    localidade.tipoHabilidade = p.tipoHabilidade;
+                    localidade.usuario_Monitor = p.usuario_Monitor;
+                    localidade.numFre_Supervisor = p.numFre_Supervisor;
+                    localidade.horasTrabalhadasHorario = p.horasTrabalhadasHorario;
+                    localidade.idPerfilAgendamento = p.idPerfilAgendamento;
+
+                }
+                return p.localidades;
+            }).flat();
+
+
+
+
+            let tecnicosUnique = tecnicosTemp.filter(function ({ equipe, cod_Escritorio, cod_Area, localidade, numFre_Supervisor, usuario_Monitor, periodo }) {
+
+                let valor = null;
+                if (keys.find(y => y === "cod_Escritorio")) {
+                    valor = equipe + cod_Escritorio;
+                }
+                else if (keys.find(y => y === "cod_Area")) {
+                    valor = equipe + cod_Escritorio + cod_Area;
+                }
+                else if (keys.find(y => y === "localidade")) {
+                    valor = equipe + cod_Escritorio + cod_Area + localidade;
+                }
+                else if (keys.find(y => y === "numFre_Supervisor")) {
+                    valor = equipe + numFre_Supervisor;
+                }
+                else if (keys.find(y => y === "usuario_Monitors")) {
+                    valor = equipe + usuario_Monitor;
+                }
+                else if (keys.find(y => y === "equipe")) {
+                    valor = equipe;
+                }
+                else if (keys.find(y => y === "periodo")) {
+                    valor = periodo;
+                }
+
+                return !this.has(valor) && this.add(valor);
+
+            }, new Set);
+
+
+
+
+            let retorno = {
+                tecnicos: resultado.tecnicos,
+                tecnicosUnique: tecnicosUnique,
+                servicos: resultado.servicos,
+                minutosHorarioTrabalhoPadrao: resultado.minutosHorarioTrabalhoPadrao
+            };
+
+            @* Limpa os filtros anteriores e grava os filtros utilizados para carregar o relatório *@
+            localStorage.removeItem(STORAGE_FILTER_KEY);
+            saveFilters();
+
+            return retorno;
+
+
+        }
+
+        function GetKeys() {
+
+
+            if ($('#iFormatoVisu').val() == "0") {
+                const valor = $('input[name=AreaAtuacaoFormato]:checked').val();
+                if (valor === "grupoarea") {
+                    return ["cod_Escritorio"]
+                }
+                else if (valor === "area") {
+                    return ["cod_Escritorio", "cod_Area"]
+                }
+                else if (valor === "localidade") {
+                    return ["cod_Escritorio", "cod_Area", "localidadeStr"]
+                }
+            }
+            else if ($('#iFormatoVisu').val() == "1")
+            {
+                return ["numFre_Supervisor"];
+            }
+            else if ($('#iFormatoVisu').val() == "2")
+            {
+                return ["usuario_Monitor"];
+            }
+            else if ($('#iFormatoVisu').val() == "3") {
+                return ["equipe"];
+            }
+            else if ($('#iFormatoVisu').val() == "4") {
+                return ["periodo"];
+            }
+        }
+
+        "use strict";
+
+    function Agrupar(lista,keys) {
+        let resultado = lista.reduce((r, object) => {
+            keys.reduce((group, key, index, { length }) =>
+                group[object[key]] = group[object[key]] || (index + 1 === length
+                    ? []
+                    : {}
+                ), r)
+                .push(object);
+            return r;
+        }, {});
+
+        return resultado
+    }
+
+    function ResizeTablePainel(idDivTable) {
+        if (typeof $("#" + idDivTable) !== "undefined") {
+            var ht = $(window).height();
+            var $header = 20;
+            var $title = $("#divTitle");
+
+            var height = ht - $header - $title.outerHeight();
+
+            $("#" + idDivTable).css({
+                height: height
+            });
+        }
+    }
+
+    function MinutosParaTempo(minutos)
+    {
+        let negativo = minutos < 0 ? true : false;
+
+        if (negativo) {
+            minutos = Math.abs(minutos);
+        }
+
+        let m = minutos % 60;
+        let h = (minutos - m) / 60;
+        let HHMM = h.toString() + ":" + (m < 10 ? "0" : "") + m.toString();
+
+        if (negativo) {
+            HHMM = '-' + HHMM;
+        }
+
+        return HHMM;
+    }
+
+        function TempoParaMinutos(tempo)
+        {
+            var hms = tempo;   // your input string
+            var a = hms.split(':'); // split it at the colons
+
+            // Hours are worth 60 minutes.
+            return minutes = (+a[0]) * 60 + (+a[1]);
+
+
+        }
+
+
+
+        let keys = [];
+
+        var handleDataTableButtons = async function () {
+
+            ResetarHeader();
+            $("#divProgress").show();
+            let datatable_columns = [
+                { data: "grupoArea", className: "text-center", title: "GRUPOAREA", orderable: false, visible: true },
+                { data: "area", className: "text-center", title: "AREA", orderable: false, visible: true },
+                { data: "localidade", className: "text-center", title: "LOCALIDADE", orderable: false },
+                { data: "tecnicos", className: "text-center", title: "TECNICOS", orderable: false },
+                { data: "escalados", className: "text-center", title: "ESCALADOS", orderable: false },
+                { data: "tipoHabilidade0", className: "text-center", title: "@ViewBag.DescricaoTipoHabilidade0", orderable: false },
+                { data: "tipoHabilidade1", className: "text-center", title: "@ViewBag.DescricaoTipoHabilidade1", orderable: false },
+                { data: "tipoHabilidade2", className: "text-center", title: "@ViewBag.DescricaoTipoHabilidade2", orderable: false },
+                { data: "instalacaoTempoMedioServico", className: "text-center", title: "Tempo Médio", orderable: false },
+                { data: "instalacaoCapacidade", className: "text-center", title: "Capacidade", orderable: false },
+                { data: "instalacaoDemanda", className: "text-center", title: "Demanda", orderable: false },
+                { data: "instalacaoServRoteirizados", className: "text-center", title: "Servicos Roteirizados", orderable: false },
+
+            ];
+
+
+            keys = GetKeys();
+            dados = await GetDados(keys);
+
+            let array = [];
+            let grupos = Agrupar(dados.tecnicosUnique, keys);
+
+            let grupoServicos = Agrupar(dados.servicos, keys);
+            for (let item of Object.keys(grupoServicos).filter(p => p))
+            {
+                if (grupos.hasOwnProperty(item) == false) {
+                    if (keys.find(p => p === "cod_Area")) {
+                        grupos[item] = {};
+                        let subgrupo = grupoServicos[item];
+                        let grupo = grupos[item];
+                        for (let subitem of Object.keys(subgrupo)) {
+                            if (grupo.hasOwnProperty(subitem) == false) {
+
+                                grupo[subitem] = {};
+                                if (keys.find(p => p === "localidadeStr")) {
+
+                                    let localidades = subgrupo[subitem];
+                                    for (let localidade of Object.keys(localidades)) {
+                                        let escritorio = grupos[item];
+                                        let area = escritorio[subitem];
+                                        if (area.hasOwnProperty(localidade) == false) {
+                                            area[localidade] = [];
+                                        }
+                                    }
+                                }
+                                else
+                                    grupo[subitem] = [];
+                            }
+                            else {
+
+                                if (keys.find(p => p === "localidadeStr")) {
+
+                                    let localidades = subgrupo[subitem];
+                                    for (let localidade of Object.keys(localidades)) {
+                                        let escritorio = grupos[item];
+                                        let area = escritorio[subitem];
+                                        if (area.hasOwnProperty(localidade) == false) {
+                                            area[localidade] = [];
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                    else {
+                        grupos[item] = [];
+                    }
+                }
+                else {
+                    if (keys.find(p => p === "cod_Area")) {
+                        let subgrupo = grupoServicos[item];
+                        let grupo = grupos[item];
+                        for (let subitem of Object.keys(subgrupo)) {
+                            if (grupo.hasOwnProperty(subitem) == false) {
+
+                                grupo[subitem] = {};
+                                if (keys.find(p => p === "localidadeStr")) {
+
+                                    let localidades = subgrupo[subitem];
+                                    for (let localidade of Object.keys(localidades)) {
+                                        let escritorio = grupos[item];
+                                        let area = escritorio[subitem];
+                                        if (area.hasOwnProperty(localidade) == false) {
+                                            area[localidade] = [];
+                                        }
+                                    }
+                                }
+                                else
+                                    grupo[subitem] = [];
+                            }
+                            else {
+
+                                if (keys.find(p => p === "localidadeStr")) {
+
+                                    let localidades = subgrupo[subitem];
+                                    for (let localidade of Object.keys(localidades)) {
+                                        let escritorio = grupos[item];
+                                        let area = escritorio[subitem];
+                                        if (area.hasOwnProperty(localidade) == false) {
+                                            area[localidade] = [];
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+
+            const priorizarInstalacaoReparo = $('input[name=InstalacaoReparo]:checked').val();
+            const formatoDemanda = $('input[name=ServicosHoras]:checked').val();
+            for (let grupo of Object.keys(grupos).filter(p => p))
+            {
+                let grupoObj = grupos[grupo];
+
+                if ($('#iFormatoVisu').val() == "0")
+                {
+                    if (keys.find(p => p === "localidadeStr"))
+                    {
+                        for (let subgrupo of Object.keys(grupoObj))
+                        {
+                            let subgrupoObj = grupoObj[subgrupo]
+                            for (let localidade of Object.keys(subgrupoObj))
+                            {
+                                let servicosGrupo = dados.servicos.filter(p => p.cod_Escritorio == grupo && p.cod_Area == subgrupo && p.localidadeStr == localidade)
+
+                                if (servicosGrupo.length > 0) {
+                                    let obj = {
+                                        grupoArea: grupo,
+                                        area: subgrupo,
+                                        localidade: localidade,
+                                        agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                                        despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                                        iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                                        deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                                        atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                                        paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                                        cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                                        fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                                        fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                                        eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                                        fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                                        fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                                    };
+
+                                    array.push(obj);
+                                }
+
+
+                            }
+                        }
+                    }
+                    else if (keys.find(p => p === "cod_Area")) {
+                        for (let subgrupo of Object.keys(grupoObj)) {
+
+
+                            let servicosGrupo = dados.servicos.filter(p => p.cod_Escritorio == grupo && p.cod_Area == subgrupo)
+
+                            if (servicosGrupo.length > 0) {
+                                let obj = {
+                                    grupoArea: grupo,
+                                    area: subgrupo,
+                                    agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                                    despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                                    iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                                    deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                                    atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                                    paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                                    cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                                    fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                                    fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                                    eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                                    fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                                    fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                                };
+
+                                array.push(obj);
+                            }
+                        }
+
+                        datatable_columns = datatable_columns.filter(p => p.data != "localidade");
+
+                }
+                    else if (keys.find(p => p === "cod_Escritorio"))
+                    {
+                        let servicosGrupo = dados.servicos.filter(p => p.cod_Escritorio == grupo)
+
+                        if (servicosGrupo.length > 0) {
+                            let obj = {
+                                grupoArea: grupo,
+                                agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                                despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                                iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                                deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                                atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                                paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                                cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                                fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                                fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                                eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                                fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                                fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                            };
+
+                            array.push(obj);
+                        }
+
+
+                        datatable_columns = datatable_columns.filter(p => p.data != "area" && p.data != "localidade");
+
+                    }
+                }
+                else if (keys.find(p => p === "numFre_Supervisor")) {
+
+
+                    let servicosGrupo = dados.servicos.filter(p => p.numFre_Supervisor == grupo)
+                    if (servicosGrupo.length > 0) {
+                        let obj = {
+                            grupoArea: grupo,
+                            agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                            despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                            iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                            deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                            atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                            paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                            cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                            fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                            fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                            eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                            fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                            fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                        };
+
+                        array.push(obj);
+                    }
+
+
+                    datatable_columns = datatable_columns.filter(p => p.data != "area" && p.data != "localidade");
+
+                }
+                else if (keys.find(p => p === "usuario_Monitor")) {
+
+                    let servicosGrupo = dados.servicos.filter(p => p.usuario_Monitor == grupo)
+                    if (servicosGrupo.length > 0) {
+                        let obj = {
+                            grupoArea: grupo,
+                            agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                            despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                            iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                            deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                            atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                            paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                            cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                            fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                            fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                            eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                            fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                            fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                        };
+
+                        array.push(obj);
+                    }
+
+
+                    datatable_columns = datatable_columns.filter(p => p.data != "area" && p.data != "localidade");
+
+                }
+                else if (keys.find(p => p === "equipe")) {
+
+                    let servicosGrupo = dados.servicos.filter(p => p.equipe == grupo)
+                    if (servicosGrupo.length > 0) {
+                        let obj = {
+                            grupoArea: grupo,
+                            agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                            despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                            iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                            deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                            atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                            paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                            cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                            fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                            fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                            eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                            fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                            fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                        };
+
+                        array.push(obj);
+                    }
+
+
+                    datatable_columns = datatable_columns.filter(p => p.data != "area" && p.data != "localidade");
+
+                }
+                else if (keys.find(p => p === "periodo")) {
+
+                    let servicosGrupo = dados.servicos.filter(p => p.periodo == grupo)
+                    if (servicosGrupo.length > 0) {
+                        let obj = {
+                            grupoArea: grupo,
+                            agendadoSemTecnico: servicosGrupo.filter(p => p.dataMaximaStr != null && !p.equipe).length,
+                            despachados: servicosGrupo.filter(p => p.dataMaximaStr != null && p.equipe).length,
+                            iniciar: servicosGrupo.filter(p => p.status == 0).length,
+                            deslocamento: servicosGrupo.filter(p => p.status == 6).length,
+                            atendimento: servicosGrupo.filter(p => p.status == 3).length,
+                            paralisado: servicosGrupo.filter(p => p.status == 10).length,
+                            cancelado: servicosGrupo.filter(p => p.status == 9).length,
+                            fechadoProdutivo: servicosGrupo.filter(p => p.status == 2).length,
+                            fechadoImprodutivo: servicosGrupo.filter(p => p.status == 1).length,
+                            eficiencia: servicosGrupo.filter(p => p.status == 2 || p.status == 1).length == 0 ? 0 : parseFloat((servicosGrupo.filter(p => p.status == 2).length / servicosGrupo.filter(p => p.status == 2 || p.status == 1).length) * 100).toFixed(1) + "%",
+                            fechadoDentroPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo).length,
+                            fechadoForaPrazo: servicosGrupo.filter(p => (p.status == 2 || p.status == 1) && p.dentroPrazo == false).length,
+                        };
+
+                        array.push(obj);
+                    }
+                    datatable_columns = datatable_columns.filter(p => p.data != "area" && p.data != "localidade");
+                }
+            }
+
+            function somar(total, number) {
+
+                number = isFloat(number) ? parseFloat(number) : (isNaN(number) ? number : Number(number));
+                return total + number;
+            }
+
+            function isFloat(n) {
+                return Number(n) === n && n % 1 !== 0;
+            }
+
+            function ordenarDados(keys,arrayDados,dadosTecnico)
+            {
+                if (keys.find(p => p === "localidadeStr"))
+                {
+                    return arrayDados.sort(function (a, b) {
+
+                        let AdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == a[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == a[0]).descricao_Grupo_Area;
+                        let BdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == b[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == b[0]).descricao_Grupo_Area;
+
+                        if (AdescricaoEscritorio === BdescricaoEscritorio)
+                        {
+                            let AdescricaoArea = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Area == a[1])?.descricao_Area ?? dados.servicos.find(p => p.cod_Escritorio == a[0] && p.cod_Area == a[1]).descricao_Grupo_Area;
+                            let BdescricaoArea = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Area == b[1])?.descricao_Area ?? dados.servicos.find(p => p.cod_Escritorio == b[0] && p.cod_Area == b[1]).descricao_Grupo_Area;
+
+                            if (AdescricaoArea === BdescricaoArea)
+                            {
+                                let AlocalidadeStr = a[2]
+                                let BlocalidadeStr = b[2]
+                                return AlocalidadeStr.localeCompare(BlocalidadeStr);
+                            }
+
+                            return AdescricaoArea.localeCompare(BdescricaoArea);
+                        }
+
+
+                        return AdescricaoEscritorio.localeCompare(BdescricaoEscritorio);
+
+                    });
+                }
+                else if (keys.find(p => p === "cod_Area")) {
+                    return arrayDados.sort(function (a, b) {
+
+                        let AdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == a[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == a[0]).descricao_Grupo_Area;
+                        let BdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == b[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == b[0]).descricao_Grupo_Area;
+
+                        if (AdescricaoEscritorio === BdescricaoEscritorio) {
+                            let AdescricaoArea = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == a[0] && p.cod_Area == a[1])?.descricao_Area ?? dados.servicos.find(p => p.cod_Escritorio == a[0] && p.cod_Area == a[1]).descricao_Grupo_Area
+                            let BdescricaoArea = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == b[0] && p.cod_Area == b[1])?.descricao_Area ?? dados.servicos.find(p => p.cod_Escritorio == b[0] && p.cod_Area == b[1]).descricao_Grupo_Area
+
+                            return AdescricaoArea.localeCompare(BdescricaoArea);
+                        }
+
+
+                        return AdescricaoEscritorio.localeCompare(BdescricaoEscritorio);
+
+                    });
+                }
+                else if (keys.find(p => p === "cod_Escritorio")) {
+
+                    return arrayDados.sort(function (a, b) {
+
+                        let AdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == a[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == a[0]).descricao_Grupo_Area
+                        let BdescricaoEscritorio = dadosTecnico.map(p => p.localidades).flat().find(p => p.cod_Escritorio == b[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == b[0]).descricao_Grupo_Area
+                        return AdescricaoEscritorio.localeCompare(BdescricaoEscritorio);
+
+                    });
+
+
+                }
+                else if (keys.find(p => p === "numFre_Supervisor")) {
+                    return arrayDados.sort(function (a, b) {
+
+                        let AnomeSupervisor = dadosTecnico.find(p => p.numFre_Supervisor == a[0])?.nome_Supervisor ?? ""
+                        let BnomeSupervisor = dadosTecnico.find(p => p.numFre_Supervisor == b[0])?.nome_Supervisor ?? ""
+                        return AnomeSupervisor.localeCompare(BnomeSupervisor);
+
+                    });
+                }
+                else if (keys.find(p => p === "usuario_Monitor")) {
+
+                    return arrayDados.sort(function (a, b) {
+
+                        let AnomeMonitor = dadosTecnico.find(p => p.usuaro_monitor == a[0])?.nome_Monitor ?? ""
+                        let BnomeMonitor = dadosTecnico.find(p => p.usuaro_monitor == b[0])?.nome_Monitor ?? ""
+                        return AnomeMonitor.localeCompare(BnomeMonitor);
+
+                    });
+
+                }
+                else if (keys.find(p => p === "equipe")) {
+
+                    return arrayDados.sort(function (a, b) {
+
+                        let Aequipe = dadosTecnico.find(p => p.equipe == a[0])?.nome ?? ""
+                        let Bequipe = dadosTecnico.find(p => p.equipe == b[0])?.nome ?? ""
+                        return Aequipe.localeCompare(Bequipe);
+
+                    });
+
+                }
+                else if (keys.find(p => p === "periodo")) {
+
+                    return arrayDados.sort(function (a, b) {
+
+                        let Aequipe = dadosTecnico.find(p => p.periodo == a[0])?.nome ?? ""
+                        let Bequipe = dadosTecnico.find(p => p.periodo == b[0])?.nome ?? ""
+                        return Aequipe.localeCompare(Bequipe);
+
+                    });
+
+                }
+            }
+
+            function GetResumoTipoHabilidade(listaFunc)
+            {
+                return {
+                    tipoHabilidade0: listaFunc.filter(p => p.tipoHabilidade == 0 && p.escalado === true).length,
+                    tipoHabilidade1: listaFunc.filter(p => p.tipoHabilidade == 1 && p.escalado === true).length,
+                    tipoHabilidade2: listaFunc.filter(p => p.tipoHabilidade == 2 && p.escalado === true).length
+                };
+
+            }
+
+
+            let columndef = [
+                {
+                    targets: keys.length, render: function (data, type, row) {
+
+                        let grupo = [];
+                        for (var i = 0; i < keys.length; i++) {
+                            grupo.push(row[i]);
+                        }
+
+                        return data + `&nbsp;<a style="color:gray;float:right" class="ajustePerfil" data-keys="${keys}" data-key0="${row[0]}" data-key1="${row[1]}" data-key2="${row[2]}" data-grupoString="${grupo.join(" - ")}"></a>`;
+                    }
+                },
+                {
+                    targets: keys, width: "10px"
+                },
+            ];
+
+            for (var i = 0; i < keys.length; i++)
+            {
+                if (i === 0)
+                {
+                    columndef.push({
+                        targets: i, class: "colunaAgrupamento",
+                        render: function (data, type, row) {
+
+                            if (keys.find(p => p === "localidade") || keys.find(p => p === "cod_Area") || keys.find(p => p === "cod_Escritorio")) {
+
+                                let grupoAreaEncontrado = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == row[0])?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == row[0]).descricao_Grupo_Area
+                                if (grupoAreaEncontrado) {
+                                    data = grupoAreaEncontrado;
+                                }
+                            }
+                            else if (keys.find(p => p === "numFre_Supervisor")) {
+
+                                let supervisorEncontrado = dados.tecnicos.find(p => p.numFre_Supervisor == row[0])?.nome_Supervisor
+                                if (supervisorEncontrado) {
+                                    data = supervisorEncontrado;
+                                }
+
+                            }
+                            else if (keys.find(p => p === "usuario_Monitor")) {
+
+                                let monitorEncontrado = dados.tecnicos.find(p => p.usuario_Monitor == row[0])?.nome_Monitor
+                                if (monitorEncontrado) {
+                                    data = monitorEncontrado;
+                                }
+
+                            }
+                            else if (keys.find(p => p === "equipe")) {
+
+                                let tecnicoEncontrado = dados.tecnicos.find(p => p.equipe == row[0])?.nome
+                                if (tecnicoEncontrado) {
+                                    data = tecnicoEncontrado;
+                                }
+
+                            }
+                            else if (keys.find(p => p === "periodo")) {
+
+                                let tecnicoEncontrado = dados.tecnicos.find(p => p.periodo == row[0])?.nome
+                                if (tecnicoEncontrado) {
+                                    data = tecnicoEncontrado;
+                                }
+
+                            }
+
+
+                            return data;
+                        }
+                    });
+                }
+
+                if (i === 1) {
+                    columndef.push({
+                        targets: i, class: "colunaAgrupamento",
+                        render: function (data, type, row) {
+
+                            let areaEncontrado = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == row[0] && p.cod_Area == row[1])?.descricao_Area ?? dados.servicos.find(p => p.cod_Escritorio == row[0] && p.cod_Area == row[1]).descricao_Area
+                            if (areaEncontrado) {
+                                data = areaEncontrado;
+                            }
+
+                            return data;
+                        }
+                    });
+                }
+
+                if (i === 2)
+                {
+                    columndef.push({targets: i, class: "colunaAgrupamento"});
+                }
+
+
+            }
+
+            let arrayTabela = ordenarDados(keys, array.map(p => Object.values(p)), dados.tecnicos)
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                data: arrayTabela,
+                searching: true,
+                ordering: false,
+                paging: false,
+                autoWidth: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                stateSave: true,
+                columnDefs: columndef,
+                scrollX: true,
+                fixedHeader: true,
+                rowCallback: function (row, data) {
+
+                    if (data[keys.length + 11]  == "Faltando") {
+                        $('td.corStatusInstalacao', row).css('background', '#FC8D8D');
+                        $('td.corStatusInstalacao', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusInstalacao', row).css('font-weight', 'bold');
+                        /*$('td.corStatusInstalacao', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 11] == "Sobrando") {
+                        $('td.corStatusInstalacao', row).css('background', '#8DFCAD');
+
+                        $('td.corStatusInstalacao', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusInstalacao', row).css('font-weight', 'bold');
+
+                        /*$('td.corStatusInstalacao', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 11] == "Adequado") {
+                        $('td.corStatusInstalacao', row).css('background', '#F8FC8D');
+
+                        $('td.corStatusInstalacao', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusInstalacao', row).css('font-weight', 'bold');
+                        /*$('td.corStatusInstalacao', row).addClass('text-white');*/
+                    }
+
+                    if (data[keys.length + 18] == "Faltando") {
+                        $('td.corStatusReparo', row).css('background', '#FC8D8D');
+
+                        $('td.corStatusReparo', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusReparo', row).css('font-weight', 'bold');
+                        /*$('td.corStatusReparo', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 18] == "Sobrando") {
+                        $('td.corStatusReparo', row).css('background', '#8DFCAD');
+
+                        $('td.corStatusReparo', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusReparo', row).css('font-weight', 'bold');
+                        /*$('td.corStatusReparo', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 18] == "Adequado") {
+                        $('td.corStatusReparo', row).css('background', '#F8FC8D');
+
+                        $('td.corStatusReparo', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusReparo', row).css('font-weight', 'bold');
+                        /*$('td.corStatusReparo', row).addClass('text-white');*/
+                    }
+
+                    if (data[keys.length + 25] == "Faltando") {
+                        $('td.corStatusGeral', row).css('background', '#FC8D8D');
+
+                        $('td.corStatusGeral', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusGeral', row).css('font-weight', 'bold');
+                        /*$('td.corStatusGeral', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 25] == "Sobrando") {
+                        $('td.corStatusGeral', row).css('background', '#8DFCAD')
+                        $('td.corStatusGeral', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusGeral', row).css('font-weight', 'bold');
+                        /*$('td.corStatusGeral', row).addClass('text-white');*/
+                    }
+                    else if (data[keys.length + 25] == "Adequado") {
+                        $('td.corStatusGeral', row).css('background', '#F8FC8D');
+                        $('td.corStatusGeral', row).css('border-radius', '5px 5px 5px 5px');
+                        $('td.corStatusGeral', row).css('font-weight', 'bold');
+                        /*$('td.corStatusGeral', row).addClass('text-white');*/
+                    }
+
+
+
+                },
+                initComplete: dataTableInitComplete,
+                fixedColumns: {
+                    left: keys.length,
+                },
+                drawCallback: () => {
+
+                    TagFilter("FiltrosUtilizados", filter_state, "Filtrado por:");
+                    ResizeTablePainel('divTable');
+                    $("#datatable").DataTable().columns.adjust();
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 5,
+                order: [],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTableRelatorio({
+                    title: "@Html.Raw(ViewBag.Title)",
+                    pageSize: GetPageSizePDF(datatable_columns)
+                }),
+
+            });
+
+
+            $(".ajustePerfil").click(async function (e)
+            {
+
+
+                $("#divProgress").show();
+
+                try {
+                    let datakeys = $(this).attr("data-keys");
+                    let key0 = $(this).attr("data-key0");
+                    let key1 = $(this).attr("data-key1");
+                    let key2 = $(this).attr("data-key2");
+
+                    let data = null;
+                    if (datakeys === "usuario_Monitor") {
+                        let monitor = dados.tecnicos.find(p => p.usuario_Monitor == key0)?.nome_Monitor ?? dados.servicos.find(p => p.usuario_Monitor == key0).nomeMonitor;
+                        data = `@RsCadastros.GRUPO_AREA: ${monitor}`;
+                    }
+                    else if (datakeys === "numFre_Supervisor") {
+                        let supervisor = dados.tecnicos.find(p => p.numFre_Supervisor == key0)?.nome_Supervisor ?? dados.servicos.find(p => p.numFre_Supervisor == key0).nomeSupervisor;
+                        data = `@RsCadastros.SUPERVISOR: ${supervisor}`;
+                    }
+                    else if (datakeys === "cod_Escritorio") {
+                        let escritorio = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == key0)?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == key0).descricao_Grupo_Area;
+                        data = `@RsCadastros.GRUPO_AREA: ${escritorio}`;
+                    }
+                    else if (datakeys === "cod_Escritorio,cod_Area") {
+                        let escritorio = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == key0)?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == key0).descricao_Grupo_Area;
+                        let area = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == key0 && p.cod_Area == key1)?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == key0 && p.cod_Area == key1).descricao_Grupo_Area;
+                        data = `@RsCadastros.GRUPO_AREA: ${escritorio} - @RsCadastros.AREA: ${area}`;
+
+                    }
+                    else if (datakeys === "cod_Escritorio,cod_Area,localidadeStr") {
+                        let escritorio = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Escritorio == key0)?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == key0).descricao_Grupo_Area;
+                        let area = dados.tecnicos.map(p => p.localidades).flat().find(p => p.cod_Area == key1)?.descricao_Escritorio ?? dados.servicos.find(p => p.cod_Escritorio == key0 && p.cod_Area == key1).descricao_Grupo_Area;
+                        data = `@RsCadastros.GRUPO_AREA: ${escritorio} - @RsCadastros.AREA: ${area} - Localidade:${key2}`;
+
+                    }
+
+
+                    $("#iGrupoString").html(data);
+
+
+
+
+
+
+                    let array = [];
+                    if (data == undefined) {
+                        array = dados.tecnicosUnique.map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+                    if (keys.find(p => p === "localidadeStr")) {
+                        array = dados.tecnicosUnique.filter(p => p.cod_Escritorio == key0 && p.cod_Area == key1 && p.localidadeStr == key2).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+                    else if (keys.find(p => p === "cod_Area")) {
+                        array = dados.tecnicosUnique.filter(p => p.cod_Escritorio == key0 && p.cod_Area == key1).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+                    else if (keys.find(p => p === "cod_Escritorio")) {
+                        array = dados.tecnicosUnique.filter(p => p.cod_Escritorio == key0).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+
+
+                    else if (keys.find(p => p === "numFre_Supervisor")) {
+                        array = dados.tecnicosUnique.filter(p => p.numFre_Supervisor == key0).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+                    else if (keys.find(p => p === "usuario_Monitor")) {
+                        array = dados.tecnicosUnique.filter(p => p.usuario_Monitor == key0).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+                    else if (keys.find(p => p === "periodo")) {
+                        array = dados.tecnicosUnique.filter(p => p.periodo == key0).map(p => {
+                            return {
+                                matricula: p.equipe,
+                                nome: p.nome,
+                                horas: MinutosParaTempo(p.horasTrabalhadasHorario),
+                                situacao: p.escalado ? "@RsCadastros.ESCALADO" : "@Html.Raw(RsCadastros.INDISPONIVEL)",
+                                perfil: p.idPerfilAgendamento,
+                                habilidade: p.tipoHabilidade
+                            };
+                        });
+                    }
+
+
+                    if (oDatatableTecnicos != null) {
+                        jQuery("#datatableTecnicos").DataTable().clear().destroy();
+                    }
+
+                    objetoTecnico = {
+                        dom: "Bfrti",
+                        language: traducaoDataTableSimples,
+                        data: array,
+                        scrollY: "400px",
+                        scrollCollapse: true,
+                        error: function (xhr, error, code) {
+                            console.log(xhr);
+                            console.log(code);
+                        },
+
+                        columns: [
+                            {
+                                data: "matricula",
+                                title: "@RsCadastros.MATRICULA",
+                                className: "nowrap text-center"
+                            },
+                            {
+                                data: "nome",
+                                title: "@RsCadastros.NOME",
+                                className: "nowrap text-center"
+                            },
+                            {
+                                data: "perfil",
+                                title: "@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO",
+                                render: function (data, type, row, meta) {
+                                    return `<select id="iPerfilAgendamento${meta.row}" class="form-control perfilTecnico" data-equipe=${row.matricula} data-valor=${data} data-indice=${meta.row}></select>`
+                                }
+                            },
+                            {
+                                data: "habilidade",
+                                title: "@RsCadastros.HABILIDADES",
+                                render: function (data, type, row, meta) {
+                                    if (data == 0)
+                                        return "@ViewBag.DescricaoTipoHabilidade0";
+                                    else if (data == 1)
+                                        return "@ViewBag.DescricaoTipoHabilidade1";
+                                    else if (data == 2)
+                                        return "@ViewBag.DescricaoTipoHabilidade2";
+                                    else
+                                        return data;
+                                },
+                                className: "nowrap text-center"
+                            },
+                            {
+                                data: "situacao",
+                                title: "@RsCadastros.SITUACAO",
+                                className: "nowrap text-center"
+                            },
+                            {
+                                data: "horas",
+                                title: "@RsCadastros.CAPACIDADE",
+                                className: "nowrap text-center"
+                            },
+
+                        ],
+                        paging: false,
+                    };
+                    $("#modal-tecnicos").modal('show');
+
+
+                }
+                catch(ex)
+                {
+                    oDatatableTecnicos = null;
+                    console.log(ex);
+                    $("#divProgress").hide();
+                }
+
+            })
+
+            $(".demanda").click(async function (e) {
+
+
+                let filtro = [];
+                let key0 = $(this).attr("data-key0");
+                let key1 = $(this).attr("data-key1");
+                let key2 = $(this).attr("data-key2");
+                let habilidadeNatureza = $(this).attr("data-habilidadeNatureza");
+
+                if (habilidadeNatureza) {
+                    filtro.push({ chave: "HabilidadeNatureza", valor: habilidadeNatureza });
+                }
+                if (keys.find(y => y === "localidade")) {
+
+                    if(key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                    if(key1)
+                        filtro.push({ chave: "Area", valor: key1 });
+                    if(key2)
+                        filtro.push({ chave: "Localidade", valor: key2 });
+                }
+                else if (keys.find(y => y === "cod_Area")) {
+                    if (key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                    if(key1)
+                        filtro.push({ chave: "Area", valor: key1 });
+                }
+                else if (keys.find(y => y === "cod_Escritorio")) {
+                    if(key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                }
+                else if (keys.find(y => y === "numFre_Supervisor")) {
+                    if(key0)
+                        filtro.push({ chave: "Supervisor", valor: key0 });
+                }
+                else if (keys.find(y => y === "usuario_Monitors")) {
+                    if(key0)
+                        filtro.push({ chave: "Monitor", valor: key0 });
+                }
+
+                if ($("#iNaturezaProducao").val()) {
+                    filtro.push({ chave: "NaturezaProducao", valor: $("#iNaturezaProducao").val() });
+                }
+                if ($("#iTipoServico").val()) {
+                    filtro.push({ chave: "TipoServico", valor: $("#iTipoServico").val() });
+                }
+                if ($("#iGrupoArea").val()) {
+                    filtro.push({ chave: "GrupoArea", valor: $("#iGrupoArea").val() });
+                }
+                if ($("#iArea").val()) {
+                    filtro.push({ chave: "Area", valor: $("#iArea").val() });
+                }
+                if ($("#iLocalidade").val()) {
+                    filtro.push({ chave: "Localidade", valor: $("#iLocalidade").text() });
+                }
+                if ($("#iContrato").val()) {
+                    filtro.push({ chave: "Contrato", valor: $("#iContrato").val() });
+                }
+                if ($("#iProjeto").val()) {
+                    filtro.push({ chave: "Contrato", valor: $("#iContrato").val() });
+                }
+                if ($("#iEquipe").val()) {
+                    filtro.push({ chave: "Equipe", valor: $("#iEquipe").val() });
+                }
+                if ($("#iSupervisor").val()) {
+                    filtro.push({ chave: "Supervisor", valor: $("#iSupervisor").val() });
+                }
+                if ($("#iMonitor").val()) {
+                    filtro.push({ chave: "Monitor", valor: $("#iMonitor").val() });
+                }
+                if ($("#iDataInicioDemanda").val()) {
+                    filtro.push({ chave: "DataInicioDemanda", valor: $("#iDataInicioDemanda").val() });
+                }
+
+                filtro = filtro.filter(function ({ chave }) {
+                    return !this.has(chave) && this.add(chave);
+                }, new Set);
+
+                let filtroString = "";
+                if (filtro.length > 0)
+                {
+                    for (item of filtro)
+                    {
+                        filtroString += `&${item.chave}=${item.valor}`
+                    }
+                }
+
+
+                let _url = `@Url.Action("Index", "Painel_Servicos")?DataInicial=${$('#iDataInicio').val()}&DataFinal=${$('#iDataInicio').val()}&ConfigDemanda=S` + filtroString;
+                AddAba(_url, "@Html.Raw(RsCadastros.PAINEL_SERVICOS)");
+            });
+
+            $(".servRot").click(async function (e) {
+
+                let filtro = [];
+                let key0 = $(this).attr("data-key0");
+                let key1 = $(this).attr("data-key1");
+                let key2 = $(this).attr("data-key2");
+                let habilidadeNatureza = $(this).attr("data-habilidadeNatureza");
+                if (habilidadeNatureza) {
+                    filtro.push({ chave: "HabilidadeNatureza", valor: habilidadeNatureza });
+                }
+                if (keys.find(y => y === "localidade")) {
+
+                    if (key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                    if (key1)
+                        filtro.push({ chave: "Area", valor: key1 });
+                    if (key2)
+                        filtro.push({ chave: "Localidade", valor: key2 });
+                }
+                else if (keys.find(y => y === "cod_Area")) {
+                    if (key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                    if (key1)
+                        filtro.push({ chave: "Area", valor: key1 });
+                }
+                else if (keys.find(y => y === "cod_Escritorio")) {
+                    if (key0)
+                        filtro.push({ chave: "GrupoArea", valor: key0 });
+                }
+                else if (keys.find(y => y === "numFre_Supervisor")) {
+                    if (key0)
+                        filtro.push({ chave: "Supervisor", valor: key0 });
+                }
+                else if (keys.find(y => y === "usuario_Monitors")) {
+                    if (key0)
+                        filtro.push({ chave: "Monitor", valor: key0 });
+                }
+
+                if ($("#iNaturezaProducao").val()) {
+                    filtro.push({ chave: "NaturezaProducao", valor: $("#iNaturezaProducao").val() });
+                }
+                if ($("#iTipoServico").val()) {
+                    filtro.push({ chave: "TipoServico", valor: $("#iTipoServico").val() });
+                }
+                if ($("#iGrupoArea").val()) {
+                    filtro.push({ chave: "GrupoArea", valor: $("#iGrupoArea").val() });
+                }
+                if ($("#iArea").val()) {
+                    filtro.push({ chave: "Area", valor: $("#iArea").val() });
+                }
+                if ($("#iLocalidade").val()) {
+                    filtro.push({ chave: "Localidade", valor: $("#iLocalidade").text() });
+                }
+                if ($("#iContrato").val()) {
+                    filtro.push({ chave: "Contrato", valor: $("#iContrato").val() });
+                }
+                if ($("#iProjeto").val()) {
+                    filtro.push({ chave: "Contrato", valor: $("#iContrato").val() });
+                }
+                if ($("#iEquipe").val()) {
+                    filtro.push({ chave: "Equipe", valor: $("#iEquipe").val() });
+                }
+                if ($("#iSupervisor").val()) {
+                    filtro.push({ chave: "Supervisor", valor: $("#iSupervisor").val() });
+                }
+                if ($("#iMonitor").val()) {
+                    filtro.push({ chave: "Monitor", valor: $("#iMonitor").val() });
+                }
+                if ($("#iDataInicioDemanda").val()) {
+                    filtro.push({ chave: "DataInicioDemanda", valor: $("#iDataInicioDemanda").val() });
+                }
+
+                filtro = filtro.filter(function ({ chave }) {
+                    return !this.has(chave) && this.add(chave);
+                }, new Set);
+
+                let filtroString = "";
+                if (filtro.length > 0) {
+                    for (item of filtro) {
+                        filtroString += `&${item.chave}=${item.valor}`
+                    }
+                }
+
+
+                let _url = `@Url.Action("Index", "Painel_Servicos")?DataInicial=${$('#iDataInicio').val()}&DataFinal=${$('#iDataInicio').val()}&ConfigRoteirizados=S` + filtroString;
+                AddAba(_url, "@Html.Raw(RsCadastros.PAINEL_SERVICOS)");
+            });
+
+
+            oDatatable.columns().toArray()[0].forEach(function (item, index)
+            {
+
+                if (index == keys.length + 9) {
+
+                    var sumProdutiva = oDatatable.rows().data().map(p => p[index - 2]).reduce(somar, 0);
+                    var sumTotal = oDatatable.rows().data().map(p => p[index - 2]).reduce(somar, 0) + oDatatable.rows().data().map(p => p[index - 1]).reduce(somar, 0);
+
+
+                    if (isNaN(sumProdutiva) || isNaN(sumTotal)) {
+                        $('#totalColuna' + index).html('-');
+
+                    }
+                    else {
+                        let percentualTotal = sumTotal != 0 ? parseFloat((sumProdutiva / sumTotal) * 100).toFixed(1) : 0;
+                        $('#totalColuna' + index).html(percentualTotal + "%");
+                    }
+                }
+                else
+                {
+                    var sum = oDatatable.rows().data().map(p => p[index]).reduce(somar, 0);
+                    sum = isFloat(sum) ? parseFloat(sum).toFixed(1) : (isNaN(sum) ? sum : Number(sum));
+                    if (isNaN(sum))
+                    {
+                        $('#totalColuna' + index).html('-');
+                    }
+                    else {
+                        $('#totalColuna' + index).html(sum);
+                    }
+                }
+            });
+
+
+            $("#divProgress").hide();
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+                // Handle table draw event
+                oDatatable.on('draw', function () {
+                    // Update state of "Select all" control
+                    rows_selected = [];
+                });
+            },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+
+        $(window).resize(function () {
+            if (oDatatable != null) {
+                oDatatable.columns.adjust();
+            }
+        });
+
+        function oDatatableFunction(atualizar) {
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            if ($('#iDataInicio').val() && $('#iDataFim').val()) {
+
+                const momentInicio = moment($('#iDataInicio').val(),"DD/MM/YYYY")
+                const momentFinal = moment($('#iDataFim').val(), "DD/MM/YYYY")
+
+                if ((momentFinal.diff(momentInicio, 'days') + 1) > 30) {
+                    Notificar("@RsBase.ATENCAO_", "Periodo deve atender limite de 30 dias", "warning");
+                    return false
+                }
+            }
+
+            if (atualizar == true)
+                dados = null;
+
+            if (oDatatable != null)
+            {
+
+                if (oDatatableTecnicos != null)
+                {
+                    jQuery("#datatableTecnicos").DataTable().clear().destroy();
+                }
+
+                oDatatable.destroy();
+                $("#datatable").empty();
+            }
+
+            TableManageButtons.init();
+
+
+
+            $('#modal-filter').modal('hide')
+
+
+        }
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-cogs"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                    <a class="dropdown-item" href="#" id="iExtratoAnalitico">
+                        Extrato Analítico
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 ">
+        </div>
+
+        <div class="form-inline mr-2 ml-2 form-inline mt-1 fs-12">
+            <div class="mr-5 p-0">
+                <div class="form-group">
+                    <label for="iFormatoVisu">Formato de Visualização: </label>
+                    <select id="iFormatoVisu" class="form-control">
+                        <option value="0">@RsCadastros.AREAS_ATUACAO</option>
+                        <option value="1">Supervisor</option>
+                        <option value="2">Monitor</option>
+                        <option value="3">Técnico</option>
+                        <option value="4">Período</option>
+
+                    </select>
+                    <div class="form-inline" id="iFormatoAreasAtuacao">
+                        <input type="radio" class="m-2" checked name="AreaAtuacaoFormato" value="grupoarea">@RsCadastros.GRUPO_AREA
+                        <input type="radio" class="m-2" name="AreaAtuacaoFormato" value="area">@RsCadastros.AREA
+                        <input type="radio" class="m-2" name="AreaAtuacaoFormato" value="localidade">@RsCadastros.LOCALIDADE
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group border_radius">
+                    <label for="iDataInicio">@RsCadastros.DATA_AGENDAMENTO:</label>
+
+                    <div class="row">
+                        <div class="col form-inline text-center mt-1" style="">
+                            <input class="form-control obrigatorio datepicker-period mb-1"
+                                   id="iDataInicioDemanda"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="00/00/0000" />
+                            <br>
+                            <span class="pl-3 pr-3">@RsBase.A</span>
+                            <input class="form-control obrigatorio datepicker-period mb-1"
+                                   id="iDataFimDemanda"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="00/00/0000" />
+                            <br>
+
+                        </div>
+
+
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iContrato">@RsCadastros.CONTRATO:</label>
+                            <select class="form-control" id="iContrato"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iProjeto">@RsCadastros.PROJETO:</label>
+                            <select class="form-control" id="iProjeto"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                            <select class="form-control" id="iSupervisor"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iMonitor">@RsCadastros.MONITOR:</label>
+                            <select class="form-control" id="iMonitor"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iEquipe">@RsCadastros.TECNICO:</label>
+                            <select class="form-control" id="iEquipe"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iNaturezaProducao">@RsCadastros.NATUREZA_PRODUCAO:</label>
+                            <select class="form-control" id="iNaturezaProducao"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iTipoServico">@RsCadastros.TIPO_SERVICO:</label>
+                            <select class="form-control" id="iTipoServico"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                            <select class="form-control" id="iGrupoArea"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iArea">@RsCadastros.AREA:</label>
+                            <select class="form-control" id="iArea"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                            <select class="form-control" id="iLocalidade"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iPeriodo">@RsCadastros.PERIODO:</label>
+                            <select class="form-control" id="iPeriodo"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction(true); $('#modal-filter').modal('hide');" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="modal fade" id="modal-tecnicos">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Ajuste de Perfil</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="iModelTecnicosBody">
+                <h4 class="title-page" id="iGrupoString"></h4>
+                <table class="nowrap table table-hover" id="datatableTecnicos" style="width:100%">
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="SalvarAjusteTecnicos" class="btn btn-primary">Salvar</button>
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="overlay" id="divProgress" style="display: none; z-index: 10000">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+<div id="divExtratoAnalitico"></div>

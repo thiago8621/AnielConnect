@@ -1,0 +1,589 @@
+@model Aniel.Connect.Models.ComboCadastroModel
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_COMBO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+        const HandleModeloContrato = function () {
+            $('#iModeloContrato').on('select2:select select2:unselecting', function (e) {
+                const modeloContrato = e.params.data;
+
+                if (modeloContrato !== undefined) {
+                    $('#divModeloCarencia').removeClass('d-none');
+                    $('#spanModeloCarencia').text(modeloContrato.possuiCarencia ? '@Html.Raw(RsBase.SIM)' : '@Html.Raw(RsBase.NAO)');
+
+                    $('#divModeloPeriodoCarencia').removeClass('d-none');
+                    $('#spanModeloPeriodoCarencia').text(modeloContrato.periodoCarencia);
+                }
+                else {
+                    $('#divModeloCarencia').addClass('d-none');
+                    $('#spanModeloCarencia').text('');
+
+                    $('#divModeloPeriodoCarencia').addClass('d-none');
+                    $('#spanModeloPeriodoCarencia').text('');
+                }
+            });
+        }
+
+        const HandlePlanoProduto = function () {
+            $('#iPlanoProduto').on('select2:select select2:unselecting', function (e) {
+                const planoProduto = e.params.data;
+
+                if (planoProduto !== undefined) {
+                    if (planoProduto.tipo === 1) {
+                        $('#iIdPlanoAdicionado').val(planoProduto.id);
+                        $('#iIdProdutoAdicionado').val(null);
+                    }
+                    else {
+                        $('#iIdPlanoAdicionado').val(null);
+                        $('#iIdProdutoAdicionado').val(planoProduto.id);
+                    }
+
+                    $('#divTipoPlanoProduto').removeClass('d-none');
+                    $('#spanTipoPlanoProduto').text(planoProduto.tipo_TecnologiaStr);
+
+                    $('#divValorRealPlanoProduto').removeClass('d-none');
+                    $('#spanValorRealPlanoProduto').text('R$ ' + planoProduto.valorPlanoProduto);
+
+                    @* O valor no combo � inicializado com o valor cadastrado no plano/produto*@
+                    $('#divValorCombo').removeClass('d-none');
+                    $('#iValorCombo').val(planoProduto.valorPlanoProduto).trigger('change');
+
+                    $('#iCobraInstalacao').prop('checked', planoProduto.cobraInstalacao).trigger('change');
+
+                    if (planoProduto.valorInstalacao === null) {
+                        planoProduto.valorInstalacao = '0,00'
+                    }
+
+                    $('#spanValorRealInstalacao').text('R$ ' + planoProduto.valorInstalacao);
+
+                    @* O valor de instala��o no combo � inicializado com o valor de instala��o cadastrado no plano/produto*@
+                    if (planoProduto.valorInstalacao !== '0,00') {
+                        $('#iValorInstalacaoCombo').val(planoProduto.valorInstalacao).trigger('change');
+                    }
+                }
+                else {
+                    $('#iIdPlanoAdicionado').val('');
+                    $('#iIdProdutoAdicionado').val('');
+
+                    $('#divTipoPlanoProduto').addClass('d-none');
+                    $('#spanTipoPlanoProduto').text('');
+
+                    $('#divValorRealPlanoProduto').addClass('d-none');
+                    $('#spanValorRealPlanoProduto').text('');
+
+                    $('#divValorCombo').addClass('d-none');
+                    $('#iValorCombo').val('');
+
+                    $('#iCobraInstalacao').prop('checked', false).trigger('change');
+
+                    $('#spanValorRealInstalacao').val('');
+                    $('#iValorInstalacaoCombo').val('');
+                }
+            });
+        }
+
+        $(document).ready(function () {
+            AddSelect('iModeloContrato', '@CONSTANTES.URLPortal/api/Modelo_ContratoApi/GetCombo', @CONSTANTES.PaginacaoRegistros, null, null, @Json.Encode(Model.IdModeloContrato), "@RsBase.SELECIONE", false, HandleModeloContrato);
+            AddSelect('iPlanoProduto', '@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo', @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandlePlanoProduto, null, "PRODUTO_QTD_VARIAVEL_NAO");
+
+            $('#iEmitirContrato').trigger('change');
+        });
+
+        $('#iCobraInstalacao').on('change', function () {
+            if ($(this).prop('checked')) {
+                $('#divValorRealInstalacao').removeClass('d-none');
+                $('#divValorInstalacaoCombo').removeClass('d-none');
+            }
+            else {
+                $('#divValorRealInstalacao').addClass('d-none');
+                $('#divValorInstalacaoCombo').addClass('d-none');
+            }
+        })
+
+        $('#iEmitirContrato').on('change', function () {
+            if ($(this).prop('checked')) {
+                $('#divModeloContrato').removeClass('d-none');
+            }
+            else {
+                $('#divModeloContrato').addClass('d-none');
+            }
+        });
+
+        const name = "ListPlanoProduto"; //Nome_utilizado para enganar o razor
+        const oDatatablePlanoProduto =
+            $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: @Html.Raw(Json.Encode(Model.ListPlanoProduto)),
+                drawCallback: function () {
+                    HandleExcluirPlanoProduto();
+                },
+                order: [],
+                columns: [
+                    {
+                        data: "Id",
+                        title: "",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return '<a href = "#" id="removePlanoProduto_' + meta.row + '__Id" class="removePlanoProduto" excluir="' + row.Id + '">' +
+                                '<i class="far fa-trash-alt" style="font-size: 16px; padding-right: 2px"></i></a>' +
+                                '<input id="' + name + '_' + meta.row + '__Id" name="' + name + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                '<input id="' + name + '_' + meta.row + '__IdPlano" name="' + name + '[' + meta.row + '].IdPlano" type="hidden" value="' + TrataNulo(row.IdPlano) + '">' +
+                                '<input id="' + name + '_' + meta.row + '__IdProduto" name="' + name + '[' + meta.row + '].IdProduto" type="hidden" value="' + TrataNulo(row.IdProduto) + '">';
+                        }
+                    },
+                    {
+                        data: "DescricaoPlanoProduto",
+                        title: "@RsCadastros.PLANO_PRODUTO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return data + '<input id="' + name + '_' + meta.row + '__DescricaoPlanoProduto" name="' + name + '[' + meta.row + '].DescricaoPlanoProduto" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "Tipo",
+                        title: "@RsCadastros.TIPO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return data + '<input id="' + name + '_' + meta.row + '__Tipo" name="' + name + '[' + meta.row + '].Tipo" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "ValorReal",
+                        title: "@RsCadastros.VALOR_REAL",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return data + '<input id="' + name + '_' + meta.row + '__ValorReal" name="' + name + '[' + meta.row + '].ValorReal" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "ValorCombo",
+                        title: "@RsCadastros.VALOR_COMBO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return 'R$ ' + data + '<input id="' + name + '_' + meta.row + '__ValorCombo" name="' + name + '[' + meta.row + '].ValorCombo" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "CobraInstalacao",
+                        title: "@RsCadastros.COBRAR_INSTALACAO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return data ? '@Html.Raw(RsBase.SIM)' : '@Html.Raw(RsBase.NAO)' + '<input id="' + name + '_' + meta.row + '__CobraInstalacao" name="' + name + '[' + meta.row + '].CobraInstalacao" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "ValorRealInstalacao",
+                        title: "@RsCadastros.VALOR_INSTALACAO_REAL",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return data + '<input id="' + name + '_' + meta.row + '__ValorRealInstalacao" name="' + name + '[' + meta.row + '].ValorRealInstalacao" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "ValorInstalacaoCombo",
+                        title: "@RsCadastros.VALOR_INSTALACAO_COMBO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            if (!data) {
+                                return '<input id="' + name + '_' + meta.row + '__ValorInstalacaoCombo" name="' + name + '[' + meta.row + '].ValorInstalacaoCombo" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            else {
+                                return 'R$ ' + data + '<input id="' + name + '_' + meta.row + '__ValorInstalacaoCombo" name="' + name + '[' + meta.row + '].ValorInstalacaoCombo" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                        }
+                    }
+                ]
+            });
+
+        $("#btnAdicionarPlanoProduto").on("click", function () {
+            let erro = false;
+
+            if (!$("#iPlanoProduto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PLANO_PRODUTO)", "warning");
+                erro = true;
+            }
+            else {
+                if (!$("#iValorCombo").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.VALOR_COMBO)", "warning");
+                    erro = true;
+                }
+
+                if ($("#iCobraInstalacao").prop("checked") && !$("#iValorInstalacaoCombo").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.VALOR_INSTALACAO_COMBO)", "warning");
+                    erro = true;
+                }
+            }
+
+            if ($("#spanTipoPlanoProduto").text() == "Internet") {
+                let tipo_internet = oDatatablePlanoProduto.rows().data().toArray().filter(x => x.Tipo == "Internet");
+                if (tipo_internet.length > 0) {
+                    Notificar("@RsBase.ATENCAO_", "Atenção! Selecione apenas um plano de internet para ser cadastrado no combo.", "warning");
+                    erro = true;
+                }
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatablePlanoProduto.row.add({
+                Id: 0,
+
+                IdPlano: $("#iIdPlanoAdicionado").val() ? Number($("#iIdPlanoAdicionado").val()) : null,
+                IdProduto: $("#iIdProdutoAdicionado").val() ? Number($("#iIdProdutoAdicionado").val()) : null,
+
+                DescricaoPlanoProduto: $('#iPlanoProduto option:selected').text(),
+                Tipo: $("#spanTipoPlanoProduto").text(),
+
+                ValorReal: $("#spanValorRealPlanoProduto").text(),
+                ValorCombo: $("#iValorCombo").val(),
+
+                CobraInstalacao: $("#iCobraInstalacao").prop("checked"),
+
+                ValorRealInstalacao: $("#iCobraInstalacao").prop("checked") ? $("#spanValorRealInstalacao").text() : "",
+                ValorInstalacaoCombo: $("#iCobraInstalacao").prop("checked") ? $("#iValorInstalacaoCombo").val() : ""
+            }).draw(false);
+
+            @*Limpando os valores dos campos do plano/produto*@
+
+            $("#iPlanoProduto").val('').trigger('change');
+
+            $('#iIdPlanoAdicionado').val(null);
+            $('#iIdProdutoAdicionado').val(null);
+
+            $('#divTipoPlanoProduto').addClass('d-none');
+            $('#spanTipoPlanoProduto').text('');
+
+            $('#divValorRealPlanoProduto').addClass('d-none');
+            $('#spanValorRealPlanoProduto').text('');
+
+            $('#divValorCombo').addClass('d-none');
+            $('#iValorCombo').val('');
+
+            $('#iCobraInstalacao').prop('checked', false).trigger('change');
+
+            $('#spanValorRealInstalacao').val('');
+            $('#iValorInstalacaoCombo').val('');
+        });
+
+        function HandleExcluirPlanoProduto() {
+            $(".removePlanoProduto").unbind('click');
+            $(".removePlanoProduto").click(function (e) {
+                e.preventDefault();
+
+                const id = $(this).attr('excluir');
+                const trLinkButton = $(this).parents('tr');
+
+                if (id == 0) {
+                    oDatatablePlanoProduto.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/ComboApi/RemoverPlano")';
+
+                    $.ajax({
+                        url: link,
+                        type: "POST",
+                        dataType: "json",
+                        data: {
+                            IdComboPlanoProduto: id
+                        }
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatablePlanoProduto.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+            });
+        }
+
+        let clicked = false;
+
+        function ValidaSubmit() {
+            let erro = false;
+
+            if (clicked) {
+                return;
+            }
+
+            clicked = true;
+
+            if (!$("#iDescricao").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DESCRICAO)", "warning");
+                erro = true;
+            }
+
+            if ($("#iEmitirContrato").prop("checked") && !$("#iModeloContrato").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MODELO_CONTRATO)", "warning");
+                erro = true;
+            }
+
+            const lista_combo = oDatatablePlanoProduto.rows().data().toArray().length > 0;
+            if (lista_combo == false) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.MENSAGEM_OBRIGATORIA_SALVAR_COMBO)", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return;
+            }
+
+            ShowPageLoading();
+            $("#form").submit();
+        }
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Combo", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-wifi"></i> @ViewBag.Title
+                        </h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Combo")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_COMBO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                <div class="accordion" id="accordion_1">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_1">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                                    <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                @if (Model.Id != 0)
+                                {
+                                    <div class="col-1">
+                                        <div class="form-group">
+                                            <label for="iCodigo">@RsCadastros.CODIGO:</label>
+                                            @Html.TextBoxFor(model => model.Id, new { @class = "form-control", @id = "iCodigo", @autocomplete = "off", @required = true, @disabled = "disabled" })
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="col-3">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.DESCRICAO:</label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @required = true })
+                                    </div>
+                                </div>
+
+                                @if (Model.Id != 0)
+                                {
+                                    <div class="col-1">
+                                        <div class="form-group">
+                                            <label for="iStatus">@RsCadastros.STATUS:</label><br />
+                                            @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @data_toggle = "toggle", @data_on = RsCadastros.ATIVO, @data_off = RsCadastros.INATIVO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="row">
+                                <div class="col-1">
+                                    <div class="form-group">
+                                        <label for="iEmitirContrato">@RsCadastros.EMITIR_CONTRATO?:</label><br />
+                                        @Html.CheckBoxFor(m => m.EmitirContrato, new { @class = "form-control", @id = "iEmitirContrato", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                                <div id="divModeloContrato" class="col-2 d-none">
+                                    <div class="form-group">
+                                        <label for="iModeloContrato">@RsCadastros.MODELO_CONTRATO:</label>
+                                        @Html.DropDownListFor(m => m.IdModeloContrato, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control", @id = "iModeloContrato", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div id="divModeloCarencia" class="col-2 d-none">
+                                    <div class="form-group">
+                                        <label for="spanModeloCarencia">Modelo selecionado tem carencia?</label> <br />
+                                        <span id="spanModeloCarencia"></span>
+                                    </div>
+                                </div>
+                                <div id="divModeloPeriodoCarencia" class="col-2 d-none">
+                                    <div class="form-group">
+                                        <label for="spanModeloPeriodoCarencia">Per�odo de carencia (meses):</label> <br />
+                                        <span id="spanModeloPeriodoCarencia"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iDetalhesPlano">@RsCadastros.CODIGO @RsCadastros.INTEGRACAO:</label>
+                                        @Html.TextBoxFor(m => m.CodigoAuxiliar, new { @class = "form-control", @id = "iDetalhesPlano", @rows = "4" })
+                                        @Html.ValidationMessageFor(model => model.DetalhesCombo, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iDetalhesPlano">@RsCadastros.CODIGO @RsCadastros.INTEGRACAO Auxiliar:</label>
+                                        @Html.TextBoxFor(m => m.CodigoIntegracaoAuxiliar, new { @class = "form-control", @id = "iDetalhesPlano", @rows = "4" })
+                                        @Html.ValidationMessageFor(model => model.DetalhesCombo, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iDetalhesPlano">@RsCadastros.CODIGO Tipo Plano @RsCadastros.INTEGRACAO:</label>
+                                        @Html.TextBoxFor(m => m.CodigoTipoOS, new { @class = "form-control", @id = "iDetalhesPlano", @rows = "4" })
+                                        @Html.ValidationMessageFor(model => model.DetalhesCombo, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-2">
+
+                                <div class="col-sm-10">
+                                    <div class="form-group">
+                                        <label for="iDetalhesPlano">@RsConfiguracao.DETALHES :</label>
+                                        @Html.TextAreaFor(m => m.DetalhesCombo, new { @class = "form-control", @id = "iDetalhesPlano", @rows = "4" })
+                                        @Html.ValidationMessageFor(model => model.DetalhesCombo, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion" id="accordion_2">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_2">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                                    <span class="text-bold-card">@RsCadastros.ADICIONAR_PLANOS_PRODUTOS</span>
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-2">
+                                    <div class="form-group">
+                                        <label for="iPlanoProduto">@RsCadastros.PLANO_PRODUTO:</label>
+                                        <select id="iPlanoProduto" class="form-control">
+                                            <option>@RsBase.SELECIONE</option>
+                                        </select>
+
+                                        @*Inputs para conter o ID do plano ou do produto selecionado para adicion�-los no datatable*@
+                                        <input id="iIdPlanoAdicionado" type="hidden" />
+                                        <input id="iIdProdutoAdicionado" type="hidden" />
+                                    </div>
+                                </div>
+
+                                <div id="divTipoPlanoProduto" class="col-1 d-none">
+                                    <div class="form-group">
+                                        <label for="spanTipoPlanoProduto">@RsCadastros.TIPO:</label> <br />
+                                        <span id="spanTipoPlanoProduto"></span>
+                                    </div>
+                                </div>
+
+                                <div id="divValorRealPlanoProduto" class="col-1 d-none">
+                                    <div class="form-group">
+                                        <label for="spanValorRealPlanoProduto">@RsCadastros.VALOR_REAL:</label> <br />
+                                        <span id="spanValorRealPlanoProduto"></span>
+                                    </div>
+                                </div>
+
+                                <div id="divValorCombo" class="col-1 d-none">
+                                    <div class="form-group">
+                                        <label for="iValorCombo">@RsCadastros.VALOR_COMBO:</label> <br />
+                                        <input id="iValorCombo" class="form-control money" placeholder="R$ 00,00" />
+                                    </div>
+                                </div>
+
+                                <div class="col-1">
+                                    <div class="form-group">
+                                        <label for="iCobraInstalacao">@RsCadastros.COBRAR_INSTALACAO?</label> <br />
+                                        <input type="checkbox"
+                                               id="iCobraInstalacao"
+                                               class="form-control"
+                                               data-toggle="toggle"
+                                               data-on="@Html.Raw(RsBase.SIM)"
+                                               data-off="@Html.Raw(RsBase.NAO)"
+                                               data-onstyle="success"
+                                               data-offstyle="light" />
+                                    </div>
+                                </div>
+
+                                <div id="divValorRealInstalacao" class="col-2 d-none">
+                                    <div class="form-group">
+                                        <label for="spanValorRealInstalacao">@RsCadastros.VALOR_INSTALACAO_REAL:</label> <br />
+                                        <span id="spanValorRealInstalacao"></span>
+                                    </div>
+                                </div>
+
+                                <div id="divValorInstalacaoCombo" class="col-2 d-none">
+                                    <div class="form-group">
+                                        <label for="iValorInstalacaoCombo">@RsCadastros.VALOR_INSTALACAO_COMBO:</label>
+                                        <input id="iValorInstalacaoCombo" class="form-control money" placeholder="R$ 00,00" />
+                                    </div>
+                                </div>
+
+                                <div class="col-2">
+                                    <input type="button"
+                                           id="btnAdicionarPlanoProduto"
+                                           class="btn btn-success"
+                                           style="position: absolute; right: 0"
+                                           value="@RsCadastros.ADICIONAR" />
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatable" style="width: 100%"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Combo")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+}

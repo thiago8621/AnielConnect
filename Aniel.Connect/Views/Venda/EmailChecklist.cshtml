@@ -1,0 +1,569 @@
+﻿@model Aniel.Connect.Repository.Model.EmailChecklistModel
+
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    ViewBag.Title = RsCadastros.CHECKLIST;
+}
+
+@section styles
+{
+    <style>
+        #tableEmpresa td {
+            max-width: 250px !important;
+            border: 0.5px solid #e0dfdf !important;
+            padding: 2.5px !important;
+            font-size: 12px !important
+        }
+
+        #imgWebcam {
+            height: auto;
+            width: auto;
+            max-width: 100%;
+            max-height: 92vh;
+            min-height: 40vh;
+            min-width: 50%
+        }
+    </style>
+}
+
+@section scripts
+{
+    <script>
+        function resizeIframe(obj) {
+            obj.style.height = obj.contentWindow.document.body.scrollHeight + 'px';
+        }
+
+        @* JS para o frame do checklist *@
+
+        let zoom = false;
+        var rotacao = 0;
+        var modal = document.getElementById("modalFoto");
+
+        function ModalFoto(id, idItem) {
+            $('#modalFoto').modal('show');
+            $(document).bind('keyup', function (e) {
+                if (e.which == 39) {
+                    $(".carousel-control-next-icon").click();
+                }
+                else if (e.which == 37) {
+                    $(".carousel-control-prev-icon").click();
+                }
+            });
+
+            $('#modalFoto').attr("data-idFoto", id);
+            $('#modalFoto').attr("data-idItem", idItem);
+        };
+
+        function ativaZoom() {
+            if (zoom == false) {
+                if ($(".img-zoom-lens").length > 0)
+                    $(".img-zoom-lens").remove()
+
+                $("#imgzoom").show();
+                imageZoom("imgModal", "imgzoom");
+                zoom = true
+            }
+        }
+
+        $("#imgzoom").hide();
+
+        function desativaZoom() {
+            $("#imgzoom").hide();
+            zoom = false;
+        }
+
+        $('#btnZoom').on('click', function () {
+            $('.img-responsive').attr('src', $(`.carousel-item.active`).find("img").attr('src'));
+            $('#imagemodal').modal('show');
+        });
+
+        $('#modalFoto').on('hidden.bs.modal', function () {
+            if (zoom)
+                desativaZoom();
+
+            for (let item of $(`.carousel-item`)) {
+                $(item).find('img').css("transform", `rotate(${0}deg)`);
+
+            }
+        });
+
+        function girarEsquerda() {
+            rotacao -= 90;
+            if (rotacao === 0) {
+                rotacao = 360;
+            }
+
+            $(`.carousel-item.active`).find('img').css("transform", `rotate(${rotacao}deg)`);
+        }
+
+        function girarDireita() {
+            rotacao += 90;
+            if (rotacao === 360) {
+                rotacao = 0;
+            }
+
+            $(`.carousel-item.active`).find('img').css("transform", `rotate(${rotacao}deg)`);
+        }
+
+         async function excluirFoto() {
+
+            const idFoto = $('#modalFoto').attr("data-idFoto");
+            const idItem = $('#modalFoto').attr("data-idFoto");
+
+           
+                var okay = await Swal.fire({
+                    text: "Tem certeza de que deseja excluir esta imagem?",
+                    showCancelButton: true,
+                    confirmButtonColor: '#357ca5',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Excluir',
+                    cancelButtonText: 'Cancelar',
+                });
+                if (okay.value) {
+                    Notificar("@RsBase.ATENCAO_", "Excluindo imagem", "warning");
+                    await $.ajax({
+                        method: "POST",
+                        url: baseUrl + '/api/QuizApi/ExcluirFoto?id=' + idFoto + '&idItem=' + idItem,
+                    }).done(function () {
+                        let iframeUrl = document.getElementById("iChecklistFrame").contentWindow.location.reload(true);
+                        Notificar("@RsBase.ATENCAO_", "Imagem excluída com sucesso", "warning");
+                    });
+
+                    $(modal).modal('hide');
+                }     
+        }
+
+        function fechaModal() {
+            window.onclick = function () {
+                modal.style.display = "none";
+            }
+        }
+
+        function imageZoom(imgID, resultID) {
+            var img, lens, result, cx, cy;
+            /*img = document.getElementById(imgID);*/
+            img = document.getElementsByClassName("carousel-item active")[0].getElementsByTagName("img")[0];
+            result = document.getElementById(resultID);
+            let graus = getCurrentRotation(img);
+            let novasMedidas = GetRotatedWidthHeight(graus);
+
+
+            /* Create lens: */
+            lens = document.createElement("DIV");
+            lens.setAttribute("class", "img-zoom-lens");
+            /* Insert lens: */
+            img.parentElement.insertBefore(lens, img);
+            /* Calculate the ratio between result DIV and lens: */
+            cx = result.offsetWidth / lens.offsetWidth;
+            cy = result.offsetHeight / lens.offsetHeight;
+            /* Set background properties for the result DIV */
+            result.style.backgroundImage = "url('" + img.src + "')";
+
+            result.style.transform = img.style.transform;
+
+            result.style.backgroundSize = (novasMedidas.rotatedWidth * cx) + "px " + (novasMedidas.rotatedHeight * cy) + "px";
+            /* Execute a function when someone moves the cursor over the image, or the lens: */
+            lens.addEventListener("mousemove", moveLens);
+            img.addEventListener("mousemove", moveLens);
+            /* And also for touch screens: */
+            lens.addEventListener("touchmove", moveLens);
+            img.addEventListener("touchmove", moveLens);
+
+            function moveLens(e) {
+                var pos, x, y;
+                /* Prevent any other actions that may occur when moving over the image */
+                e.preventDefault();
+                /* Get the cursor's x and y positions: */
+                pos = getCursorPos(e);
+                /* Calculate the position of the lens: */
+                x = pos.x - (lens.offsetWidth / 2);
+                y = pos.y - (lens.offsetHeight / 2);
+                /* Prevent the lens from being positioned outside the image: */
+                if (x > novasMedidas.rotatedWidth - lens.offsetWidth) { x = novasMedidas.rotatedWidth - lens.offsetWidth; }
+                if (x < 0) { x = 0; }
+                if (y > novasMedidas.rotatedHeight - lens.offsetHeight) { y = novasMedidas.rotatedHeight - lens.offsetHeight; }
+                if (y < 0) { y = 0; }
+                /* Set the position of the lens: */
+                lens.style.left = x + "px";
+                lens.style.top = y + "px";
+                /* Display what the lens "sees": */
+                result.style.backgroundPosition = "-" + (x * cx) + "px -" + (y * cy) + "px";
+            }
+
+            function getCursorPos(e) {
+                var a, x = 0, y = 0;
+                e = e || window.event;
+                /* Get the x and y positions of the image: */
+                a = img.getBoundingClientRect();
+                /* Calculate the cursor's x and y coordinates, relative to the image: */
+                x = e.pageX - a.left;
+                y = e.pageY - a.top;
+                /* Consider any page scrolling: */
+                x = x - window.pageXOffset;
+                y = y - window.pageYOffset;
+                return { x: x, y: y };
+            }
+
+            function GetRotatedWidthHeight(angle_in_degrees) {
+                var angle = angle_in_degrees * Math.PI / 180,
+                    sin = Math.sin(angle),
+                    cos = Math.cos(angle);
+
+                // (0,0) stays as (0, 0)
+
+                // (w,0) rotation
+                var x1 = cos * img.width,
+                    y1 = sin * img.width;
+
+                // (0,h) rotation
+                var x2 = -sin * img.height,
+                    y2 = cos * img.height;
+
+                // (w,h) rotation
+                var x3 = cos * img.width - sin * img.height,
+                    y3 = sin * img.width + cos * img.height;
+
+                var minX = Math.min(0, x1, x2, x3),
+                    maxX = Math.max(0, x1, x2, x3),
+                    minY = Math.min(0, y1, y2, y3),
+                    maxY = Math.max(0, y1, y2, y3);
+
+                var rotatedWidth = maxX - minX,
+                    rotatedHeight = maxY - minY;
+
+                return {
+                    rotatedWidth: rotatedWidth,
+                    rotatedHeight: rotatedHeight
+                };
+            }
+
+            function getCurrentRotation(el) {
+                var st = window.getComputedStyle(el, null);
+                var tm = st.getPropertyValue("-webkit-transform") ||
+                    st.getPropertyValue("-moz-transform") ||
+                    st.getPropertyValue("-ms-transform") ||
+                    st.getPropertyValue("-o-transform") ||
+                    st.getPropertyValue("transform") ||
+                    "none";
+                if (tm != "none") {
+                    var values = tm.split('(')[1].split(')')[0].split(',');
+                    /*
+                    a = values[0];
+                    b = values[1];
+                    angle = Math.round(Math.atan2(b,a) * (180/Math.PI));
+                    */
+                    //return Math.round(Math.atan2(values[1],values[0]) * (180/Math.PI)); //this would return negative values the OP doesn't wants so it got commented and the next lines of code added
+                    var angle = Math.round(Math.atan2(values[1], values[0]) * (180 / Math.PI));
+                    return (angle < 0 ? angle + 360 : angle); //adding 360 degrees here when angle < 0 is equivalent to adding (2 * Math.PI) radians before
+                }
+                return 0;
+            }
+        }
+
+
+        @* JS webcam *@
+
+        function ShowModalWebcam() {
+            const video = document.querySelector("#webCamera");
+
+            @* As opções abaixo são necessárias para o funcionamento correto no iOS *@
+            video.setAttribute('autoplay', '');
+            video.setAttribute('muted', '');
+            video.setAttribute('playsinline', '');
+
+            @* Verifica se o navegador pode capturar mídia *@
+            if (navigator.mediaDevices?.getUserMedia) {
+                navigator
+                    .mediaDevices
+                    .getUserMedia({ audio: false, video: { facingMode: 'user' } })
+                    .then(function (stream) {
+                        @* Configura o elemento video para carregar o conteúdo capturado pela webcam *@
+                        video.srcObject = stream;
+                        $("#modalWebcam").modal("show");
+                    })
+                    .catch(function (error) {
+                        Notificar("@RsBase.ATENCAO_", "Não foi possível acessar a câmera", "warning");
+                        $("#modalWebcam").modal("hide");
+                    });
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Não foi possível acessar a câmera", "warning");
+                $("#modalWebcam").modal("hide");
+            }
+        }
+
+        function HideModalWebcam() {
+            $("#modalWebcam").modal("hide");
+        }
+
+        function SetTitleModalWebcam(title) {
+            $("#iTitleModalWebcam").html(title);
+        }
+
+        $("#modalWebcam").on("show.bs.modal", function () {
+            $("#webCamera").show();
+            $("#imgWebcam").hide();
+
+            $("#btnTirarOutraFoto").hide();
+            $("#btnUsarFoto").hide();
+
+            $("#btnCancelarFoto").show();
+            $("#btnTirarFoto").show();
+        });
+
+        $("#btnCancelarFoto").on("click", function () {
+            $("#modalWebcam").modal("hide");
+        });
+
+        $("#btnTirarFoto").on("click", function () {
+            $("#btnTirarOutraFoto").show();
+            $("#btnUsarFoto").show();
+
+            $("#btnCancelarFoto").hide();
+            $("#btnTirarFoto").hide();
+
+            const video = document.querySelector("#webCamera");
+
+            @* Criando um canvas que vai guardar a imagem temporariamente *@
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const ctx = canvas.getContext('2d');
+
+            @* Desenhando e convertendo as dimensões *@
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            @* Criando o JPG *@
+            var dataURI = canvas.toDataURL('image/jpeg');
+
+            // limete do tamanho da imagem
+            var tamanho = Math.round((dataURI.length * 3) / 4);
+
+            var tamanhoMaximo = 60 * 1024 * 1024;
+
+            if (tamanho > tamanhoMaximo) {
+                alert("A imagem capturada é maior que 60MB.");
+                return;
+            }
+
+            @* Carregando a imagem no preview da modal *@
+            $("#webCamera").hide();
+            $("#imgWebcam").show();
+
+            const imageNode = document.querySelector("#imgWebcam");
+            imageNode.src = dataURI;
+        });
+
+        $("#btnTirarOutraFoto").on("click", function () {
+            $("#btnTirarOutraFoto").hide();
+            $("#btnUsarFoto").hide();
+
+            $("#btnCancelarFoto").show();
+            $("#btnTirarFoto").show();
+
+            $("#webCamera").show();
+            $("#imgWebcam").hide();
+        });
+
+        async function VerificarVendaCancelada() {
+            try {
+                const data = await $.ajax({
+                    url: '@String.Concat(CONSTANTES.URLPortal, "/api/VendaApi/EnviarEmailChecklist")?IdVenda=@Model.IdVenda',
+                    type: "GET",
+                    dataType: "json"
+                });
+
+                console.log(data);
+
+            } catch (error) {
+                console.error("Erro ao verificar o status de cancelamento da venda.", error);
+            }
+        }
+    </script>
+}
+
+<div style="page-break-before: always">
+    <div class="header" style="width: 100%; padding-right: 15px; padding-left: 15px;">
+        <div class="row">
+            <div class="col-5">
+                <img src="@Model.LogoClienteBase64" class="img-fluid" style="max-height: 25px;" />
+            </div>
+            <div class="col-7">
+                <h4>Checklist</h4>
+            </div>
+        </div>
+    </div>
+
+    <div class="content" style="word-break: break-all; padding-right: 15px; padding-left: 15px;">
+        <div class="text-left" style="font-size: 11px;">
+            <table id="tableEmpresa" class="tableHeader" style="width: 100% !important">
+                <tbody>
+                    <tr>
+                        <td colspan="6" style="border: 0.5px solid #e0dfdf;">
+                            Empresa: @Model.NomeEmpresa
+                        </td>
+                        <td colspan="6" style="border: 0.5px solid #e0dfdf;">
+                            CNPJ: @Model.Cnpj
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <center>
+                @if (Model.Status == Aniel.Connect.Model.enumerado.Status_Venda.Venda_Cancelada)
+                {
+                    <div class="main pt-2">
+                        <div class="section section-basic">
+                            <div class="container text-center">
+                                <div class="jumbotron mt-3">
+                                    <div class="container">
+                                        <p class="lead">Infelizmente, a venda associada a este formulário foi cancelada.</p>
+                                        <p class="lead">Caso tenha alguma dúvida ou precise de mais informações, entre em contato conosco.</p>
+                                        <p class="lead">Agradecemos pela compreensão.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (Model.ChecklistPreenchido)
+                {
+                    <div class="main pt-2">
+                        <div class="section section-basic">
+                            <div class="container text-center">
+                                <div class="jumbotron mt-3">
+                                    <div class="container">
+                                        <p class="lead">@Model.MensagemConclusao</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <iframe id="iChecklistFrame"
+                            src="@Url.Action("VisualizarChecklist", new { Venda = Model.IdVenda, Email = "S" })"
+                            style="width:100%; height: 900px"
+                            allowtransparency="false"
+                            frameBorder="0"
+                            scrolling="no"
+                            onload="resizeIframe(this)"></iframe>
+                }
+            </center>
+        </div>
+    </div>
+</div>
+
+@* Modais para a exibição das fotos no checklist *@
+
+<div class="modal modal-fullscreen fade" id="imagemodal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" style="z-index: 10000">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="container mt-2 justify-content-end">
+                <button type="button" id="iButtonCloseModal" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="row justify-content-center">
+                    <img src="" class="img-responsive" style="height: auto; width: auto; max-width: 100%; max-height: 92vh;min-height:40vh;min-width:50%">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalFoto" data-idFoto="" data-idItem="" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="container mt-2 justify-content-end">
+                <button type="button" id="iButtonCloseModal" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <h4 class="container" id="iPerguntaFoto"></h4>
+            <div class="modal-body d-flex flex-wrap align-items-center justify-content-center" style="height:80vh;overflow:scroll">
+
+                @*<div class="container mt-3 justify-content-center">
+                        <div class="row justify-content-center">
+                            <img onmouseout="desativaZoom()" onmouseover="ativaZoom()" id="imgModal" class="img-fluid" style="display: inline-block; float: left;max-height: 70vh" />
+                        </div>
+                    </div>*@
+
+                <div id="carouselExampleIndicators" class="carousel slide" data-interval="false" data-keyboard="true">
+                    <ol class="carousel-indicators carousel-indicators-numbers" style="position: fixed !important;bottom: 40px !important;" id="iCarouselIndicators">
+                    </ol>
+                    <div class="carousel-inner" id="iCarouselInner">
+
+                    </div>
+                    <a class="carousel-control-prev" style="width: 3% !important" href="#carouselExampleIndicators" role="button" data-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="sr-only">Previous</span>
+                    </a>
+                    <a class="carousel-control-next" style="width: 3% !important" href="#carouselExampleIndicators" role="button" data-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="sr-only">Next</span>
+                    </a>
+                </div>
+
+            </div>
+
+            <div class="justify-content-center  img-zoom-result" id="imgzoom" style=""></div>
+
+            <div class="modal-footer justify-content-center">
+                <a href="#modalFoto" id="btnZoom" class="ml-3" @*onclick="ativaZoom()"*@><i class="fas rounded fa-search-plus "></i></a>
+                <a href="#modalFoto" onclick="girarEsquerda()" class="ml-3"><i class="fas fa-undo"></i></a>
+                <a href="#modalFoto" onclick="girarDireita()"><i class="fas fa-redo-alt"></i></a>
+                <a href="#modalFoto" onclick="excluirFoto()" class="ml-2"><i class="fas fa-trash"></i></a>
+                <a href="#modalFoto" id="linkDownload" class="ml-3" download="imagemChecklist.jpeg"><i class="fas fa-download"></i></a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div id="modalWebcam" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="container mt-2 justify-content-end">
+                <button type="button" id="iButtonCloseModal" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <h4 class="container" id="iTitleModalWebcam"></h4>
+            <div class="modal-body text-center">
+                <div class="row justify-content-center">
+                    <img src=""
+                         id="imgWebcam"
+                         class="img-responsive"
+                         style="display: none">
+
+                    <video autoplay="" id="webCamera"></video>
+                </div>
+                <div class="form-group col mt-3">
+                    <div class="text-center">
+                        <button type="button"
+                                class="btn btn-danger"
+                                id="btnCancelarFoto">
+                            @RsBase.CANCELAR
+                        </button>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="btnTirarFoto">
+                            Tirar foto
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-primary"
+                                id="btnTirarOutraFoto"
+                                style="display: none">
+                            Tirar outra foto
+                        </button>
+                        <button type="button"
+                                class="btn btn-success"
+                                id="btnUsarFoto"
+                                style="display: none">
+                            Usar foto
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,181 @@
+﻿@model Aniel.Connect.Models.AlterarLoginRadiusViewModel
+
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = "AlterarEndereco";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    <script>
+
+        $(document).ready(async function () {
+            const task = [];
+
+            $('#divPoolIp').hide();
+            $('#divPoolEndereco').hide();
+            $('#iConcentradora').hide();
+
+            var HandleIsIpFixo = function (e) {
+                if (e.params.data.isPoolIpFixo === false) {
+
+                    $('#divPoolEndereco').hide();
+                    //$('#iInfoIPDinamico').show();
+                    $('.ip-input-container .ip-input-item').val('');
+                }
+                else {
+                    $('#divPoolEndereco').show();
+                    //$('#iInfoIPDinamico').hide();
+                }
+            }
+
+            var HandlePool_Ip = function () {
+                //Pool Vinculado
+                $('#iPoolIp').on('select2:select select2:unselecting', function (e) {
+                    if (e.params.data != undefined) {
+                        $('#divPoolIp').show();
+                        $('#divPoolEndereco').show();
+                        AddSelect("iPool_Endereco", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                        HandleIsIpFixo(e);
+                    }
+                    else {
+                        $('#divPoolEndereco').hide();
+                        $('#iPool_Endereco').val('').trigger('change');
+                    }
+                    return true
+                });
+            }
+
+            var HandleConcentradora = function () {
+                $('#iConcentradora').on('select2:select select2:unselecting', function (e) {
+
+                    if (e.params.data != undefined) {
+                        AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                        $('#divPoolIp').show();
+                    }
+                    else {
+                        $('#iPoolIp').val('').trigger('change');
+                        $('#iPool_Endereco').val('').trigger('change');
+                        $('#divPoolIp').hide();
+                        $('#divPoolEndereco').hide();
+                    }
+                    return true
+                });
+            }
+
+
+            const IdPlanoProduto = '@Html.Raw(Request.Params["IdPlanoProduto"])'
+            $('#IdPlanoProduto').val(IdPlanoProduto);
+
+            $("#iUsuario").val("@User.Identity.GetUserId()")
+
+
+
+            task.push(AddSelect("iConcentradora", "@CONSTANTES.URLPortal/api/ConcentradoraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdConcentradora", "@RsBase.SELECIONE", false, HandleConcentradora)
+                .then(() => {
+                    AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdConcentradora", "@Model.IdPool", "@RsBase.SELECIONE", false, HandlePool_Ip)
+                        .then(() => {
+                            if (@Model.Id_Pool_Ip_Endereco.GetValueOrDefault(0) != 0) {
+                                AddSelect("iPool_Endereco", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdPool", "@Model.Id_Pool_Ip_Endereco", "@RsBase.SELECIONE", false);
+                            }
+
+                        });
+        })
+            );
+
+
+
+
+
+
+            await Promise.all(task);
+
+
+        });
+
+
+
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            let erro = false
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            clicked = true;
+            ShowPageLoading();
+
+            $('#form').submit();
+
+            try {
+                parent.dial.dialog('close');
+            }
+            catch (ex) {
+                console.log(ex);
+            }
+
+            return true;
+        }
+    </script>
+}
+
+@using (Html.BeginForm("AlterarLoginRadius", "Cliente", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @Html.HiddenFor(p => p.Usuario, new { id="iUsuario" })
+    @Html.HiddenFor(p => p.IdPlanoProduto, new { id= "IdPlanoProduto" })
+    
+
+    <div class="row">
+        <div class="col-sm-8 container" style="align-content:center;">
+            <div class="form-group">
+                <label for="ilogin">@RsCadastros.LOGIN: </label>
+                @Html.TextBoxFor(model => model.Login, new { @class = "form-control obrigatorio", @id = "iLogin" })
+                @Html.HiddenFor(model => model.Id, new { @class = "form-control", @id = "iLogin" })
+            </div>
+            <div class="form-group">
+                <label for="iSenha">@RsCadastros.SENHA</label>
+                @Html.TextBoxFor(model => model.Senha, new { @class = "form-control obrigatorio", @id = "iSenha", @type = "password" })
+            </div>
+            <div class="form-group">
+                <label for="iConcentradora">@RsCadastros.CONCENTRADORA</label>
+                @Html.DropDownListFor(model => model.IdConcentradora, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iConcentradora", @autocomplete = "off" })
+            </div>
+            <div id="divPoolIp">
+            <div class="form-group">
+                    <label for="iPoolIp" class="mr-3">@RsCadastros.POOL_IP:</label>
+                @Html.DropDownListFor(model => model.IdPool, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPoolIp", @autocomplete = "off" })
+            </div>
+        </div>
+            <div id="divPoolEndereco">
+                <div class="form-group">
+                    <label for="iPool_Endereco">@RsCadastros.ENDERECO_IP</label>
+                    @Html.DropDownListFor(model => model.Id_Pool_Ip_Endereco, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPool_Endereco" })
+    </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mapa"></div>
+}
+
+<div class="form-group col-sm-12" style="padding: 25px;">
+    <div class="text-center">
+        <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iCancelar" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" onclick="ValidaSubmit()" id="iSalvar">@RsBase.SALVAR</button>
+    </div>
+</div>

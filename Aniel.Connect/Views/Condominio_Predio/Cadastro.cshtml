@@ -1,0 +1,1130 @@
+﻿@model Aniel.Connect.Repository.Model.Condominio_PredioCadastroModel
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_CONDOMINIO_PREDIO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    //var selectCadBloco = new List<SelectListItem>
+    //{
+    //    new SelectListItem{Value = "0", Text = "Individual"},
+    //    new SelectListItem{Value = "1", Text = "Faixa de Valores", Selected = Model.Cadastro_Faixa }
+    //};
+    bool utilizaCadastroEndereco = ViewBag.Cadastro_Endereco;
+}
+
+@section styles{
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <style>
+        th.sorting_asc::after {
+            display: none !important;
+        }
+
+        h3.popover-header {
+            font-size: 0.8rem !important;
+        }
+
+        th.sorting_asc::before {
+            display: none !important;
+        }
+
+        th.sorting::after {
+            display: none !important;
+        }
+
+        th.sorting::before {
+            display: none !important;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+
+<script>
+
+        const alfabeto = Object.freeze({
+            upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""),
+            lower: "abcdefghijklmnopqrstuvwxyz".split("")
+        });
+        const mascaraFaixas = {
+            translation: {
+                "N": {pattern:/[0-9]/,optional:true},
+                "X": {
+                    pattern: /["A-Za-z"]/,
+                    optional: true,
+                    reverse: true
+                }
+            }
+        }
+        let oDatatable = null;
+        let oDatatableBloco = null;
+        let caixaEncontrada = null;
+
+    $(document).ready(async function () {
+
+        $('[data-toggle="popover"]').popover();
+        $('#iCadApartamentoInicial').on('input', function () {
+            if ($(this).val() !== '') {
+                $('#iCadApartamentoFinal').removeAttr('readonly');
+            } else {
+                $('#iCadApartamentoFinal').attr('readonly', 'readonly');
+            }
+        });
+
+        @if(Model.Id_Cidade != null)
+        {
+        <text>
+        let enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + "@Model.Uf";
+        let id = Number("@Model.Id_Cidade");
+        $.getJSON(enderecoApiCidade, function (data) { preenchimentoComboCidade(data, id); });
+        </text>
+        }
+        else{
+            <Text>
+            let enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + "@Model.Uf";
+            $.getJSON(enderecoApiCidade, function (data) { preenchimentoComboCidade(data, null); });
+            </text>
+        }
+        if ($("#iCodigo").val() == 0)
+            $("#iCodigo").val('')
+        const a = document.getElementsByClassName("toggle btn btn");
+        for (let index = 0; index < a.length; ++index) {
+            a[index].attributes.style.value = "width:113.312px; height: 29.2031px";
+        };
+
+
+        $("#iCep").mask("99999-999");
+
+        await AddSelect("iEnderecoLogradouro", "@CONSTANTES.URLPortal/api/EnderecoLogradouroapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iCep").val(), "@Model.Endereco_Logradouro", "@RsBase.SELECIONE", false, HandleEnderecoLogradouro);
+        await AddSelect("iCaixa", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleElementoRedeEndereco);
+
+    });
+
+
+    function gerarArrayEntreNumeros(inicio, fim) {
+        let array = [];
+        for (let i = inicio; i <= fim; i++) {
+            array.push(i);
+        }
+        return array;
+    }
+
+
+    let listaCaixa =  @Html.Raw(Json.Encode(ViewBag.Id_Caixa));
+
+    function findCaixa(id) {
+
+        return $.grep(listaCaixa, function (item) {
+            return item.Id == id;
+        });
+    };
+
+    let EnderecoLogradouroSelecionado = null;
+    let HandleElementoRedeEndereco = function () {
+        $('#iCaixa').on('select2:select select2:unselecting', function (e) {
+            caixaEncontrada = e.params.data;
+        });
+    }
+
+    let HandleEnderecoLogradouro = function () {
+        $('#iEnderecoLogradouro').on('select2:select select2:unselecting', function (e) {
+            EnderecoLogradouroSelecionado = e.params.data;
+            $("#iCidade").html(EnderecoLogradouroSelecionado.cidade)
+            $("#iBairro").html(EnderecoLogradouroSelecionado.bairro)
+            $("#iUf").html(EnderecoLogradouroSelecionado.uf)
+            $("#iPais").html(EnderecoLogradouroSelecionado.pais)
+            $("#iTipo").html(EnderecoLogradouroSelecionado.tipo_Endereco_Logradouro)
+            $("#iCep").html(EnderecoLogradouroSelecionado.cep)
+      });
+    }
+
+    @*$("#iCep").focusout(function () {
+
+        AddSelect("iEnderecoLogradouro", "@CONSTANTES.URLPortal/api/EnderecoLogradouroapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iCep").val(), null, "@RsBase.SELECIONE", false, HandleEnderecoLogradouro);
+    });*@
+
+
+    let handleDataTableButtons = function () {
+        "use strict";
+
+        const array = @Html.Raw(Json.Encode(Model.Caixas));
+
+        const nome_lista = "Caixas";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        let oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            columns: [
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Caixa" name="' + nome_lista + '[' + meta.row + '].Id_Caixa" type="hidden" value="' + TrataNulo(row.Id_Caixa) + '">';
+
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "@RsCadastros.CAIXA",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                        return data;
+                    }
+                }
+            ]
+        });
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                const idArquivo = $(this).attr("excluir");
+
+                const trLinkButton = $(this).parents('tr');
+
+                if (idArquivo === "0") {
+                    oDatatable.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    let link = '@String.Concat(CONSTANTES.URLPortal, "/api/CondominioPredioapi/ExcluirGrid?value=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+
+            });
+        }
+
+
+
+        handleExcluir();
+
+        $("#btnAdicionar").on('click', function () {
+
+            let erro = false;
+            if (!$("#iCaixa").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CAIXA)", "warning");
+                erro = true;
+            }
+
+            for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                if (oDatatable.rows().data()[i].Id == $("#iCaixa option:selected").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.CAIXA)", "warning");
+                    erro = true;
+                    i = oDatatable.rows().data().length;
+                }
+            }
+
+            if (erro) {
+                return false;
+            }
+
+            let [idCaixa, objCaixa] = [$("#iCaixa option:selected").val(), caixaEncontrada];
+            oDatatable.row.add({
+                Id_Caixa: idCaixa,
+                Descricao: objCaixa.text,
+                Tipo: objCaixa[0].Tipo,
+                Id: 0
+            }).draw(false);
+
+            $("#iCaixa").val("");
+            handleExcluir();
+        });
+    },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+
+    let handleDataTableButtonsBloco = function () {
+        /* nome_lista -- Nome_utilizado para enganar o razor*/
+        const [array, nome_lista] = [ @Html.Raw(Json.Encode(Model.Apartamentos)), "Apartamentos"];     
+        let agrupamento = geraAgrupamento("Bloco");
+
+        //"Blfrtip"
+        oDatatableBloco = $("#idatatableBloco").length && $("#idatatableBloco").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            rowGroup: agrupamento,
+            scrollCollapse: true,
+            paging: false,
+            scrollY: "40vh",
+            columns: [
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return `<a href="#" class="btnExcluirBloco" id="btnExcluirBloco_${meta.row}" excluir="${row.Id}">
+                                    <i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>
+                                    <input id="${nome_lista}_${meta.row}__Id" name="${nome_lista}[${meta.row}].Id" type="hidden" value=${TrataNulo(data)}>
+                                    <input id="${nome_lista}_${meta.row}__Id_Bloco" name="${nome_lista}[${meta.row}].Id_Bloco" type="hidden" value=${TrataNulo(row.Id)}>`;
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "N°.Apartamento",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = `${data} <input id="${nome_lista}_${meta.row}__Descricao" name="${nome_lista}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">`;
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "Bloco",
+                    title: "Bloco",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = `${data} <input id="${nome_lista}_${meta.row}__Bloco" name="${nome_lista}[${meta.row}].Bloco" type="hidden" value="${TrataNulo(data)}">`;
+                        }
+                        return data;
+                    }
+                }
+            ]
+        });
+
+        function handleExcluirBloco() {
+            $(".btnExcluirBloco").unbind('click');
+            $(".btnExcluirBloco").click(function (e) {
+                e.preventDefault();
+                const [idArquivo, trLinkButton] = [$(this).attr("excluir"), $(this).parents('tr')];
+
+                if (idArquivo === "0") {
+                    oDatatableBloco.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    let link = '@String.Concat(CONSTANTES.URLPortal, "/api/CondominioPredioapi/ExcluirApartamentoGrid?value=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableBloco.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+
+            });
+        }
+
+        handleExcluirBloco();
+        $("#btnAdicionarBloco").on('click', async function () {
+            /*TipoCadastro -- Individual*/
+            let [erro, tipoCadastro, strBloco, strApartamento] = [false, "0", "", "inicio"];
+            if (!tipoCadastro) {
+                Notificar("@RsBase.ATENCAO_", "Tipo de Cadastro de Bloco não configurado.", "warning");
+                erro = true;
+            }
+            strBloco = tipoCadastro === "0" ? $("#iCadBlocoInd").val() : $("#iFaixaBloco").val();
+
+            var [inicial, final] = [$("#iCadApartamentoInicial").val(), $("#iCadApartamentoFinal").val()];
+            //strApartamento = item;
+            if (!strBloco) {
+                Notificar("@RsBase.ATENCAO_", "bloco ou apartamento não indicado no cadastro.", "warning")
+                erro = true;
+            }
+
+            if (erro) {
+                return false;
+            }
+
+            const records = oDatatableBloco.rows().data().toArray();
+            const { error, aps } = await gerarApartamentos(strBloco, strApartamento, records, inicial, final);
+            if (!error) {
+                let apartamentos = checkApartamentos(aps, records);
+                if (apartamentos.length > 0) {
+                    for (let apartamento of apartamentos) {
+
+                        oDatatableBloco.row.add({
+                            Id_Bloco: apartamento.Id_Bloco,
+                            Bloco: apartamento.Bloco,
+                            Descricao: apartamento.Descricao,
+                            Id: 0
+                        }).draw(false);
+                        reorderRecordsBloco(oDatatableBloco.rows().data().toArray());
+                    }
+                    NotificaBlocos(apartamentos, oDatatableBloco.rows().data().toArray());
+                }
+            }
+
+            $("#iCadApartamentoInicial").val(null);
+            $("#iCadApartamentoFinal").val(null);
+            $('#iCadApartamentoFinal').attr('readonly', 'readonly');
+
+            handleExcluirBloco();
+        });
+    },
+        TableManageButtonsBloco = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtonsBloco();
+                }
+            }
+        }();
+
+    TableManageButtonsBloco.init();
+
+        var clicked = false;
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            erro = false;
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+            return true;
+    }
+
+    //$("#iSelect_BL_AP").on("change", function () {
+    //    const value = $(this).val();
+
+    //    $("#iDivCadastroIndividual").addClass("d-none");
+    //    $("#iDivCadastroFaixa").addClass("d-none");
+
+    //    $("#iCadBlocoInd").val(null).trigger("change");
+    //    $("#iCadApartamentoInd").val(null).trigger("change");
+
+    //    $("#iFaixaBloco").val(null).trigger("change");
+    //    $("#iFaixaApartamento").val(null).trigger("change");
+
+    //    switch (value) {
+    //        case "0": $("#iDivCadastroIndividual").removeClass("d-none");
+    //            break;
+    //        case "1": $("#iDivCadastroFaixa").removeClass("d-none");
+    //            break;
+    //        default: break;
+    //    }
+    //});
+
+    //$("#iFaixaBloco").mask("X-X", mascaraFaixas);
+    //$("#iFaixaApartamento").mask("NNN-NNN", mascaraFaixas);
+
+    function checkApartamentos(apartamentos = [], recordsDt = []) {
+        apartamentos.filter(function (apartamento) {
+            return !recordsDt.some(p => p.Descricao == apartamento.Descricao);
+        });
+        return apartamentos;
+    }
+
+    async function gerarApartamentos(strBloco = "", strApartamento = "", recordsDt = [], inicial, final) {
+        let [array, aps, error, numInicial, numFinal] = [[], [], false, inicial.match(/\d+/), final.match(/\d+/)];
+
+        if (numInicial && numFinal) {
+            strApartamento = "intervalo";
+        } else {
+            strApartamento = "unico";
+        }
+
+        try {
+
+            let upperCase = strBloco.split("-").some(p => p == p.toUpperCase());
+            if (strBloco && strApartamento) {
+                if (strApartamento == "unico") {
+                    if (inicial) {
+                        let repetido = recordsDt.find(({ Descricao, Bloco }) => Descricao == `${inicial}` && Bloco == strBloco) != undefined;
+                        if (repetido) {
+                            Notificar("@RsBase.ATENCAO_", `Apartamento ${inicial} já se encontra no bloco: ${strBloco}.`, "warning");
+                        } else {
+
+                            let [record, idBloco, apartamento] = [recordsDt.some(p => p.Bloco == strBloco) ? recordsDt.find(p => p.Bloco == strBloco) : null, record != null ? Number(record.Id_Bloco) : 0,
+                                                                  { Id: 0, Descricao: `${inicial}`, Id_Bloco: idBloco, Bloco: strBloco }];
+                            aps.push(apartamento);
+                        }
+                    }
+                    if (final) {
+                        let repetido = recordsDt.find(({ Descricao, Bloco }) => Descricao == `${final}` && Bloco == strBloco) != undefined;
+                        if (repetido) {
+                            Notificar("@RsBase.ATENCAO_", `Apartamento ${final} já se encontra no bloco: ${strBloco}.`, "warning");
+                        } else {
+
+                            let [record, idBloco, apartamento] = [recordsDt.some(p => p.Bloco == strBloco) ? recordsDt.find(p => p.Bloco == strBloco) : null, record != null ? Number(record.Id_Bloco) : 0,
+                                                                  { Id: 0, Descricao: `${final}`, Id_Bloco: idBloco, Bloco: strBloco }];
+                            aps.push(apartamento);
+                        }
+                    }
+                }
+                else {
+                    let values = gerarArrayEntreNumeros(numInicial, numFinal);
+
+                    for (let item of values) {
+                        item = inicial.replace(numInicial, item);
+                        let repetido = recordsDt.find(({ Descricao, Bloco }) => Descricao == `${item}` && Bloco == strBloco) != undefined;
+                        if (repetido) {
+                            Notificar("@RsBase.ATENCAO_", `Apartamento ${item} já se encontra no bloco: ${strBloco}.`, "warning");
+                        } else {
+
+                            let record = recordsDt.find(p => p.Bloco == strBloco) || null;
+                            let idBloco = record != null ? Number(record.Id_Bloco) : 0;
+                            let apartamento = {
+                                Id: 0,
+                                Descricao: `${item}`,
+                                Id_Bloco: idBloco,
+                                Bloco: strBloco
+                            };
+
+                            aps.push(apartamento);
+                        }
+                    }
+                }
+            }
+
+            @* daqui vamos preencher o apartamento *@
+            @*array.forEach(function (parametro) {
+                //let values = strApartamento.split("-").map(function (p) { return Number(p); }).sort();
+                let values = gerarArrayEntreNumeros(inicial, final);
+                let limit = values[values.length - 1];
+
+                for (let iterator = values[0]; iterator <= limit; iterator++) {
+                    let repetido = recordsDt.find(({Descricao, Bloco}) => Descricao == `${iterator}` && Bloco == parametro) != undefined;
+                    if (repetido) {
+                        Notificar("@RsBase.ATENCAO_",`Apartamento ${iterator} já se encontra no bloco: ${parametro}.`,"warning");
+                    }
+                    else {
+                        record = recordsDt.some(p => p.Bloco == parametro) ? recordsDt.find(p => p.Bloco == parametro) : null;
+                        idBloco = record != null ? Number(record.Id_Bloco) : 0,
+                            apartamento = { Id: 0, Descricao: `${iterator}`, Id_Bloco: idBloco, Bloco: parametro };
+                        aps.push(apartamento);
+                    }
+
+                }
+            });*@
+        }
+        catch (exception) {
+            error = true;
+        }
+        return { error, aps };
+    }
+    function geraAgrupamento(nomeColuna) {
+        let [placeholderDescricao, groupDescricao] = [nomeColuna, "Bloco Vinculado"];
+        let appender = {
+            emptyDataGroup: `Valor da Coluna ${placeholderDescricao} inexistente`,
+            dataSrc: [nomeColuna],
+            startRender: function (rows, group, level) {
+                //Bloco
+                if (nomeColuna == "Bloco") {
+                    if (group == "" || group == null) {
+                        group = nomeColuna.includes("Bloco") ? "Apartamento não gerado" : "Bloco não gerado";
+                    }
+                }
+                groupDescricao = group.includes("não gerado") ? "Valor inexistente" : group;
+
+                return $('<tr>').append(`<td class="text-left" colspan="12">${placeholderDescricao}: ${groupDescricao}</td>`);
+            }
+        };
+        return appender;
+    }
+
+    function NotificaBlocos(apartamentos = [], recordsDt = [])
+    {
+        let [mensagem, blocos]= ["", []];
+        apartamentos.forEach(function (parametro) {
+            if (!blocos.some(p => p == parametro.Bloco)) {
+                blocos.push(parametro.Bloco);
+            }
+        });
+        for (let bloco of blocos) {
+            let [blocoAdicionado, count] = [recordsDt.filter(p => p.Bloco == bloco).length == 0, apartamentos.filter(p => p.Bloco == bloco).length];
+            mensagem = blocoAdicionado && count > 1 ? `Bloco ${bloco} adicionado e ${count} apartamentos adicionados ` :
+                       blocoAdicionado ? `Bloco ${bloco} adicionado e ${count} apartamento adicionado` :
+                       `${count} Apartamento(s) adicionado(s) ao bloco ${bloco}`;
+            mensagem = `${mensagem} com sucesso`;
+
+            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", mensagem, "info");
+        }
+    }
+    function reorderRecordsBloco(records = []) {
+        if (records.length > 0) {
+            oDatatableBloco.clear();
+            let resultados = Object.groupBy(records, function ({ Bloco }) { return Bloco; });
+            for (let bloco in resultados) {
+                for (let registro of resultados[bloco]) {
+                    oDatatableBloco.row.add({
+                        Id_Bloco: registro.Id_Bloco,
+                        Bloco: registro.Bloco,
+                        Descricao: registro.Descricao,
+                        Id: registro.Id
+                    });
+                }
+            }
+        }
+        oDatatableBloco.draw(false);
+    }
+
+    $("#iCep").focusout(function () {
+
+        if ($("#iCep").val() != window["cep_on_focus"]) {
+            // Limpa os campos relacionados se o CEP mudou
+            $('#iReferencia').val("");
+            $('#iUF').val("");
+            $('#iCidade').val("");
+            $('#iBairro').val("");
+            $('#iTipo_Imovel').val("");
+            $('#iPais').val("");
+            $('#iComplemento').val("");
+            $('#iBairro').val("");
+            $('#iLatitude').val("");
+            $('#iLongitude').val("");
+            $('#iNumero').val("");
+            $('#iLogradouro').val("");
+        }
+
+        $("#iPais").val(1);
+
+        let cepcliente = $("#iCep").val().replace(/\D/g, ''); // Remove caracteres não numéricos
+        if (cepcliente.length !== 8) {
+            alert("CEP inválido!");
+            return;
+        }
+
+        let link = "https://viacep.com.br/ws/" + cepcliente + "/json/";
+
+        try {
+            parent.App.startPageLoading();
+        }
+        catch (ex) { console.log(ex); }
+
+        $.ajax({
+            url: link,
+            type: 'GET',
+            dataType: 'json'
+        })
+            .done(function (data) {
+                if (data.erro) {
+                    alert("CEP não encontrado!");
+                    return;
+                }
+
+                $("#iLogradouro").val(data.logradouro);
+                $("#iUF").val(data.uf);
+                let [cidade, bairro, estado] = [data.localidade, data.bairro.toUpperCase(), $('#iUF option:selected').text()];
+                let enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $('#iBairro').val(bairro);
+
+                $.getJSON(enderecoApiCidade, function (data) { preenchimentoComboCidade(data, null, cidade); });
+            });
+        parent.App.stopPageLoading();
+    });
+
+    let preenchimentoComboCidade = function (data, id = null, cidade = "") {
+        // Limpa o campo de cidade
+        $('#iCidade').empty();
+
+        // Adiciona a opção "Selecione"
+        $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+
+        // Preenche o combobox com as cidades
+        $.each(data, function (key, value) {
+            $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+        });
+
+        // Seleciona a cidade com base no nome (caso seja fornecido)
+        if (cidade) {
+            $('#iCidade option').each(function () {
+                if ($(this).text().toUpperCase() === cidade.toUpperCase()) {
+                    $(this).prop('selected', true);
+                    return false; // Sai do loop
+                }
+            });
+        }
+        // Seleciona a cidade com base no ID (caso seja fornecido)
+        else if (id) {
+            $(`#iCidade option[value=${id}]`).prop("selected", true);
+        }
+    };
+
+    $("#iUF").change(function () {
+        let estado = $(this).val(); // Obtém a UF selecionada
+        if (estado) {
+            let enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+            $.getJSON(enderecoApiCidade, function (data) {
+                preenchimentoComboCidade(data); // Carrega as cidades da nova UF
+            });
+        } else {
+            $('#iCidade').empty(); // Limpa o campo de cidade se não houver UF selecionada
+        }
+    });
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Condominio_Predio", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="far fa-building"></i> @ViewBag.Title</h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Condominio_Predio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_CONDOMINIO_PREDIO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                        @*<span style="font-size:11px" id="dtLegend"></span>*@
+                    </div>
+                </div>
+
+                <!-- Tab Content Master-->
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane" id="iTabHistoricoAtendimento">
+                        <center>
+                            <iframe id="iHistoricoAtendimentoFrame"
+                                    scrolling='no'
+                                    style="width:100%; height: 900px"
+                                    allowtransparency='false'
+                                    frameBorder='0'></iframe>
+                        </center>
+                    </div>
+
+                    <div role="tabpanel" class="tab-pane" id="iTabPesquiSatisfacao">
+                        <center>
+                            <iframe id="iPesquisaSatisfacaoFrame"
+                                    scrolling='no'
+                                    style="width:100%; height: 900px"
+                                    allowtransparency='false'
+                                    frameBorder='0'></iframe>
+                        </center>
+                    </div>
+
+                    <!-- Tab Navegation -->
+                    <ul class="nav nav-tabs" id="myTab" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="dadosgerais-tab" data-toggle="tab" href="#iTabDadosGerais" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.CADASTRO</a>
+                        </li>
+                        @*<li class="nav-item">
+                            <a class="nav-link" id="financeiro-tab" data-toggle="tab" href="#iTabFinanceiro" role="tab" aria-controls="financeiro" aria-selected="false"><i class="fas fa-user-check"></i>Caixas de Atendimento </a>
+                        </li>*@
+                        <li class="nav-item">
+                            <a class="nav-link" id="bloco-tab" data-toggle="tab" href="#iTabBloco" role="tab" aria-controls="bloco" aria-selected="false"><i class="fas fa-building"></i> Blocos e Apartamentos </a>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Cadastro -->
+                    <div role="tabpanel" class="tab-pane active" id="iTabDadosGerais">
+                        <div class="accordion" id="accordion-1">
+                            <div class="card div-card-accord mb-3">
+                                <div class="card-header title-card" id="heading-1">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                            <span class="text-bold-card">@RsCadastros.CADASTRO_ENDERECO_LOGRADOURO </span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div class="card-body body-card-accord">
+                                    <div class="row mb-3">
+                                        <div class="col-sm-1">
+                                            <div class="form-group">
+                                                <label for="iCodigo">@RsCadastros.CODIGO:</label>
+                                                @Html.TextBoxFor(model => model.Id, new { @class = "form-control", @id = "iCodigo", @autocomplete = "off", @required = true, @readonly = "readonly" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iDescricao">@RsCadastros.DESCRICAO_CONDOMINIO_PREDIO:<span class="text-danger font-weight-bold"> *</span></label>
+                                                @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control obrigatorio", @id = "iDescricao", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-2" style="position:absolute;right:0;">
+                                                <div class="form-group">
+                                                    <label for="iStatus">@RsFinanceiro.STATUS:</label><br />
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = RsCadastros.ATIVO, @data_off = RsCadastros.INATIVO, @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="row mb-3">
+                                        @if (utilizaCadastroEndereco)
+                                        {
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iTipo">@RsCadastros.TIPO_ENDERECO_LOGRADOURO:</label>
+                                                    <br>
+                                                    <span id="iTipo"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <div class="form-group">
+                                                    <label for="iEnderecoLogradouro">@RsCadastros.ENDERECO_LOGRADOURO:<span class="text-danger font-weight-bold"> *</span></label>
+                                                    @Html.DropDownListFor(m => m.Endereco_Logradouro, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iEnderecoLogradouro", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                        }
+                                        else 
+                                        {
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iCep">@RsCadastros.CEP:</label>
+                                                    @Html.TextBoxFor(model => model.Cep, new { @class = "form-control", @id = "iCep", @autocomplete = "off" })
+                                                </div>
+                                           </div>
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iTipo">@RsCadastros.TIPO_ENDERECO_LOGRADOURO:</label>
+                                                    <br>
+                                                    <span id="iTipo"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iLogradouro">@RsCadastros.LOGRADOURO</label>
+                                                    @Html.TextBoxFor(model => model.Logradouro, new {@class="form-control", @id="iLogradouro"})
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-1">
+                                            <div class="form-group">
+                                                <label for="iNumero">N°:</label>
+                                                @Html.TextBoxFor(m => m.Numero, new { @class = "form-control", @id = "iNumero", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        @if (utilizaCadastroEndereco)
+                                        {
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iPais">@RsCadastros.PAIS:</label>
+                                                    <br>
+                                                    <span name="Pais" id="iPais"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iUF">@RsCadastros.UF:</label>
+                                                    <br>
+                                                    <span name="Uf" id="iUf"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iCidade">@RsCadastros.CIDADE:</label>
+                                                    <br>
+                                                    <span name="Cidade" id="iCidade"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iBairro">@RsCadastros.BAIRRO:</label>
+                                                    <br>
+                                                    <span name="Bairro" id="iBairro"></span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iCep">@RsCadastros.CEP:</label>
+                                                    <br>
+                                                    <span name="Cep" id="iCep"></span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {                                           
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iPais">@RsCadastros.PAIS:</label>
+                                                    <br>
+                                                    @Html.DropDownListFor(model => model.Id_Pais, new SelectList(ViewBag.Paises, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPais"})
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iUF">@RsCadastros.UF:</label>
+                                                    <br>
+                                                    
+                                                    <select name="Uf" class="form-control endereco" id="iUF" autocomplete="off">                                                    
+                                                        <option value="">@RsBase.SELECIONE</option>
+                                                        
+                                                        @{ 
+                                                            List<string> Ufs = new List<string> {
+                                                                "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+                                                            };
+                                                            foreach (var uf in Ufs)
+                                                            {
+                                                                <text>
+                                                                    <option value="@uf" @(Model.Uf == uf ? "selected" : "")>@uf</option>
+                                                                </text> }
+                                                           }                                                    
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iCidade">@RsCadastros.CIDADE:</label>
+                                                    <br>
+                                                    @Html.DropDownListFor(m => m.Id_Cidade, new SelectList(ViewBag.ComboTmp, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control endereco", @id = "iCidade", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iBairro">@RsCadastros.BAIRRO:</label>
+                                                    <br>
+                                                    @Html.TextBoxFor(model => model.Bairro, new { @class = "form-control endereco", @id = "iBairro", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--Tab de Cadastro de Blocos e Apartamentos-->
+                    <div role="tabpanel" class="tab-pane" id="iTabBloco">
+                        <div class="row">
+                            <div class="accordion col-sm-4" id="accordion-2">
+                                <div class="card div-card-accord mb-3">
+                                    <div class="card-header title-card" id="heading-2">
+                                        <h5 class="mb-0">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                                <span class="text-bold-card"> Cadastro de Blocos e Apartamentos</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div id="collapse-2" class="collapse show" data-parent="#accordion-2" aria-labelledby="heading-2">
+                                        <div class="card-body body-card-accord">
+                                            @*<div class="row mt-3">
+                                                <div class="col-sm-11 ml-2">
+                                                    @Html.DropDownList("Select_BL_AP", selectCadBloco, "Selecione", new { @id = "iSelect_BL_AP", @class = "form-control" })
+                                                </div>
+                                            </div>*@
+
+                                            @*Cadastro individual*@
+                                            <div class="container-fluid mt-3" id="iDivCadastroIndividual">
+                                                <div class="row">
+                                                    <div class="col-sm">
+                                                        <div class="form-group">
+                                                            <span class="text-danger font-weight-bold"> *</span><label for="iCadBlocoInd">
+                                                                Cadastro de Blocos/Quadra:
+                                                            <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda de Cadastro de Blocos e Apartamentos"
+                                                                   data-content="Se houver padronização, o sistema interpretará como um intervalo. Por exemplo, ao inserir 'Quadra 1' em Inicial e 'Quadra 10' em Final, serão gerados 10 registros. O mesmo se aplica a valores numéricos em Inicial e Final. Para cadastrar apenas um apartamento, utilize apenas o campo Inicial."></i>
+                                                            </label>
+                                                            <input type="text" class="form-control" id="iCadBlocoInd" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm">
+                                                        <div class="form-group">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-sm">
+                                                        <label for="iCadBlocoInd">Apartamento/Número:</label><br />
+
+                                                        <div class="row">
+                                                            <div class="col-sm-3">
+                                                                <span class="text-danger font-weight-bold"> *</span><label for="iCadApartamentoInicial"> Inicial:</label>
+                                                                <input type="text" class="form-control" id="iCadApartamentoInicial" />
+                                                            </div>
+
+                                                            <div class="col-sm-3">
+                                                                <label for="iCadApartamentoFinal">Final:</label>
+                                                                <input type="text" class="form-control" id="iCadApartamentoFinal" readonly />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                            @*Cadastro por Faixa de Valores*@
+                                            @*<div class="container-fluid d-none mt-3" id="iDivCadastroFaixa">
+                                                <div class="row">
+                                                    <div class="col-sm">
+                                                        <div class="form-group">
+                                                            <label for="iFaixaBloco">Cadastro de Blocos </label>
+                                                            <input type="text" class="form-control faixa" id="iFaixaBloco" autocomplete="off" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm">
+                                                        <div class="form-group">
+                                                            <label for="iFaixaApartamento">Cadastro de Apartamentos</label>
+                                                            <input type="text" class="form-control faixa" id="iFaixaApartamento" autocomplete="off" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>*@
+                                            <div class="row mt-4">
+                                                <div class="col text-center">
+                                                    <input type="button" class="btn btn-success" id="btnAdicionarBloco" value="Adicionar" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion col-sm-8" id="accordion-3">
+                                <div class="card div-card-accord mb-3">
+                                    <div class="card-header title-card" id="heading-3">
+                                        <h5 class="mb-0">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                                <span class="text-bold-card">Listagem de Blocos e Apartamentos Vinculados a Este Condomínio</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div id="collapse-3" class="collapse show" data-parent="#accordion-3" aria-labelledby="heading-3">
+                                        <div class="card-body body-card-accord">
+                                            <table class="table table-hover nowrap" style="width:100%" id="idatatableBloco"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Caixas de atendimento -->
+                    @*<div role="tabpanel" class="tab-pane" id="iTabFinanceiro">
+                        <div class="accordion mb-3" id="accordion-4">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div id="accordion-5" class="col-sm-6">
+                                        <div class="card div-card-accord">
+                                            <div class="card-header title-card" id="heading-4">
+                                                <h5 class="mb-0">
+                                                    <a role="button" data-toggle="collapse" data-target="#collapse-5" aria-expanded="true" aria-controls="collapse-5">
+                                                        <span class="text-bold-card">@RsCadastros.ADICIONAR Caixas de Atendimento:</span>
+                                                    </a>
+                                                </h5>
+                                            </div>
+                                            <div id="collapse-5" class="collapse show" data-parent="#accordion-5" aria-labelledby="heading-4">
+                                                <div class="card-body">
+                                                    <div class="row">
+                                                        <div class="col-sm-12">
+                                                            <div class="form-group">
+                                                                <label for="iDefinir_Caixa_Condominio_Predio" class="mr-3">Definir Caixas de Atendimento especificas para este Condomínio/Predio? </label><br>
+                                                                @Html.CheckBoxFor(model => model.Definir_Caixa_Condominio_Predio, new { @class = "form-control", @id = "iDefinir_Caixa_Condominio_Predio", @name = "iDefinir_Caixa_Condominio_Predio", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-sm-12">
+                                                            <div class="form-group">
+                                                                <label for="iCaixa">@RsCadastros.CAIXA:</label>
+                                                                @Html.DropDownListFor(m => m.Id_Caixa, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<string>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iCaixa", @autocomplete = "off" })
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-sm-12 text-right mt-3">
+                                                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="accordion-6" class="col-sm-6">
+                                        <div class="card div-card-accord">
+                                            <div class="card-header title-card" id="heading-5">
+                                                <h5 class="mb-0">
+                                                    <a role="button" data-toggle="collapse" data-target="#collapse-6" aria-expanded="true" aria-controls="collapse-6">
+                                                        <span class="text-bold-card">@RsCadastros.LISTA de Caixas de Atendimento Adicionadas</span>
+                                                    </a>
+                                                </h5>
+                                            </div>
+                                            <div id="collapse-6" class="collapse show" data-parent="#accordion-6" aria-labelledby="heading-5">
+                                                <div class="card-body">
+                                                    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>*@
+                </div>
+            </div>
+        </div>
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Condominio_Predio")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+
+}

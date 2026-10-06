@@ -1,0 +1,1013 @@
+﻿@model List<QuizAnswer>
+@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Repository.Model
+
+@{
+    ViewBag.Title = RsCadastros.VISUALIZAR_CHECKLIST;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    int count = 1;
+    var primeiro = Model.FirstOrDefault();
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+    // Essa tela pode ser acessada pelo cliente através do e-mail,
+    // nesse caso o usuário não estará autenticado e portanto as
+    // áreas de acesso não deverão ser aplicadas
+    bool acessoPorEmail = Request.Params["Email"] != null && Request.Params["Email"] == "S";
+}
+
+@section styles
+{
+    <style>
+        @* Necessário para exibir mensagens de validação de campos obrigatórios para questões com escolhas *@
+        .invalid-feedback {
+            display: block;
+        }
+
+        .overlay-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-container {
+            background: #ffffff;
+            padding: 25px 35px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e0e0e0;
+            border-top: 5px solid #357ca5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px auto;
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+            
+
+    </style>
+}
+
+@section Scripts
+{
+    <script>
+
+        let respostas = [];
+
+        $(document).ready(function () {
+            for (let item of $(".somenteNumerosPontoVirgula")) {
+                somenteNumerosPontoVirgula($(item).attr("id"));
+            }
+
+            if (parent.$('#iStatus').val() === '4') {
+                $('#btnSalvar').hide();
+                $('.fa-edit').css("color", "#5F5F5F");
+            }
+        });
+
+        function bloquearTela(texto) {
+            $("#overlayLoading").show();
+            $(".loading-text").text(texto || "Processando...");
+            $("body").css("overflow", "hidden"); // trava scroll
+        }
+
+        function desbloquearTela() {
+            $("#overlayLoading").hide();
+            $("body").css("overflow", "auto");
+        }
+
+        function editarPergunta(id) {
+
+            @if (acessoPorEmail || AcessoHelper.TemAcesso(_areas, "195"))
+            {
+                <text>
+                if (parent.$('#iStatus').val() !== '4') {
+                    $("#pergunta_" + id).attr("readonly", false);
+                    $(`input[name="pergunta_${id}"]`).removeClass("readonly");
+                } else {
+                    Notificar("@RsBase.ATENCAO_", "Não é possível editar uma pergunta de uma venda cancelada", "warning");
+                    return;
+                }
+                </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+
+        }
+
+        function editarPerguntaData(id) {
+
+            @if (acessoPorEmail || AcessoHelper.TemAcesso(_areas, "195"))
+            {
+                <text>
+                $("#pergunta_" + id).attr("readonly", false);
+                $(`#pergunta_${id}`).removeClass("readonly");
+
+                if ($(`#pergunta_${id}`).hasClass("datepicker") == false) {
+                    $(`#pergunta_${id}`).addClass("datepicker");
+
+                    //DATEPICKER
+
+
+                    $(`#pergunta_${id}`).mask("00/00/0000");
+                    $(`#pergunta_${id}`)
+                        .datepicker({
+                            format: "dd/mm/yyyy",
+                            language: "pt-BR",
+                            todayHighlight: "true",
+                            autoclose: true
+                        })
+                        .on("changeDate", function (e) {
+                            if ($(this).val().length === 10) return $(this).trigger("focusout");
+                            else return true;
+                        })
+                        .after(function () {
+                            var nameLink = `${$(this)[0].id}_dp`;
+
+                            return $(this).is(".readonly") || $(this).prop("readonly")
+                                ? $(
+                                    `<i id='${nameLink}' class='far fa-calendar-alt fs-15 color-icon-date pl-1 pr-1'></i>`
+                                )
+                                : $(
+                                    `<a id='${nameLink}' href='javascript: void(0);' class='pl-1 pr-1'><i class='far fa-calendar-alt fs-15 color-icon-date'></i></a>`
+                                ).click(function () {
+                                    $(this)
+                                        .prev()
+                                        .datepicker("show");
+                                });
+                        });
+            }
+            </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+
+        }
+
+        @* Realiza a gravação de todos os campos de texto do checklist *@
+        async function GravarCamposTexto() {
+            let respostasTexto = [];
+            let respostasValor = [];
+            let respostasData = [];
+            let respostasEscolhas = [];
+            let respostasMultiplas = [];
+
+            $("input.questao-texto[type=text]").each(function () {
+                respostasTexto.push([this.id.split("_").pop(), this.value]);
+            });
+
+            $("input.questao-valor[type=text]").each(function () {
+                respostasValor.push([this.id.split("_").pop(), this.value]);
+            });
+
+            $("input.questao-data[type=text]").each(function () {
+                respostasData.push([this.id.split("_").pop(), this.value]);
+            });
+
+            $("input[type=radio]").each(function () {
+                const opcao = $(`input[name=${$(this).attr("name")}]:checked`).val()
+                const idResposta = $(this).attr("name").split("_").pop();
+                if (opcao && respostasEscolhas.filter(p => p[0] == idResposta).length == 0)
+                    respostasEscolhas.push([idResposta, opcao]);
+
+            });
+
+            $("input[type=checkbox]").each(function () {
+                const opcao = $(this).val();
+                const idResposta = $(this).attr("name").split("_").pop();
+                const dataQuizAnwser = $(this).attr("data-quiz-anwser");
+
+                if (opcao) {
+                    if (respostasMultiplas.find(p => p.IdItem == idResposta) == null) {
+
+                        let objResposta = {
+                            IdItem: idResposta,
+                            Respostas: []
+                        };
+
+                        if ($(this).prop("checked")) {
+                            objResposta.Respostas.push([dataQuizAnwser, opcao]);
+                        }
+
+                        respostasMultiplas.push(objResposta);
+                    }
+                    else {
+                        let objResposta = respostasMultiplas.find(p => p.IdItem == idResposta);
+
+                        if ($(this).prop("checked")) {
+                            objResposta.Respostas.push([dataQuizAnwser, opcao]);
+                        }
+                    }
+                }
+            });
+
+            let retornoSalvaTextoChecklist = await $.ajax({
+                method: "POST",
+                url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaTextoChecklist",
+                data: { respostas: respostasTexto }
+            })
+
+            let retornoSalvaValorChecklist = await $.ajax({
+                method: "POST",
+                url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaValorChecklist",
+                data: { respostas: respostasValor }
+            })
+
+            let retornoSalvaDataChecklist = await $.ajax({
+                method: "POST",
+                url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaDataChecklist",
+                data: { respostas: respostasData }
+            })
+
+            let retornoSalvaEscolhasChecklist = await $.ajax({
+                method: "POST",
+                url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaEscolhaChecklist",
+                data: { respostas: respostasEscolhas }
+            });
+
+            let retornoSalvaEscolhasMultiplasChecklist = await $.ajax({
+                method: "POST",
+                url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaEscolhaMultiplaChecklist",
+                data: { multi: respostasMultiplas }
+            });
+
+            return retornoSalvaEscolhasChecklist.ok &&
+                   retornoSalvaEscolhasMultiplasChecklist.ok &&
+                   retornoSalvaTextoChecklist.ok &&
+                   retornoSalvaValorChecklist.ok &&
+                   retornoSalvaDataChecklist.ok;
+        }
+
+        $("#btnSalvar").on("click", async function () {
+            let erro = false;
+
+            ShowPageLoading();
+
+            @* Tratamento para validação de perguntas de única escolha *@
+
+            var elemsRespostasPerguntasUnicaEscolhaObrigatorias = $("input[type='radio'][data-pergunta-obrigatoria='S']").toArray();
+
+            @*Usamos o new Set() para criar uma lista sem valores repetidos
+              a partir do array dos IDs das perguntas associadas
+              aos vários inputs de resposta*@
+            var idsPerguntasUnicaEscolhaObrigatorias =
+                new Set(
+                    elemsRespostasPerguntasUnicaEscolhaObrigatorias
+                        .map(elem => $(elem).attr("data-id-pergunta"))
+                );
+
+            for (let idPerguntaUnicaEscolhaObrigatoria of idsPerguntasUnicaEscolhaObrigatorias) {
+                const perguntaRespondida =
+                    $(`input[type='radio'][data-id-pergunta='${idPerguntaUnicaEscolhaObrigatoria}']`)
+                        .toArray()
+                        .find(elem => $(elem).prop("checked")) != null;
+
+                @*Como utilizamos o ValidaCamposObrigatorios() para verificar o preenchimento antes de gravar precisamos
+                  preencher o input para validação com alguma string não-vazia no value para marcar o input como válido.
+
+                  Para marcar o input como inválido precisamos colocar o value como null para que o ValidaCamposObrigatorios()
+                  identifique que ele não está preenchido corretamente*@
+                if (perguntaRespondida) {
+                    $(`input.validacaoUnicaEscolha[data-id-pergunta='${idPerguntaUnicaEscolhaObrigatoria}']`).val("true");
+                }
+                else {
+                    $(`input.validacaoUnicaEscolha[data-id-pergunta='${idPerguntaUnicaEscolhaObrigatoria}']`).val(null);
+                }
+            }
+
+            @* Tratamento para validação de perguntas de múltipla escolha *@
+
+            var elemsRespostasPerguntasMultiplaEscolhaObrigatorias = $("input[type='checkbox'][data-pergunta-obrigatoria='S']").toArray();
+
+            @* Usamos o new Set() para criar uma lista sem valores repetidos
+              a partir do array dos IDs das perguntas associadas
+              aos vários inputs de resposta *@
+            var idsPerguntasMultiplaEscolhaObrigatorias =
+                    new Set(
+                        elemsRespostasPerguntasMultiplaEscolhaObrigatorias
+                            .map(elem => $(elem).attr("data-id-pergunta"))
+                    );
+
+            for (let idPerguntaMultiplaEscolhaObrigatoria of idsPerguntasMultiplaEscolhaObrigatorias) {
+                const perguntaRespondida =
+                    $(`input[type='checkbox'][data-id-pergunta='${idPerguntaMultiplaEscolhaObrigatoria}']`)
+                        .toArray()
+                        .find(elem => $(elem).prop("checked")) != null;
+
+                @* Como utilizamos o ValidaCamposObrigatorios() para verificar o preenchimento precisamos
+                  preencher o input para validação com alguma string não-vazia no value para marcar o input como válido.
+
+                  Para marcar o input como inválido precisamos colocar o value como null para que o ValidaCamposObrigatorios()
+                  identifique que ele não está preenchido corretamente *@
+                if (perguntaRespondida) {
+                    $(`input.validacaoMultiplaEscolha[data-id-pergunta='${idPerguntaMultiplaEscolhaObrigatoria}']`).val("true");
+                }
+                else {
+                    $(`input.validacaoMultiplaEscolha[data-id-pergunta='${idPerguntaMultiplaEscolhaObrigatoria}']`).val(null);
+                }
+            }
+
+            @*Tratamento para validação de perguntas de foto*@
+
+            var elemsFotosObrigatorias = $("input.validacaoFoto[data-pergunta-obrigatoria='S']").toArray();
+
+            var idsPerguntasFotoObrigatorias =
+                    new Set(
+                        elemsFotosObrigatorias
+                            .map(elem => $(elem).attr("data-id-pergunta"))
+                    );
+
+            for (let idPerguntaFotoObrigatoria of idsPerguntasFotoObrigatorias) {
+                const fotoPreenchida = $(`.imgFotoModal[data-id-pergunta='${idPerguntaFotoObrigatoria}']`).toArray().length > 0;
+
+                @* Como utilizamos o ValidaCamposObrigatorios() para verificar o preenchimento precisamos
+                  preencher o input para validação com alguma string não-vazia no value para marcar o input como válido.
+
+                  Para marcar o input como inválido precisamos colocar o value como null para que o ValidaCamposObrigatorios()
+                  identifique que ele não está preenchido corretamente *@
+                if (fotoPreenchida) {
+                    $(`input.validacaoFoto[data-id-pergunta='${idPerguntaFotoObrigatoria}']`).val("true");
+                }
+                else {
+                    $(`input.validacaoFoto[data-id-pergunta='${idPerguntaFotoObrigatoria}']`).val(null);
+                }
+            }
+
+
+            @* Validação de campos obrigatorios *@
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                HidePageLoading();
+                return false;
+            }
+
+            if (erro) {
+                erro = false;
+                HidePageLoading();
+                return;
+            }
+
+            let gravacaoBemSucedida = await GravarCamposTexto();
+
+            if (gravacaoBemSucedida) {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Checklist salvo com sucesso", "info");
+                $("input[type=text]").attr("readonly", true);
+
+                HidePageLoading();
+
+                @* Recarregando a tela após gravar com sucesso para exibir a mensagem de conclusão *@
+                window.parent.location.reload();
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Erro ao salvar o checklist", "warning");
+                HidePageLoading();
+            }
+        });
+
+        $('input[type=file]').change(async function () {
+            var fileInput = document.getElementById($(this)[0].id);
+            var file = $(this)[0].files[0];
+
+            if (!file) {
+                return false;
+            }
+
+            var allowedExtensions = /(\.png|\.jpg|\.jpeg|\.bmp|\.jfif|\.jif)$/i;
+
+            if (!allowedExtensions.exec(fileInput.value)) {
+                Notificar("@RsBase.ATENCAO_", "Por favor, selecione um arquivo com extensão PNG, JPG, JPEG, BMP, JFIF ou JIF.", "warning");
+                fileInput.value = "";
+                return false;
+            }
+
+            bloquearTela("Enviando imagem...");
+
+            try {
+
+                var tamanhoMaximo = 60 * 1024 * 1024; // 60MB
+
+                if (file.size > tamanhoMaximo) {
+                    Notificar("@RsBase.ATENCAO_", "A imagem deve ter no máximo 60MB", "warning");
+                    fileInput.value = "";
+                    return false;
+                }
+
+                const compressedFile = await comprimirImagem(file, 1920, 0.75);
+
+                @*let gravacaoTextoBemSucedida = await GravarCamposTexto();
+
+                if (!gravacaoTextoBemSucedida) {
+                    Notificar("@RsBase.ATENCAO_", "Erro ao salvar os dados antes do envio da imagem.", "warning");
+                    return false;
+                }*@
+
+                let data = new FormData();
+                data.append('file', compressedFile);
+                data.append('idQuestionAnswerItem', IdItem);
+                data.append('idQuestion', Question);
+                data.append('idQuestionAnswerCapa', Capa);
+                data.append('idQuiz', Quiz);
+
+                Notificar("@RsBase.ATENCAO_", "Enviando imagem", "info");
+
+                const retorno = await $.ajax({
+                    url: '@Url.Action("UploadFotoQuiz", "Acompanhamento_Servico")',
+                    processData: false,
+                    contentType: false,
+                    data: data,
+                    type: 'POST'
+                });
+
+                if (retorno && retorno.Ok) {
+                    const urlFoto = '@Url.Content("~/")' + 'api/QuizApi/ObterFotoQuiz?id=' + retorno.IdObjeto;
+
+                    adicionarMiniaturaLocal({
+                        id: retorno.IdObjeto,
+                        idQuestionAnswerItem: IdItem,
+                        pergunta: "",
+                        urlfoto: urlFoto
+                    });
+
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Imagem enviada com sucesso", "info");
+                    fileInput.value = "";
+                }
+            }
+            catch (e) {
+                Notificar("@RsBase.ATENCAO_", "Erro ao enviar a imagem", "warning");
+            }
+            finally {
+                desbloquearTela();
+            }
+        });
+
+        function registrarCliqueImagem() {
+            $(".imgFotoModal").off("click.miniatura").on("click.miniatura", function () {
+                let src = $(`.imgFotoModal`).toArray().map(p => {
+                    return {
+                        src: p.src,
+                        id: p.id
+                    };
+                });
+
+                abrirModal(src, this.id);
+            });
+        }
+
+
+        function adicionarMiniaturaLocal(retorno) {
+            const imgHtml = `
+                <img class="ml-3 imgFotoModal"
+                     onclick="parent.ModalFoto('${retorno.id}', '${retorno.idQuestionAnswerItem}')"
+                     style="cursor: pointer"
+                     id="${retorno.id}"
+                     src="${retorno.urlfoto}"
+                     width="150"
+                     height="150"
+                     data-pergunta="${retorno.pergunta || ''}"
+                     data-id-pergunta="${retorno.idQuestionAnswerItem}"
+                     data-toggle="modal"
+                     data-target="#modalFoto" />
+            `;
+        
+            const input = $(`#pergunta_${retorno.idQuestionAnswerItem}`);
+            const cardBody = input.closest('.card-body');
+            const colunaBotoes = cardBody.find('.col-1').first();
+        
+            if (colunaBotoes.length > 0) {
+                colunaBotoes.before(imgHtml);
+            } else {
+                cardBody.append(imgHtml);
+            }
+        
+            registrarCliqueImagem();
+        }
+
+        function comprimirImagem(file, larguraMaxima = 1920, qualidade = 0.75) {
+
+            return new Promise((resolve) => {
+
+                const reader = new FileReader();
+
+                reader.readAsDataURL(file);
+
+                reader.onload = function (event) {
+
+                    const img = new Image();
+
+                    img.src = event.target.result;
+
+                    img.onload = function () {
+
+                        const canvas = document.createElement("canvas");
+                        const ctx = canvas.getContext("2d");
+
+                        let largura = img.width;
+                        let altura = img.height;
+
+                        if (largura > larguraMaxima) {
+                            altura = altura * (larguraMaxima / largura);
+                            largura = larguraMaxima;
+                        }
+
+                        canvas.width = largura;
+                        canvas.height = altura;
+
+                        ctx.drawImage(img, 0, 0, largura, altura);
+
+                        canvas.toBlob(function (blob) {
+
+                            const compressedFile = new File([blob], file.name, {
+                                type: "image/jpeg",
+                                lastModified: Date.now()
+                            });
+
+                            resolve(compressedFile);
+
+                        }, "image/jpeg", qualidade);
+
+                    };
+                };
+            });
+        }
+
+        let IdItem, Question, Capa, Quiz, lens;
+
+        function escolherImagem(idItem, idQuestion, idCapa, idQuiz) {
+            @if (acessoPorEmail || AcessoHelper.TemAcesso(_areas, "196"))
+            {
+                <text>
+                $('#pergunta_' + idItem).click();
+                IdItem = idItem;
+                Question = idQuestion;
+                Capa = idCapa;
+                Quiz = idQuiz;
+                </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+        }
+
+        $("img").on("click", function () {
+
+
+            let src = $(`.imgFotoModal`).toArray().map(p => {
+                return {
+                    src : p.src,
+                    id : p.id
+                }
+            });
+
+
+            abrirModal(src, this.id);
+        });
+
+        //recebe o src da miniatura e abre no modal de visualização
+        function abrirModal(src, id) {
+
+            montarModal();
+
+            $(parent.document).find(`#iCarouselIndicators`).empty();
+
+
+            for (const [index, item] of src.entries()) {
+                $(parent.document).find(`#iCarouselIndicators`).append(`<li data-target="#carouselExampleIndicators" data-slide-to="${index}" class="${id == item.id ? "active" : ""}">${index + 1}</li>`);
+
+                $(parent.document).find(`.carousel-item`).removeClass("active");
+
+                carouselItem = $(parent.document).find(`.carousel-item`).toArray().filter(p => $(p).attr("data-idFoto") == id);
+
+                if (carouselItem.length > 0) {
+                    $(carouselItem[0]).addClass("active");
+                    $(parent.document).find('#iPerguntaFoto').html($(carouselItem[0]).attr("data-pergunta"));
+                }
+
+                if (id == item.id) {
+                    $(parent.document).find("#linkDownload").attr("href", item.src);
+                }
+            }
+
+            /*$(parent.document).find("#imgModal").attr("src", src);*/
+            idFoto = id;
+        }
+
+        function montarModal() {
+
+            $(parent.document).find(`#iCarouselInner`).empty();
+
+            let src = $(`.imgFotoModal`).toArray().map(p => {
+                return {
+                    src: p.src,
+                    id: p.id,
+                    pergunta: $(p).attr("data-pergunta")
+                }
+            });
+
+            for (const [index, item] of src.entries()) {
+
+                $(parent.document).find(`#iCarouselInner`).append(`<div data-pergunta="${item.pergunta}" data-slideIndex=${index} data-idFoto=${item.id} class="carousel-item ">
+                                    <img onmouseout="desativaZoom()" onmouseover="ativaZoom()" src="${item.src}" class="img-fluid imgModal" style="display: inline-block; float: left;max-height: 70vh" />
+                                </div>`);
+
+
+            }
+
+        }
+
+        @* JS câmera *@
+
+        function fotoWebcam(idItem, idQuestion, idCapa, idQuiz, pergunta) {
+            @if (acessoPorEmail || AcessoHelper.TemAcesso(_areas, "196"))
+            {
+                <text>
+                parent.ShowModalWebcam();
+                parent.SetTitleModalWebcam(pergunta);
+
+                IdItem = idItem;
+                Question = idQuestion;
+                Capa = idCapa;
+                Quiz = idQuiz;
+                </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+        }
+
+        function dataURLtoFile(dataurl, filename) {
+            var arr = dataurl.split(','),
+                mime = arr[0].match(/:(.*?);/)[1],
+                bstr = atob(arr[arr.length - 1]),
+                n = bstr.length,
+                u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new File([u8arr], filename, { type: mime });
+        }
+
+
+
+        @* Gravação da foto da webcam *@
+        $(parent.document).find("#btnUsarFoto").on("click", function () {
+            parent.HideModalWebcam();
+
+            const elemImgWebcam = $(parent.document).find("#imgWebcam");
+
+            if (elemImgWebcam) {
+                const imgDataURI = $(elemImgWebcam).prop("src");
+                const imgWebCamFile = dataURLtoFile(imgDataURI, 'imagem.jpg');
+
+                let data = new FormData();
+
+                data.append('file', imgWebCamFile);
+                data.append('idQuestionAnswerItem', IdItem);
+                data.append('idQuestion', Question);
+                data.append('idQuestionAnswerCapa', Capa);
+                data.append('idQuiz', Quiz);
+
+                Notificar("@RsBase.ATENCAO_", "Enviando imagem", "info");
+
+                $.ajax({
+                    url: '@Url.Action("UploadFotoQuiz", "Acompanhamento_Servico")',
+                    processData: false,
+                    contentType: false,
+                    data: data,
+                    type: 'POST'
+                }).done(function () {
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Imagem enviada com sucesso", "info");
+
+
+                    @* Recarregando apenas o iframe para poder exibir a imagem escolhida *@
+                    window.location.reload();
+                })
+                .fail(function () {
+                    Notificar("@RsBase.ATENCAO_", "Erro ao enviar a imagem", "warning");
+                });
+            }
+        });
+    </script>
+}
+
+<div style="padding:10px;" id="divChecklist">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+
+            @foreach (var item in Model)
+            {
+                <div class="pt-2">
+                    <span>@item.titulo</span>
+                </div>
+                <br />
+
+                foreach (var resp in item.respostas)
+                {
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Texto)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control questao-texto @(resp.obrigatoria == "S" ? "obrigatorio" : "")" value="@resp.resposta">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Data)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPerguntaData(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control questao-data @(resp.obrigatoria == "S" ? "obrigatorio" : "")" value="@resp.resposta">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Valor)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control somenteNumerosPontoVirgula questao-valor @(resp.obrigatoria == "S" ? "obrigatorio" : "")" value="@resp.resposta">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.UnicaEscolha)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        @foreach (var opcao in resp.opcoesResposta)
+                                        {
+                                            <input value="@(opcao.resposta)"
+                                                   type="radio"
+                                                   name="pergunta_@resp.id"
+                                                   id="pergunta_@(resp.id)_@(opcao.resposta)"
+                                                   class="readonly"
+                                                   data-pergunta-obrigatoria="@resp.obrigatoria"
+                                                   data-id-pergunta="@resp.id"
+                                                   @(Convert.ToString(resp.resposta) == opcao.resposta ? "checked" : "")
+                                                   readonly />
+
+                                            @(opcao.resposta.ToString())
+                                            <br />
+                                        }
+
+                                        <input type="hidden"
+                                               class="validacaoUnicaEscolha @(resp.obrigatoria == "S" ? "obrigatorio" : "")"
+                                               data-id-pergunta="@resp.id" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.MultiplaEscolha)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        @foreach (var opcao in resp.opcoesResposta)
+                                        {
+                                            <input value="@(opcao.resposta)"
+                                                   type="checkbox"
+                                                   name="pergunta_@resp.id"
+                                                   data-quiz-anwser="@opcao.id"
+                                                   id="pergunta_@(resp.id)_@(opcao.resposta)"
+                                                   class="readonly"
+                                                   data-pergunta-obrigatoria="@resp.obrigatoria"
+                                                   data-id-pergunta="@resp.id"
+                                                   @(resp.multi.Select(p => p.resposta).Contains(opcao.resposta) ? "checked" : "")
+                                                   readonly />
+                                            @(opcao.resposta.ToString())
+                                            <br />
+                                        }
+
+                                        <input type="hidden"
+                                               class="validacaoMultiplaEscolha @(resp.obrigatoria == "S" ? "obrigatorio" : "")"
+                                               data-id-pergunta="@resp.id" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Foto)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id" style="min-height: 270px">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body d-flex align-items-center" style="flex-wrap:wrap; margin-top: -20px;">
+                                        <input type="hidden"
+                                               class="validacaoFoto @(resp.obrigatoria == "S" ? "obrigatorio" : "")"
+                                               data-id-pergunta="@resp.id"
+                                               data-pergunta-obrigatoria="@resp.obrigatoria" />
+
+                                        @foreach (var foto in resp.multi)
+                                        {
+                                            <img class="ml-3 imgFotoModal"
+                                                 onclick="parent.ModalFoto(@foto.id)"
+                                                 style="cursor: pointer"
+                                                 id="@foto.id"
+                                                 src="data:image/png;base64,@foto.foto64"
+                                                 width="150"
+                                                 height="150"
+                                                 data-pergunta="@resp.pergunta"
+                                                 data-id-pergunta="@resp.id"
+                                                 data-toggle="modal"
+                                                 data-target="#modalFoto" />
+                                        }
+
+                                        <div class="ml-1 col-1">
+                                            @if (resp.liberaGaleria)
+                                            {
+                                                <div class="row">
+                                                    <a href="#"
+                                                       class="ml-3 mt-3"
+                                                       onclick="escolherImagem('@resp.id', '@resp.idQuestion', '@item.id', '@item.idQuiz'); return false;"
+                                                       width="150"
+                                                       height="150">
+                                                        <i class="fas fa-plus-circle fa-7x"></i>
+                                                    </a>
+                                                </div>
+                                            }
+
+                                            <div class="row">
+                                                <a href="#" class="ml-3 mt-3" onclick="fotoWebcam('@resp.id', '@resp.idQuestion', '@item.id', '@item.idQuiz', '@resp.pergunta');" width="150" height="150">
+                                                    <i class="fa fa-camera fa-7x"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+
+                                        <input id="pergunta_@resp.id"
+                                               type="file"
+                                               accept=".png, .jpg, .jpeg, .bmp, .jfif, .jif"
+                                               style="display: none" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    count++;
+                }
+
+            }
+
+            <div class="row justify-content-end" style="margin-right: 0px !important; margin-left: 0px !important">
+                @if (!acessoPorEmail)
+                {
+                    <button type="button"
+                            class="btn btn-danger mr-2"
+                            onclick="BotaoCancelar('@Url.Action("Checklist", "Venda",new { Id = Model.First().idVenda })');">
+                        Voltar
+                    </button>
+                    @*<a href="#"  class="float-cancel">
+                    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                        <i class="fas fa-times fa-2x"></i>
+                    </div>
+                </a>*@
+                }
+
+                <button type="button"
+                        class="btn btn-success"
+                        id="btnSalvar">
+                    Gravar Checklist
+                </button>
+                @*<a href="#" class="float-save" id="btnSalvar">
+                <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                    <i class="fas fa-save fa-2x"></i>
+                </div>
+            </a>*@
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="overlayLoading" class="overlay-loading" style="display:none;">
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <div class="loading-text">Processando...</div>
+    </div>
+</div>

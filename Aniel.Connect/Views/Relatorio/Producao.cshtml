@@ -1,0 +1,785 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_PRODUCAO;
+    ViewBag.Sessao = RsCadastros.RELATORIO_PRODUCAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion,"~/Content/cssDataTable")
+    <style>
+
+        /*.datatableInfo tbody tr td,
+        .datatableInfo thead tr th {
+            
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }*/
+
+        .datatable thead {
+            display: none;
+        }
+
+        /*.datatableVendedores thead {
+            display: none;
+        }*/
+
+        /*
+        .datatableInfo thead {
+            
+            display: initial;
+        }*/
+
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion,"~/bundles/jsDataTable")
+
+    <script>
+
+        var elemButton = null;
+
+        //var oDatatableSuperv = null;
+        //var oDatatableVendedores = null;
+        var rows_selected = [];
+
+        var iniPeriodoOld = null;
+        var fimPeriodoOld = null; 
+
+        var id_Vendedor = null;
+
+        $(document).ready(function () {
+
+            //var elementoListagem = $("#modal-filter").parent().children("div")[1];    
+            //$(elementoListagem).hide();
+
+            $("#modal-filter").modal('show');
+            $(".close").hide();
+
+            reloadData("@(CONSTANTES.URLPortal + "/api/Funcionarioapi/busca")", "idSupervisor", "descSupervisor");
+            reloadData("@(CONSTANTES.URLPortal + "/api/Funcionarioapi/busca")", "idVendedor", "descVendedor");
+            reloadData("@(CONSTANTES.URLPortal + "/api/Filialapi/busca")", "idFilial", "descFilial");
+            reloadData("@(CONSTANTES.URLPortal + "/api/PlanoProdutoApi/busca")", "idPlanoProduto_0", "descPlanoProduto_0");
+        })
+
+        var data_ini = null;
+        var data_fim = null;
+
+        var listaInputs = $("#idPlanoProduto_0").parent();
+        var _lista = [];
+
+        var numInput = 0;
+
+        // Adiciona mais inputs de Plano/Produto
+
+        $(".form-group").on("click", "a.btnAddPlanoProduto", (event) => { // as ações nos botões adicionados só funcionam com o delegate
+
+            // Usado para a geração de novos ids
+            numInput++; 
+
+            var divInput = $(event.delegateTarget).children("div.input-group"); // Pega a div na qual botão de adicionar está localizado
+            var btnAddPlanoProduto = divInput.children("a");
+
+            // Substitui o botão de adicionar pelo botão de remover
+
+            btnAddPlanoProduto.remove();
+            var btnRemove =  '<a class="btnRemovePlanoProduto">' +
+                                  '<i class="fas fa-times" style="font-size:15px; margin-left: 8px; margin-top: 5px;"></i>' +
+                              '</a>';
+
+            divInput.append(btnRemove);
+
+            //Adiciona um novo input de Plano/Produto
+
+            var novoInput = '<div class="input-group" style="margin-top:1.5%">' +
+
+                                '<input type="hidden" id="idPlanoProduto_' + numInput + '">' +
+
+                                '<input type="text" class="form-control" id="descPlanoProduto_' + numInput + '" style="max-height: 23px" />' +
+                                '<div class="input-group-append" style="max-height: 23px">' +
+                                    '<div class="input-group-text"><i class="fas fa-search"></i></div>' +
+                                '</div>' +
+                                '<a class="btnAddPlanoProduto">' +
+                                    '<i class="fas fa-plus" style="font-size: 15px;margin-left: 5px; margin-top: 5px;"></i>' +
+                                '</a>' +
+
+                            '</div>';
+
+            $("#inputGroupPlano").append(novoInput);
+            $("#descPlanoProduto_" + numInput).trigger("focus");
+            reloadData("@(CONSTANTES.URLPortal + "/api/PlanoProdutoApi/busca")", "idPlanoProduto_" + numInput, "descPlanoProduto_" + numInput);
+
+            // Agrupa todos os inputs de Plano/Produto. Utilizado na hora de limpar os filtros
+            listaInputs = $(event.delegateTarget).children("div.input-group");
+        });
+
+        $(".form-group").on("click", "a.btnRemovePlanoProduto",(event) => {
+
+            // Pega a div onde o input está localizado
+
+            var divInputRemove = $(event.currentTarget).parent();
+            divInputRemove.remove();
+        });
+
+        //Datatable Supervisores
+
+        oDatatableSuperv = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: true,
+            processing: true,
+            deferRender: true,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/relatorioapi/GetAll_Supervisores',
+                type: 'POST',
+                data: function (data) {
+
+                    data.id_Filial = $("#idFilial").val();
+                    data.id_Supervisor = $("#idSupervisor").val();
+                    data.id_Vendedor = $("#idVendedor").val();
+                    data.id_Campanha = $("#iCampanha").val();
+
+                    data.ini_Periodo = $("#iniPeriodo").val();
+                    data.fim_Periodo = $("#fimPeriodo").val();
+
+                    data.ids_Plano_Produto = _lista;
+                },
+                error: function (e) {
+                    console.log(e);
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                var str = "@RsCadastros.INFODATATABLE";
+                if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                $("#dtLegend").html(str);
+
+                return "";
+            },
+            pageLength: 10,
+            language: traducaoDataTableSimples,
+            columns: [
+                {
+                    data: "matricula_Superv",
+                    render: function(data, type, row, meta) {
+
+                        if ($("#idVendedor").val() == "") {
+
+                            return '<hr>' +
+                                   '<div class="container-fluid" style="font-size: 12px;margin-top: -10px;margin-bottom: -15px">' + //width:145%
+                                       '<div class="row">' +
+                                          '<div class="col-sm-4 mt-2">' +
+                                              '<div class="pl-2 pr-2 text-truncate">' +
+                                                  '<span><b>Supervisor:</b> ' + row.nome_Superv + ' </span>' +
+                                              '</div>' +
+                                           '</div>' +
+                                           '<div class="col-sm-4 mt-2" id="iLink"' + meta.row + '" > ' +
+
+
+                                                '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Meta:</b> ' + row.meta + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Quantidade:</b> ' + row.quantidade + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Faixa:</b> ' + row.faixa_Superv + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                               '<span><b>Total:</b> ' + row.total.toString().replace(".",",") + ' </span>' +
+                                               '</span>' +
+
+                                               '<a href="#iLink' + meta.row + '" style="color: #367fa9;" data-toggle="tooltip" data-placement="top" title="Expandir" class="btn-expand" id="btn-expand' + row.id_Superv + '">' +
+                                                  '<i class="fas fa-arrow-circle-down" style="vertical-align: middle; font-size: 20px; "></i>' +
+                                               '</a >' +
+                                           '</div>' +
+                                           '<div class="pl-5 table-vendedor" id="table-responsive' + row.id_Superv + '">' + /* ml-5  table-responsive */
+                                               '<table class="datatableVendedores" id="datatableVendedores' + row.id_Superv + '" style="width:100% !important">' + //class="datatableVendedores table display nowrap"
+                                           '</div>' +
+                                       '</div>' +
+                                '</div>';
+                        }
+                        else {
+
+                            return '<hr>' +
+                                   '<div class="container-fluid" style="font-size: 12px;margin-top: -10px;margin-bottom: -15px;">' +
+                                       '<div class="row">' +
+                                          '<div class="col-sm-4 mt-2">' +
+                                              '<div class="pl-2 pr-2 text-truncate">' +
+                                                  '<span><b>Supervisor:</b> ' + row.nome_Superv + ' </span>' +
+                                              '</div>' +
+                                           '</div>' +
+                                           '<div class="col-sm-4 mt-2" id="iLink"' + meta.row + '" > ' +
+                                               '<a href="#iLink' + meta.row + '" style="color: #367fa9;" data-toggle="tooltip" data-placement="top" title="Expandir" class="btn-expand" id="btn-expand' + row.id_Superv + '">' +
+                                                  '<i class="fas fa-arrow-circle-down" style="vertical-align: middle; font-size: 20px; "></i>' +
+                                               '</a >' +
+                                           '</div>' +
+                                           '<div class="pl-5 table-vendedor" id="table-responsive' + row.id_Superv + '">' + /* ml-5  table-responsive */
+                                               '<table class="datatableVendedores" id="datatableVendedores' + row.id_Superv + '" style="width:100% !important">' + //class="datatableVendedores table display nowrap"
+                                           '</div>' +
+                                       '</div>' +
+                                '</div>';
+                        }
+                    }
+
+                }
+
+            ]
+        });
+
+        $("#iLimparFiltroModal").on("click", function () {
+
+            $("#idVendedor").val("");
+            $("#descVendedor").val("");
+
+            $("#idSupervisor").val("");
+            $("#descSupervisor").val("");
+
+            $("#idFilial").val("");
+            $("#descFilial").val("");
+
+            $("#iniPeriodo").val("");
+            $("#fimPeriodo").val("");
+
+            $("#iCampanha").val("");
+
+            $(listaInputs).children("input").val("");
+        });
+
+        $("#iLimparFiltro").on("click", function () {
+
+            $("#idVendedor").val("");
+            $("#descVendedor").val("");
+
+            $("#idSupervisor").val("");
+            $("#descSupervisor").val("");
+
+            $("#idFilial").val("");
+            $("#descFilial").val("");
+
+            $("#iniPeriodo").val("");
+            $("#fimPeriodo").val("");
+
+            $("#iCampanha").val("");
+
+            $(listaInputs).children("input").val("");
+
+            $("#modal-filter").modal('toggle');
+        });
+
+        $("#iniPeriodo").on("change", function () {
+
+            iniPeriodoOld = $("#iniPeriodo").val();
+            var iniPeriodo = $("#iniPeriodo").val().replace(/\//g, ".");
+
+            if (iniPeriodoOld != "") {
+
+                var _data_ini = iniPeriodo.split(".");
+                data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+
+                var data_fim = new Date(_data_ini[2], _data_ini[1] - 1, parseInt(_data_ini[0]) + 30).toLocaleDateString(); // definindo o fim do período como a data inicial + 30 dias
+                $("#fimPeriodo").val(data_fim);
+            }
+        });
+
+        $("#iPesquisar").on("click", function () {
+
+            _lista = [];
+
+            for (var i = 0; i <= numInput; i++) {
+
+                var inputPlanoProduto = $("#descPlanoProduto_" + i);
+                var idPlanoProduto = $("#idPlanoProduto_" + i).val();
+
+                if (inputPlanoProduto.is(":visible") && idPlanoProduto != "")
+                    _lista.push(idPlanoProduto);
+            }
+
+            iniPeriodoOld = $("#iniPeriodo").val();
+            fimPeriodoOld = $("#fimPeriodo").val(); 
+
+            var iniPeriodo = $("#iniPeriodo").val().replace(/\//g, ".");
+            var fimPeriodo = $("#fimPeriodo").val().replace(/\//g, ".");
+
+            var _data_ini = iniPeriodo.split(".");
+            var _data_fim = fimPeriodo.split(".");
+
+            data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+            data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+            if (($("#iniPeriodo").val() == "" || $("#fimPeriodo").val() == "")) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                return false;
+            }
+
+            var elementoListagem = $("#modal-filter").parent().children("div")[1];
+
+            $(elementoListagem).show();
+            $("#modal-filter").modal('hide');
+            $(".close").show();
+
+            $("#iniPeriodo").val(iniPeriodo);
+            $("#fimPeriodo").val(fimPeriodo);
+
+            oDatatableSuperv.draw();
+
+            return true;
+        });
+
+        $(".close").on("click", function () {
+
+            if (($("#iniPeriodo").val() == "" || $("#fimPeriodo").val() == "")) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                return false;
+            }
+        });
+
+        $('#datatable tbody').on('click', '.btn-expand', function () {
+
+            var $row = $(this).closest('tr');
+
+            var datatable_origem = $row.parent().parent();
+
+            if (oDatatableSuperv.row($row).data() != null && !datatable_origem.hasClass("datatableVendedores")) {
+
+                var idSuperv = oDatatableSuperv.row($row).data().id_Superv;
+
+                //Troca botão de expansão + por -
+                if ($("#btn-expand" + idSuperv).attr('collapsed') == undefined) {
+
+                    $("#btn-expand" + idSuperv).html('<a href="#" class=""><i class="fas fa-arrow-circle-up text-danger" style="vertical-align: middle; font-size: 20px; "></i></a>');
+                    $("#btn-expand" + idSuperv).attr("collapsed", true);
+
+                    $("#table-responsive" + idSuperv).show();
+
+                    
+                    preencheVendedores(idSuperv);
+                }
+                else {
+                    $("#btn-expand" + idSuperv).html('<a href="#" style="color: #367fa9;" class=""><i class="fas fa-arrow-circle-down" style="vertical-align: middle; font-size: 20px; "></i></a>');
+                    $("#btn-expand" + idSuperv).removeAttr("collapsed");
+
+                    $("#table-responsive" + idSuperv).hide();
+                    $("#datatableVendedores" + idSuperv).dataTable().fnDestroy();
+                }
+
+            }
+        });
+
+        //Fim datatable supervisores
+
+        // Datatable Vendedores
+
+        function preencheVendedores(idSupervisor) {
+            "use strict";
+
+            //"Blfrtip"
+            var oDatatableVendedores = $("#datatableVendedores" + idSupervisor).length &&
+            $("#datatableVendedores" + idSupervisor).DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                serverSide: true,
+                searching: false,
+                ordering: false,
+                paging: true,
+                processing: true,
+                deferRender: true,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/relatorioapi/GetAll_Vendedores',
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.id_Filial = $("#idFilial").val();
+                        data.id_Supervisor = idSupervisor;
+                        data.id_Vendedor = $("#idVendedor").val();
+                        data.id_Campanha = $("#iCampanha").val();
+
+                        data.ini_Periodo = $("#iniPeriodo").val();
+                        data.fim_Periodo = $("#fimPeriodo").val();
+
+                        data.ids_Plano_Produto = _lista;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                columns: [
+                    {
+                        data: "matricula",
+                        render: function(data, type, row, meta) {
+                            return '<hr>' +
+                                   '<div class="container-fluid" style="font-size: 12px; margin-top: -15px; margin-bottom: -35px;">' +
+                                       '<div class="row">' +
+                                          '<div class="col-sm-4 mt-2">' +
+                                              '<div class="pl-2 pr-2 text-truncate">' +
+                                                  '<span><b>Vendedor:</b> ' + row.nome_Funcionario + ' </span>' +
+                                              '</div>' +
+                                           '</div>' +
+                                           '<div class="col-sm-4 mt-2" id="iLinkVendedor' + meta.row + '" > ' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Meta:</b> ' + row.meta + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Quantidade:</b> ' + row.quantidade + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Faixa:</b> ' + row.faixa_Vendedor + ' </span>' +
+                                               '</span>' +
+                                               '<span class="pl-2 pr-2">' +
+                                                   '<span><b>Total:</b> ' + row.total.toString().replace(".",",") + ' </span>' +
+                                                '</span>'+
+
+                                               '<a href="#iLinkVendedor' + meta.row + '" style="color: #367fa9;" data-toggle="tooltip" data-placement="top" title="Expandir" class="btn-expand" id="btn-expand' + row.id_Vendedor + '">' +
+                                                  '<i class="fas fa-arrow-circle-down" style="vertical-align: middle; font-size: 20px; "></i>' +
+                                               '</a >' +
+                                           '</div>' +
+                                           '<div class="pl-5 pt-3 datatableInfo" id="table-responsive-vendedor' + row.id_Vendedor + '" style="width: 60%">' + // ml-5 table-responsive
+
+                                               '<table class="datatableInfo" id="datatableInfo' + row.id_Vendedor + '">' + //  table table-hover nowrap
+
+                                           '</div>' +
+                                       '</div>' +
+                                   '</div>';
+                        }
+
+                    }
+
+                ]
+            });      
+
+            $('#datatable tbody').on('click', '.datatableVendedores tr .btn-expand', function () { //tbody tr 
+
+                var $row = $(this).closest('tr');
+
+                if (oDatatableVendedores.row($row).data() != null) {
+
+                    var idVendedor = oDatatableVendedores.row($row).data().id_Vendedor;
+                    var idSuperv = oDatatableVendedores.row($row).data().id_Superv;
+
+                    //Troca botão de expansão + por -
+                    if ($("#btn-expand" + idVendedor).attr('collapsed') == undefined) {
+
+                        $("#btn-expand" + idVendedor).html('<a href="#" class=""><i class="fas fa-arrow-circle-up text-danger" style="vertical-align: middle; font-size: 20px; "></i></a>');
+                        $("#btn-expand" + idVendedor).attr("collapsed", true);
+
+                        $("#table-responsive-vendedor" + idVendedor).show();
+
+                        infoPlanos(idSuperv, idVendedor);
+                    }
+                    else {
+                        $("#btn-expand" + idVendedor).html('<a href="#" style="color: #367fa9;" class=""><i class="fas fa-arrow-circle-down" style="vertical-align: middle; font-size: 20px; "></i></a>');
+                        $("#btn-expand" + idVendedor).removeAttr("collapsed");
+
+                        $("#table-responsive-vendedor" + idVendedor).hide();
+                        $("#datatableInfo" + idVendedor).dataTable().fnDestroy();
+                    }
+                }
+            });
+        }
+
+        // Fim datatable Vendedores
+
+        //Informações dos Planos/Produtos dos Vendedores
+
+        function infoPlanos(idSupervisor, idVendedor) {
+            "use strict";
+
+            //"Blfrtip"
+            var oDatatableInfo = $("#datatableInfo" + idVendedor).length &&
+            $("#datatableInfo" + idVendedor).DataTable({
+                dom: "Bfrti",
+                columnDefs: [{
+
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '35vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/relatorioapi/GetInfoPlanoProduto',
+                    type: 'POST',
+                    dataType: "json",
+                    data: function (data) {
+
+                        data.id_Vendedor = idVendedor;
+                        data.id_Supervisor = idSupervisor;
+                        data.id_Campanha = $("#iCampanha").val();
+
+                        data.ini_Periodo = $("#iniPeriodo").val();
+                        data.fim_Periodo = $("#fimPeriodo").val();
+
+                        data.ids_Plano_Produto = _lista;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "data_Venda", title: "@RsCadastros.DATA_VENDA" },
+                    { data: "campanha", title: "@RsCadastros.CAMPANHA" },
+                    { data: "plano_Produto", title: "@RsCadastros.PLANO_PRODUTO" },
+                    { data: "valor_Plano_Produto", title: "@RsCadastros.VALOR" }
+                ]
+            });
+        }
+
+        //Fim Info Planos/Produtos
+    </script>
+}
+
+
+<div style="padding:10px; display:none">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+            <div class="row" style="padding-top: 10px;">
+                <div class="col" style="margin-top: -10px">
+
+                    <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+
+                    <nav aria-label="breadcrumb" style="font-size:12px">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-top:-18px">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+
+                    <span style="font-size:11px" id="dtLegend"></span>
+                </div>
+
+                <div class="row pr-4">
+                    @*<div class=" pl-4 pr-2">
+
+                    </div>*@
+
+                    @*<a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Script_Atendimento")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>*@
+
+                    <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                    <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                    <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </button>
+
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                        <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                        @*<a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                            <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>*@
+                    </div>
+                </div>
+
+            </div>
+
+            <table class="table display nowrap datatableSuperv" id="datatable" style="width:100% !important; padding-bottom:3.5%"></table>
+
+            <!--./main-->
+        </div>
+    </div>
+</div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsCadastros.FILTROS_PRODUCAO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 350px; overflow-y:auto">
+
+                <div class="row">
+
+                    <div class="col">
+                        <div class="form-group">
+
+                            <input type="hidden" id="idSupervisor" />
+
+                            <label for="descSupervisor">@RsCadastros.SUPERVISOR</label>
+                            <div class="input-group">
+                                <input type="text" id="descSupervisor" class="form-control" style="max-height: 23px" />
+                                <div class="input-group-append" style="max-height: 23px">
+                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <div class="form-group">
+
+                            <input type="hidden" id="idVendedor" />
+
+                            <label for="descVendedor">@RsCadastros.VENDEDOR</label>
+                            <div class="input-group">
+                                <input type="text" id="descVendedor" class="form-control" style="max-height: 23px" />
+                                <div class="input-group-append" style="max-height: 23px">
+                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+
+                        <div class="form-group">
+
+                            <input type="hidden" id="idFilial" />
+
+                            <label for="descFilial">@RsCadastros.FILIAL</label>
+                            <div class="input-group">
+                                <input type="text" id="descFilial" class="form-control" style="max-height: 23px" />
+                                <div class="input-group-append" style="max-height: 23px">
+                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+
+                        <div class="form-group">
+                            <label for="iCampanha">@RsCadastros.CAMPANHA</label>
+                            @Html.DropDownList("Campanha", new SelectList(ViewBag.Campanha, "Id", "Titulo"), RsBase.SELECIONE, new { @id = "iCampanha", @class = "form-control" })
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="row">
+
+                    <div class="col">
+                        <div class="form-group" id="inputGroupPlano">
+
+                            <label for="descPlano">@RsCadastros.PLANO_PRODUTO</label>
+
+                            <div class="input-group">
+
+                                <input type="hidden" id="idPlanoProduto_0" />
+
+                                <input type="text" class="form-control" id="descPlanoProduto_0" style="max-height: 23px" />
+                                <div class="input-group-append" style="max-height: 23px">
+                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                </div>
+                                <a class="btnAddPlanoProduto">
+                                    <i class="fas fa-plus" style="font-size: 15px;margin-left: 5px; margin-top: 5px;"></i>
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <label for="divPeriodo" class="form-group" style="margin-left:26%">@RsCadastros.PERIODO</label>
+                <div class="row form-group col-sm-7" id="divPeriodo" style="margin-left:23%">
+
+                    <div class="form-group">
+                        <input type="text" id="iniPeriodo" class="form-control datepicker" autocomplete="off"/>
+                    </div>
+
+                    <span class="ml-2 mr-2"> Até </span>
+
+                    <div class="form-group">
+                        <input type="text" id="fimPeriodo" class="form-control datepicker" autocomplete="off" readonly/>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                </div>
+            </div>
+
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

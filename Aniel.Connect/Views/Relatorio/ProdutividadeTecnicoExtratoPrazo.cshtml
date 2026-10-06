@@ -1,0 +1,198 @@
+@using Resources
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.EXTRATO_PRAZO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+    <style>
+        @*Reduzindo um pouco a largura da página para não gerar uma segunda barra
+          de rolagem para a página inteira*@
+        html {
+            width: 98vw;
+            margin: auto;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        td.dt-center {
+            text-align: center;
+        }
+    </style>
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+<script>
+        let oDatatable = null;
+        const STORAGE_FILTER_KEY = "filtrosRelatorioProdutividadeTecnico";
+
+        function getFilters() {
+            const filtersJSON = localStorage.getItem(STORAGE_FILTER_KEY);
+
+            if (!filtersJSON) {
+                console.error("Não foi possível carregar os filtros utilizados no Relatório de Produtividade por Técnico");
+                return;
+            }
+
+            return JSON.parse(filtersJSON);
+        }
+
+        const handleDataTableButtons = function () {
+            "use strict";
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable", {
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti" ,
+                select: 'multi',
+                serverSide: true,
+                searching: true,
+                ordering: false,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollX: true,
+                scrollY: '79vh',
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/RelatorioProdutividadeTecnicoApi/GetExtratoPrazo',
+                    type: 'POST',
+                    data: function (data) {
+                        const filters = getFilters();
+
+                        data.GrupoArea = filters.grupoArea;
+                        data.Area = filters.area;
+                        data.Monitor = filters.monitor;
+                        data.Supervisor = filters.supervisor;
+                        data.Equipe = filters.equipe;
+                        data.Natureza = filters.natureza;
+                        data.DataInicio = filters.dataInicio;
+                        data.DataFim = filters.dataFim;
+
+                        return data;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                preDrawCallback: function () {
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+                    HidePageLoading();
+
+                    @* Pequena gambiarra para limitar a altura da div do datatable e evitar que a
+                       barra de rolagem horizontal não desapareça em resoluções menores *@
+                    const newHeight = $(window).height() * 0.55;
+                    $('#divTable').css("height", newHeight + "px");
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTableRelatorioPaginado({
+                    title: "@Html.Raw(ViewBag.Title)"
+                }),
+                columns: [
+                    { data: "codct", title: "@RsCadastros.CONTRATO" },
+                    { data: "projeto", title: "@RsCadastros.PROJETO" },
+                    { data: "numDoc", title: "@RsCadastros.IDENTIFICACAO_CLIENTE" },
+                    { data: "numObra", title: "@RsCadastros.NUMERO_ORDEM_SERVICO" },
+
+                    { data: "dataHoraInicioAgendamento", title: "@RsCadastros.DATA_HORA_INI_AGEND" },
+                    { data: "dataHoraFimAgendamento", title: "@RsCadastros.DATA_HORA_FIM_AGEND" },
+                    { data: "turno", title: "@RsCadastros.TURNO" },
+
+                    { data: "dataHoraBaixa", title: "@RsCadastros.DATA_HORA_BAIXA" },
+                    { data: "dataHoraSLA", title: "@RsCadastros.DATA_HORA_SLA" },
+                    { data: "situacaoPrazoAgendamento", title: "@RsCadastros.SITUACAO_PRAZO_AGENDAMENTO" },
+                    { data: "situacaoPrazoSla", title: "@RsCadastros.SITUACAO_PRAZO_SLA" },
+
+                    { data: "tipoServico", title: "@RsCadastros.TIPO_SERVICO" },
+                    { data: "natureza", title: "@RsCadastros.NATUREZA" },
+
+                    { data: "equipe", title: "@RsCadastros.MATRICULA" },
+                    { data: "nome", title: "@RsCadastros.TECNICO" },
+                    { data: "supervisor", title: "@RsCadastros.SUPERVISOR" },
+                    { data: "monitor", title: "@RsCadastros.MONITOR" },
+
+                    { data: "grupoArea", title: "@RsCadastros.GRUPO_AREA" },
+                    { data: "area", title: "@RsCadastros.AREA" },
+                    { data: "localidade", title: "@RsCadastros.LOCALIDADE" },
+
+                    { data: "status", title: "@RsCadastros.STATUS_OS" },
+
+                    { data: "codigoEncerramento", title: "@RsCadastros.CODIGO_ENCERRAMENTO" },
+                    { data: "descricaoEncerramento", title: "@RsCadastros.DESCRICAO_ENCERRAMENTO" }
+                ]
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-headset"></i>
+                @ViewBag.Title
+            </h4>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); ShowExportLoading();return false;">@RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="divFilter" class="mr-2 ml-2 form-inline"></div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>

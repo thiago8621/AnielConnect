@@ -1,0 +1,214 @@
+﻿@model Aniel.Connect.Models.ConsultaVendasOrdemServicoListModel
+
+@using Resources
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+@section scripts
+{
+
+@Scripts.RenderFormat(SiteKeys.ScriptVersion,"~/bundles/jsDataTable")
+
+<script>
+    var oDatatable = null;
+    var rows_selected = [];
+
+    var handleDataTableButtons = function () {
+        "use strict";
+
+        //"Blfrtip"
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            order: [[1, 'asc']],
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: false,
+            deferRender: true,
+            scrollY: '73vh',
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/VendaApi/GetServicosVenda',
+                type: 'POST',
+                data: function (data) {
+                    data.DataInicio = $("#iDataInicio").val();
+                    data.DataFim = $("#iDataFim").val();
+                    data.Status = $("#iStatusAtendimento").val();
+                    data.IdVenda = @Model.IdVenda;
+                },
+                error: function (e) {
+                    console.log(e);
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            preDrawCallback: function () {
+                ShowPageLoading();
+            },
+            drawCallback: function () {
+                HidePageLoading();
+            },
+            language: traducaoDataTableSimples,
+            buttons: buttonsDataTable,
+            columns: [
+                {
+                    data: "numObra",
+                    title: "@RsCadastros.ORDEM_SERVICO",
+                    render: function (data, type, row, meta) {
+                        var url = '@Url.Action("Index", "Acompanhamento_Servico")?CodCt=' + row.codCt + "&Projeto=" + row.projeto + "&Num_Obra=" + row.numObraOriginal + "&Num_Doc=" + row.numDoc;
+
+                        return `<a href="#" onclick="parent.AddAba('${url}', 'Acompanhamento de Serviço');"> ${data} </a>`
+                    }
+                },
+                { data: "dataAgendamento", title: "@RsCadastros.DATA_AGENDAMENTO" },
+                { data: "tipoServico", title: "@RsCadastros.TIPO_SERVICO" },
+                { data: "tecnico", title: "@RsCadastros.TECNICO" },
+                {
+                    data: "sla",
+                    title: "@RsCadastros.SLA",
+                    render: function (data, type) {
+
+                        if (type === "export") {
+                            return data;
+                        }
+
+                        switch (data) {
+                            case "Dentro do Prazo":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: dodgerblue'></i></div>";
+                                break;
+                            case "Atenção":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: #ffd700'></i></div>";
+                                break;
+                            case "Próximo do Vencimento":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: #FFA500'></i></div>";
+                                break;
+                            case "Risco de Perda do Prazo":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: hotpink'></i></div>";
+                                break;
+                            case "Prazo Vencido":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: #B22222'></i></div>";
+                                break;
+                            case "Prazo Cumprido":
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: limegreen'></i></div>";
+                                break;
+                            default:
+                                return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'><i class='fas fa-flag mr-1' style='color: gray'></i></div>";
+                        }
+                    }
+                },
+                { data: "status", title: "@RsCadastros.STATUS" },
+                { data: "inicioAtendimento", title: "@RsCadastros.INICIO_ATENDIMENTO" },
+                { data: "fimAtendimento", title: "@RsCadastros.FIM_ATENDIMENTO" }
+            ]
+        });
+
+        $("#btnFiltro").on("click", function () {
+            if (!$("#iDataInicio").val() || !$("#iDataFim").val()) {
+                Notificar("@RsBase.ATENCAO_", "Informe o período", "warning");
+                return;
+            }
+            else {
+                var _data_ini = $("#iDataInicio").val().split("\/");
+                var _data_fim = $("#iDataFim").val().split("\/");
+
+                var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+                var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+                if (data_ini > data_fim) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                    return;
+                }
+            }
+
+            oDatatable.draw();
+        });
+    },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+    TableManageButtons.init();
+
+</script>
+}
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+            <div class="card-header title-card" id="heading_1">
+                <h5 class="mb-0">
+                    <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                        <span class="text-bold-card">@RsCadastros.LISTA_ORDEM_VENDA</span>
+                    </a>
+                </h5>
+            </div>
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+                <div class="row">
+                    <div class="col-4">
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label for="iNome">@RsCadastros.PERIODO:</label>
+                            </div>
+                        </div>
+                        <div id="divFiltrosPeriodo" class="row col">
+                            <div class="col-6">
+                                <div class="form-group">
+                                    <label for="iDataInicio" class="mr-3">@RsCadastros.DE:</label>
+                                    @Html.TextBoxFor(m => m.DataInicio, new { @class = "form-control datepicker", @id = "iDataInicio" })
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-group">
+                                    <label for="iAssunto" class="mr-3">@RsCadastros.PARA:</label>
+                                    @Html.TextBoxFor(m => m.DataInicio, new { @class = "form-control datepicker", @id = "iDataFim" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.STATUS_OS:</label>
+                        </div>
+
+                        @Html.EnumDropDownListFor(m => m.Status, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento", @autocomplete = "off" })
+                    </div>
+                    <div class="col-sm-4 text-right mt-4 pb-2 pr-5">
+                        <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" />
+                    </div>
+                </div>
+
+                <!--.Filtros-->
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

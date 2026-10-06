@@ -1,0 +1,545 @@
+﻿@model Aniel.Connect.Models.Vincular_UsuarioPerfilCadastroModel
+@using Aniel.Connect.Controllers
+@using Sinapse.Model.enumerados
+@using Microsoft.AspNet.Identity;
+@{
+    ViewBag.Title = "Vincular Usuario ao Perfil";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+
+
+
+@section scripts{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+
+    @if (ViewBag.Sucesso == true)
+    {
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+            });
+        </script>
+    }
+
+<script>
+
+        @if (Model.SecaoConnect != null && Model.SecaoConnect == Convert.ToInt32(SecaoConnectPerfilEnum.ATENDIMENTO).ToString())
+        {
+            @:$("#iTipoUsuario").prop("disabled", false);
+            @:$("#iTipoUsuario").empty();
+            @:$("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.ATENDENTE)));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_DE_ATENDENTE)));
+            @:$("#iTipoUsuario").val(@Model.TipoUsuario);
+           // @:$(".perfil-agente").show();
+        }
+
+        @if (Model.SecaoConnect != null && Model.SecaoConnect == Convert.ToInt32(SecaoConnectPerfilEnum.COMERCIAL).ToString())
+        {
+            @:$("#iTipoUsuario").prop("disabled", false);
+            @:$("#iTipoUsuario").empty();
+            @:$("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_COMERCIAL", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_COMERCIAL)));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.VENDEDOR", @Convert.ToInt32(TipoUsuarioEnum.VENDEDOR)));
+            @:$("#iTipoUsuario").val(@Model.TipoUsuario);
+          //  @:$(".perfil-agente").hide();
+        }
+
+        @if (Model.SecaoConnect != null && Model.SecaoConnect == Convert.ToInt32(SecaoConnectPerfilEnum.SERVICOS).ToString()) {
+            @:$("#iTipoUsuario").prop("disabled", false);
+            @:$("#iTipoUsuario").empty();
+            @:$("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.MONITOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.MONITOR_EQUIPE)));
+            @:$("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_EQUIPE)));
+            @:$("#iTipoUsuario").val(@Model.TipoUsuario);
+          //  @:$(".perfil-agente").hide();
+        }
+
+        $(document).ready(async function () {
+            AddSelect("iPerfilAgente", "@CONSTANTES.URLPortal/api/Vincular_UsuarioPerfilApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.PerfilAgente", "@RsBase.SELECIONE", false);
+            AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Departamento", "@RsBase.SELECIONE", false);
+            AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/Perfil_Dashboardapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Perfil", "@RsBase.SELECIONE", false);
+            AddSelect("iPerfilVisualizacaoServico", "@CONSTANTES.URLPortal/api/PerfilVisualizacaoServicoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdPerfilVisualizacaoServico", "@RsBase.SELECIONE", false);
+            AddSelect("iPerfilVisualizacaoVenda", "@CONSTANTES.URLPortal/api/PerfilVisualizacaoVendaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdPerfilVisualizacaoVenda", "@RsBase.SELECIONE", false);
+            AddSelect("iModelo_Unico_Permitido_ID", "@CONSTANTES.URLPortal/api/Modelo_PainelServicoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Modelo_Unico_Permitido_ID", "@RsBase.SELECIONE", false,null,"@User.Identity.GetUserId()");
+
+           function toggleModeloDropdown() {
+                var isChecked = $("#iBloqueiaModeloVisualizacao").is(":checked");
+
+                if (isChecked) {
+                    $("#divModeloUnico").show();
+                    // Adiciona a classe 'obrigatorio' para a validação do formulário
+                    $("#iModeloUnicoPermitidoID").addClass("obrigatorio");
+                } else {
+                    $("#divModeloUnico").hide();
+                    // Remove a obrigatoriedade e limpa o valor (evita envio de ID incorreto)
+                    $("#iModeloUnicoPermitidoID").removeClass("obrigatorio");
+                    $("#iModeloUnicoPermitidoID").val(null).trigger('change');
+                }
+            }
+
+            // 1. Executa na carga da página para definir o estado inicial
+            toggleModeloDropdown();
+
+            // 2. Atribui o evento de mudança ao checkbox
+            $("#iBloqueiaModeloVisualizacao").on("change", function () {
+                toggleModeloDropdown();
+            });
+
+
+        });
+
+    var rows_selected = [];
+
+
+    var handleDataTableButtons = function () {
+        "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.Vincular));
+        var nome_lista = "Vincular";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            scrollX: true,
+            ordering: false,
+            scrollCollapse: true,
+            paging: false,
+            autoPrint: false,
+            columns: [
+
+
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluir" id="btnExcluir' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+
+                    data: "Desc_Secao",
+                    title: "@RsCadastros.SECAO_CONNECT",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Secao" name="' + nome_lista + '[' + meta.row + '].Desc_Secao" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__SecaoConnect" name="' + nome_lista + '[' + meta.row + '].SecaoConnect" type="hidden" value="' + TrataNulo(row.SecaoConnect) + '">';
+                        }
+                        return data;
+                    }
+
+                },
+                {
+
+                    data: "Desc_Tipo_Usuario",
+                    title: "@RsCadastros.TIPO_USUARIO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Tipo_Usuario" name="' + nome_lista + '[' + meta.row + '].Desc_Tipo_Usuario" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__TipoUsuario" name="' + nome_lista + '[' + meta.row + '].TipoUsuario" type="hidden" value="' + TrataNulo(row.TipoUsuario) + '">';
+                        }
+                        return data;
+                    }
+
+                },
+                {
+
+                    data: "Desc_Perfil_Vinculado",
+                    title: "@RsCadastros.VINCULAR_PERFIS",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__TDesc_Perfil_Vinculado" name="' + nome_lista + '[' + meta.row + '].Desc_Perfil_Vinculado" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__PerfilAgente" name="' + nome_lista + '[' + meta.row + '].PerfilAgente" type="hidden" value="' + TrataNulo(row.PerfilAgente) + '">';
+                        }
+                        return data;
+                    }
+
+                },
+
+
+            ]
+
+        });
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("excluir");
+                var trLinkButton = $(this).parents('tr');
+
+                // Se o ID for "0", remove apenas da tabela (lógica para novos registros não salvos)
+                if (idArquivo === "0") {
+                    oDatatable.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Vincular_UsuarioPerfilApi/ExcluirVinculo")';
+
+
+                    var dadosParaAPI = {
+
+                        Ids: [idArquivo]
+                    };
+
+
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(dadosParaAPI),
+                        dataType: 'json',
+                    })
+                        .done(function (data) {
+                            if (data.ok) {
+
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function (xhr, status, error) {
+
+                            Notificar("@RsBase.ATENCAO_", "Erro de comunicação ao tentar remover o registro.", "error");
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        handleExcluir();       
+
+        $("#btnAdicionar").unbind('click');
+        $("#btnAdicionar").on('click', function () {
+
+            var erro = false;
+             @*if (ValidaObrigatoriosPorClasse("obrigatorioSecao", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                if (ValidaObrigatoriosPorClasse("obrigatorioTipo_Usuario", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                if (ValidaObrigatoriosPorClasse("obrigatorioPerfil", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }*@
+
+
+            for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                if (oDatatable.rows().data()[i].Secao == $("#iSecao option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.TIPOPESSOA)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+                 for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                     if (oDatatable.rows().data()[i].Tipo_Usuario == $("#iTipoUsuario option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.TIPOPESSOA)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+                 for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                    if (oDatatable.rows().data()[i].Perfil_Vinculado == $("#iPerfilAgente option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.TIPOPESSOA)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+
+                if (erro) {
+                    return false;
+                }
+
+
+            oDatatable.row.add({
+
+                Id: 0,
+                Desc_Secao: $("#iSecao option:selected").text(),
+                SecaoConnect: $("#iSecao").val(),
+                Desc_Tipo_Usuario: $("#iTipoUsuario option:selected").text(),
+                TipoUsuario: $("#iTipoUsuario").val(),
+                Desc_Perfil_Vinculado: $("#iPerfilAgente option:selected").text(),
+                PerfilAgente: $("#iPerfilAgente").val(),
+
+
+            }).draw(false);
+
+            handleExcluir();
+            //$("#iSecao").val(null).trigger('change');
+            //$("#iTipoUsuario").val(null).trigger('change');
+            //$("#iPerfilAgente").val(null).trigger('change');
+
+
+        });
+    },
+        TableManageButtons = function () {
+        "use strict";
+        return {
+            init: function () {
+                handleDataTableButtons();
+            }
+        }
+        }();
+
+    //TableManageButtons.init();
+
+
+
+        $(function () {
+            if ($('#iTipoUsuario').val()) {
+                $("#iTipoUsuario").prop("disabled", false);
+            }
+        });
+
+        var clicked = false;
+        function ValidaSubmit() {
+
+            if (clicked) {
+
+                return false;
+
+            }
+
+            var bloqueiaModelo = $('#iBloqueiaModeloVisualizacao').is(':checked');
+
+            var modeloUnicoId = $('#iModelo_Unico_Permitido_ID').val();
+
+            if (bloqueiaModelo) {
+
+                // 2. Se estiver marcado, verificar se o combo está vazio ou com o valor de "Selecione"
+
+                if (!modeloUnicoId || modeloUnicoId === "" || modeloUnicoId === "0") {
+
+                    Notificar("@RsBase.ATENCAO_",
+
+                        "É obrigatório selecionar um 'Modelo Único Permitido' quando a opção 'Bloquear Modelo Único de Visualização' está marcada",
+
+                        "info"
+
+                    );
+
+                    // Focar o campo para ajudar o usuário
+
+                    $('#iModelo_Unico_Permitido_ID').focus();
+
+                    // Bloquear o envio do formulário
+
+                    return false;
+
+                }
+
+            }
+
+            clicked = true;
+
+            ShowPageLoading();
+
+            $('#form').submit();
+
+            try {
+
+                parent.dial.dialog('close');
+
+            }
+
+            catch (ex) {
+
+                console.log(ex);
+
+            }
+
+            return true;
+
+        }
+
+
+        $("#iSecao").change(function () {
+            if ($("#iSecao").val()) {
+                $("#iTipoUsuario").prop("disabled", false);
+            }
+            else {
+                $("#iTipoUsuario").prop("disabled", true);
+                $("#iTipoUsuario").val("");
+            }
+
+            switch ($("#iSecao").val()) {
+
+                //case "":
+                //  $(".iTextoChat").empty();
+                //  $(".perfil-agente").hide();
+                //  break;
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.ATENDIMENTO)":
+                   // $(".iTextoChat").empty();
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.ATENDENTE)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_DE_ATENDENTE)));
+                    //$("div .form-group.perfil-agente").append("<div class='iTextoChat mt-1'><i class='fas fa-info-circle'></i> Defina um perfil para atender no Chat. Caso não seja selecionado o usuário não receberá solicitações de mensagens.</div>");
+                   // $(".perfil-agente").show();
+                    break;
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.COMERCIAL)":
+                   // $(".iTextoChat").empty();
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_COMERCIAL", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_COMERCIAL)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.VENDEDOR", @Convert.ToInt32(TipoUsuarioEnum.VENDEDOR)));
+                    //$(".perfil-agente").hide();
+                    break;
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.SERVICOS)":
+                   // $(".iTextoChat").empty();
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.MONITOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.MONITOR_EQUIPE)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_EQUIPE)));
+                   //$(".perfil-agente").hide();
+                    break;
+                default:
+                    $(".perfil-agente").val("");
+                    $(".perfil-agente").hide();
+
+            }
+        });
+
+
+
+</script>
+
+}
+
+@section styles{
+    <style>
+        .ui-dialog-title {
+            font-size: 16px !important;
+        }
+    </style>
+}
+
+@using (Html.BeginForm("Cadastro", "Vincular_UsuarioPerfil", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off", }))
+{
+    <div class="row d-flex justify-content-center" style="max-height: 400px; width: 100%; overflow-y: auto">
+
+        <div class="col-10">
+            <div class="form-group">
+                <label for="iDescricao">@RsCadastros.USUARIO: </label>
+                @Html.HiddenFor(model => model.Id, new { @class = "form-control", @id = "iIdUsuario" })
+                @Html.DisplayFor(model => model.Usuario, new { @class = "form-control", @id = "iDescricao" })
+            </div>
+
+            <div class="form-group">
+                <label for="iDepartamento">@RsCadastros.SETOR_DEPARTAMENTO</label>
+                @Html.DropDownListFor(m => m.Id_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iDepartamento", @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Id_Departamento, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group">
+                <label for="iPerfil">@RsCadastros.PERFIL_DASHBOARD:</label>
+                @Html.DropDownList("Id_Perfil", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfil", @autocomplete = "off" })
+            </div>
+            <div class="col-sm">
+
+            </div>
+            <div class="form-group">
+                <label for="iSecao">@RsCadastros.SECAO_CONNECT</label>
+                @Html.DropDownListFor(m => m.SecaoConnect, new SelectList(ViewBag.Secao, "Id", "Descricao", Model.SecaoConnect), RsBase.SELECIONE, new { @class = "form-control mb-3 obrigatorioSecao", @id = "iSecao", @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Perfil, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group">
+                <label for="iTipoUsuario">@RsCadastros.TIPO_USUARIO</label>
+                @Html.DropDownListFor(m => m.TipoUsuario, new SelectList(ViewBag.Tipos, "Id", "Descricao", Model.TipoUsuario), RsBase.SELECIONE, new { @class = "form-control mb-3 obrigatorioTipo_Usuario", @id = "iTipoUsuario", @autocomplete = "off", @disabled = "true" })
+                @Html.ValidationMessageFor(model => model.Perfil, "", new { @class = "text-danger" })
+            </div>
+
+            @*<div class="form-group perfil-agente" style="@(Model.SecaoConnect == "0" ? "" : "display:none")">*@
+            <div class="form-group perfil-agente">
+                @*@Html.Label(RsCadastros.PERFIL_AGENTE, new { @class = "perfil-agente", @style = Model.SecaoConnect == "0" ? "" : "display:none", @for = "iPerfilAgente" })*@
+                @Html.Label(RsCadastros.PERFIL_AGENTE, new { @for = "iPerfilAgente", @class = "obrigatorioPerfil" })
+                @*@Html.DropDownListFor(x => x.PerfilAgente, new SelectList(ViewBag.PerfilAgente, "Id", "Descricao", Model.PerfilAgente), RsBase.SELECIONE, new { @class = "form-control mb-3 ", @id = "iPerfilAgente", @autocomplete = "off" })*@
+                @Html.DropDownListFor(model => model.PerfilAgente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfilAgente", @autocomplete = "off" })
+                <div class='iTextoChat mt-1'><i class='fas fa-info-circle'></i> Defina um perfil para atender no Chat. Caso não seja selecionado o usuário não receberá solicitações de mensagens.</div>
+                @Html.ValidationMessageFor(model => model.PerfilAgente, "", new { @class = "text-danger" })
+                <div class="form-group">
+                    <label for="iPerfilVisualizacaoServico">@RsCadastros.PERFIL_VISUALIZACAO_SERVICO</label>
+                    @Html.DropDownListFor(m => m.IdPerfilVisualizacaoServico, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfilVisualizacaoServico", @autocomplete = "off" })
+                </div>
+                
+
+                @*<div class="row" style=" width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; /*border: 1px solid #555;*/ outline: none;">
+                    <table class="table table-hover nowrap" id="datatable" ></table>
+                </div>*@
+            </div>
+
+
+
+            <div class="form-group">
+                <label for="iPerfilVisualizacaoVenda">@RsCadastros.PERFIL_VISUALIZACAO_VENDA</label>
+                @Html.DropDownListFor(m => m.IdPerfilVisualizacaoVenda, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfilVisualizacaoVenda", @autocomplete = "off" })
+            </div>
+            <div class="form-group">
+
+                @* Checkbox para Bloquear Modelo de Visualização *@
+                <div class="form-check">
+                    @Html.CheckBoxFor(model => model.Bloqueia_Modelo_Visualizacao, new { @class = "form-check-input", @id = "iBloqueiaModeloVisualizacao" })
+                    <label class="form-check-label" for="iBloqueiaModeloVisualizacao">
+                        Bloquear Modelo Único de Visualização
+                    </label>
+                </div>
+            </div>
+
+            @* Container do DropDownList - Será manipulado pelo JavaScript *@
+
+            <div class="form-group" id="divModeloUnico" style="display:none;">
+
+                <label for="iModelo_Unico_Permitido_ID">Modelo Único Permitido</label>
+                @Html.DropDownListFor(m => m.Modelo_Unico_Permitido_ID, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iModelo_Unico_Permitido_ID", @autocomplete = "off" })
+
+            </div>
+        </div>
+
+        <div class="form-group col-sm-12" style="padding: 15px;">
+            <div class="text-center">
+                <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+                <button type="button" onclick="return ValidaSubmit(); return false;" class="btn btn-success" id="iPesquisar">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+
+}
+
+
+

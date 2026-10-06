@@ -1,0 +1,598 @@
+﻿@model Aniel.Connect.Models.POPCadastroModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core.Models;
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_POP;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    bool disableSelectFilial = Model.IdFilial == null;
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/maskip")
+
+<script>
+        const handleEmpresa = function () {
+            $("#iEmpresa").on("select2:select select2:unselecting", function (e) {
+                const empresaSelecionada = e.params.data
+
+                if (!empresaSelecionada) {
+                    AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null,  null, null, "@RsBase.SELECIONE", true);
+                }
+                else {
+                    AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, empresaSelecionada.id, null, "@RsBase.SELECIONE", false);
+                }
+            })
+        }
+
+        const handleContrato = function () {
+            $("#iContrato").on("select2:select select2:unselecting", function (e) {
+                const contratoSelecionado = e.params.data
+
+                if (!contratoSelecionado) {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/ProjetoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+                else {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/ProjetoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, contratoSelecionado.id, null, "@RsBase.SELECIONE", false);
+                }
+            })
+        }
+
+        const handlePais = function () {
+            $("#iPais").on("select2:select select2:unselecting", function (e) {
+                let pais = e.params.data;
+                if (pais) {
+                    $("#iDesc_Pais").val(pais.text);
+                }
+            });
+        }
+
+        $(document).ready(async function () {
+            await AddSelect("iEmpresa", "@CONSTANTES.URLPortal/api/Empresaapi/GetComboEmpresaAniel", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdEmpresa", "@RsBase.SELECIONE", false, handleEmpresa);
+            await AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdEmpresa", "@Model.IdFilial", "@RsBase.SELECIONE", false);
+            await AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.CodCt", "@RsBase.SELECIONE", false, handleContrato);
+            await AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/ProjetoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.CodCt", "@Model.Projeto", "@RsBase.SELECIONE", false);
+
+            @if (Model.Id == 0)
+            {
+                <text> $("#iId").val("") </text>
+            }
+
+            let bairro_inicial = "@Html.Raw(Model.Bairro)";
+            let id_cidade_inicial = @(Model.IdCidade ?? 0);
+            let id_uf = "@Model.UF";
+            let id_pais = "@Model.IdPais";
+            AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPais",@CONSTANTES.PaginacaoRegistros, null, null, id_pais, "@RsBase.SELECIONE", false, handlePais);
+
+            $("#iCep").attr('name', 'Cep');
+            $("#iEndereco").attr('name', 'Endereco');
+            $("#iNumero").attr('name', 'Numero');
+            $("#iDesc_Bairro").attr('name', 'Bairro');
+            $("#iDesc_Cidade").attr('name', 'Cidade');
+            $("#iComplemento").attr('name', 'Complemento');
+            $("#iLatitude").attr('name', 'Latitude');
+            $("#iLongitude").attr('name', 'Longitude');
+            $("#iReferencia").attr('name', 'Ponto_Referencia');
+
+            $("#iUF").attr('name', 'UF');
+            $("#iCidade").attr('name', 'IdCidade');
+
+            $("#iUF").val(id_uf);            
+            AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPais",@CONSTANTES.PaginacaoRegistros, null, null, id_pais, "@RsBase.SELECIONE", false);
+            if ($("#iUF").val())
+            {
+                var enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + $("#iUF option:selected").text();
+
+                $('#iCidade').empty();
+                $('#iBairro').val("");
+
+                $.getJSON(enderecoApiCidade, function (data) {
+                    $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    if (id_cidade_inicial) {
+                        $("#iCidade").val(id_cidade_inicial);
+                        $("#iBairro").val(bairro_inicial);
+                    }
+                });
+            }
+        });
+
+        //#region Endereço
+
+        let cep_on_focus;
+
+        function GetEndereco() {
+            let endereco = "";
+
+            if ($("#iEndereco").val()) {
+                endereco += " " + $("#iEndereco").val();
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOGRADOURO)", "warning");
+                return false;
+            }
+
+            if ($("#iNumero").val())
+                endereco += " " + $("#iNumero").val();
+            if ($("#iBairro").val())
+                endereco += " " + $("#iBairro").val();
+            if ($("#iCidade").val())
+                endereco += " " + $("#iCidade option:selected").text();
+            if ($("#iUF").val())
+                endereco += " " + $("#iUF option:selected").text();
+
+            return endereco;
+        }
+
+        $("#iNumero").focusout(function () {
+            let link = 'https://maps.googleapis.com/maps/api/geocode/json?key=@CONSTANTES.TokenGoogleAPI&address=';
+
+            if ($('#iEndereco').val()) {
+                link = link.concat(GetEndereco());
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json'
+                })
+                .done(function (data) {
+                    $("#iLatitude").val(data.results[0].geometry.location.lat);
+                    $("#iLongitude").val(data.results[0].geometry.location.lng);
+                })
+                .fail(function (e) {
+                    Notificar("@RsBase.ATENCAO_", e, "warning");
+                })
+            }
+        });
+
+        $('#iUF').change(function () {
+            const estado = $('#iUF option:selected').text();
+            const enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+            $('#iCidade').empty();
+            $('#iBairro').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+                $('#iCidade').append($('<option></option>').attr("value", "").text('@RsBase.SELECIONE'));
+
+                $.each(data, function (key, value) {
+                    $('#iCidade').append($('<option></option>').attr("value", value.id).text(value.descricao));
+                })
+            });
+        });
+
+        $("#iCep").focus(function(){
+            window["cep_on_focus"] = cep_on_focus = $("#iCep").val();
+        });
+
+        $("#iCep").focusout(function () {
+
+            if ($("#iCep").val() != window["cep_on_focus"]) {
+                $('#iReferencia').val("");
+                $('#iUF').val("");
+                $('#iCidade').val("");
+                $('#iBairro').val("");
+                $('#iTipo_Imovel').val("");
+                $('#iPais').val("");
+                $('#iComplemento').val("");
+                $('#iBairro').val("");
+                $('#iLatitude').val("");
+                $('#iLongitude').val("");
+                $('#iNumero').val("");
+                $('#iEndereco').val("");
+                $('#iLongitude').val("");
+                $('#iLongitude').val("");
+            }
+
+            const cepcliente = $("#iCep").val();
+
+            let link = "https://viacep.com.br/ws/";
+
+            link = link.concat(cepcliente);
+            link = link.concat("/json/");
+
+            try {
+                parent.App.startPageLoading();
+            }
+            catch (ex) {
+                console.log(ex);
+            }
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function (data) {
+                $("#iEndereco").val(data.logradouro);
+                $("#iUF").val(data.uf);
+
+                const cidade = data.localidade;
+                const bairro = data.bairro;
+
+                const estado = $('#iUF option:selected').text();
+                const enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                if (!$("#iUFPrincipal option:selected").val() == "") {
+                    $('#iPais').val(1);
+                }
+
+                $('#iCidade').empty();
+                $('#iBairro').empty();
+
+                if ($('#iCidade').empty()) {
+                    $('iPais').empty();
+                }
+
+                $.getJSON(enderecoApiCidade, function (data) {
+                    $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    if (cidade) {
+                        $("#iCidade").val($('option:contains("' + cidade.toUpperCase() + '")').val());
+                        $("#iBairro").val(bairro.toUpperCase())
+                    }
+                });
+
+                $("#iNumero").focus();
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+            });
+        });
+
+        function ExibeMapa() {
+            if ($("#iEndereco").val() == "" || $("#iCep").val() == "") {
+                Notificar("@RsBase.ATENCAO_", " Campos CEP e Endereço são obrigatórios. Por Favor Preencher!", "warning");
+                return false;
+            }
+
+            const endereco = GetEndereco();
+
+            ShowDialog(true, true, 'Mapa', '@Url.Action("Endereco", "Mapa")?Endereco=' + endereco, 'mapa', 800, 500, 'iframeMapa');
+            return false;
+        }
+
+        reloadData("@(CONSTANTES.URLPortal + "/api/Tipo_ImovelAnielapi/busca")", "idTipo_Imovel", "iTipo_Imovel");
+
+        //#endregion
+
+        let clicked = false
+        function ValidaSubmit() {
+            let erro = false
+
+            if (clicked) {
+                return false
+            }
+
+            clicked = true
+
+            if (!$("#iNome").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NOME)", "warning")
+                erro = true
+            }
+
+            if (!$("#iEmpresa").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.EMPRESA)", "warning")
+                erro = true
+            }
+
+            if (!$("#iFilial").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.FILIAL)", "warning")
+                erro = true
+            }
+
+            if (!$("#iContrato").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CONTRATO)", "warning")
+                erro = true
+            }
+
+            if (!$("#iProjeto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PROJETO)", "warning")
+                erro = true
+            }
+
+
+            if (!$("#iCep").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CEP)", "warning")
+                erro = true
+            }
+
+            if (!$("#iEndereco").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ENDERECO)", "warning")
+                erro = true
+            }
+
+            if (!$("#iNumero").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO)", "warning")
+                erro = true
+            }
+
+            if (!$("#iPais").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PAIS)", "warning")
+                erro = true
+            }
+
+            if (!$("#iUF").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning")
+                erro = true
+            }
+
+            if (!$("#iCidade").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CIDADE)", "warning")
+                erro = true
+            }
+
+            if (!$("#iBairro").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.BAIRRO)", "warning")
+                erro = true
+            }
+
+            if (erro) {
+                clicked = false
+                return false
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+
+            return true;
+        
+    }
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "POP", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.HiddenFor(model => model.Id)
+
+    <div class="card" style="border:none;">
+        <div class="card-body">
+
+            <div class="row">
+                <div class="col main-title">
+                    <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+                    <nav aria-label="breadcrumb" class="mb-20">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="@Url.Action("Index", "POP")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">Listagem de POP</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+
+                    <span style="font-size:11px" id="dtLegend"></span>
+                </div>
+            </div>
+
+            <div class="card div-card-accord">
+                <div class="card-header title-card" id="heading-1">
+                    <h5 class="mb-0">
+                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                            <span class="text-bold-card">Cadastro</span>
+                        </a>
+                    </h5>
+                </div>
+                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                    <div class="card-body body-card-accord">
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iId">@RsCadastros.ID:</label>
+                                    @Html.TextBoxFor(p => p.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iNome">@RsCadastros.NOME:</label>
+                                    @Html.TextBoxFor(p => p.Nome, new { @class = "form-control obrigatorio", @id = "iNome", @autocomplete = "off", @Maxlength = 255 })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iNome">@RsCadastros.CODIGO_AUXILIAR:</label>
+                                    @Html.TextBoxFor(p => p.CodigoAuxiliar, new { @class = "form-control obrigatorio", @id = "iNome", @autocomplete = "off", @Maxlength = 255 })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iEmpresa">@RsCadastros.EMPRESA:</label>
+                                    @Html.DropDownListFor(p => p.IdEmpresa, new List<SelectListItem>(), new { id = "iEmpresa", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iFilial">@RsCadastros.FILIAL:</label>
+                                    @Html.DropDownListFor(p => p.IdFilial, new List<SelectListItem>(), new { id = "iFilial", @class = "form-control" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iContrato">@RsCadastros.CONTRATO:</label>
+                                    @Html.DropDownListFor(p => p.CodCt, new List<SelectListItem>(), new { id = "iContrato", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iProjeto">@RsCadastros.PROJETO:</label>
+                                    @Html.DropDownListFor(p => p.Projeto, new List<SelectListItem>(), new { id = "iProjeto", @class = "form-control" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--#region Endereço-->
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iCep">@RsCadastros.CEP:</label>
+                                    @Html.TextBoxFor(model => model.Cep, new { @class = "form-control busca cep", @id = "iCep", @autocomplete = "off"})
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iEndereco">@RsCadastros.ENDERECO:</label>
+                                    @Html.TextBoxFor(model => model.Endereco, new { @class = "form-control", @id = "iEndereco", @autocomplete = "off", @Maxlength = 255})
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iNumero">@RsCadastros.NUMERO:</label>
+                                    @Html.TextBoxFor(model => model.Numero, new { @class = "form-control", @id = "iNumero", @autocomplete = "off", @Maxlength = 8 })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iLatitude">@RsCadastros.LATITUDE:</label>
+                                    @Html.TextBoxFor(model => model.Latitude, new { @class = "form-control readonly", @id = "iLatitude", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iLongitude">@RsCadastros.LONGITUDE:</label>
+                                    @Html.TextBoxFor(model => model.Longitude, new { @class = "form-control readonly", @id = "iLongitude", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iPais"> @RsCadastros.PAIS</label>
+                                    @Html.HiddenFor(m => m.Pais, new { @id = "iDesc_Pais" })
+                                    @Html.DropDownListFor(m => m.IdPais, new SelectList(new List<ComboObj>(), "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPais", @autocomplete = "off"})
+                                </div>
+                            </div>
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for="">@RsCadastros.UF:</label>
+                                    <select class="form-control" id="iUF" autocomplete="off">
+                                        <option value="" selected>@RsBase.SELECIONE</option>
+                                        <option value="AC">AC</option>
+                                        <option value="AL">AL</option>
+                                        <option value="AP">AP</option>
+                                        <option value="AM">AM</option>
+                                        <option value="BA">BA</option>
+                                        <option value="CE">CE</option>
+                                        <option value="DF">DF</option>
+                                        <option value="ES">ES</option>
+                                        <option value="GO">GO</option>
+                                        <option value="MA">MA</option>
+                                        <option value="MT">MT</option>
+                                        <option value="MS">MS</option>
+                                        <option value="MG">MG</option>
+                                        <option value="PA">PA</option>
+                                        <option value="PB">PB</option>
+                                        <option value="PR">PR</option>
+                                        <option value="PE">PE</option>
+                                        <option value="PI">PI</option>
+                                        <option value="RJ">RJ</option>
+                                        <option value="RN">RN</option>
+                                        <option value="RS">RS</option>
+                                        <option value="RO">RO</option>
+                                        <option value="RR">RR</option>
+                                        <option value="SC">SC</option>
+                                        <option value="SP">SP</option>
+                                        <option value="SE">SE</option>
+                                        <option value="TO">TO</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iCidade">@RsCadastros.CIDADE:</label>
+                                    @Html.HiddenFor(m => m.Cidade, new { @id = "iDesc_Cidade" })
+                                    @Html.DropDownListFor(m => m.IdCidade, new SelectList(new List<ComboObj>(), "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade", @autocomplete = "off", @Maxlength = 255 })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iBairro">@RsCadastros.BAIRRO:</label>
+                                    @Html.TextBoxFor(m => m.Bairro, new { @class = "form-control", @id = "iBairro", @autocomplete = "off", @Maxlength = 255 })
+                                    @*@Html.HiddenFor(m => m.Bairro, new { @id = "iDesc_Bairro" })
+                    @Html.DropDownListFor(m => m.IdBairro, new SelectList(new List<ComboObj>(), "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iBairro", @autocomplete = "off" })*@
+                                </div>
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iComplemento">@RsCadastros.COMPLEMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Complemento, new { @class = "form-control", @id = "iComplemento", @autocomplete = "off", @Maxlength = 80 })
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--#endregion-->
+
+
+                        @if (Model.Id != 0)
+                        {
+                            <div class="row">
+                                <div class="col-sm-5">
+                                    <div class="form-group">
+                                        <label for="iNome">@RsCadastros.STATUS:</label>
+                                        @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @name = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "POP")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}

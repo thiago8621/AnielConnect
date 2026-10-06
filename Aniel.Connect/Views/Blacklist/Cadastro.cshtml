@@ -1,0 +1,269 @@
+@model Aniel.Connect.Models.BlacklistCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.BLACKLIST; ;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+<style>
+    .blacklist {
+      margin-top: -30px;
+    }
+
+    .select2 select2-container select2-container--default select2-container--above {
+        width: 90% !important;
+    }
+
+    .container-group {
+        display: flex;
+    }
+
+    #iValorDataUltimaPendencia_dp {
+        margin-top: -20px !important;
+    }
+</style>
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+        const idPlano = '@Html.Raw(Request.Params["idPlano"])'
+         $('#idPlano').val(idPlano);
+
+        "use strict";
+        let oDatatableBlacklist = null;
+
+        let handleDataTableBlacklist = function () {
+
+            var array = @Html.Raw(Json.Encode(Model.Lista_BlackLists));
+            let nome_lista = "Blacklists";//Nome_utilizado para enganar o razor
+
+     //"Blfrtip"
+            oDatatableBlacklist = $("#datatableBlacklist").length && $("#datatableBlacklist").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                paging: false,
+                drawCallback: () => {
+                    handleExcluir();
+                },
+                order: [],
+                columns: [
+                    {
+                        data: "Id",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "NumeroOrigem",
+                        orderable: false,
+                        title: "Número Origem",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__NumeroOrigem" name="' + nome_lista + '[' + meta.row + '].NumeroOrigem" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    },
+                    {
+                        data: "NumeroDestino",
+                        orderable: false,
+                        title: "Número Destino",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__NumeroDestino" name="' + nome_lista + '[' + meta.row + '].NumeroDestino" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    },
+                    {
+                        data: "Observacao",
+                        orderable: false,
+                        title: "Observação",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Observacao" name="' + nome_lista + '[' + meta.row + '].Observacao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    }
+                ]
+            });
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                let idFiltro = `${$(this).attr("excluir")}`;
+
+                let trLinkButton = $(this).parents('tr');
+
+                if (idFiltro === "0") {
+                    oDatatableCriterio.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    let link = '@String.Concat(CONSTANTES.URLPortal, "/api/BlacklistApi/Excluir?value=")' + idFiltro;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableCriterio.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                oDatatableBlacklist.row.add({
+                     Id: 0,
+                     NumeroOrigem: $("#iNumeroOrigem").val(),
+                     NumeroDestino: $("#iNumeroDestino").val(),
+                     Observacao: $("#iObservacao").val()
+
+                 }).draw(false);
+
+                 handleExcluir();
+
+            });
+        };
+
+       var TableManageButtonsBlacklist = function () {
+             "use strict";
+             return {
+                 init: function () {
+                     handleDataTableBlacklist();
+                 }
+             }
+        }();
+
+        TableManageButtonsBlacklist.init();
+
+
+        let clicked = false;
+        function ValidaSubmit() {
+            let BlacklistItens = [];
+            let error = false;
+
+                if (clicked) {
+                    return false;
+                }
+
+                clicked = true;
+
+            ShowPageLoading();
+
+            if (!error)
+            {
+                $('#form').submit();
+
+            }
+            else
+            {
+                Notificar("@RsBase.ATENCAO_","Nenhum item foi marcado ","warning")
+            }
+
+            stopPageLoading();
+            return;
+        }
+
+</script>
+}
+
+@using(Html.BeginForm("Cadastro", "Blacklist", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.IdPlano , new { id = "idPlano"})  
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="cardbody">
+                @*Datatable*@
+                <div class="row" id="divBlacklist">
+
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12 form-group container-group ">
+                                <div class="col-3">
+                                    <label for="iNumeroOrigem"><b>Número de Origem</b></label>
+                                    <div class="form-group">
+                                        @Html.TextBoxFor(model => model.NumeroOrigem, new { @maxlength = "20", @class = "form-control col-sm-6 input-sm", @id = "iNumeroOrigem", @autocomplete = "off" })
+
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <label for="iNumeroDestino"><b>Número de Destino</b></label>
+                                    <div class="form-group">
+                                        @Html.TextBoxFor(model => model.NumeroDestino, new { @maxlength = "20", @class = "form-control col-sm-6 input-sm", @id = "iNumeroDestino", @autocomplete = "off" })
+
+
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <label><b>Observação</b></label>
+                                    @Html.TextBoxFor(model => model.Observacao, new { @maxlength = "200", @class = "form-control col-sm-6 input-sm", @id = "iObservacao", @autocomplete = "off" })
+                                </div>
+
+                                <div class="col-3 mt-3">
+                                    <input type="button" id="btnAdicionar" class="btn btn-success" value="Adicionar">
+                                </div>
+                            </div>
+                            <div class="col-12 blacklist">
+                                <div class="card div-card-accord mt-5">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">Lista de Blacklist: </span>
+                                            </a>
+                                        </h5>
+
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-hover nowrap" id="datatableBlacklist" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <input type="button" onclick="return ValidaSubmit();" class="btn btn-success mt-2" value="Salvar">
+            </div>
+        </div>
+    </div>
+
+
+}

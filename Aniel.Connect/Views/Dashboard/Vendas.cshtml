@@ -1,0 +1,839 @@
+﻿@model Aniel.Connect.Models.Dashboard_Vendas_Models
+
+@using Aniel.Connect.Core.Service
+@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Model.enumerado
+@using System.Globalization;
+
+@{
+    ViewBag.Title = RsBase.INICIO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    var recursos = DashBoardService.GetPaginaRecursosInicial(User.Identity.GetUserId()).Result;
+    var visualizacao = new string(Aniel.Connect.Core.Helpers.HtmlEnumExtensions
+                        .GetEnumDescription(Model.VisualizacaoDashboard.Value)
+                        .ToLower()
+                        .Select((p, i) => i == 0 ? char.ToUpper(p) : p).ToArray());
+}
+@section styles
+    {
+    <style>
+
+        .dash-red-info {
+            color: #CC1419;
+        }
+
+        .dash-column {
+            font-size: 2vh !important;
+        }
+
+        .dash-green-info {
+            color: #1F9254;
+        }
+
+        .dash-info {
+            font-size: 5vh !important;
+        }
+
+        .dash-text {
+            font-size: 1.6vh !important;
+        }
+
+        .dash-legend {
+            font-size: 1.5vh !important;
+        }
+
+        .dash-subtitle {
+            font-size: 1.6vh !important;
+        }
+
+        .dash-title-bold {
+            font-size: 2.7vh !important;
+        }
+
+        .dash-yellow-info {
+            color: #FEBF10;
+        }
+
+        .card-deck .card {
+            margin-right: 0.5rem !important;
+        }
+
+        .card-header {
+            border-bottom: none !important;
+            background: white !important;
+            padding: 0.5rem 1rem;
+            font-size: 1.5vh !important
+        }
+
+        .card-footer {
+            border-top: none !important;
+            background: white !important;
+            padding: 0.5rem 1rem !important;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        .numberCircle {
+            border-radius: 50%;
+            min-width: 1.4vw;
+            height: 3vh;
+            padding: 0.2rem;
+            background: #666;
+            border: 2px solid #666;
+            color: white;
+            text-align: center;
+            font: 32px Arial, sans-serif;
+        }
+
+        .tg {
+            border-collapse: collapse;
+            border-spacing: 1rem;
+        }
+
+            .tg td {
+                border-color: black;
+                border-style: solid;
+                border-width: 1px;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                overflow: hidden;
+                padding: 10px 10px;
+                word-break: normal;
+            }
+
+            .tg th {
+                border-color: black;
+                border-style: solid;
+                border-width: 1px;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                font-weight: normal;
+                overflow: hidden;
+                padding: 10px 5px;
+                word-break: normal;
+            }
+
+            .tg .tg-0pky {
+                border-color: inherit;
+                text-align: left;
+                vertical-align: top;
+                font-size: 1.8vh;
+            }
+
+        div .tg-0pky {
+            border-color: inherit;
+            text-align: left;
+            vertical-align: top;
+            font-size: 2vh;
+        }
+
+        .grafico {
+            cursor: pointer;
+            justify-content: center;
+            justify-items: center;
+            position: relative;
+        }
+        /* 1. Oculta a linha horizontal inferior (Contingência CSS) */
+        .grafico .apexcharts-xaxis {
+            display: none !important;
+        }
+
+        /* 2. Desenha a linha vertical na borda esquerda do container da grade */
+        .grafico .apexcharts-grid-background {
+            border-left: 1px solid #c0c0c0 !important;
+        }
+    </style>
+}
+@section scripts
+{
+    @{
+        var Tipo = DashBoardService.GetPaginaInicial(User.Identity.GetUserId()).Result;
+    }
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/apexcharts/5.3.1/apexcharts.min.js"></script>
+    <script>
+        /*Reestruturação*/
+@*--        LinkApis        --*@
+const [metaUrl, vendasAprovadasUrl, vendasPendentesUrl, desistenciasUrl, vendasInstaladasUrl, vendasStatusUrl, funilvendasUrl] =
+    ['@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetMetaUser")',
+     '@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetVendasAprovadasUser")',
+     '@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetVendasPendentesUser")',
+     '@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetDesistenciasUser")',
+     '@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetVendasInstaladasUser")',
+     '@String.Concat(CONSTANTES.URLPortal, "/api/Dashboard_Vendasapi/GetVendasByStatusUser")',
+     '@String.Concat(CONSTANTES.URLPortal,"/api/Dashboard_Vendasapi/GetFunilVendasUser")'
+    ];
+
+    async function getMeta() {
+        let registrosMeta = await $.ajax({
+            url: metaUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardMeta option:selected").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+
+        if (!registrosMeta.ok) {
+            Notificar("@RsBase.ATENCAO_", "Meta não encontrada", "warning");
+            $(".numVendas2").html(`Sem Meta`);
+            return false;
+        }
+        const { vendas, meta, vendasTotais } = registrosMeta.idObjeto;
+        let arredondado = Math.round(vendas);
+        let porcentagem = Math.round(Number(vendasTotais / meta) * 100);
+        $(".numVendas").html(`${porcentagem}%`);
+        $(".numVendas2").html(`${vendasTotais} de ${Math.round(meta)} Vendas`);
+
+        $("#iProggressVenda").css("width", `${porcentagem}%`);
+        $("#iProggressTotal").css("width", `${100 - porcentagem}%`);
+    }
+
+    async function getVendasAprovadas() {
+        let registrosVA = await $.ajax({
+            url: vendasAprovadasUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardAprovadas").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+        $("#iVendasAprovadas").html(registrosVA.idObjeto);
+    }
+
+    async function getDesistencia() {
+        let registrosDesistencia = await $.ajax({
+            url: desistenciasUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardDesistencias").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+        $("#iDesistencias").html(registrosDesistencia.idObjeto);
+    }
+
+    async function getVendasPendentes() {
+        let registrosVP = await $.ajax({
+            url: vendasPendentesUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardPendentes").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+        $("#iVendasPendentes").html(registrosVP.idObjeto);
+    }
+
+    async function getVendasInstaladas() {
+        let registrosVI = await $.ajax({
+            url: vendasInstaladasUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardInstaladas").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+        let comparativoInstaladosAprovados = `De ${registrosVI.idObjeto.vendasAprovadas} ${registrosVI.idObjeto.vendasAprovadas > 1 ? 'Aprovadas' : 'Aprovada'} — ${registrosVI.idObjeto.vendasInstaladas} ${registrosVI.idObjeto.vendasInstaladas > 1 ? 'foram Instaladas' :'foi Instalada'}`;
+
+        $("#iVendasInstaladas").html(comparativoInstaladosAprovados);
+        $("#iPercVendasInstaladas").html(registrosVI.idObjeto.percentualVendasInstaladas + "%");
+        $("#iProggressVendasInstaladas").css("width", `${registrosVI.idObjeto.percentualVendasInstaladas}%`);
+        $("#iProggressVendasAprovadas").css("width", `${100 - registrosVI.idObjeto.percentualVendasInstaladas}%`);
+    }
+
+    async function getVendasStatus() {
+
+        let registrosVS = await $.ajax({
+            url: vendasStatusUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardStatus").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+
+        let results = [registrosVS.idObjeto.vendasPendentes, registrosVS.idObjeto.desistencias, registrosVS.idObjeto.vendasAprovadas, registrosVS.idObjeto.vendasInstaladas];
+        let url = `@(Url.Action("Index","Venda"))?dataFiltrada=${$("#iFiltroCardStatus").val()}&formato=${$("#iFormatoVisu").val() }`
+        let eventos = [{ url: url + "&filtroDashBoard=12", cor:"#FCE405"}, { url:url + "&filtroDashBoard=13", cor:"#E77D7D"}, { url:url + "&filtroDashBoard=1", cor:"#57B96D"}, { url:url + "&filtroDashBoard=14", cor:"#007BFF"}];
+        let categories = ["Pendentes", "@RsCadastros.DESISTENCIAS", "Aprovadas", "Instaladas"]
+        let dadosFormatados = results.map((resultado, index) => { return { x:categories[index], y: resultado, fillColor: eventos[index]["cor"], url: eventos[index]["url"] } })
+        let options = {
+            grid: {                
+                padding: {
+                    right: 30
+                },
+            },
+            chart: {
+                width: '85%',
+                type: 'bar',
+                events: {
+                    dataPointSelection: function (event, chartContext, config) {
+
+                        const [seriesIndex, dataPointIndex] = [config.seriesIndex, config.dataPointIndex]
+
+                        if (dataPointIndex !== -1) {
+                            const url = config.w.config.series[seriesIndex].data[dataPointIndex].url;
+
+                            if (url) {
+                                AddAba(url, '@RsCadastros.PAINEL_VENDAS');
+                            }
+                        }
+                    }
+                },
+                toolbar: { show: false }
+            },           
+            series: [{ data: dadosFormatados }],
+            plotOptions: {
+                bar: {
+                    barHeight: '33%',
+                    borderRadius: 1,
+                    borderRadiusApplication: "end",
+                    horizontal: true
+                }
+            },
+            yaxis: {
+                labels: {
+                    padding: 50,
+                    style: {fontSize:'0.9vw'},
+                    formatter: function (value) {
+                        const el = document.createElement('textarea');                        
+                        el.innerHTML = value;                        
+                        return el.value;
+                    },
+                },
+                axisBorder: {
+                    show: true,
+                    color: '#c0c0c0',
+                    width: 1
+                }
+            },
+            xaxis: {
+                max: Math.max(...results) + 20,
+                labels: { show: false },
+                axisTicks: {
+                    show: false
+                },
+                axisBorder: {
+                    show: false
+                },
+                lines: {
+                    show: false
+                }               
+            },
+            dataLabels: {
+                enabled: true,
+                style: { colors: ['#000000']},                
+                offsetX: 500,
+            },
+            tooltip: { enabled: false },        
+
+            legend: {
+                position: 'bottom'
+            },
+        }
+
+        $("#iVendasStatus").empty();
+        const chartVendasStatus = new ApexCharts(
+            document.querySelector("#iVendasStatus"),
+            options
+        );
+        chartVendasStatus.render();
+    }
+
+    async function getFunilVendas() {
+
+        let registrosFunil = await $.ajax({
+            url: funilvendasUrl, type: 'POST', datatype: 'json', data: {
+                DataFiltrada: $("#iFiltroCardFunil").val(),
+                FormatoVisualizacao: $("#iFormatoVisu").val()
+            }
+        });
+       
+        const [variaveis, valores] = [Object.getOwnPropertyNames(registrosFunil.idObjeto),
+                                     [registrosFunil.idObjeto.leads_Cadastrados, registrosFunil.idObjeto.vendas_Aprovadas,
+                                      registrosFunil.idObjeto.vendas_Cadastradas, registrosFunil.idObjeto.vendas_Instaladas]];
+
+        let colors = ["#B8C7CE", "#57B96D", "#FCE405", "#1B61E3"];
+
+        let resultado = variaveis.map((chave, indice) => ({
+            x: (valores[indice] > 1 ? chave.replace(/_/g, " ") : chave.replace(/_/g, " ").replace(/(\w+)(s|S)(?=\s|$)/g, '$1')).replace(/^\w/, c => c.toUpperCase()),
+            //y: valoresPadroes[indice],
+            fillColor: colors[indice],
+            label: `${chave}: ${valores[indice]}`,
+            labelOriginal: chave,
+            valor: valores[indice]            
+        })).sort((registro1, registro2) => registro2.valor - registro1.valor);
+
+        let resultadoOrdenado = [];
+
+        
+        let menor = 40;
+        for (let i = 0; i < resultado.length; i++) {            
+            
+            resultado[i].y = resultado[i].valor + menor;
+        }
+
+        resultadoOrdenado.push(resultado.find(p => p.labelOriginal == variaveis[0]));
+        resultadoOrdenado.push(resultado.find(p => p.labelOriginal == variaveis[2]));
+        resultadoOrdenado.push(resultado.find(p => p.labelOriginal == variaveis[1]));
+        resultadoOrdenado.push(resultado.find(p => p.labelOriginal == variaveis[3]));
+        
+        let options = {
+            series: [{ data: resultadoOrdenado }],
+            chart: {
+                width: '100%',
+                type: 'bar',
+                dropShadow: { enabled: false },
+                toolbar: { show: false }
+            },           
+            dataLabels: {
+                enabled: true,
+                style: {
+                    colors: ["#000000"],
+                    fontWeight: "bold",
+                    fontSize:"0.8vw"
+                },
+                formatter: (val, opts) => {
+                    const dataPoint = opts.w.config.series[opts.seriesIndex].data[opts.dataPointIndex];
+
+                    return `${dataPoint.valor} ${dataPoint.x}`;
+                },
+                offsetY:0
+            },            
+            plotOptions: {
+                bar: {
+                    borderRadius: 0,
+                    horizontal: true,
+                    barHeight: '80%',
+                    isFunnel: true,
+                    isFunnel3d: false
+                }
+            },
+            tooltip: { enabled: false },
+            //xaxis: {
+            //    categories: Object.getOwnPropertyNames(resultado)
+            //},
+            //responsive: [{
+            //    breakpoint: 480,
+            //    options: {
+            //        chart: {
+            //            width: 200
+            //        },
+            //        legend: {
+            //            position: 'bottom'
+            //        }
+            //    }
+            //}],
+            title: {align:'middle'},
+            legend: {
+                show: false,
+            },
+        };
+
+        $("#iFunilVendas").empty();
+        const chartFunilVendas = new ApexCharts(
+            document.querySelector("#iFunilVendas"),
+            options
+        );
+
+        chartFunilVendas.render();
+    }
+    function handleClickFiltroPeriodo(idPeriodo) {
+        if ($('#' + idPeriodo).is(":visible")) {
+            $('#' + idPeriodo).hide();
+        }
+        else {
+            $('#' + idPeriodo)[0].size = $('#' + idPeriodo)[0].length;
+            $('#' + idPeriodo).show();
+        }
+    }
+
+    function handleLegendaFiltro(texto, campo, valor, usuario) {
+        let legenda = "";
+        switch (campo) {
+            case "iFiltroCardMeta": legenda = "iLegendaMeta";
+                break;
+            case "iFiltroCardAprovadas": legenda = "iLegendaAprovadas";
+                break;
+            case "iFiltroCardPendentes": legenda = "iLegendaPendentes";
+                break;
+            case "iFiltroCardDesistencias": legenda = "iLegendaDesistentes";
+                break;
+            case "iFiltroCardInstaladas": legenda = "iLegendaInstaladas";
+                break;
+            case "iFiltroCardStatus": legenda = "iLegendaStatus";
+                break;
+            case "iFiltroCardFunil": legenda = "iLegendaFunil";
+                break;
+        }
+
+        let strLegenda = valor == 0 ? "Dia Corrente" :
+                         valor == 1 ? "Semana Corrente" :
+                         valor == 2 ? "Últimos 7 Dias" :
+                         valor == 3 ? "Mês Corrente" :
+                         "Últimos 30 Dias";
+
+        $(`#${legenda}`).html(`${texto[0]}${strLegenda}${texto[1]}${usuario}`);
+        return;
+    }
+
+    $(document).ready(async function () {
+        $("#iFormatoVisu").trigger('change');
+    });
+
+    $("#iFiltroCardMeta").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getMeta();
+
+    });
+
+    $("#iFiltroCardAprovadas").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getVendasAprovadas();
+
+    });
+    $("#iFiltroCardDesistencias").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getDesistencia();
+
+    });
+    $("#iFiltroCardPendentes").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getVendasPendentes();
+    });
+    $("#iFiltroCardInstaladas").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getVendasInstaladas();
+
+    });
+    $("#iFiltroCardStatus").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getVendasStatus();
+
+    });
+    $("#iFiltroCardFunil").on("change", async function () {
+        this.size = 1;
+        $(this).hide();
+        await getFunilVendas();
+
+    });
+
+    $("#iFormatoVisu").off("change");
+    $("#iFormatoVisu").on("change", function () {
+        /*Uso de apis*/
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Minha_Meta)))
+        {
+            <text>$("#iFiltroCardMeta").trigger('change');</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Aprovadas)))
+        {
+            <text>$("#iFiltroCardAprovadas").trigger("change");</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Pendentes)))
+        {
+            <text>$("#iFiltroCardPendentes").trigger("change");</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Desistencias)))
+        {
+            <text>$("#iFiltroCardDesistencias").trigger("change");</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Instaladas)))
+        {
+            <text>$("#iFiltroCardInstaladas").trigger("change");</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Status)))
+        {
+            <text>$("#iFiltroCardStatus").trigger("change");</text>
+        }
+        @if (recursos. Contains(Convert.ToInt32(Dashboard_Comercial.Funil_Vendas)))
+        {
+            <text>$("#iFiltroCardFunil").trigger("change");</text>
+        }
+    });
+
+    $(".filtrosDash").on("change", function () {
+        const [filtro, valor, usuario] = [$(this).prop("id"), $(this).val(), '@(User.Identity.GetUserName())'];
+
+        handleLegendaFiltro`Abrangência : ${filtro} - ${valor}${usuario}`;
+    });
+    </script>
+}
+@Html.Hidden("VisualizacaoDashboard", Convert.ToInt64(Model.VisualizacaoDashboard),new {@id = "iFormatoVisu" })
+<div style="margin-left: -15px; margin-right:15px;">
+
+    <!--User-->
+    <div class="row ml-0 mr-0">
+        <div class="col-sm-10 mt-2 ml-2">
+            <span class="dash-user">
+                Olá
+                @if (Request.IsAuthenticated)
+                {
+                    @User.Identity.GetUserName()
+                }
+            </span><span class="dash-user">! Que bom ter você por aqui :)</span>
+        </div>
+        <div class=" col-sm mr-3 mt-2 text-right">
+            <span class="dash-user">Visualização: @visualizacao</span>
+        </div>
+    </div>
+
+    <!--Cards com as informações-->
+
+    <div class="row mt-0" style="margin: 15px;">
+        <div class="col-sm-12 mt-1 mb-1">
+            <div class="card-deck">
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Minha_Meta))) 
+                {
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardMeta')" style=" display:none; float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardMeta">
+                                <option selected value="3">Este Mês</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="height:160px;">
+                            <div class="text-left dash-title-bold">Meta</div>
+                            <div class="text-left dash-title-bold numVendas"></div>
+                            <div class="progress">
+
+                                <div id="iProggressVenda" class="progress-bar" role="progressbar" style="background-color:#9FDA52 !important; width:0%;" aria-valuemin="0" aria-valuemax="100"></div>
+                                <div id="iProggressTotal" class="progress-bar" role="progressbar" style="background-color:#d7d8da !important;  width: 100%" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="text-center">
+                                <span>@Aniel.Connect.Core.Helpers.HtmlEnumExtensions.GetEnumDescription(EnumPeriodoFitlroDashVendas.EsteMes)</span>
+                            </div>
+                            <div class="text-right numVendas2">
+                            </div>
+                            <div class="text-center">
+                                <span id="iLegendaMeta" class="dash-legend "></span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        </div>
+
+        <div class="col mt-1">
+
+            <div class="card-deck">
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Aprovadas)))
+                {
+
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardAprovadas')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardAprovadas">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="height: 140px;">
+
+                            <div class="text-left dash-title-bold">@RsCadastros.VENDAS_APROVADAS</div>
+                            <br />
+                            <div class="text-center">
+                                <span class="dash-title-bold" id="iVendasAprovadas">0</span>
+                            </div>
+                            <div class="text-center">
+                                <span id="iLegendaAprovadas" class="dash-legend"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                }
+
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Pendentes)))
+                {
+
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardPendentes')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardPendentes">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="height: 140px;">
+
+                            <div class="text-left dash-title-bold">@RsCadastros.VENDAS_PENDENTES</div>
+                            <br />
+                            <div class="text-center">
+                                <span class="dash-title-bold" id="iVendasPendentes">0</span>
+                            </div>
+                            <div class="text-center">
+                                <span id="iLegendaPendentes" class="dash-legend"></span>
+                            </div>
+
+                        </div>
+                    </div>
+
+                }
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Desistencias)))
+                {
+
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardDesistencias')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardDesistencias">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="height: 140px;">
+
+                            <div class="text-left dash-title-bold">@RsCadastros.DESISTENCIAS</div>
+                            <br />
+                            <div class="text-center">
+                                <span class="dash-title-bold" id="iDesistencias"></span>
+                            </div>
+                            <div class="text-center">
+                                <span id="iLegendaDesistentes" class="dash-legend"></span>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+            </div>
+
+            <div class="card-deck">
+
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Instaladas)))
+                {
+
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardInstaladas')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardInstaladas">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="height: 140px;">
+
+                            <div class="text-left dash-title-bold">@RsCadastros.VENDAS_INSTALADAS</div>
+                            <br />
+                            <div class="text-left">
+                                <span class="text-left dash-title" id="iVendasInstaladas"></span>
+                            </div>
+                            <div class="progress">
+
+                                <div id="iProggressVendasInstaladas" class="progress-bar" role="progressbar" style="background-color:#9FDA52 !important; width:0%;" aria-valuemin="0" aria-valuemax="100"></div>
+                                <div id="iProggressVendasAprovadas" class="progress-bar" role="progressbar" style="background-color:#d7d8da !important;  width: 100%" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-left dash-title-bold" id="iPercVendasInstaladas"></span>
+                            </div>
+                            <div class="text-center mr-5">
+                                <span id="iLegendaInstaladas" class="dash-legend"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                }
+
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Vendas_Status)))
+                {
+
+                    <div class="card shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardStatus')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardStatus">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body">
+
+                            <div class="text-left dash-title-bold">Vendas Por Status</div>
+
+                            <div class="grafico" id="iVendasStatus"></div>
+                            <div class="text-center">
+                                <span id="iLegendaStatus" class="dash-legend"></span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                }
+
+                @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Funil_Vendas)))
+                {
+
+                    <div class="card  div-card-accord shadow dash-card">
+                        <div class="card-header">
+                            <a href="#" onclick="handleClickFiltroPeriodo('iFiltroCardFunil')" style="float:right">
+                                <i class="la la-filter la-2x" style="color: #999"></i>
+                            </a>
+                            <select style="display:none" class="form-control filtrosDash" id="iFiltroCardFunil">
+                                <option value="0">Data Atual</option>
+                                <option value="1">Esta Semana</option>
+                                <option value="2">Últimos 7 Dias</option>
+                                <option value="3">Este Mês</option>
+                                <option selected value="4">Últimos 30 Dias</option>
+                            </select>
+                        </div>
+                        <div class="card-body">
+
+                            <div class="text-left dash-title-bold">@RsCadastros.FUNIL_VENDAS</div>
+                            <div class="grafico" id="iFunilVendas" style="margin-left: auto; margin-right: auto"></div>
+                            <div class="text-center">
+                                <span id="iLegendaFunil" class="dash-legend"></span>
+                            </div>
+                        </div>
+
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<!--Fim Cards-->
+<!-- Chat e Novidades Sinapse-->
+@*<div class="col-sm-4" style="padding-left:3%">
+        @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Chat)))
+        {
+            <div class="card shadow mb-2" style="height:240px;width:90%">
+                <div class="card-body">
+                    <strong>** Chat **</strong>
+                </div>
+            </div>
+        }
+        @if (recursos.Contains(Convert.ToInt32(Dashboard_Comercial.Novidades_Sinapse)))
+        {
+
+            <div class="card shadow" style="height:240px;width:90%">
+                <div class="card-body">
+                    <strong>** Novidades Sinapse **</strong>
+                </div>
+            </div>
+        }
+    </div>*@
+
+<!-- Fim Chat e Novidades-->
+@*</div>*@

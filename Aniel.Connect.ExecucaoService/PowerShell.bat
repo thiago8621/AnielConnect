@@ -1,0 +1,1 @@
+New-Service -Name "Aniel.Connect.ExecucaoService.AnielProjImp" -BinaryPathName "D:\Publicados\AnielProjImp\Aniel.Connect.ExecucaoService\Aniel.Connect.ExecucaoService.exe"

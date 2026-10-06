@@ -1,0 +1,1985 @@
+﻿@model Aniel.Connect.Models.ProdutoCadastroModel
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core
+
+@{
+    ViewBag.Title = "Planos/Produtos";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    
+}
+
+@section styles
+{
+    <style>
+        @* O datepicker estava sendo cortado pela metade por causa das estruturas de tab,
+           aumentando o z-index é possível fazer com que o datepicker apareça por completo *@
+        .datepicker {
+            z-index: 9999;
+        }
+        .popover-body {
+            background-color: #357CA5;
+            color: white;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples");
+
+    <script>
+        $('#iUtilizaVendaAgroup').on('change', function () {
+            if ($('#iUtilizaVendaAgroup').is(":checked"))
+                $('#divVendaAgroup').show();
+            else
+                $('#divVendaAgroup').hide();
+        });
+
+
+
+    $('#iCobranca_Realizada').on("change", function () {
+
+        let valorSelecionado = $("#iCobranca_Realizada").val();
+
+        if (valorSelecionado == "0")
+            $("#apenasBoleto").show();
+        else if (valorSelecionado == "" || valorSelecionado == undefined) {
+            $("#apenasBoleto").hide();
+        }
+        else
+            $("#apenasBoleto").hide();
+    });
+
+    $("#iMomento_Cobranca").on("change", function () {
+
+        let valorMomento = $("#iMomento_Cobranca").val();
+
+        if (valorMomento == "1") {
+            $('#iCobranca_Realizada option[value="0"]').hide();
+        }
+        else if (valorMomento == "" || valorMomento == undefined) {
+            $('#iCobranca_Realizada').val(null).trigger("change");
+        }
+        else {
+            $('#iCobranca_Realizada option[value="0"]').show();
+        }
+    });
+
+        $('#iPlano_Comercializavel').prop('checked', true);
+        $('#iPlano_Comercializavel').change(function () {
+
+            // Se igual a analitico
+            if ($("#iPlano_Comercializavel").is(':checked')) {
+
+                $(".naoComercializavel").hide();
+                $("#iMomento_Cobranca").prop('checked', 'false');
+                $("#iCobranca_Realizada").prop('checked', 'false');
+                $("#iDias_Vencimento").prop('checked', 'false');
+
+
+            }
+            else {
+                $(".naoComercializavel").show();//show()
+                $("#iMomento_Cobranca").prop('checked', 'true');
+                $("#iCobranca_Realizada").prop('checked', 'true');
+                $("#iDias_Vencimento").prop('checked', 'true');
+
+            }
+
+        });
+
+        $('#iTipo_Discriminado').change(function () {
+
+            // Se igual a analitico
+            if ($('#iTipo_Discriminado').val() == 1) {
+
+                $("#PercntDisc").hide();
+                $("#iPercentual_Discriminado").val(null);
+                $("#valordisc").show();
+
+
+            } else if ($('#iTipo_Discriminado').val() == 2) {
+                $("#PercntDisc").show();
+                $("#valordisc").hide();
+                $("#iValor_Discriminado").val(null);
+            } else {
+                $("#PercntDisc").hide();
+                $("#valordisc").hide();
+                $("#iValor_Discriminado").val(null);
+                $("#iPercentual_Discriminado").val(null);
+            }
+
+        });
+        $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy')
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle()
+        })
+
+        let global_valor_discriminado_total = 0;
+        let global_valor_plano_final = 0;
+
+        const utiliza_eva = @Json.Encode(@ViewBag.UtilizaEva);
+
+        var oDatatable = null;
+        var oDatatableMensalidade = null;
+
+        @if (Model.IdContaFinanceiraInstalacao.GetValueOrDefault(0) != 0)
+        {
+            <text>
+                AddSelect("iContaFinanceiraInstalacao", "@CONSTANTES.URLPortal/api/Conta_FinanceiraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, @Model.IdContaFinanceiraInstalacao, "@RsBase.SELECIONE", false);
+            </text>
+        }
+        else
+        {
+            <text>
+                AddSelect("iContaFinanceiraInstalacao", "@CONSTANTES.URLPortal/api/Conta_FinanceiraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            </text>
+        }
+
+        AddSelect("idContaFinanceiraProduto", "@CONSTANTES.URLPortal/api/Conta_FinanceiraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Conta_Financeira", "@RsBase.SELECIONE", false);
+        AddSelect("iId_Cfop", "@CONSTANTES.URLPortal/api/cfopApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iId_Recibo", "@CONSTANTES.URLPortal/api/Modelo_ReciboApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Recibo", "@RsBase.SELECIONE", false);
+        AddSelect("iFormaPagCob", "@CONSTANTES.URLPortal/api/Modelo_ReciboApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Recibo", "@RsBase.SELECIONE", false);
+
+
+        $('.money').mask('000000000000000,00', { reverse: true });
+        $('.percent').mask('000,00', { reverse: true });
+
+        $("input[type='radio'][name='TipoValor']").click(function () {
+            var value = $(this).val();
+
+            if (value == 'valor') {
+                $('#iValor_Discriminado').removeClass('readonly');
+                $('#iPercentual_Discriminado').addClass('readonly');
+            }
+            else {
+                $('#iValor_Discriminado').addClass('readonly');
+                $('#iPercentual_Discriminado').removeClass('readonly');
+            }
+        });
+
+        $('#IFormatoCobranca').change(function () {
+            if (!validaProRata()) {
+                $('#IFormatoCobranca').val("")
+            }
+        });
+
+        function validaProRata() {
+            if ($("#iProRata").is(':checked')) {
+                if ($('#IFormatoCobranca').val() == "0") {
+                    Notificar("@RsBase.ATENCAO_", 'Não é Possível Habilitar Pró-Rata e Formato de Cobrança Pré-Pago ao mesmo tempo.', "warning");
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        $('#iCobrancaInstalacao').change(function () {
+            if ($(this).prop("checked")) {
+                $("#divValorInstalacao").show();
+                $("#divComprovantePagamentoInstalacao").show();
+                $("#divContaFinanceiraInstalacao").show();
+                $("#divMomentoCobrancaInstalacao").show();
+            }
+            else {
+                $("#divValorInstalacao").hide();
+                $("#divComprovantePagamentoInstalacao").hide();
+                $("#divContaFinanceiraInstalacao").hide();
+                $("#divMomentoCobrancaInstalacao").hide();
+            }
+        });
+
+        $('#iComprovantePagamentoInstalacao').change(function () {
+            // Se igual a analitico
+            if ($('#iComprovantePagamentoInstalacao option:selected').val() == 1) {
+                $("#bloconf_instalacao").show();
+                $("#cfop").show();
+                $("#ModReciboInstalacao").hide();
+            }
+            else if ($('#iComprovantePagamentoInstalacao option:selected').val() == 2) {
+
+                $("#ModReciboInstalacao").show();
+                $("#bloconf_instalacao").hide();
+            }
+            else {
+                $("#bloconf_instalacao").hide();
+                $("#ModReciboInstalacao").hide();
+            }
+
+        });
+
+        $('#iAtivarValidade').change(function () {
+            // Se igual a analitico
+            if ($("#iAtivarValidade").is(':checked')) {
+                $("#datavalidade").show();
+            }
+            else {
+                $("#datavalidade").hide();
+            }
+        });
+
+        $('#iPercentualDescontoAntecipado').change(function () {
+            if (!$('#iPercentualDescontoAntecipado').val() == "") {
+
+                $('#iValorDescontoAntecipado').prop('disabled', true);
+            }
+            else {
+                $('#iValorDescontoAntecipado').prop('disabled', false);
+            }
+        });
+
+        $('#iValorDescontoAntecipado').change(function () {
+            if (!$('#iValorDescontoAntecipado').val() == "") {
+
+                $('#iPercentualDescontoAntecipado').prop('disabled', true);
+            }
+            else {
+                $('#iPercentualDescontoAntecipado').prop('disabled', false);
+            }
+        });
+
+        $('#iDescontoProgressivo').change(function () {
+            if ($(this).is(':checked'))
+                $('#iFaixaMensalidaContainer').show()
+            else
+                $('#iFaixaMensalidaContainer').hide()
+        });
+
+        $('#iPercentualDescontoProgressivo').change(function () {
+            if (!$('#iPercentualDescontoProgressivo').val() == "") {
+
+                $('#iValorDescontoProgressivo').prop('disabled', true);
+            }
+            else {
+                $('#iValorDescontoProgressivo').prop('disabled', false);
+            }
+        });
+
+        $('#iValorDescontoProgressivo').change(function () {
+            if (!$('#iValorDescontoProgressivo').val() == "") {
+
+                $('#iPercentualDescontoProgressivo').prop('disabled', true);
+            }
+            else {
+                $('#iPercentualDescontoProgressivo').prop('disabled', false);
+            }
+        });
+
+        $('#iProRata').change(function () {
+            if (!validaProRata()) {
+                $('#iProRata').bootstrapToggle('off');
+                $('#iProRata').prop("checked",false);
+            }
+
+            // Se igual a analitico
+            if ($("#iProRata").is(':checked')) {
+                $("#opcoesprorata").show();//show()
+                $("#iPro_Rata_Habilitacao").prop('checked', 'true');
+                $("#iPro_Rata_Interrupcao").prop('checked', 'true');
+                $("#iPro_Rata_Cancelamento").prop('checked', 'true');
+            }
+            else {
+                $("#opcoesprorata").hide();
+                 $("#iPro_Rata_Habilitacao").prop('checked', 'false');
+                $("#iPro_Rata_Habilitacao").prop('checked', 'false');
+                $("#iPro_Rata_Habilitacao").prop('checked', 'false');
+            }
+        });
+
+        $('#iEmitirContrato').change(function () {
+            // Se igual a analitico
+            if ($("#iEmitirContrato").is(':checked')) {
+                $("#mdcontrato").show();
+                $("#mdcontratoca").show();
+                $("#mdcontratope").show();
+            }
+            else {
+                $("#mdcontrato").hide();
+                $("#mdcontratoca").hide();
+                $("#mdcontratope").hide();
+            }
+        });
+
+        $('#iFrequenciaCobranca').change(function () {
+            if ($('#iFrequenciaCobranca option:selected').val() == 6) {
+                $('#divcomprovantepagamento').hide();
+                $('#divformatocobranca').hide();
+                $('#iDescContaFinanceiraProduto').hide();
+                $('#ModRecibo').hide();
+            }
+            else {
+                $('#divcomprovantepagamento').show();
+                $('#divformatocobranca').show();
+                $('#iDescContaFinanceiraProduto').show();
+                $('#ModRecibo').show();
+            }
+        });
+
+        $('#iDescontoAntecipado').change(function () {
+            // Se igual a analitico
+            if ($("#iDescontoAntecipado").is(':checked')) {
+                $("#qtddiasvencto").show();
+                $("#percentualdesconto").show();
+                $("#valordesconto").show();
+            }
+            else {
+                $("#qtddiasvencto").hide();
+                $("#percentualdesconto").hide();
+                $("#valordesconto").hide();
+            }
+        });
+
+        $('#iDescontoProgressivo').change(function () {
+            // Se igual a analitico
+            if ($("#iDescontoProgressivo").is(':checked')) {
+                $("#mensalidadeini").show();
+                $("#mensalidadefim").show();
+                $("#descprogressivo").show();
+                $("#valordesc").show();
+            }
+            else {
+                $("#mensalidadeini").hide();
+                $("#mensalidadefim").hide();
+                $("#descprogressivo").hide();
+                $("#valordesc").show();
+            }
+        });
+
+        $('#iComprovantePagamento').change(function () {
+            // Se igual a analitico
+            if ($('#iComprovantePagamento option:selected').val() == "1") {
+                $("#bloconf").show();
+                $("#mdnotafiscal").show();
+                $("#cfop").show();
+                $("#ModRecibo").hide();
+            }
+            else if ($('#iComprovantePagamento option:selected').val() == "2") {
+                $("#ModRecibo").show();
+                $("#bloconf").hide();
+            }
+            else if ($('#iComprovantePagamento option:selected').val() == "0") {
+                $("#bloconf").hide();
+                $("#ModRecibo").hide();
+            }
+            else {
+                $("#bloconf").hide();
+                $("#ModRecibo").hide();
+            }
+        });
+
+        $('#iPercentual_Desconto').on("keyup", function () {
+            if (!$('#iPercentual_Desconto').val() == "") {
+                $('#iValor_Desconto').prop('disabled', true);
+            }
+            else {
+                $('#iValor_Desconto').prop('disabled', false);
+            }
+        });
+
+        $('#iValor_Desconto').on("keyup", function () {
+            if (!$('#iValor_Desconto').val() == "") {
+                $('#iPercentual_Desconto').prop('disabled', true);
+            }
+            else {
+                $('#iPercentual_Desconto').prop('disabled', false);
+            }
+        });
+
+        $('#iModeloNotaFiscal').change(function () {
+            // Se igual a analitico
+            if ($('#iModeloNotaFiscal option:selected').val() == 1 || $('#iModeloNotaFiscal option:selected').val() == 2) {
+                $("#bloconf").show();
+                $("#desc_atividade").show();
+                $("#retencaoimposto").show();
+                $("#pis").show();
+                $("#cofins").show();
+                $("#Iss").show();
+                $("#icms").show();
+            }
+            else {
+                $("#desc_atividade").hide();
+                $("#retencaoimposto").hide();
+                $("#pis").hide();
+                $("#cofins").hide();
+                $("#Iss").hide();
+                $("#icms").hide();
+            }
+
+            if ($('#iModeloNotaFiscal option:selected').val() == 3) {
+                $("#bloconf").show();
+                $("#retencaoimposto").show();
+                $("#pis").show();
+                $("#cofins").show();
+                $("#Iss").show();
+                $("#icms").show();
+            }
+        });
+
+        $('#iStatusInicial').change(function () {
+            let value = $('#iStatusInicial option:selected').val()
+            if (value && value == @Convert.ToInt16(Status_PlanoProduto.Aguardando_Criacao_OS)) {
+                $('#iTipo_ServicoCol').show();
+                $('#iSubtipo_ServicoCol').show();
+            }
+            else {
+                $('#iTipo_ServicoCol').hide();
+                $('#iSubtipo_ServicoCol').hide();
+            }
+        });
+
+         $('#iUsaPlanoAdicional').change(function () {
+            // Se igual a analitico
+            if ($("#iUsaPlanoAdicional").is(':checked')) {
+                $("#listaPlanos").show();
+                $("#dataPlanosAdicionais").show();
+                $("#iUsaPlanoAdicional").text("Sim");
+                @Model.UsaPlanoAdicional = true;
+            }
+            else {
+                $("#listaPlanos").hide();
+                $("#dataPlanosAdicionais").hide();
+                @Model.UsaPlanoAdicional = false;
+            }
+         });
+
+        var TipoServicoSelecionado = null;
+        var HandleTipoServico = function () {
+            $('#iTipo_Servico').on('select2:select select2:unselecting', function (e) {
+                TipoServicoSelecionado = e.params.data;
+                $('#iSubtipo_Servico').val(null).trigger('change');
+                AddSelect("iSubtipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, TipoServicoSelecionado.id, null, "@RsBase.SELECIONE", false, HandleSubTipoServico);
+                return true;
+            });
+        };
+
+        var SubTipoServicoSelecionado = null;
+        var HandleSubTipoServico = function () {
+            $('#iSubtipo_Servico').on('select2:select select2:unselecting', function (e) {
+                SubTipoServicoSelecionado = e.params.data;
+                return true;
+            });
+        };
+
+        $(document).ready(function () {
+
+            @if (Model.UtilizaVendaAgroup)
+            {
+                <text>
+                    $('#divVendaAgroup').show();
+                </text>
+            }
+
+
+            $("#iEmitirContrato").prop('checked', true).trigger('change');
+            $("#mdcontratope").hide();
+            $("#EmitirContrato").hide();
+            $("#PercntDisc").hide();
+            $("#valordisc").hide();
+            $("#iSubtipo_ServicoCol").hide();
+            $("#iTipo_ServicoCol").hide();
+            $(".comerciavel").hide();
+            $('#iStatusInicial option').each(function () {
+                if (!['@Convert.ToInt16(Status_PlanoProduto.Aguardando_Criacao_OS)', '@Convert.ToInt16(Status_PlanoProduto.Habilitado)', ''].includes($(this).val())){
+                    $(this).remove();
+                }
+            });
+
+
+
+            AddSelect("iDescontoSelect","@CONSTANTES.URLPortal/api/Descontoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTipo_Servico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Tipo_Servico", "@RsBase.SELECIONE", false, HandleTipoServico);
+            AddSelect("iSubtipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Tipo_Servico", "@Model.Id_Subtipo_Servico", "@RsBase.SELECIONE", false, HandleSubTipoServico);
+            AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iClassificacaoTributaria", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboClassificacaoTributaria", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect("iModeloContrato", "@CONSTANTES.URLPortal/api/Modelo_ContratoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdModeloContrato", "@RsBase.SELECIONE", false, handleModeloContrato);
+
+            $('#iPlano_Comercializavel').trigger('change');
+            $('#iReducaoVelocidade').trigger('change');
+            $('#iCobrancaInstalacao').trigger('change');
+            $('#iComprovantePagamentoInstalacao').trigger('change');
+
+            $('#iAtivarValidade').trigger('change');
+
+            $('#iProRata').trigger('change');
+
+            $('#iUsaPlanoAdicional').trigger('change');
+
+            $('#iEmitirContrato').trigger('change');
+
+            $('#iDescontoAntecipado').trigger('change');
+
+            $('#iDescontoProgressivo').trigger('change');
+
+            $('#iModeloNotaFiscal').trigger('change');
+
+            $('#iValorDescontoProgressivo').trigger('change');
+
+            $('#iValorDescontoAntecipado').trigger('change');
+
+            $('#iPercentualDescontoProgressivo').trigger('change');
+
+            $('#iPercentualDescontoAntecipado').trigger('change');
+
+            $('#iFrequenciaCobranca').trigger('change');
+
+            $('#iComprovantePagamento').trigger('change');
+            $('#iDescontoProgressivo').trigger('change');
+
+            $('#iStatusInicial').trigger('change');
+
+            const valor_discriminado_total = oDatatable.data().map(p => parseFloat(p.ValorDiscriminado)).reduce((a, b) => a + b, 0)
+            const valor_plano = parseFloat($('#iValorProduto').val().replace(",", "."))
+            const valor_plano_final = isNaN(valor_plano) ? 0 : valor_plano
+
+            global_valor_discriminado_total = valor_discriminado_total;
+            console.log(valor_discriminado_total);
+            global_valor_plano_final = valor_plano_final;
+        });
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            var erro = false;
+
+            if ($('#iUtilizaVendaAgroup').is(":checked")) {
+
+                let valor = $('#iValorVendaAgroup').val();
+
+                let valorVenda = parseFloat(valor.replace(',', '.')).toFixed(2);
+
+                if (valorVenda < 0.01 || valorVenda == NaN || valorVenda === undefined || valor === "") {
+                    Notificar("@RsBase.ATENCAO_", `Obrigatório preencher com valor maior do que zero`, "warning")
+                    erro = true;
+                }
+            }
+            if ($("#iUsaPlanoAdicional").is(':checked')) {
+                var datas = oDatatablelistaPlanos.rows().data();
+
+                if (datas.length === 0) {
+                    Notificar("@RsBase.ATENCAO_", `Atenção! Informe ao menos um Plano/Produto`, "warning")
+                    erro = true
+                }
+            }
+
+            if ($('#iComprovantePagamento').val() === "1") {
+                if (global_valor_discriminado_total.toFixed() != global_valor_plano_final) {
+                    Notificar("@RsBase.ATENCAO_", `Total da composição da nota fiscal do produto <strong class=text-primary> R$ ${global_valor_discriminado_total} </strong><br> deve ser igual ao valor do produto <strong class=text-danger> R$ ${global_valor_plano_final} </strong>.`, "warning")
+                    erro = true
+                }
+            }
+
+            @if (Model.Id == 0)
+            {
+                <text>
+                    if ($('#iAtivarValidade').is(':checked')) {
+
+                        var data = $('#iData_Validade').val();
+                        var partesData = data.split("/");
+                        var data = new Date(partesData[2], partesData[1] - 1, partesData[0]);
+
+                        var hoje = new Date().toLocaleDateString();
+                        var partesData = hoje.split("/");
+                        var hoje = new Date(partesData[2], partesData[1] - 1, partesData[0]);
+
+                        if (data < hoje) {
+
+                            Notificar("Atenção!", '@RsCadastros.INFORME_DATAVALIDA', "warning");
+                            erro = true;
+                        }
+
+                        if ($('#iData_Validade').val() == "") {
+                            Notificar("@RsBase.ATENCAO_", '@RsCadastros.INFORME_DATAVALIDADEPRODUTO', "warning");
+                            erro = true;
+                        }
+                    }
+                </text>
+            }
+
+            if ($('#iEmitirContrato').is(':checked') && $('#iModeloContrato option:selected').val() == "") {
+               Notificar("@RsBase.ATENCAO_", 'Informe o modelo de contrato', "warning");
+               erro = true;
+            }
+
+            if (utiliza_eva) {
+                if (!$('#IFormatoCobranca').val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsConfiguracao.FORMATOCOBRANCA)", "warning");
+                    erro = true;
+                }
+
+                if(!$('#idContaFinanceiraProduto').val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsConfiguracao.CONTAFINANCEIRA)", "warning");
+                    erro = true;
+                }
+
+                if (!$('#iFrequenciaCobranca').val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsConfiguracao.FREQUENCIACOBRANCA)", "warning");
+                    erro = true;
+                }
+
+                if (!$('#iComprovantePagamento').val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsConfiguracao.COMPROVANTEPAGAMENTO)", "warning");
+                    erro = true;
+                }
+            }
+
+            if ($('#iDescontoAntecipado').is(':checked') && $('#iQtdDiasVencto').val() <= 0) {
+                Notificar("@RsBase.ATENCAO_", 'informe a quantidade de dias de vencimento', "warning");
+                erro = true;
+            }
+
+            if ($('#iDescontoAntecipado').is(':checked')) {
+                if ($('#iPercentualDescontoAntecipado').val() == "" && $('#iValorDescontoAntecipado').val() == "") {
+                    Notificar("@RsBase.ATENCAO_", 'informe o percentual ou valor de desconto antecipado', "warning");
+                    erro = true;
+                }
+            }
+
+            if ($('#iDescontoProgressivo').is(':checked')) {
+                if ($('#iPercentualDescontoProgressivo').val() == "" && $('#iValorDescontoProgressivo').val() == "") {
+                    Notificar("@RsBase.ATENCAO_", 'informe o percentual ou valor de desconto progressivo', "warning");
+                    erro = true;
+                }
+            }
+
+            if ($('#iStatusInicial option:selected').val() == @Convert.ToInt16(Status_PlanoProduto.Aguardando_Criacao_OS) &&
+                !$('#iTipo_Servico option:selected').val()) {
+                Notificar("@RsBase.ATENCAO_", 'Informe um tipo de serviço', "warning");
+                erro = true;
+            }
+
+            if ($("#iCobrancaInstalacao").prop("checked")) {
+                if (!$("#iValorInstalacao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsConfiguracao.VALORINSTALACAO)", "warning");
+                    erro = true;
+                }
+
+                if (!$("#iComprovantePagamentoInstalacao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsConfiguracao.COMPROVANTEPAGAMENTO) da Instalação", "warning");
+                    erro = true;
+                }
+
+                if (!$("#iContaFinanceiraInstalacao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsConfiguracao.CONTAFINANCEIRAINSTALACAO)", "warning");
+                    erro = true;
+                }
+
+                if (!$("#iMomentoCobrancaInstalacao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MOMENTO_COBRAR) a Instalação", "warning");
+                    erro = true;
+                }
+            }
+
+
+
+            //Condição a ser ativada quando o campo tipo, possuir mais de 1 item
+            @*if (!$("#iTipoProduto").val()) {
+                Notificar("@RsBase.ATENCAO_", 'Informe o tipo', "warning");
+                erro = true;
+            }*@
+
+
+
+
+            if (erro) {
+                clicked = false;
+                return;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+        var oDatatablelistaPlanos = null;
+
+        var handleDataTableButtonsPlanosAdicionais = function () {
+        "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.PlanosProdutosAdicionais));
+            var nome_lista = "PlanosProdutosAdicionais";
+
+            oDatatablelistaPlanos = $("#datatablePlanos").length && $("#datatablePlanos").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                drawCallback: () => {
+                    handleExcluir();
+
+                },
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirPlano_" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "Id",
+                        title: "@RsCadastros.CODIGO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+
+                    {
+
+                        data: "Descricao",
+                        title: "@RsCadastros.DESCRICAO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(row.Descricao) + '">';
+                            }
+                            return data;
+                        }
+
+                    },
+
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluirPlano_").unbind('click');
+                $(".btnExcluirPlano_").click(function (e) {
+                    e.preventDefault();
+
+                    var idAtividade = $(this).attr("excluir");
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idAtividade === "0") {
+                        oDatatablelistaPlanos.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/PlanoProdutoApi/ExcluirlistaPlanosAdicionais")';
+
+                            var objeto = {
+                                excluirId: idAtividade,
+                                id: @Model.Id,
+                            };
+
+                            $.ajax({
+                                url: link,
+                                type: 'POST',
+                                dataType: 'json',
+                                data: objeto
+                            })
+                            .done(function (data) {
+                                if (data.ok) {
+                                    oDatatablelistaPlanos.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function (e) {
+                                Notificar("@RsBase.ATENCAO_", e.responseJSON.message, "warning");
+                            })
+                    }
+                });
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionarPlano").on('click', function () {
+                var erro = false
+
+                if (erro) {
+                    return false;
+                }
+                oDatatablelistaPlanos.row.add({
+                    Id: 0,
+                    Id: $("#iPlanoProduto").val(),
+                    Descricao: $("#iPlanoProduto option:selected").text(),
+
+                }).draw(false);
+
+                $("#iPlanoProduto").val(null);
+
+                handleExcluir();
+
+            });
+        },
+        TableManageButtonsPlanosAdicionais = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtonsPlanosAdicionais();
+                }
+            }
+        }();
+
+        TableManageButtonsPlanosAdicionais.init();
+
+
+        //Datatable Atividades
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.ConfiguracaoProdNF));
+            var nome_lista = "ConfiguracaoProdNF";//Nome_utilizado para enganar o razor
+
+            oDatatable = $("#datatableAtividade").length && $("#datatableAtividade").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                ordering: false,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirAtividade" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>' +
+                                   '<input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(row.Id) + '">' +
+                                   '<input id="' + nome_lista + '_' + meta.row + '__ModeloNotaFiscal" name="' + nome_lista + '[' + meta.row + '].ModeloNotaFiscal" type="hidden" value="' + TrataNulo(row.ModeloNotaFiscal) + '">' +
+                                   '<input id="' + nome_lista + '_' + meta.row + '__IdClassificacaoTributaria" name="' + nome_lista + '[' + meta.row + '].IdClassificacaoTributaria" type="hidden" value="' + TrataNulo(row.IdClassificacaoTributaria) + '">';
+                        }
+                    },
+                    {
+                        data: "DescModeloNotaFiscal",
+                        title: "@RsCadastros.MODELO_NOTA_FISCAL"
+                    },
+                    {
+                        data: "DescClassificacaoTributaria",
+                        title: "@RsCadastros.CLASSIFICACAO_TRIBUTARIA"
+                    },
+                    {
+                        data: "ValorDiscriminado",
+                        title: "@RsCadastros.VALOR_DISCRIMINADO",
+                        render: function (data, type, row, meta) {
+                            return data + ' <input id="' + nome_lista + '_' + meta.row + '__ValorDiscriminado" name="' + nome_lista + '[' + meta.row + '].ValorDiscriminado" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "PercentualDiscriminado",
+                        title: "@RsCadastros.PERCENTUAL_DISCRIMINADO",
+                        render: function (data, type, row, meta) {
+                            return data + ' <input id="' + nome_lista + '_' + meta.row + '__PercentualDiscriminado" name="' + nome_lista + '[' + meta.row + '].PercentualDiscriminado" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluirAtividade").click(function (e) {
+                    e.preventDefault();
+
+                    var idAtividade = $(this).attr("excluir")
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idAtividade === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+                        atualizaValorGlobalFinanceiro();
+                    }
+                    else {
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Produtoapi/ExcluirConfigNF?value=")' + idAtividade;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json'
+                        })
+                        .done(function (data) {
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+                                atualizaValorGlobalFinanceiro();
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function (e) {
+                            Notificar("@RsBase.ATENCAO_", e.responseJSON.message, "warning");
+                        });
+                    }
+                });
+            };
+
+            function atualizaValorGlobalFinanceiro() {
+                const valor_discriminado_total = oDatatable.data().map(p => {
+
+                    if (p.ValorDiscriminado)
+                        return parseFloat(p.ValorDiscriminado.replace(",", "."));
+                    else {
+                        let valorPlano = parseFloat($('#iValorProduto').val().replace(",", "."))
+                        let valor = valorPlano * (p.PercentualDiscriminado.replace('%', '') / 100);
+                        return parseFloat(valor.toFixed(2));
+                    }
+
+
+                }).reduce((a, b) => a + b, 0)
+                const valor_plano = parseFloat($('#iValorProduto').val().replace(",", "."))
+                const valor_plano_final = isNaN(valor_plano) ? 0 : valor_plano
+
+                global_valor_discriminado_total = valor_discriminado_total;
+                global_valor_plano_final = valor_plano_final;
+            };
+
+            function limpaControlesNotaFiscalFinanceiro() {
+                $("#iValor_Discriminado").val(null);
+                $("#iTipo_Discriminado").val(0);
+                $("#iModeloNotaFiscal").val(null).trigger("change");
+                $('#iId_Cfop').val(null).trigger("change");
+                $("#iPercentual_Discriminado").val(null);
+
+            }
+
+            handleExcluir();
+
+            //$("#idBotao").on("click", function () {
+            //    let vari = $("#iTipo_Discriminado").val();
+            //    let valorPlano = 0;
+            //    Discriminado(vari, valorPlano);
+
+            //})
+
+            /**
+             * @@param number_Type {number} número do valor a ser discriminado
+             */
+            function Discriminado(number_Type, valorPlano) {
+                //Com o valor discriminado e valor do plano, adquirir percentual
+                if (number_Type == 1)
+                {
+                    let valor = parseFloat($("#iValor_Discriminado").val().replace(",", "."));
+                    let discriminadoPercentual = parseFloat(((valor * 100) / valorPlano).toFixed(2));
+                    $("#iPercentual_Discriminado").val(discriminadoPercentual.toLocaleString());
+                }
+
+                //Com o percentual discriminado e valor do plano, adquirir valor
+                else if (number_Type == 2)
+                {
+                    let discriminadoValor = parseFloat((($("#iPercentual_Discriminado").val() * (valorPlano)) / (100)).toFixed(2));
+                    $("#iValor_Discriminado").val(discriminadoValor.toLocaleString());
+                }
+            }
+             $("#btnAdicionarAtividade").on('click', function () {
+                 var erro = false
+                 const valor_plano = parseFloat($('#iValorProduto').val().replace(",", "."))
+                 const valor_plano_final = isNaN(valor_plano) ? 0 : valor_plano
+                 let tipoDiscriminado = $("#iTipo_Discriminado").val();
+                 Discriminado(tipoDiscriminado, valor_plano);
+                if (!$("#iClassificacaoTributaria").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CLASSIFICACAO_TRIBUTARIA)", "warning")
+                    erro = true
+                }
+
+                if (!$("#iModeloNotaFiscal").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MODELO_NOTA_FISCAL)", "warning")
+                    erro = true
+                }
+
+                if (!$("#iValor_Discriminado").val() && !$("#iPercentual_Discriminado").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.VALOR_DISCRIMINADO)", "warning")
+                    erro = true
+                }
+                else
+                {
+                    var valor_discriminado_total = 0;
+                    for (var i = 0; i < oDatatable.data().length; i++) {
+                        valor_discriminado_total = valor_discriminado_total + parseFloat(oDatatable.data()[i].ValorDiscriminado.toString().replace(',','.'))
+                    }
+
+                    valor_discriminado_total = valor_discriminado_total + parseFloat($("#iValor_Discriminado").val().replace(",", "."))
+
+                    if (valor_discriminado_total > valor_plano_final)
+                    {
+                        valor_discriminado_total = oDatatable.data().map(p => parseFloat(p.ValorDiscriminado)).reduce((a, b) => a + b, 0)
+                        limpaControlesNotaFiscalFinanceiro()
+                        Notificar("@RsBase.ATENCAO_", "Total de valores discriminados está ultrapassando o valor total do produto.", "warning")
+                        erro = true
+                    }
+
+                    global_valor_discriminado_total = valor_discriminado_total;
+                    global_valor_plano_final = valor_plano_final;
+                }
+
+                if (erro) {
+                    return false;
+                }
+                oDatatable.row.add({
+                    Id: 0,
+
+                    ModeloNotaFiscal: $("#iModeloNotaFiscal").val(),
+                    DescModeloNotaFiscal: $("#iModeloNotaFiscal option:selected").text(),
+                    a: $("#iTipo_Discriminado").val(),
+                    IdClassificacaoTributaria: $("#iClassificacaoTributaria").val(),
+                    DescClassificacaoTributaria: $("#iClassificacaoTributaria option:selected").text(),
+                    PercentualDiscriminado: $("#iPercentual_Discriminado").val() ? parseFloat($("#iPercentual_Discriminado").val()).toLocaleString() : null,
+                    ValorDiscriminado: $("#iValor_Discriminado").val(),
+                }).draw(false);
+
+                 $("#iValor_Discriminado").val(null);
+                 $("#iTipo_Discriminado").val(null).trigger("change");
+                 $("#iModeloNotaFiscal").val(null).trigger("change");
+                 $('#iId_Cfop').val(null).trigger("change");
+                 $("#iPercentual_Discriminado").val(null);
+                 $("#iClassificacaoTributaria").val(null).trigger("change");
+
+
+                atualizaValorGlobalFinanceiro();
+                handleExcluir();
+            });
+        },
+        TableManageButtons = function() {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+
+        //..Datatable Atividades
+
+        //Datatable Mensalidades
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.MensalidadesProd));
+            var nome_lista = "MensalidadesProd"; //Nome_utilizado para enganar o razor
+
+            oDatatableMensalidade = $("#datatableMensalidade").length && $("#datatableMensalidade").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirMensalidade" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "Parcela_Ini",
+                        title: "@RsCadastros.PARCELA_INI",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Parcela_Ini" name="' + nome_lista + '[' + meta.row + '].Parcela_Ini" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Parcela_Fin",
+                        title: "@RsCadastros.PARCELA_FIN",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Parcela_Fin" name="' + nome_lista + '[' + meta.row + '].Parcela_Fin" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Percentual_Desconto",
+                        title: "@RsCadastros.PERCENTUAL_DESCONTO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (data == null)
+                                    data = '';
+                                else
+                                    data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Percentual_Desconto" name="' + nome_lista + '[' + meta.row + '].Percentual_Desconto" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Valor_Desconto",
+                        title: "@RsCadastros.VALOR_DESCONTO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (data == null)
+                                    data = '';
+                                else
+                                    data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Valor_Desconto" name="' + nome_lista + '[' + meta.row + '].Valor_Desconto" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluirMensalidade").click(function (e) {
+                    e.preventDefault();
+
+                    var idMensalidade = $(this).attr("excluir");
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idMensalidade === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Produtoapi/ExcluirMensalidade?value=")' + idMensalidade;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function (e) {
+                            Notificar("@RsBase.ATENCAO_", e.responseJSON.message, "warning");
+                        });
+                    }
+                });
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionarMensalidade").on('click', function () {
+                var erro = false;
+
+                if (!$("#iParcela_Ini").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PARCELA_INI)", "warning");
+                    erro = true;
+                }
+                if (!$("#iParcela_Fin").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PARCELA_FIN)", "warning");
+                    erro = true;
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add({
+                    Id: 0,
+                    Parcela_Ini: $("#iParcela_Ini").val(),
+                    Parcela_Fin: $("#iParcela_Fin").val(),
+                    Percentual_Desconto: $("#iPercentual_Desconto").val(),
+                    Valor_Desconto: $("#iValor_Desconto").val()
+                }).draw(false);
+
+                $("#iParcela_Ini").val(null);
+                $("#iParcela_Fin").val(null);
+                $("#iPercentual_Desconto").val(null);
+                $("#iValor_Desconto").val(null);
+
+                handleExcluir();
+            });
+        },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+
+
+        //..Datatable Mensalidades
+        function NotificarMais60CaracteresNaoAbrirModal(Titulo, Texto, Status, Tempo = 10000, onClose) {
+            Texto = Traduzir(decodeHtmlEntity(Texto));
+
+            try {
+                parent.mkNoti(
+                    Titulo,
+                    Texto,
+                    {
+                        status: Status,
+                        icon: {
+                            class: null,
+                            color: null,
+                            background: null
+                        },
+                        dismissable: true,
+                        duration: Tempo,
+                        callback: null,
+                        sound: false,
+                        customSound: null
+                    }
+                );
+            }
+            catch (ex) {
+                mkNoti(
+                    Titulo,
+                    Texto,
+                    {
+                        status: Status,
+                        icon: {
+                            class: null,
+                            color: null,
+                            background: null
+                        },
+                        dismissable: true,
+                        duration: Tempo,
+                        callback: null,
+                        sound: false,
+                        customSound: null
+                    }
+                );
+            }
+        }
+
+        $("#iUtilizaDesconto").on("change", function () {
+            if ($(this).is(":checked")) {
+                $("#iDivDesconto").removeClass("d-none");
+            }
+            else {
+                $("#iDivDesconto").addClass("d-none");
+                $('#iDescontoSelect').val(null).trigger('change');
+            }
+        });
+
+
+        $("#iOsPremier").on("change", function () {
+            if ($(this).prop("checked")) {
+                $("#iSubtipo_ServicoCol").show();
+                $("#iTipo_ServicoCol").show();
+
+            }
+            else {
+                $("#iSubtipo_ServicoCol").hide();
+                $("#iTipo_ServicoCol").hide();
+            }
+        });
+         var handleModeloContrato = function () {
+            $('#iModeloContrato').on('select2:select select2:unselecting', function (e) {
+                var ModeloContratoSelecionado = e.params.data;
+                let possuiCarencia = ModeloContratoSelecionado.possuiCarencia;
+                let periodoCarencia = ModeloContratoSelecionado.periodoCarencia;
+                if (possuiCarencia == true) {
+                    $("#iTemCarencia").text("Sim");
+                    $("#mdcontratope").show();
+                    $("#iPeriodoCarencia").text(periodoCarencia);
+                    @Model.Tem_Carencia = true;
+                }
+                else {
+                    $("#iTemCarencia").text("Não");
+                    $("#mdcontratope").hide();
+                    @Model.Tem_Carencia = false;
+                }
+                return true;
+            }
+            )}
+
+
+
+    </script>
+}
+
+@using (Html.BeginForm("Cadastro", "Produtos", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken();
+    @Html.HiddenFor(model => model.Id);
+
+    Model.Cobranca_Recorrente = Sinapse.Model.enumerados.Padrao.Nao;
+    Model.Momento_Cobranca_Plano = Aniel.Connect.Model.enumerado.Momento_Cobranca_Plano.Fechamento_Faturamento; ;
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <!--main-->
+                <div class="sticky-top bg-white">
+                    <div class="row">
+                        <div class="col main-title">
+                            <h4 class="title-page"><i class="fa fa-cube"></i> @RsCadastros.CADASTRO_PRODUTO</h4>
+                            <nav aria-label="breadcrumb" class="mb-20">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                    </li>
+
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "Plano_Produto")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINELPLANOSPRODUTOS</a>
+                                    </li>
+
+                                    <li class="breadcrumb-item">
+                                        <span>@RsCadastros.CADASTRO_PRODUTO</span>
+                                    </li>
+
+                                </ol>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <div class="sticky-top">
+                        <ul class="nav nav-tabs" id="myTab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="dados-gerais-tab" data-toggle="tab" href="#iDadosGerais" role="tab" aria-selected="true"> <i class="fa fa-cube"></i> @RsCadastros.PRODUTO</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="instalacao-tab" data-toggle="tab" href="#iInstalacao" role="tab" aria-selected="false"> <i class="fa fa-cogs"></i> @RsCadastros.INSTALACAO</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="financeiro-tab" data-toggle="tab" href="#iFinanceiro" role="tab" aria-selected="false"><i class="fas fa-hand-holding-usd"></i> @RsCadastros.FINANCEIRO </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="desconto-tab" data-toggle="tab" href="#iDesconto" role="tab" aria-selected="false"><i class="fas fa-percentage"></i> @RsCadastros.DESCONTO </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="configuracoes-adicionais-tab" data-toggle="tab" href="#iConfiguracoesAdicionais" role="tab" aria-selected="false"><i class="fas fa-plus"></i> @RsCadastros.CONFIGURACOES_ADICIONAIS </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="tab-content">
+                    <!--1º Bloco - Dados do Produto-->
+                    <div role="tabpanel" class="tab-pane active" id="iDadosGerais">
+                        <div id="accordion-dados-gerais">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-1">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                            <span class="text-bold-card">@RsConfiguracao.DADOSPRODUTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion-dados-gerais" aria-labelledby="heading-1">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="row  mt-3">
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iCodigoProduto">@RsConfiguracao.CODIGOPRODUTO :</label>
+                                                    @Html.TextBoxFor(m => m.Codigo, new { @class = "form-control col-sm-8 ", @id = "iCodigoProduto", disabled = "disabled" })
+                                                    @Html.ValidationMessageFor(model => model.Codigo, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-5">
+                                                <div class="form-group">
+                                                    <label for="iDescricaoPlano">@RsConfiguracao.DESCRICAOPRODUTO :</label>
+                                                    @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control", @id = "iDescricaoPlano", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="valorproduto">@RsConfiguracao.VALORPRODUTO :</label>
+                                                    @Html.TextBoxFor(m => m.ValorProduto, new { @class = "form-control col-sm-7 money", @placeholder = "0,00", @id = "iValorProduto", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.ValorProduto, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+
+                                        </div>
+
+                                        <div class="row mt-3">
+
+                                            <div class="col-sm-5">
+                                                <div class="form-group">
+                                                    <label for="iDetalhesProduto">@RsConfiguracao.DETALHESPRODUTO :</label>
+                                                    @Html.TextAreaFor(m => m.Detalhes, new { @class = "form-control", @id = "iDetalhesProduto", @rows = "5" })
+                                                    @Html.ValidationMessageFor(model => model.Detalhes, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            @if (Model.Id != 0)
+                                            {
+                                                <div class="col-sm-2">
+                                                    <div class="form-group">
+                                                        <label for="iSituacaoProduto" class="mb-1">@RsConfiguracao.SITUACAOPRODUTO :</label><br>
+                                                        @Html.CheckBoxFor(m => m.SituacaoProduto, new { @class = "form-control", @id = "iSituacaoProduto", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                        @Html.ValidationMessageFor(model => model.SituacaoProduto, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iNomeVenda">Nome Para Venda:</label>
+                                                    @Html.TextBoxFor(m => m.Nome_Venda, new { @class = "form-control", @id = "iNomeVenda", @autocomplete = "off", @maxlength = "100" })
+                                                    @Html.ValidationMessageFor(model => model.Nome_Venda, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+
+
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label for="iTipoProduto">@RsCadastros.TIPO<span style="color:red">*</span>:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Tipo_Produto, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iTipoProduto", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Tipo_Produto, "", new { @class = "text-danger" })
+
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                        <div class="row mt-3 center">
+                                            <div class="col-sm-4" id="iTipo_ServicoCol">
+                                                <label for="iTipo_Servico">@RsCadastros.TIPO_SERVICO<span style="color: red">*</span> :</label>
+                                                <div class="form-group">
+                                                    @Html.DropDownListFor(p => p.Id_Tipo_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipo_Servico", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Id_Tipo_Servico, "", new { @class = "text-danger" })
+                                                </div>
+                                                <p style="color: red"><i class="fas fa-info-circle" style="color: #495057"></i> @RsCadastros.ESCOLHA_TIPO_SUBTIPO_SERVICO</p>
+                                            </div>
+
+                                            <div class="col-sm-4" id="iSubtipo_ServicoCol">
+                                                <label for="iSubtipo_Servico">@RsCadastros.SUBTIPO_SERVICO :</label>
+                                                <div class="form-group">
+                                                    @Html.DropDownListFor(p => p.Id_Subtipo_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSubtipo_Servico", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Id_Subtipo_Servico, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mt-3 center comerciavel">
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label for="iComerciavel">@RsCadastros.PRODUTO_COMERCIALIZAVEL :</label>
+                                                    @Html.CheckBoxFor(m => m.Comerciavel, new { @class = "form-control", @id = "iComerciavel", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--2º Bloco - Instalação do Produto-->
+                    <div role="tabpanel" class="tab-pane" id="iInstalacao">
+                        <div id="accordion-instalacao">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-2">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                            <span class="text-bold-card">@RsCadastros.INSTALACAO </span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-2" class="collapse show" data-parent="#accordion-instalacao" aria-labelledby="heading-2">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="col">
+
+                                            <div class="row">
+                                                <div class="col-2">
+                                                    <div class="form-group">
+                                                        <label for="iCobrancaInstalacao" class="mb-1">@RsConfiguracao.COBRANCAINSTALACAO ?</label><br>
+                                                        @Html.CheckBoxFor(m => m.CobrancaInstalacao, new { @class = "form-control", @id = "iCobrancaInstalacao", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-2" id="divValorInstalacao" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="iValorInstalacao">@RsConfiguracao.VALORINSTALACAO</label>
+                                                        @Html.TextBoxFor(m => m.ValorInstalacao, new { @class = "form-control money", id = "iValorInstalacao", placeholder = "0,00" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-2" id="divComprovantePagamentoInstalacao" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="iComprovantePagamentoInstalacao">@RsConfiguracao.COMPROVANTEPAGAMENTO</label>
+                                                        @Html.EnumDropDownListFor(m => m.ComprovantePagamentoInstalacao, RsBase.SELECIONE, new { @class = "form-control", id = "iComprovantePagamentoInstalacao" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-2">
+                                                    <div class="form-group">
+                                                        <label for="iOSTrocaEndereco" class="mb-1">@RsConfiguracao.OSTROCAENDERECO ?</label><br>
+                                                        @Html.CheckBoxFor(m => m.OSTrocaEndereco, new { @class = "form-control", @id = "iOSTrocaEndereco", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-4" id="divContaFinanceiraInstalacao" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="iContaFinanceiraInstalacao">@RsConfiguracao.CONTAFINANCEIRAINSTALACAO</label>
+                                                        @Html.DropDownListFor(m => m.IdContaFinanceiraInstalacao, new SelectList(new List<ObjComboResult<long>>()), new { @class = "form-control", id = "iContaFinanceiraInstalacao" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-2" id="divMomentoCobrancaInstalacao" style="display: none">
+                                                    <div class="form-group">
+                                                        <label for="iMomentoCobrancaInstalacao">@RsCadastros.MOMENTO_COBRAR</label>
+                                                        @Html.EnumDropDownListFor(m => m.MomentoCobrancaInstalacao, RsBase.SELECIONE, new { @class = "form-control", id = "iMomentoCobrancaInstalacao" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--3º Bloco - Financeiro do Produto-->
+                    <div role="tabpanel" class="tab-pane" id="iFinanceiro">
+                        <div id="accordion-financeiro">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-4">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                            <span class="text-bold-card">@RsConfiguracao.FINANCEIRO </span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-4" class="collapse show" data-parent="#accordion-financeiro" aria-labelledby="heading-4">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="row mt-3 d-none">
+                                            <div class="col-sm-2">
+                                                <div class="form-group" id="EmitirContrato">
+                                                    <label for="iEmitirContrato" class="mb-1">@RsConfiguracao.EMITIRCONTRATO ?</label><br>
+                                                    @Html.CheckBoxFor(m => m.EmitirContratoProduto, new { @class = "form-control", @id = "iEmitirContrato", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-sm-2" id="mdcontrato">
+                                                <div class="form-group">
+                                                    <label for="iModeloContrato">@RsConfiguracao.MODELOCONTRATO :</label>
+                                                    @Html.DropDownListFor(m => m.IdModeloContrato, new SelectList(ViewBag.ModContrato, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModeloContrato", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.ModeloContratoProduto, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iTemCarencia">@RsCadastros.TEM_CARRENCIA?</label><br />
+                                                    <span id="iTemCarencia"> </span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2">
+                                                <div id="mdcontratope">
+                                                    <div class="form-group">
+                                                        <label for="iPeriodoCarencia">@RsCadastros.PERIODO_CARÊNCIA</label><br />
+                                                        <span id="iPeriodoCarencia"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="FrequenciaCobranca" class="mb-1">@RsConfiguracao.FREQUENCIACOBRANCA :</label><br>
+                                                    @Html.EnumDropDownListFor(m => m.FrequenciaCobrancaProduto, RsBase.SELECIONE, new { @class = "form-control", @id = "iFrequenciaCobranca", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+
+                                            <div class="col-sm-2" id="divformatocobranca">
+                                                <div class="form-group">
+                                                    <label for="iFormatoCobranca">@RsConfiguracao.FORMATOCOBRANCA :</label>
+                                                    @Html.EnumDropDownListFor(m => m.FormatoCobrancaProduto, RsBase.SELECIONE, new { @class = "form-control", @id = "IFormatoCobranca", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.FormatoCobrancaProduto, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2" id="iDescContaFinanceiraProduto">
+                                                <label for="iDescContaFinanceiraPlano">@RsConfiguracao.CONTAFINANCEIRAPRODUTO :</label>
+                                                <div class="form-group">
+                                                    @Html.DropDownListFor(p => p.Id_Conta_Financeira, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idContaFinanceiraProduto", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Id_Conta_Financeira, "", new { @class = "text-danger" })
+                                                </div>
+
+                                            </div>
+
+
+
+                                            @if (@Model.ProRataProduto == true)
+                                            {
+                                                <div class="col-sm-2">
+                                                    <div class="form-group">
+                                                        <label for="iCobranca_Recorrente" class="mb-1">@RsCadastros.COBRANCA_RECORRENTE :</label><br>
+                                                        @Html.EnumDropDownListFor(m => m.Cobranca_Recorrente, RsBase.SELECIONE, new { @class = "form-control", @id = "ICobranca_Recorrente", @autocomplete = "off" })
+                                                        @Html.ValidationMessageFor(model => model.Cobranca_Recorrente, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+                                            }
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iMomento_Cobranca_Plano" class="mb-1">@RsCadastros.MOMENTO_COBRANCA :</label><br>
+                                                    @Html.EnumDropDownListFor(m => m.Momento_Cobranca_Plano, RsCadastros.FECHAMENTO_FATURAMENTO, new { @class = "form-control", @id = "IMomento_Cobranca_Plano", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Momento_Cobranca_Plano, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2" id="divcomprovantepagamento">
+                                                <div class="form-group">
+                                                    <label for="iComprovantePagamento" class="mb-1">@RsConfiguracao.COMPROVANTEPAGAMENTO </label><br>
+                                                    @Html.EnumDropDownListFor(m => m.ComprovantePagamentoProduto, RsBase.SELECIONE, new { @class = "form-control", @id = "iComprovantePagamento", @autocomplete = "off", @required = "True" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2" id="ModRecibo">
+                                                <div class="form-group">
+                                                    <label for="iId_Recibo">@RsConfiguracao.MODELORECIBO:</label>
+                                                    @Html.DropDownListFor(p => p.Id_Recibo, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iId_Recibo", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Desc_Recibo, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                        <!--Fim opSemCobranca-->
+                                        <!--Ativado por opNotaFiscal-->
+
+
+                                        <div id="bloconf">
+                                            <div class="card-header mt-3" style="background:white" id="heading-7">
+                                                <h5 class="col-sm-6">
+                                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-5" aria-expanded="true" aria-controls="collapse-5">
+                                                        <span class="text-bold-card">@RsConfiguracao.NOTAFISCAL</span>
+                                                    </a>
+                                                </h5>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-sm-3">
+                                                    <div class="form-group" id="mdnotafiscal">
+                                                        <label for="iModeloNotaFiscal">@RsConfiguracao.MODELONOTAFISCAL :</label><br>
+                                                        @Html.EnumDropDownListFor(m => m.ModeloNotaFiscalProduto, RsBase.SELECIONE, new { @class = "form-control", @id = "iModeloNotaFiscal", @autocomplete = "off" })
+                                                        @Html.ValidationMessageFor(model => model.ModeloNotaFiscalProduto, "", new { @class = "text-danger" })
+
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-3">
+                                                    <div class="form-group">
+                                                        <label for="iClassificacaoTributaria">@RsCadastros.CLASSIFICACAO_TRIBUTARIA:</label><br>
+                                                        <select id="iClassificacaoTributaria" class="form-control">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+
+                                            <div class="row">
+                                                <div class="col-sm-3">
+                                                    <div class="form-group" id="">
+                                                        <label for="iTipo_Discriminado">@RsCadastros.TIPO_VALOR_DISCRIMINADO<span style="color:red">*</span>:</label><br>
+                                                        @Html.EnumDropDownListFor(m => m.Tipo_Discriminado, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipo_Discriminado", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-3 hide" id="PercntDisc">
+                                                    <div class="form-gorup">
+                                                        <label for="iPercentual_Discriminado">@RsCadastros.PERCENTUAL_DISCRIMINADO</label>
+                                                        @Html.TextBoxFor(model => model.Percentual_Discriminado, new { @class = "form-control", @id = "iPercentual_Discriminado", @type = "number", @min = "0" })
+
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-3">
+                                                    <div class="form-group" id="valordisc">
+                                                        <label for="iValor_Discriminado" class="mb-1">@RsCadastros.VALOR_DISCRIMINADO:</label><br>
+                                                        @Html.TextBoxFor(model => model.Valor_Discriminado, new { @id = "iValor_Discriminado", @class = "form-control money", @placeholder = "0,00" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+                                            <div class="row">
+                                                <div class="col-sm-3">
+                                                    <div class="form-group" id="cfop">
+                                                        <label for="iId_Cfop">@RsConfiguracao.CFOP:</label>
+                                                        @Html.DropDownListFor(p => p.Id_Cfop, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iId_Cfop", @autocomplete = "off" })
+                                                        @Html.ValidationMessageFor(model => model.Codigo_Cfop, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+                                            <!--Fim opNotaFiscal-->
+
+                                            <div class="col-sm-12 text-right m-2">
+                                                <input type="button" id="btnAdicionarAtividade" value="Adicionar" class="btn btn-success" />
+                                            </div>
+
+                                            <div class="col-sm-12">
+                                                <div class="card-header title-card" id="heading-6">
+                                                    <h5 class="col-sm-6">
+                                                        <span class="text-bold-card">@RsConfiguracao.COMPOSICAONF</span>
+                                                    </h5>
+                                                </div>
+                                                <table class="table table-hover nowrap" id="datatableAtividade" style="width:100%"></table>
+                                            </div>
+
+                                        </div>
+
+                                        <!--Fim opCfop-->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--4º Bloco - Descontos do Produto-->
+                    <div role="tabpanel" class="tab-pane" id="iDesconto">
+                        <div id="accordion-descontos">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-5">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-5" aria-expanded="true" aria-controls="collapse-5">
+                                            <span class="text-bold-card">@RsConfiguracao.DESCONTOPRODUTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-5" class="collapse show" data-parent="#accordion-descontos" aria-labelledby="heading-5">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="row">
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto" class="mb-1">@RsConfiguracao.DESCONTO ?</label><br>
+                                                    @Html.CheckBoxFor(m => m.Utiliza_Desconto, new { @class = "form-control", @id = "iUtilizaDesconto", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3 d-none" id="iDivDesconto">
+                                                <div class="form-group">
+                                                    <label for="iDescontoSelect"> @RsCadastros.DESCONTO :</label>
+                                                    @Html.DropDownListFor(m => m.Desconto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iDescontoSelect", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!--5º Bloco - Configurações Adicionais Produto-->
+                    <div role="tabpanel" class="tab-pane" id="iConfiguracoesAdicionais">
+                        <div id="accordion-configs-adicionais">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-3">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                            <span class="text-bold-card">@RsConfiguracao.CONFIGURACAOADICIONALPRODUTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-3" class="collapse show" data-parent="#accordion-configs-adicionais" aria-labelledby="heading-3">
+                                    <div class="card-body body-card-accord">
+
+
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iOsMudacaPlano" class="mb-1">Utiliza Plano adicional?</label>
+                                                    <i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC"
+                                                       data-toggle="popover" title=""
+                                                       data-content='Marcando como "Sim" o sistema identifica que este plano/produto não será comercializado sozinho,e exibirá um campo para selecionar todos os
+                                                                     planos/produtos que serão vinculados à venda automaticamente, quando o mesmo for adicionado.'></i>
+                                                    <br>
+                                                    @Html.CheckBoxFor(m => m.UsaPlanoAdicional, new { @class = "form-control", @id = "iUsaPlanoAdicional", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                                </div>
+                                            </div>
+                                            <!--datatable plano adicional-->
+                                            <div id="dataPlanosAdicionais">
+                                                <div class="form-group">
+                                                    <label>Selecione os Planos/Produtos adicionais:</label>
+                                                    @Html.DropDownListFor(m => m.PlanoProduto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlanoProduto", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.PlanoProduto, "", new { @class = "text-danger" })
+                                                </div>
+                                                <button type="button" class="btn btn-success" id="btnAdicionarPlano">Adicionar</button>
+
+                                            </div>
+                                            <div class="col-sm-4" id="listaPlanos">
+                                                <div class="card-header title-card" id="heading-3">
+                                                    <h5 class="mb-0">
+                                                        <a>
+                                                            <span class="text-bold-card">Lista dos Planos/Produtos adicionais</span>
+                                                        </a>
+                                                    </h5>
+                                                </div>
+                                                <div id="collapse-3" class="collapse show">
+                                                    <div class="card-body">
+                                                        <table class="table table-hover nowrap" id="datatablePlanos" style="width:100%"></table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mt-3">
+
+                                            <div class="col-sm-3" id="AtivarValidade">
+                                                <div class="form-group">
+                                                    <label for="Validade" class="mb-1">
+                                                        @RsConfiguracao.ATIVARVALIDADE ? <i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC"
+                                                                                            data-toggle="popover" title=""
+                                                                                            data-content="Ao habilitar o sistema identifica que este plano
+                                                                     será comercializado por um determinado tempo, ao atingir a data preenchida ele não irá aparecer
+                                                                     mais na lista de planos para comercialização" data-trigger="click"></i>
+                                                </label>
+
+                                                @Html.CheckBoxFor(m => m.AtivarValidade, new { @class = "form-control", @id = "iAtivarValidade", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4" id="datavalidade">
+                                            <label for="Data_Validade">@RsConfiguracao.VALIDADEPRODUTO :</label><br>
+                                            @Html.TextBoxFor(m => m.Data_Validade, new { @id = "iData_Validade", @class = "form-control datepicker-limit", @data_provide = "datepicker", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(m => m.Data_Validade, "", new { @class = "text-danger" })
+                                        </div>
+
+                                    </div>
+
+
+
+                                    <div class="row mt-3">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaVenda" class="mb-1">
+                                                    @RsCadastros.UTILIZA_VENDA_AGRUPADA <a href="#" data-toggle="popover"
+                                                                                           data-trigger="hover"
+                                                                                           data-content='Ao habilitar como "SIM", o usuário poderá definir um valor diferente a ser cobrado,
+                                                                                                                                    toda vez que este Plano/Produto for vendido junto com 1 ou mais itens'
+                                                                                           data-title=""><i class="ml-2 fas fa-question-circle fa-2x" style="color: #2092EC"></i></a>
+                                            </label><br>
+                                            @Html.CheckBoxFor(m => m.UtilizaVendaAgroup, new { @class = "form-control", @id = "iUtilizaVendaAgroup", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-1" id="divVendaAgroup" style="display:none">
+                                        <div class="form-group">
+                                            <label for="iUtilizaVenda" class="mb-1">Valor em Reais (R$):</label><br>
+                                            @Html.TextBoxFor(m => m.ValorVendaAgrupada, new { @class = "form-control money", @id = "iValorVendaAgroup", @placeholder = "0,00" })
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <div class="row mt-3">
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iProRata" class="mb-1">@RsConfiguracao.PRORATA ?</label><br>
+                                            @Html.CheckBoxFor(m => m.ProRataProduto, new { @class = "form-control", @id = "iProRata", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mt-3" id="opcoesprorata">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iOpcaoProRata" class="mb-1">@RsConfiguracao.OPCAOPRORATA ?</label><br>
+
+                                            @Html.CheckBoxFor(m => m.Pro_Rata_Habilitacao, new { @type = "checkbox", @checked = "checked", @id = "iPro_Rata_Habilitacao" })
+                                            <span> @RsConfiguracao.HABILITACAO </span><br>
+
+                                            @Html.CheckBoxFor(m => m.Pro_Rata_Interrupcao, new { @checked = "true", @id = "iPro_Rata_Interrupcao" })
+                                            <span> @RsConfiguracao.INTERRUPCAO </span><br>
+
+                                            @Html.CheckBoxFor(m => m.Pro_Rata_Cancelamento, new { @checked = "true", @id = "iPro_Rata_Cancelamento" })
+                                            <span> @RsConfiguracao.CANCELAMENTO </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (Model.Id == 0)
+                                {
+                                    <div class="row mt-3">
+                                        <div class="col-sm-2">
+
+                                            <label for="iPlano_Comercializavel" class="mr-3">@RsBase.PLANO_COMERCIAL.Replace("Plano", "Produto") </label><br>
+                                            @Html.CheckBoxFor(model => model.Plano_Comercializavel, new { @class = "form-control", @id = "iPlano_Comercializavel", @name = "iPlano_Comercializavel", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            <i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="Marcando como NÃO o sistema não apresentará o mesmo para venda ou para vincular ao cliente"></i>
+                                        </div>
+                                                    <div class="col-sm-2 naoComercializavel">
+                                                <div class="form-group">
+                                                    <label for="Momento_Cobranca"> @RsCadastros.MOMENTO_COBRAR:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Momento_Cobranca, RsBase.SELECIONE, new { @class = "form-control", @id = "iMomento_Cobranca", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Momento_Cobranca, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                                    <div class="col-sm-3 naoComercializavel">
+                                                <div class="form-group">
+                                                    <label for="Cobranca_Realizada"> @RsCadastros.COBRANCA_REALIZADA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Cobranca_Realizada, RsBase.SELECIONE, new { @class = "form-control", @id = "iCobranca_Realizada", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Cobranca_Realizada, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                                    <div class="col-sm-3 naoComercializavel" id="apenasBoleto">
+                                                        <div class="form-group">
+                                                            <label for="iFormaPagCob"> Selecione a @RsCadastros.FORMA_PAGAMENTO do Boleto:</label>
+                                                            @Html.DropDownListFor(m => m.IdFormaPagamentoCob, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFormaPagCob", @autocomplete = "off" })
+                                                            @Html.ValidationMessageFor(model => model.IdFormaPagamentoCob, "", new { @class = "text-danger" })
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-sm-2 naoComercializavel">
+                                                        <div class="form-group">
+                                                            <label for="iDescricaoPlano">@RsCadastros.DIAS_VENCIMENTO :</label>
+                                                            @Html.TextBoxFor(m => m.Dias_Vencimento, new { @class = "form-control", @id = "iDias_Vencimento", @autocomplete = "off" })
+                                                            @Html.ValidationMessageFor(model => model.Dias_Vencimento, "", new { @class = "text-danger" })
+                                                        </div>
+                                                    </div>                                                  
+                                                </div>
+                                }
+
+                                <div class="row mt-3">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="TesteGratis" class="mb-1">@RsCadastros.OS_PREMIER ?</label><br>
+                                            @Html.CheckBoxFor(m => m.OsPremier, new { @class = "form-control", @id = "iOsPremier", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            @Html.ValidationMessageFor(m => m.OsPremier, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!--Button Float-->
+<a href="@Url.Action("index", "Plano_Produto")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+}

@@ -1,0 +1,373 @@
+﻿@model Aniel.Connect.Models.DadosAtendimentoChatModel
+
+@{
+    ViewBag.Title = RsCadastros.CHAT;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    <style>
+
+        ::placeholder {
+            color: black !important;
+        }
+
+        .type_msg {
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            height: 60px !important;
+            overflow-y: auto;
+        }
+
+            .type_msg:focus {
+                box-shadow: none !important;
+                outline: 0px !important;
+            }
+
+        .attach_btn {
+            border-radius: 15px 0 0 15px !important;
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            cursor: pointer;
+        }
+
+        .send_btn {
+            border-radius: 0 15px 15px 0 !important;
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            cursor: pointer;
+        }
+
+        .input-group > .custom-select:not(:first-child), .input-group > .form-control:not(:first-child) {
+            border-top-left-radius: 0em !important;
+            border-bottom-left-radius: 0em !important;
+        }
+
+        .msg_time {
+            position: absolute;
+            left: 0;
+            bottom: -15px;
+            color: black;
+            font-size: 10px;
+        }
+
+        .msg_container {
+            min-width: 100px;
+            word-wrap: break-word;
+            margin-top: auto;
+            margin-bottom: auto;
+            margin-left: 10px;
+            border-radius: 25px;
+            background-color: #82ccdd;
+            padding: 10px;
+            position: relative;
+        }
+
+        .msg_container_end {
+            min-width: 100px;
+            word-wrap: break-word;
+            margin-top: auto;
+            margin-bottom: auto;
+            margin-left: 10px;
+            border-radius: 25px;
+            background-color: #78F498;
+            padding: 10px;
+            position: relative;
+        }
+    </style>
+}
+@section scripts
+{
+
+    <script>
+
+        var HandleDepartamento = function () {
+            $('#iSetor').on('select2:select select2:unselecting', function (e) {
+                DepartamentoSelecionado = e.params.data;
+                AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, "@Model.Id_Responsavel", "@RsBase.SELECIONE", false);
+            });
+        }
+
+        $(document).ready(async function () {
+
+             $(window).resize(function () {
+                $("#Chat").css({
+                    height: $(window).height() - $(window).height()/6
+                });
+            });
+
+            var mensagens_string = await parent.getChatMessages('@Request.Params["Numero_Protocolo"]')
+            var mensagens = Boolean(mensagens_string) ? JSON.parse(mensagens_string) : [];
+            $('#chatFrame').on('load', function() {
+                for (message of mensagens) {
+                    renderMessage(message.mensagem, message.dataHora, message.enviadoPeloSuporte ? true : false);
+                }
+            });
+            
+
+            $("#Chat").css({
+                height:  $(window).height() - $(window).height()/6
+            });
+
+            await  AddSelect("iSetor", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Setor", "@RsBase.SELECIONE", false,HandleDepartamento);
+            await  AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Responsavel", "@RsBase.SELECIONE", false );
+            await  AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Tipo_Atendimento", "@RsBase.SELECIONE", false);
+            await  AddSelect("iCategoriaAtendimento", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Categoria_Atendimento", "@RsBase.SELECIONE", false);
+            
+        })
+
+        $('#btnGravar').click(async  function () {
+
+            const categoria_atendimento = $('#iCategoriaAtendimento').val();
+            const tipo_atendimento = $('#iTipoAtendimento').val();
+            const responsavel = $('#iResponsavel').val();
+            const setor = $('#iSetor').val();
+
+            await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoapi/GravarDadosAtendimentoChat")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id: "@Model.Id",
+                    id_Categoria_Atendimento: categoria_atendimento,
+                    id_Tipo_Atendimento: tipo_atendimento,
+                    id_Responsavel: responsavel,
+                    id_Setor: setor,
+                    nome_Cliente: "",
+                    cpf:"",
+                    categoria_Cliente:"",
+                    plano_Produto:""
+                }
+            })
+
+            window.location.reload()
+        })
+
+
+
+
+
+
+        function renderMessage(message, datetime, fromClient) {
+
+
+
+            $('#messages', $('#chatFrame').contents()).html($('#messages', $('#chatFrame').contents()).html() +
+
+                `<div class="row justify-content-${fromClient ? "start" : "end"}">
+                    <div class="card mb-3 mt-3" style="width:50%">
+                        <div class="card-body ${fromClient ? "text-left" : "text-right"}">
+                            <span class="font-italic" style="color: #357ca5"> ${fromClient ? "Suporte" : "Cliente"}</span>
+                            <span class="text-muted" style="font-size:10px">  &nbsp;${datetime}</span>
+
+                            <p> ${message}</p>
+                        </div>
+                    </div>
+                </div>
+                `)
+
+
+
+        }
+
+        async function sendMessage() {
+
+            const datetime = moment().format("DD/MM/YYYY HH:mm")
+            const message = {
+                mensagem: $('#inlineFormInputGroupUsername2').val(),
+                dataHora: datetime,
+                enviadoPeloSuporte: true,
+                statusEnvio : 1
+            }
+
+            parent.chat.server.enviarMensagem('@Request.Params["Numero_Protocolo"]', JSON.stringify(message))
+            renderMessage(message.mensagem, message.dataHora, true)
+
+            $('#inlineFormInputGroupUsername2').val("")
+        }
+
+        $('#inlineFormInputGroupUsername2').keyup(function (event) {
+            if (event.keyCode === 13) {
+                event.preventDefault();
+                sendMessage()
+            }
+        })
+
+        async function finalizarAtendimento() {
+
+            var result = await Swal.fire({
+              title: 'Desejar concluir o atendimento junto ao término do atendimento por chat ?',
+              text: "",
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonColor: '#3085d6',
+              cancelButtonColor: '#d33',
+              confirmButtonText: '@Html.Raw(RsBase.SIM)',
+              cancelButtonText: '@Html.Raw(RsBase.NAO)'
+            })
+
+            if (result.dismiss != "backdrop") {
+                if (result.value) {
+                    await parent.chat.server.finalizarAtendimento('@Request.Params["Numero_Protocolo"]', true);
+                }
+                else {
+                    await parent.chat.server.finalizarAtendimento('@Request.Params["Numero_Protocolo"]', false);
+                }
+                window.location.reload();
+            }
+            
+            
+
+        }
+
+
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="far fa-comments"></i> @ViewBag.Title #@Request.Params["Numero_Protocolo"]</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+        <div class="col-auto">
+            <div class="row title-page">
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="finalizarAtendimento()">Finalizar Atendimento</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid pr-5 pl-5">
+    <div class="row">
+        <div class="col-sm-4 col-md-4 col-lg-4 col-xl-4 bg-light">
+
+            <!-- Left Options-->
+            <div class="row" style="background-color: #357ca5">
+                <div class="col text-right text-white">
+                    <span class="fs-16" style="font-family: sans-serif;">Dados do Atendimento</span>
+                </div>
+            </div>
+
+            <div class="container mt-3">
+                <div class="row">
+                    <div class="form-group">
+                        <label for="iNome">Nome:</label>
+                        <label id="iNome">@Html.Raw(Model.Nome_Cliente)</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>CPF/CNPJ:</label>
+                        <label id="iCPFCNPJ">@Html.Raw(Model.Cpf)</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Categoria do Cliente:</label>
+                        <label id="iCategoriaCliente">@Html.Raw(Model.Categoria_Cliente)</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Plano/Produto:</label>
+                        <label id="iPlano">@Html.Raw(Model.Plano_Produto)</label>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="form-group">
+                        <label>Categoria do Atendimento:</label>
+                        <select id="iCategoriaAtendimento" class="form-control">
+                            <option value="">@RsBase.SELECIONE</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Tipo do Atendimento:</label>
+                        <select id="iTipoAtendimento" class="form-control">
+                            <option value="">@RsBase.SELECIONE</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Responsável:</label>
+                        <select id="iResponsavel" class="form-control">
+                            <option value="">@RsBase.SELECIONE</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Setor:</label>
+                        <select id="iSetor" class="form-control">
+                            <option value="">@RsBase.SELECIONE</option>
+                        </select>
+                    </div>
+                </div>
+
+
+                <div class="text-center mt-3">
+                    <input type="button" id="btnGravar" value="Gravar" class="btn btn-success" />
+                </div>
+
+            </div>
+
+            
+
+
+
+        </div>
+
+        <div class="col-sm-8 col-md-8 col-lg-8 col-xl-8 bg-light" id="Chat" style="border-left: 1px solid #dadada;height:650px">
+
+            <!-- Right Options-->
+            <div class="row" style="background-color: #357ca5">
+                <div class="col text-right">
+                    <a href="#" class="text-white"><i class="fas fa-ellipsis-v invisible"></i></a>
+                </div>
+            </div>
+
+            <iframe id="chatFrame" frameBorder="0" src="@Url.Action("Chat_iFrame","Atendimento")" class="mt-1" scrolling="yes" style="width:100%;height:80%">
+            </iframe>
+
+            <!--Footer Send Message-->
+            <div class="input-group mb-2 mr-sm-2 fixed-bottom" style="right: 0;bottom: 0;left: 0;z-index: 1030;position:absolute;">
+                <div class="input-group-prepend">
+                    <div class="input-group-text" style="background-color: transparent !important;border: none !important" ;>
+                        <a href="#" class="text-dark"><i class="far fa-smile"></i></a>
+                    </div>
+                </div>
+                <input type="text" class="form-control" id="inlineFormInputGroupUsername2" placeholder="Escreva aqui...">
+                <div class="input-group-apend">
+                    <div class="input-group-text" style="background-color: transparent;border: none" ;>
+                        <a href="#" onclick="sendMessage()" class="text-dark"> <i class="fas fa-paper-plane"></i> </a>
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+</div>
+
+

@@ -1,0 +1,497 @@
+﻿@model Aniel.Connect.Models.T5.Area_CoberturaListModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_AREA_COBERTURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+    <script>
+        var rows_selected = [];
+        var oDatatable;
+
+        var handleDataTableButtons = function () {
+            "use strict";
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: `<'row'<'col-sm-4'l><'col-sm-8'p>> Bfrti`,
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                //scroller: {
+                //    loadingIndicator: true,
+                //    rowHeight: 40,
+                //    boundaryScale: 0.5,
+                //    displayBuffer: 3
+                //},
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: `${baseUrl}/api/Area_CoberturaApi/GetAll`,
+                    type: 'POST',
+                    data: function (data) {
+                        let status = $("#iStatus").val();
+                        data.status = status;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                               Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                            </div> `);
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO da Área de Cobertura" },
+                    { data: "status", title: "@RsCadastros.SITUACAO" }
+
+
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+                return true;
+            });
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+            $("#iLimparFiltroModal, #iLimparFiltros").on("click", function () {
+                $("#iStatus").val(null).trigger("change");
+                $("#txtSearch").val('');
+                oDatatable.search('').draw();
+            });
+
+            var _url = '@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/AlterarStatus")';
+            function AlterarStatusObj(Status) {
+        $.ajax({
+            url: _url,
+            type: `POST`,
+            dataType: `json`,
+            data: {
+                ids: rows_selected,
+                status: Status
+            }
+
+        })
+            .done(function (data) {
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                    rows_selected = [];
+                    oDatatable.draw(false);
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+
+            });
+            }
+
+             $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Ativo
+                AlterarStatusObj(1);
+            });
+
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("Cadastro", "Area_Cobertura", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+        }
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        let isUsuarioSelecionandoArquivoImportacao = false;
+
+        function TriggerImportacaoAreaCobertura() {
+            $("#iArquivoImportacaoArea").val("");
+            $("#iArquivoImportacaoArea").trigger("click");
+
+            isUsuarioSelecionandoArquivoImportacao = true;
+        }
+
+        $("#iArquivoImportacaoArea").on("change", async function () {
+            if (isUsuarioSelecionandoArquivoImportacao && !$(this).val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, "o arquivo .kmz para importação")", "warning");
+                return;
+            }
+
+            ShowPageLoading();
+
+            if ($(this).val()) {
+                let formData = new FormData();
+
+                formData.append('file', $(this)[0].files[0]);
+
+                let retornoImportacao = await $.ajax({
+                    type: "POST",
+                    url: "@CONSTANTES.URLPortal/api/Area_CoberturaApi/Importar",
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                });
+
+                if (retornoImportacao != null) {
+                    if (retornoImportacao.ok) {
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Áreas de cobertura importadas com sucesso", "info");
+                        oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", "Houve um erro ao importar as áreas de cobertura", "warning");
+                    }
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", "Houve um erro ao importar as áreas de cobertura", "warning");
+                }
+            }
+
+            HidePageLoading();
+
+            isUsuarioSelecionandoArquivoImportacao = false;
+        });
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off" style="width:200px;">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Area_Cobertura")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="TriggerImportacaoAreaCobertura();">Importar áreas de arquivo .kmz</a>
+                    <a class="dropdown-item" id="btnInativar" onclick="return false;">@RsBase.INATIVAR </a>
+                    <a class="dropdown-item" id="btnAtivar" onclick="return false;">@RsBase.ATIVAR</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<input id="iArquivoImportacaoArea" type="file" style="visibility: hidden" />
+
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="col-sm-11 container" style="align-content:center;">
+                    <label for="iStatus">Status: </label>
+                    <select id="iStatus" class="form-control">
+                        <option value="">@RsBase.TODOS</option>
+                        <option value="0">@RsCadastros.INATIVO</option>
+                        <option value="1">@RsCadastros.ATIVO</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                </div>
+            </div>
+        </div> <!--modal-content--> 
+    </div> <!--modal-dialog -->
+</div> <!--modal-->
+
+<!--div class="modal" id="modal-atribuirTecnico">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsCadastros.ATRIBUIR_RESPONSAVEL</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="container" style="align-content:center;">-->
+<!--Filtro por data de Abertura OS-->
+<!--<div class="row">
+                <div class="col-sm-12">
+                    <div class="form-group">
+                        <label for="iEquipe">@RsCadastros.EQUIPE:</label>
+                        @Html.DropDownList("EquipeAtribuir", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control atribuirEquipe", @id = "iEquipeAtribuir", @autocomplete = "off" })
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-success" id="iConfirmarAtribuirEquipe">Confirmar</button>
+                </div>
+            </div>
+
+            <div>
+                <span><strong>Regras:</strong></span><br>
+                <span>→ A OS não pode estar baixada (produtiva ou improdutiva);</span><br>
+                <span>→ A OS não pode estar no status Em Deslocamento;</span><br>
+                <span>→ A OS não pode estar no status Em Atendimento;</span>
+            </div>
+
+        </div>
+    </div>
+</div>-->
+<!-- /.modal-content -->
+<!--</div>--><!-- /.modal-dialog -->
+<!--</div>--><!-- /.modal-->
+<!--<div class="modal" id="modal-osNaoAtribuida" style="padding: 0">
+    <div class="modal-dialog" style="width: 100%; max-width: none; height: 100%; margin: 0;">
+        <div class="modal-content" style=" height: 100% !important; border: 0 !important; border-radius: 0 !important;">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsCadastros.LOG_OS_NAO_ATRIBUIDA</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="overflow-y: auto;">
+                <a class="" href="#" onclick="$('#datatableNaoAtribuidos').DataTable().button('0').trigger(); return false;">@RsBase.EXPORTAREXCEL</a>
+                <div class="table-responsive">
+                    <table class="table" id="datatableNaoAtribuidos">
+                    </table>
+                </div>-->
+<!--</div>-->
+<!--</div>
+</div>-->
+<!-- /.modal-content -->
+<!--</div>--><!-- /.modal-dialog -->
+<!--</div>--><!-- /.modal-->

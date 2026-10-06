@@ -1,0 +1,803 @@
+﻿@model IEnumerable<Aniel.Connect.Models.ClienteListViewModel>
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.PAINELCLIENTES;
+    ViewBag.Sessao = RsCadastros.CLIENTE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+<script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+
+    <script>
+        let rows_selected = [];
+        let oDatatable;
+        
+
+
+        $(document).ready(function() {
+            AddSelect("idCategoria_Cliente", "@CONSTANTES.URLPortal/api/categoria_clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.INDIFERENTE", false);
+            AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.INDIFERENTE", false);
+        });
+
+        function ExibirLogin(idCliente) {
+            ShowDialog(true, true, 'Login Radius', '@Url.Action("ListaLoginRadius", "Cliente")' + '?Id_Cliente=' + idCliente, 'divLogin', 450, 450, 'iframeLoginRadius');
+        }
+
+        $("#iReduzirVelocidade").on("click", function () {
+            if (rows_selected.length > 0) {
+                $.ajax({
+                    url: "@CONSTANTES.URLPortal/api/IntegracaoRadiusApiController/ReduzirVelocidadeEmMassa",
+                    type: "POST",
+                    data: {
+                        listIdCliente: rows_selected
+                    }
+                })
+                .done(function (data) {
+                    if (data.result)
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info")
+                    else
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "info")
+                })
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Selecione ao menos um funcionário", "warning")
+            }
+        })
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+            $("#iTipoPessoa").val("");
+            $("#iStatus").val("");
+            $("#iEstadosBrasil").val("");
+            $("#iCidade").empty();
+            $("#iBairro").empty();
+            $("#iLoginRadius").val("");
+            $("#idCategoria_Cliente").val("");
+            $("#iSexo").val("");
+            $("#iEstado_Civil").val("");
+            $("#iInstrucao").val("");
+            $("#iPlano").val("");
+            $("#iMes_Aniversario").val("");
+            $('#txtSearch').val("");
+
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("#iPesquisar").on("click", function () {
+            $("#modal-filter").modal('hide');
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+
+            return true;
+        });
+
+        // Popular lista de cidades
+
+        $('#iEstadosBrasil').change(function () {
+
+            var estado = $('#iEstadosBrasil option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+            $("#iCidade").val("");
+            $("#iBairro").val("");
+
+            $.getJSON(enderecoApi, function (data) {
+
+                $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+                    $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                });
+            });
+        });
+
+        $('#iCidade').change(function () {
+
+            var cidade = $('#iCidade option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getbairros?Id_Cidade=" + cidade;
+
+            $("#iBairro").val("");
+
+
+            $('#iBairro').append($('<option></option>').attr('value', null).text('@RsBase.SELECIONE'));
+            $.getJSON(enderecoApi, function (data) {
+                $.each(data, function (key, value) {
+                    $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+            });
+        });
+
+        var handleDataTableButtons = function () {
+
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteApi/AlterarStatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable",{
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti" ,
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[4, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+                /*stateSave: true,*/
+                scrollX: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/clienteapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        // Read values
+                        var tipo_pessoa = $("#iTipoPessoa option:selected").val();
+                        var status = $("#iStatus option:selected").val();
+                        var estado = $("#iEstadosBrasil option:selected").val();
+                        var cidade = $("#iCidade option:selected").text();
+                        var bairro = $("#iBairro option:selected").text();
+                        var login_radius = $("#iLoginRadius").val();
+
+                        var categoria_cliente = $("#idCategoria_Cliente option:selected").val();
+                        var sexo = $("#iSexo option:selected").val();
+                        var estado_Civil = $("#iEstado_Civil option:selected").val();
+                        var grau_Instrucao = $("#iInstrucao option:selected").val();
+
+                        var planoProduto = $("#iPlano option:selected").val();
+
+                        var mes_Aniversario = $("#iMes_Aniversario option:selected").val();
+
+                        if ($("#iCidade option:selected").val() == "Selecione")
+                            cidade = null;
+                        if ($("#iBairro option:selected").val() == "Selecione")
+                            bairro = null;
+                        if ($("#iMes_Aniversario option:selected").text() == "Selecione")
+                            mes_Aniversario = null;
+                        // Append to data
+                        data.tipo_pessoa = tipo_pessoa;
+                        data.Status = status;
+                        data.Estado = estado;
+                        data.Cidade = cidade;
+                        data.Bairro = bairro;
+                        data.Login_Radius = login_radius;
+                        data.Categoria_Cliente = categoria_cliente;
+                        data.Sexo = sexo;
+                        data.Estado_Civil = estado_Civil;
+                        data.Grau_Instrucao = grau_Instrucao;
+                        data.Id_Plano_Produto = planoProduto;
+                        data.mes_Aniversario = mes_Aniversario;
+                        data.search.option = $("#optionSearch").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                                     Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                                  </div> `);
+
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                preDrawCallback: function () {
+
+                    //if (ajustePageLength) {
+                    //    divPageLength = $('#datatable_length');
+                    //}
+
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+
+                    //if (ajustePageLength == false) {
+                    //    $('#datatable_length').prependTo('.pagination');
+                    //    ajustePageLength = true;
+                    //    divPageLength = $('#datatable_length');
+                    //}
+                    //else {
+                    //    divPageLength.prependTo('.pagination');
+                    //}
+
+                    HidePageLoading();
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1)
+                    {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    {
+                        data: "pendencia", render: function (data) {
+                            if (data) return '<i class="fas fa-circle text-danger"></i>';
+                            else return '';
+                        }
+                    },
+                    { data: "status", title: "@RsCadastros.STATUS" },
+                    { data: "tipoPessoa", title: "@RsCadastros.TIPOPESSOA" },
+                    { data: "nomeFantasia", title: "@RsCadastros.NOMEFANTASIA" },
+                    { data: "razaoSocial", title: "@RsCadastros.RAZAO_SOCIAL" },
+                    { data: "cpfCnpj", title: "@RsCadastros.CPFCNPJ" },
+                    { data: "categoria", title: "@RsCadastros.CATEGORIA" },
+                    { data: "estado", title: "@RsCadastros.ESTADO" },
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO" },
+                    { data: "sexo", title: "@RsCadastros.SEXO" },
+                    { data: "grau_Instrucao", title: "@RsCadastros.GRAU_DE_INSTRUCAO" },
+                    { data: "estado_Civil", title: "@RsCadastros.ESTADO_CIVIL" },
+                    { data: "telefonePrincipal", title: "@RsCadastros.TELEFONEPRINCIPAL" },
+                    { data: "tipo_Prioridade", title: "@RsCadastros.TIPO_PRIORIDADE" },
+                    {
+                        data: "login", title: "@RsCadastros.LOGIN",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" id_cliente="' + row.id + '" class="btnLogin" id="btnExibirLogin_' + row.id + '"><i class="fas fa-key mr-2" style="font-size:16px;;padding-right:2px;"></i></a>';
+                        }
+                    },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Ativo
+                AlterarStatusObj(1);
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                @if (AcessoHelper.TemAcesso(_areas, "22"))
+                {
+                    <text>
+                    if (oDatatable.row(this).data() != null) {
+                        @*//var tipos = @(Html.EnumToString<Tipo_Pessoa>());*@
+
+                        var _id = oDatatable.row(this).data().id;
+
+                        //var _tipo_pessoa = tipos[oDatatable.row(this).data().tipoPessoa];
+
+                        var url = '@Url.Action("ClienteDadosGerais", "Cliente", new { id = "__id__" })'; //, tipo_pessoa = "__tipo_pessoa__"
+                        window.location.href = url.replace('__id__', _id);
+                        ShowPageLoading();
+                        //.replace('__tipo_pessoa__', _tipo_pessoa);
+                    }
+                    </text>
+                }
+                else
+                {
+                    <text>
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEM_ACESSO_22, "22")", "warning");
+                    </text>
+                }
+
+            });
+
+            $("#btnCadastro").on("click", function () {
+
+                if (@Json.Encode(AcessoHelper.TemAcesso(_areas, "20"))) {
+
+                    $("#btnCadastro").prop("href", "@Url.Action("CadastroClientePasso1","Cliente")");
+                }
+                else {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEMACESSO_20, "20")", "warning");
+                }
+            });
+
+            // Handle btn login event
+            $('#datatable tbody').on('click', '.btnLogin', function (e) {
+
+                var id = $(this).attr("id_cliente");
+                ExibirLogin(id);
+
+                e.stopPropagation();
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-headset"></i>
+                @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class="form-inline pl-4 pr-2">
+                    <select class="form-control" id="optionSearch">
+                        <option value="cpf">@RsCadastros.CPFCNPJ</option>
+                        <option value="nome">@RsCadastros.NOMEFANTASIA</option>
+                        <option value="bairro">@RsCadastros.BAIRRO</option>
+                        <option value="cidade">@RsCadastros.CIDADE</option>
+                        <option value="categoria">@RsCadastros.CATEGORIA_CLIENTE</option>
+                        <option value="telefone">@RsCadastros.TELEFONE</option>
+                        <option value="razao_social">@RsCadastros.RAZAO_SOCIAL</option>
+                    </select>
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui pra busca rápida" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <a class="btn btn-success btn-add" id="btnCadastro" title="@RsBase.INCLUIR">
+                    <i class="la la-plus" style="color: #fff"></i>
+                </a>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO">
+                    <i class="la la-filter la-2x" style="color: #999"></i>
+                </button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO">
+                    <i class="la la-eraser la-2x" style="color: #999"></i>
+                </button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="@Url.Action("Importacao", "Cliente")" onclick="ShowPageLoading(); return true;">@RsCadastros.IMPORTAR_CLIENTES</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); ShowExportLoading();return false;">@RsBase.EXPORTAREXCEL</a>
+
+                    <a id="iSuspenderPlano" class="dropdown-item" href="#">@RsCadastros.SUSPENDER_PLANOS</a>
+                    <a id="iReativarPlano" class="dropdown-item" href="#">@RsCadastros.REATIVAR_PLANOS</a>
+                    <a id="iReduzirVelocidade" class="dropdown-item" href="#">@RsCadastros.REDUZIR_VELOCIDADE</a>
+                    <a id="iNormalizarVelocidade" class="dropdown-item" href="#">@RsCadastros.NORMALIZAR_VELOCIDADE</a>
+
+                    @if (AcessoHelper.TemAcesso(_areas, "21"))
+                    {
+                        <a id="btnInativar" class="dropdown-item" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                        <a id="btnAtivar" class="dropdown-item" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div id="divLogin"></div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-8 container" style="align-content:center;">
+
+                        <div class="row">
+
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Status:</label>
+                                    <select class="form-control" id="iStatus">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="0">Inativo</option>
+
+                                        <option value="1">Ativo</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Tipo de Pessoa:</label>
+                                    <select class="form-control" id="iTipoPessoa">
+                                        <option selected value="">@RsBase.TODOS</option>
+                                        <option value="0">@RsCadastros.FISICA</option>
+                                        <option value="1">@RsCadastros.JURIDICA</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>UF:</label>
+                                    <select class="form-control" id="iEstadosBrasil">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="AC">AC</option>
+                                        <option value="AL">AL</option>
+                                        <option value="AP">AP</option>
+                                        <option value="AM">AM</option>
+                                        <option value="BA">BA</option>
+                                        <option value="CE">CE</option>
+                                        <option value="DF">DF</option>
+                                        <option value="ES">ES</option>
+                                        <option value="GO">GO</option>
+                                        <option value="MA">MA</option>
+                                        <option value="MT">MT</option>
+                                        <option value="MS">MS</option>
+                                        <option value="MG">MG</option>
+                                        <option value="PA">PA</option>
+                                        <option value="PB">PB</option>
+                                        <option value="PR">PR</option>
+                                        <option value="PE">PE</option>
+                                        <option value="PI">PI</option>
+                                        <option value="RJ">RJ</option>
+                                        <option value="RN">RN</option>
+                                        <option value="RS">RS</option>
+                                        <option value="RO">RO</option>
+                                        <option value="RR">RR</option>
+                                        <option value="SC">SC</option>
+                                        <option value="SP">SP</option>
+                                        <option value="SE">SE</option>
+                                        <option value="TO">TO</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Cidade:</label>
+                                    <select class="form-control" id="iCidade"></select>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Bairro:</label>
+                                    <select class="form-control" id="iBairro"></select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Login de Acesso:</label>
+                                    <input type="text" id="iLoginRadius" class="form-control">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Categoria do Cliente</label>
+                                    @Html.DropDownList("CategoriaCliente", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idCategoria_Cliente", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Sexo</label>
+                                    <select class="form-control" id="iSexo">
+                                        <option selected value="">@RsBase.SELECIONE</option>
+                                        <option value="0">Masculino</option>
+                                        <option value="1">Feminino</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label>Grau de Instrucao</label>
+                                    <select class="form-control" id="iInstrucao">
+                                        <option selected value="">@RsBase.SELECIONE</option>
+                                        <option value="0">Sem Instrução</option>
+                                        <option value="1">Ensino Fundamental</option>
+                                        <option value="2">Ensino Médio</option>
+                                        <option value="3">Educação Superior</option>
+                                        <option value="4">Mestrado</option>
+                                        <option value="5">Doutorado</option>
+
+
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Estado Civil</label>
+                                    <select class="form-control" id="iEstado_Civil">
+                                        <option selected value="">@RsBase.SELECIONE</option>
+                                        <option value="0">SOLTEIRO</option>
+                                        <option value="1">CASADO</option>
+                                        <option value="2">VIUVO</option>
+                                        <option value="3">DIVORCIADO</option>
+                                        <option value="4">UNIAOESTAVEL</option>
+
+
+
+
+                                    </select>
+                                </div>
+
+                            </div>
+
+
+                        </div>
+
+                        <div class="row">
+
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Plano/Produto</label>
+                                    @Html.DropDownList("PlanoProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Mês de Aniversário</label>
+                                    <select class="form-control" id="iMes_Aniversario">
+                                        <option selected value="">@RsBase.SELECIONE</option>
+                                        <option value="0">Janeiro</option>
+                                        <option value="1">Fevereiro</option>
+                                        <option value="2">Março</option>
+                                        <option value="3">Abril</option>
+                                        <option value="4">Maio</option>
+                                        <option value="5">Junho</option>
+                                        <option value="6">Julho</option>
+                                        <option value="7">Agosto</option>
+                                        <option value="8">Setembro</option>
+                                        <option value="9">Outubro</option>
+                                        <option value="10">Novembro</option>
+                                        <option value="11">Dezembro</option>
+                                    </select>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

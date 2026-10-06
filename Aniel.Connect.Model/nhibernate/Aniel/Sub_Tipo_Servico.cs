@@ -1,0 +1,17 @@
+﻿using Sinapse.Model.nhibernate;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Aniel.Connect.Model.nhibernate
+{
+    public class Sub_Tipo_Servico : BaseModel
+    {
+        public virtual Tipo_Servico_Equipe Tipo_Servico_Equipe { get; set; }
+
+        public virtual String Codigo { get; set; }
+        public virtual String Descricao { get; set; }
+    }
+}

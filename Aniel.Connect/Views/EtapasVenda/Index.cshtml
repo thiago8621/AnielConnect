@@ -1,0 +1,1212 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@model Aniel.Connect.Models.EtapasVenda_ListModel
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_ETAPAS_VENDA;
+    ViewBag.Sessao = RsCadastros.COMERCIAL;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+
+
+    //listaEtapas
+    List<Aniel.Connect.Core.ObjComboResult<String>> listaEtapas = new List<Aniel.Connect.Core.ObjComboResult<String>>();
+    foreach (var valor in Enum.GetValues(typeof(EnumEtapaVenda)))
+    {
+        string descricao = HtmlEnumExtensions.GetEnumDescription(valor);
+        listaEtapas.Add(new Aniel.Connect.Core.ObjComboResult<string>
+        {
+            Id = Convert.ToInt32(valor).ToString(),
+            Text = descricao
+        });
+    }
+    listaEtapas = listaEtapas.OrderBy(x => x.Text).ToList();
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+
+        .divStatus{
+            margin-bottom: 10px !important;
+        }
+
+        .pendente {
+            background-color: #848284;
+            color: white;
+            text-align: center;
+        }
+
+        .aprovado {
+            background-color: #57B96D;
+            color: white;
+            text-align: center;
+        }
+
+        .reprovado {
+            background-color: #DB3B3B;
+            color: white;
+            text-align: center;
+        }
+
+        .aprovadoManualmente {
+            background-color: #007BFF;
+            color: white;
+            text-align: center;
+        }
+
+        .aguardandoGestor {
+            background-color: #FCE405;
+            color: black;
+            text-align: center;
+        }
+
+        .divLegenda {
+            border-width: 1px;
+            border-style: solid;
+            border-color: dimgrey;
+            border-radius: 10px;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        div.dataTables_wrapper {
+            width: 100% !important;
+            overflow-x: hidden; /* evita scroll extra */
+        }
+
+        #datatable_container {
+            overflow-x: hidden;
+        }
+
+        th[class^="no-sort-"].sorting::before,
+        th[class^="no-sort-"].sorting::after,
+        th[class^="no-sort-"].sorting_asc::before,
+        th[class^="no-sort-"].sorting_asc::after,
+        th[class^="no-sort-"].sorting_desc::before,
+        th[class^="no-sort-"].sorting_desc::after {
+            display: none !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+     let oDatatable = null;
+     let DepartamentoSelecionado = "";
+      const handleDepartamento = function () {
+      $('#iSetorDepartamento').on('select2:select select2:unselecting',async function (e) {
+          DepartamentoSelecionado = e.params.data;
+
+          if (DepartamentoSelecionado === undefined || DepartamentoSelecionado == "") {
+              await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleDepartamento);
+          } else {
+              await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, null, "@RsBase.SELECIONE", false, handleDepartamento);
+
+          }
+          });
+      }
+
+         AddSelect("iEquipeVendas", "@CONSTANTES.URLPortal/api/EquipeVendasApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+         AddSelect("iStatusVenda", "@CONSTANTES.URLPortal/api/Atividade_StatusVendaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+         AddSelect("iAprovacaoVenda", "@CONSTANTES.URLPortal/api/Motivo_Desistencia_VendaApi/GetComboAprovacao", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iVendedor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iSetorDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleDepartamento);
+        AddSelect("iStatusDadosGerais", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusPendenciaFinanceira", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusPendenciaEndereco", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusResumo", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusChecklist", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusPlanoProduto", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusTermoAdesao", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusConsultaViabilidade", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusConsultaCredito", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusFinanceiro", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusOrdemServico", "@CONSTANTES.URLPortal/api/EtapasVendaApi/GetComboStatus", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+    var rows_selected = [];
+
+    var filter_state = {
+        etapaAtual: {
+            label: "@RsCadastros.ETAPA_ATUAL",
+            getDisplay: () => { return Boolean($('#iEtapaAtual').val()) ? $('#iEtapaAtual').text() : "" },
+            onclick: () => {
+                $('#iEtapaAtual').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+        status: {
+            label: "@RsCadastros.STATUS_VENDA",
+            getDisplay: () => { return Boolean($('#iStatusVenda').val()) ? $('#iStatusVenda').text() : "" },
+            onclick: () => {
+                $('#iStatusVenda').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+
+        estado: {
+            label: "@RsCadastros.ESTADO",
+            getDisplay: () => { return Boolean($('#iEstadosBrasil').val()) ? $('#iEstadosBrasil').text() : "" },
+            onclick: () => {
+                $('#iEstadosBrasil').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+        cidade: {
+            label: "@RsCadastros.BAIRRO",
+            getDisplay: () => { return Boolean($('#iBairro').val()) ? $('#iBairro').text() : "" },
+            onclick: () => {
+                $('#iBairro').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+        cidade: {
+            label: "@RsCadastros.CIDADE",
+            getDisplay: () => { return Boolean($('#iCidade').val()) ? $('#iCidade').text() : "" },
+            onclick: () => {
+                $('#iCidade').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+        supervisor: {
+            label: "@RsCadastros.SUPERVISOR",
+            getDisplay: () => { return Boolean($('#iSupervisor').val()) ? $('#iSupervisor option:selected').text() : "" },
+            onclick: () => {
+                $('#iSupervisor').val(null).trigger("change")
+                oDatatable.draw()
+            }
+        },
+        vendedor: {
+            label: "@RsCadastros.VENDEDOR",
+            getDisplay: () => { return Boolean($('#iVendedor').val()) ? $('#iVendedor option:selected').text() : "" },
+            onclick: () => {
+                $('#iVendedor').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        },
+         departamento: {
+            label: "@RsCadastros.DEPARTAMENTO",
+            getDisplay: () => { return Boolean($('#iDepartamento').val()) ? $('#iDepartamento option:selected').text() : "" },
+            onclick: () => {
+                $('#iDepartamento').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        },
+        eetor_Responsavel: {
+            label: "@RsCadastros.SETOR_DEPARTAMENTO",
+            getDisplay: () => { return Boolean($('#iSetorDepartamento').val()) ? $('#iSetorDepartamento option:selected').text() : "" },
+            onclick: () => {
+                $('#iSetorDepartamento').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        },
+        responsavel: {
+            label: "@RsCadastros.RESPONSAVEL",
+            getDisplay: () => { return Boolean($('#iResponsavel').val()) ? $('#iResponsavel option:selected').text() : "" },
+            onclick: () => {
+                $('#iResponsavel').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        },
+
+
+        motivoAprovacao: {
+            label: "@RsCadastros.MOTIVO_APROVACAO_REPROVACAO_VENDAS",
+            getDisplay: () => { return Boolean($('#iAprovacaoVenda').val()) ? $('#iAprovacaoVenda option:selected').text() : "" },
+            onclick: () => {
+                $('#iAprovacaoVenda').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        },
+
+
+        equipeVendas: {
+            label: "@RsCadastros.EQUIPE_VENDAS",
+            getDisplay: () => { return Boolean($('#iEquipeVendas').val()) ? $('#iEquipeVendas option:selected').text() : "" },
+            onclick: () => {
+                $('#iEquipeVendas').val(null).trigger("change")
+                oDatatable.draw()
+            }
+
+        }
+
+    }
+
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            ShowPageLoading();
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EtapasVendaApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: true,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+                stateSave: true,
+                scrollX: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: () => {
+                    TagFilter("FiltrosUtilizados", filter_state)
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/EtapasVendaApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                        // Read values
+                        var supervisor = $("#iSupervisor").val();
+
+                        //Status
+                        const checkDadosGerais = $("#iStatusDadosGerais").val();
+                        const checkPendenciaEndereco = $("#iStatusPendenciaEndereco").val();
+                        const checkPendenciaFinanceira = $("#iStatusPendenciaFinanceira").val();
+                        const checkConsultaViabilidade = $("#iStatusConsultaViabilidade").val();
+                        const checkTermoAdesao = $("#iStatusTermoAdesao").val();
+                        const checkChecklist = $("#iStatusChecklist").val();
+                        const checkConsultaCredito = $("#iStatusConsultaCredito").val();
+                        const checkFinanceiro = $("#iStatusFinanceiro").val();
+                        const checkResumo = $("#iStatusResumo").val();
+                        const checkPlanoProduto = $("#iStatusPlanoProduto").val();
+                        const checkOrdemServico = $("#iStatusOrdemServico").val();
+
+                        let _estado = $("#iEstadosBrasil option:selected").val();
+                        let _cidade = $("#iCidade option:selected").text();
+                        let _bairro = $("#iBairro option:selected").text();
+
+                        let estado = _estado != "@RsBase.TODOS" ? _estado : null;
+                        let cidade = _cidade != "Selecione" ? _cidade : null;
+                        let bairro = _bairro != "Selecione" ? _bairro : null;
+                        var equipeVenda = $("#iEquipeVendas").val();
+                        var vendedor = $("#iVendedor").val();
+                        var departamento = $("#iDepartamento").val();
+                        var setor_Responsavel = $("#iSetorDepartamento").val();
+                        var responsavel = $("#iResponsavel").val();
+
+                        var motivoAprovacao = $("#iAprovacaoVenda").val();
+
+
+                        var vendedorParm = "@Request.Params["vendedor"]";
+
+                        var etapa_atual = $("#iEtapaAtual").val();
+
+                        var data_inicial = $("#iDataInicial").val();
+                        var data_inicialParam = "@Request.Params["dataBusca"]";
+                        var data_final = $("#iDataFinal").val();
+                        var data_finalParam = "@Request.Params["dataBusca"]";
+
+                        var tipoDataParam = "@Request.Params["dataVenda"]";
+
+
+                        if ($("#iCidade option:selected").val() == "Selecione")
+                            cidade = null;
+                        if ($("#iBairro option:selected").val() == "Selecione")
+                            bairro = null;
+
+                        //Filtrar por venda do setor do usuario
+                        @if (@AcessoHelper.TemAcesso(_areas, "206")) {
+                        <text>
+                        var usuario_acesso = "@User.Identity.Name";
+                        var DepartamentoAcesso_Setor = 1;
+                        data.AcessoUsuario = usuario_acesso;
+                        data.AcessoDepartamento_Setor = DepartamentoAcesso_Setor;
+                        </text>
+                        }
+
+                        //Limitar o tempo de visualização da listagem em meses
+                        @if (@AcessoHelper.TemAcesso(_areas, "207")) {
+                        <text>
+                        var acesso_TempoVisualização = 1;
+                        data.acessoTempoVisualização = acesso_TempoVisualização;
+
+                        </text>
+                        }
+
+                        // Append to data
+                        data.Supervisor = supervisor;
+                        data.StatusVenda = $("#iStatusVenda option:selected").text();
+                        data.MotivoAprovacao = $("#iAprovacaoVenda").val();
+                        data.Estado = estado;
+                        data.Cidade = cidade;
+                        data.Bairro = bairro;
+                        data.EquipeVenda = equipeVenda;
+                        data.Departamento = departamento;
+                        data.Setor_Responsavel = setor_Responsavel;
+                        data.Responsavel = responsavel;
+
+                        data.Vendedor = vendedor == null ? vendedorParm : vendedor;
+                        data.Etapa_Atual = etapa_atual;
+                        data.Data_Inicial = data_inicial == "" ? data_inicialParam : data_inicial;
+                        data.Data_Final = data_final == "" ? data_finalParam : data_final;
+
+                        data.StatusDadosGerais = checkDadosGerais;
+                        data.StatusPendenciaEndereco = checkPendenciaEndereco;
+                        data.StatusPendenciaFinanceira = checkPendenciaFinanceira;
+                        data.StatusConsultaViabilidade = checkConsultaViabilidade;
+                        data.StatusTermoAdesao = checkTermoAdesao;
+                        data.StatusChecklist = checkChecklist;
+                        data.StatusConsultaCredito = checkConsultaCredito;
+                        data.StatusFinanceiro = checkFinanceiro;
+                        data.StatusResumo = checkResumo;
+                        data.StatusPlanoProduto = checkPlanoProduto;
+                        data.StatusOrdemServico = checkOrdemServico;
+                    },
+                    error: function (e) {
+                        var errorMessage = "Ocorreu um erro.";
+                        try {
+                            var response = JSON.parse(e.responseText);
+                            if (response && response.exceptionMessage) {
+                                errorMessage = response.exceptionMessage;
+                            }
+                        } catch (ex) {
+                            console.error("Erro: ", ex);
+                        }
+                        Notificar("@RsBase.ATENCAO_", errorMessage, "warning");
+                        HidePageLoading();
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                                     Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                                  </div> `);
+
+                        return d.data;
+                    },
+                    beforeSend: function () {
+                        ShowPageLoading();
+                    },
+                    complete: function () {
+                        HidePageLoading();
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.VENDA" },
+                    { data: "nomeFantasia", title: "@RsCadastros.CLIENTE" },
+                    { data: "cpfCnpj", title: "@RsCadastros.CPFCNPJ" },
+                    { data: "telefoneCelular", title: "@RsCadastros.TELEFONE" },
+                    { data: "departamento", title: "@RsCadastros.DEPARTAMENTO" },
+
+
+                    { data: "estado", title: "@RsCadastros.UF" },
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO" },
+                    { data: "logradouro", title: "@RsCadastros.LOGRADOURO" },
+                    { data: "numero", title: "@RsCadastros.NUMERO" },
+                    { data: "equipeVenda", title: "@RsCadastros.EQUIPE_VENDAS" },
+                    { data: "vendedor", title: "@RsCadastros.VENDEDOR" },
+                    { data: "setor_Responsavel", title: "@RsCadastros.SETOR_RESPONSAVEL" },
+                    { data: "responsavel", title: "@RsCadastros.RESPONSAVEL" },
+                    { data: "status", title: "@RsCadastros.STATUS_VENDA" },
+                    { data: "motivo_Desistencia_Venda", title: "@RsCadastros.MOTIVO_APROVACAO_REPROVACAO_VENDAS" },
+
+                    { data: "etapa_Atual", title: "@RsCadastros.ETAPA_ATUAL" },
+                    {
+                        data: "dadosGerais",
+                        title: "@RsCadastros.DADOSGERAIS",
+                        className: "no-sort-dadosGerais",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "consultaViabilidade",
+                        title: "@RsCadastros.CONSULTA_VIABILIDADE",
+                        className: "no-sort-consultaViabilidade",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "pendenciaFinanceira",
+                        title: "@RsCadastros.PENDENCIA_FINANCEIRA",
+                        className: "no-sort-pendenciaFinanceira",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "pendenciaEndereco",
+                        title: "@RsCadastros.PENDENCIA_ENDERECO",
+                        className: "no-sort-pendenciaEndereco",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "consultaCredito",
+                        title: "@RsCadastros.CONSULTA_CREDITO",
+                        className: "no-sort-consultaCredito",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "financeiro",
+                        title: "@RsCadastros.FINANCEIRO",
+                        className: "no-sort-financeiro",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "planoProduto",
+                        title: "@RsCadastros.PLANOS_E_PRODUTOS",
+                        className: "no-sort-planoProduto",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "checklist",
+                        title: "@RsCadastros.CHECKLIST",
+                        className: "no-sort-checklist",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "termoAdesao",
+                        title: "@RsCadastros.TERMO_ADESAO",
+                        className: "no-sort-termoAdesao",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    },
+                    {
+                        data: "ordemServico",
+                        title: "@RsCadastros.ORDEM_DE_SERVICO",
+                        className: "no-sort-ordemServico",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            var classe = getClasse(data);
+                            return '<div class="' + classe + '">' + data + '</div>';
+                        }
+                    }
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+                // limpa campo de busca
+                $('#txtSearch').val('');
+                // desmarca checkboxes
+                $('input:checkbox').prop("checked", false);
+
+                // limpa datas (com datepicker)
+                $('#iDataInicial, #iDataFinal').val('').datepicker('update');
+
+                // percorre todos os selects dentro da modal
+                $('#modal-filter select').each(function () {
+                    // se for Select2 inicializado
+                    if ($(this).data('select2')) {
+                        $(this).val(null).trigger('change.select2');
+                    } else {
+                        // se for select normal
+                        $(this).prop('selectedIndex', 0);
+                    }
+                });
+
+
+                // limpa array de seleção da tabela
+                rows_selected = [];
+
+                // redesenha datatable
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+
+            $("#modal-filter").on("shown.bs.modal", function () {
+                AddSelect("iEstadosBrasil", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUfDesc",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            });
+
+             // Popular lista de cidades
+
+            $('#iEstadosBrasil').change(function () {
+                if ($(this).val() != null) {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    $('#iCidade').select2('destroy');
+                    $("#iCidade").empty();
+                }
+
+            });
+
+            $('#iCidade').change(
+                function () {
+                const cidade = $('#iCidade option:selected').val();
+
+                if ($(this).val() != null) {
+                        AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairros",@CONSTANTES.PaginacaoRegistros, null, cidade, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    $('#iCidade').select2('destroy');
+                    $("#iCidade").empty();
+
+                    $('#iBairro').select2('destroy');
+                    $("#iBairro").empty();
+                }
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getbairros?Id_Cidade=" + cidade;
+
+                $("#iBairro").val("");
+
+
+                $('#iBairro').append($('<option></option>').attr('value', null).text('@RsBase.SELECIONE'));
+                $.getJSON(enderecoApi, function (data) {
+                    $.each(data, function (key, value) {
+                        $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+                });
+                });
+
+            $("#iPesquisar").on("click", function () {
+
+                $("#modal-filter").modal('hide');
+
+                $("#iDataInicial").val($("#iDataInicial").val().replace(/\//g, "."));
+                $("#iDataFinal").val($("#iDataFinal").val().replace(/\//g, "."));
+
+                var _data_ini = $("#iDataInicial").val().split(".");
+                var _data_fim = $("#iDataFinal").val().split(".");
+
+                var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+                var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+                if ($('input[name = "iTipoData"]:checked').val() != "3") {
+                    if ($("#iDataInicial").val() == "" || $("#iDataFinal").val() == "" ) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.SELECIONE_DATAINICIAL_DATAFINAL)", "warning");
+                        return false;
+                    }
+                }
+
+
+                if (data_ini > data_fim) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                }
+                else {
+                    rows_selected = [];
+                    oDatatable.search($('#txtSearch').val()).draw();
+                }
+
+                return true;
+            });
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+            $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EtapasVendaApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function (e) {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("ClienteDadosGerais", "Venda")' + "?Id_Venda=" + _id;
+                    AddAba(url, 'Cadastro de Venda');
+                    e.stopPropagation();
+                }
+
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+            HidePageLoading();
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    function getClasse(status) {
+
+        switch (status) {
+            case "Aprovado":
+                return "aprovado";
+                break;
+
+            case "Reprovado":
+                return "reprovado";
+                break;
+
+            case "Pendente":
+                return "pendente";
+                break;
+
+            case "Pendente":
+                return "pendente";
+                break;
+
+            case "Aprovado Manualmente":
+                return "aprovadoManualmente";
+                break;
+
+            case "Aguardando Aprovação do Gestor":
+                return "aguardandoGestor";
+                break;
+
+            default:
+                return "";
+                break;
+        }
+    }
+
+
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page"><i class="fas fa-th-list"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="row">
+            <!--LEGENDAS-->
+            <div class="col-sm divLegenda">
+                <div style='font-size: 10px'>
+                    <span class='p-1'><b>Legenda do Status da Etapa:</b></span><br />
+                    <span class='p-1'><i class='fas fa-circle' style='color: #57B96D'></i> Aprovado</span><br />
+                    <span class='p-1'><i class='fas fa-circle' style='color: #007BFF'></i> Aprovado Manualmente</span><br />
+                    <span class='p-1'><i class='fas fa-circle' style='color: #848284'></i> Pendente</span><br />
+                    <span class='p-1'><i class='fas fa-circle' style='color: #DB3B3B'></i> Reprovado</span><br />
+                    <span class='p-1'><i class='fas fa-circle' style='color: #FCE405'></i> Aguardando Avaliação do Gestor</span><br />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" style="width:200px;" placeholder="@RsCadastros.NOMEOUDOCUMENTO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button type="button" class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--/Main-->
+    <div id="FiltrosUtilizados" class="mt-2 mr-2 ml-2">
+    </div>
+    <!--MODAL DE FILTRO-->
+    <!--Modal Filters-->
+    <div class="modal fade" id="modal-filter">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row">
+                        <div class="col-sm-12">
+
+                            <div class="row border_radius">
+                                <div class="col-sm-12">
+
+                                    <div class="form-group form-inline" style="height:100%; vertical-align:middle;">
+                                        <label for="iDataInicial">@RsCadastros.DATA_CRIACAO: </label>
+                                        <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataInicial" />
+
+                                        <span>@RsBase.A</span>
+                                        <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataFinal" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label>@RsCadastros.UF:</label>
+                                        @Html.DropDownList("EstadosBrasil", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @id = "iEstadosBrasil", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label>@RsCadastros.CIDADE:</label>
+                                        <select class="form-control" id="iCidade"></select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label>@RsCadastros.BAIRRO:</label>
+                                        <select class="form-control" id="iBairro"></select>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label>@RsCadastros.STATUS_VENDA:</label>
+                                        <select class="form-control" id="iStatusVenda"></select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label>@RsCadastros.MOTIVO_APROVACAO_REPROVACAO_VENDAS:</label>
+                                        <select class="form-control" id="iAprovacaoVenda"></select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-12" style="margin-top: -4px">
+
+                                    <label for="iEtapaAtual" style="font-size:12px">@RsCadastros.ETAPA_ATUAL:</label>
+                                    <div class="form-group">
+                                        @Html.DropDownList("Etapa_Atual", new SelectList(listaEtapas, "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEtapaAtual", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <label for="iVendedor" style="font-size:12px">@RsCadastros.VENDEDOR:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iVendedor">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <label for="iSupervisor" style="font-size:12px">@RsCadastros.SUPERVISOR:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iSupervisor">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <label for="iDepartamento" style="font-size:12px">@RsCadastros.DEPARTAMENTO:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iDepartamento">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-4">
+                                    <label for="iSetorDepartamento" style="font-size:12px">@RsCadastros.SETOR_RESPONSAVEL:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iSetorDepartamento">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <label for="iResponsavel" style="font-size:12px">@RsCadastros.RESPONSAVEL:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iResponsavel">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="row">
+                                <div class="col-sm-12" id="iDiv">
+                                    <label for="iEquipeVendas" style="font-size:12px">@RsCadastros.EQUIPE_VENDAS:</label>
+                                    <div class="form-group">
+                                        <select class="form-control" id="iEquipeVendas">@RsBase.SELECIONE</select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusDadosGerais">@RsCadastros.DADOSGERAIS:</label>
+                                        <select class="form-control" name="StatusDadosGerais[]" id="iStatusDadosGerais" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusConsultaViabilidade">@RsCadastros.CONSULTA_VIABILIDADE:</label>
+                                        <select class="form-control" name="StatusConsultaViabilidade[]" id="iStatusConsultaViabilidade" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusPendenciaEndereco">@RsCadastros.PENDENCIA_ENDERECO:</label>
+                                        <select class="form-control" name="StatusPendenciaEndereco[]" id="iStatusPendenciaEndereco" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusPendenciaFinanceira">@RsCadastros.PENDENCIA_FINANCEIRA:</label>
+                                        <select class="form-control" name="StatusPendenciaFinanceira[]" id="iStatusPendenciaFinanceira" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusConsultaCredito">@RsCadastros.CONSULTA_CREDITO:</label>
+                                        <select class="form-control" name="StatusConsultaCredito[]" id="iStatusConsultaCredito" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusChecklist">@RsCadastros.CHECKLIST:</label>
+                                        <select class="form-control" name="StatusChecklist[]" id="iStatusChecklist" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusTermoAdesao">@RsCadastros.TERMO_ADESAO:</label>
+                                        <select class="form-control" name="StatusTermoAdesao[]" id="iStatusTermoAdesao" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusPlanoProduto">@RsCadastros.PLANOS_E_PRODUTOS:</label>
+                                        <select class="form-control" name="StatusPlanoProduto[]" id="iStatusPlanoProduto" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusFinanceiro">@RsCadastros.FINANCEIRO:</label>
+                                        <select class="form-control" name="StatusFinanceiro[]" id="iStatusFinanceiro" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 divStatus">
+                                    <div class="form-group">
+                                        <label for="iStatusOrdemServico">@RsCadastros.ORDEM_DE_SERVICO:</label>
+                                        <select class="form-control" name="StatusOrdemServico[]" id="iStatusOrdemServico" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                            <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+
+
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

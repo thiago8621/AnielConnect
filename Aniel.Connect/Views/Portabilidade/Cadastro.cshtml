@@ -1,0 +1,466 @@
+﻿@using Sinapse.Model.enumerados
+@using Microsoft.AspNet.Identity;
+
+@model Aniel.Connect.Models.Portabilidade_CadastroViewModel
+
+@using Aniel.Connect.Models
+@using Aniel.Connect.Model.enumerado
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.ControllersWebApi
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_PORTABILIDADE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script src="~/bin/Scripts/connect.js"></script>
+
+    <script>
+        $("#iDid").mask("(00)00000-0000");
+        async function mudancaUF(estado)  {
+
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+            $('#iCidade').empty();
+
+            await $.getJSON(enderecoApi, function (data) {
+                $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+                    $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+
+            });
+        };
+
+
+    function changeCountry() {
+        var countryTxt = $('#iPais').text();
+        var countryVal = $('#iPais').val();
+
+        if (countryVal != null) {
+            if (countryTxt.toUpperCase() == "BRASIL") {
+                AddSelect("iUF", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.UF", "@RsBase.TODOS", false);
+            } else {
+                $('#iUF').val(null).trigger('change');
+                $('#iUF').text("").trigger('change');
+                $('#iUF').select2('destroy');
+            };
+
+        }
+        else {
+            $('#iUF').val(null).trigger('change');
+            $('#iUF').text("").trigger('change');
+            $('#iUF').select2('destroy');
+            $('#iCidade').empty();
+            $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+        };
+    };
+
+        $("#iUF").on("select2:select select2:unselecting", function (e) {
+            if (e.params.data != undefined) {
+
+                let UfSelecionado = e.params.data;
+                mudancaUF(UfSelecionado.sigla);
+            }
+            else {
+                $('#iCidade').empty();
+                $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+            }
+
+        });
+
+        $("#iNumeroCircuito").on("select2:select select2:unselecting", function (e) {
+            if (e.params.data != undefined) {
+
+                let Circuito = e.params.data;
+
+                $("#iNumeroSip").val(Circuito.text);
+                AddSelect("iDidSub", "@CONSTANTES.URLPortal/api/CircuitoTelefoniaApi/GetComboDidVinculado", @CONSTANTES.PaginacaoRegistros, null, Circuito.id, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                AddSelect("iDidSub", "@CONSTANTES.URLPortal/api/CircuitoTelefoniaApi/GetComboDidVinculado", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+
+    $('#iPais').change(function () { changeCountry() });
+
+        $(document).ready(function () {
+
+            AddSelect("iTipo_Servico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null,"@RsBase.SELECIONE",false);
+            AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPais",   @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            @*AddSelect("iUF", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf",     @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+            @*AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+            AddSelect("iCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iNumeroCircuito", "@CONSTANTES.URLPortal/api/CircuitoTelefoniaApi/GetComboSIP", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iDidSubstituido", "@CONSTANTES.URLPortal/api/CircuitoTelefoniaApi/GetComboDidVinculado", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        });
+
+        @*$("#iUF").on("select2:select select2: unselecting", function (e) {
+            let obj = e.params.data;
+
+            AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, obj.text, null, "@RsBase.SELECIONE", false);
+        });*@
+
+
+        function ValidaSubmit()
+        {
+            @*let erro = false;
+            let clicked = false;
+            let Did = $("#iDid").val();
+            let numCircuit = $("#iNumeroCircuito").val();
+            let diaPortabilidade = $("#iDiaPrevistoPortabilidade").val();
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            erro = false;
+
+
+            if (Did == null) {
+                Notificar("@RsBase.ERRO", "@RsCadastros.DID_INVALIDO", "warning");
+                erro = true;
+            }
+
+            if (numCircuit == null) {
+                Notificar("@RsBase.ERRO", "@RsCadastros.NUMERO_CIRCUITO @RsBase.INVALIDO", "warning");
+                erro = true;
+            }
+            if (diaPortabilidade == null) {
+                Notificar("@RsBase.ERRO", "@RsBase.DATA_INVALIDA", "warning");
+                erro = true;
+            }
+
+
+
+
+	        if (erro) {
+                clicked = false;
+                return false;
+            }*@
+
+            ShowPageLoading();
+            $('#form').submit();
+            return true;
+        }
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Portabilidade")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_CADASTRO_PORTABILIDADES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+
+                @*<div class="pl-4 pr-2 form-group">
+                        <label for="iModelo">Modelo de Elemento de Rede:</label>
+                        @Html.DropDownList("iModelo", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(),"Id","Descricao"),RsBase.SELECIONE, new {id="iModelo",@class="form-group",@autocomplete="off"});
+                    </div>*@
+
+                @*<div class=" pl-4 pr-2">
+                        <input type="text" class="input-search" id="txtSearch" placeholder="Procurar por Cliente/N. Circuito" autocomplete="off" style="width:200px;">
+                        <i class="la la-search la-2x" style="color: #999"></i>
+                    </div>*@
+
+
+                @*<a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Portabilidade")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>*@
+
+                @*<button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                    <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                    <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </button>*@
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+
+                    <a class="dropdown-item" id="btnInativar" onclick="" href="#">@RsBase.INATIVAR</a>
+                    <a class="dropdown-item" onclick="" id="btnAtivar" href="#">@RsBase.ATIVAR</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.LOG_ALTERACOES</a>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+@using (Html.BeginForm("Cadastro", "Portabilidade", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @*@Html.AntiForgeryToken()*@
+    @Html.HiddenFor(model => model.Codigo)
+    @Html.HiddenFor(model => model.Numero_Sip, new { @id = "iNumeroSip" })
+
+
+    <div style="padding:10px">
+        @*Criação das Tabs*@
+        <div class="tab-content">
+            @*Tab de Cadastro*@
+            <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" @*href="#collapse-1"*@ aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+
+
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCodigo">@RsCadastros.CODIGO:</label><br />
+                                        @Html.TextBoxFor(model => model.Codigo, new { @class = "form-control", id = "iCodigo", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iDid">@RsCadastros.DID<span style="color:red">*</span>:</label>
+                                        @Html.TextBoxFor(model => model.Did, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iDid", @maxlength = "16", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="row">
+
+                                <div class="col-sm-2 cabo" id="DivLocalidade">
+                                    <div class="form-group ">
+                                        <label for="iPais">@RsCadastros.PAIS:</label>
+                                        @Html.DropDownListFor(model => model.Pais, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", id = "iPais", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iUF">@RsCadastros.UF:</label><br />
+                                        @Html.DropDownListFor(m => m.UF, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUF", @name = "iUF", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCidade">@RsCadastros.CIDADE:</label><br />
+                                        @Html.DropDownListFor(m => m.Cidade, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade", @name = "iCidade", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iCliente">@RsCadastros.CLIENTE:</label>
+                                        @Html.DropDownListFor(model => model.Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", id = "iCliente", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2 cabo" id="DivEspessura_Cabo">
+                                    <div class="form-group">
+                                        <label for="iNumeroCircuito">@RsCadastros.NUMERO_CIRCUITO<span style="color:red">*</span>:</label>
+                                        @Html.DropDownListFor(model => model.Id_Circuito, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", id = "iNumeroCircuito", autocomplete = "off" })
+
+                                    </div>
+                                </div>
+                                <div class="col-sm-2 cabo">
+                                    <div class="form-group">
+                                        <label for="iDidSubstituido">Did Substituido:</label>
+                                        @Html.DropDownListFor(model => model.Did_Substituido, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", id = "iDidSub", autocomplete = "off" })
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iDiaPrevistoPortabilidade">@RsCadastros.DIA_PREVISTO_PORTABILIDADE<span style="color:red">*</span>:</label><br />
+                                        @Html.TextBoxFor(m => m.Dia_Previsto_Portabilidade, new { @class = "form-control obrigatorio datepicker", @data_provide = "datepicker", @id = "iDiaPrevistoPortabilidade", @name = "iDiaPrevistoPortabilidade", @style = "text-align: center; max-width: 102px;" })
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3 cabo" id="Div_PadraoCores">
+                                    <div class="form-group">
+                                        <label for="iStatusPort">@RsCadastros.CADASTRO_PORTABILIDADE.Replace("Cadastro", "Status da "):</label>
+                                        @Html.EnumDropDownListFor(model => model.Status, new { @class = "form-control", id = "iStatusPort", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-8"></div>
+                                @*<div class="col-sm-2">
+
+                                        <button type="button" class="btn btn-primary" onclick="AddAba(`@Url.Action("Index","Elemento_Rede")?IdTipo=${@Model.Id}`,'@RsCadastros.VISUALIZAR_ELEMENTOS_REDE')">
+                                            <i class="fas fa-map"></i><span>&nbsp;</span>
+                                            <span>@RsCadastros.VISUALIZAR_ELEMENTOS_REDE</span>
+                                        </button>
+                                    </div>*@
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            @*Tab de Produto*@
+            <div role="tabpanel" class="tab-pane " id="iTabProduto">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.PRODUTOS </span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+
+                                @*<div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iProduto">@RsCadastros.PRODUTO:</label>
+                                            @Html.DropDownList("iProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iProduto", @class = "form-control", @autocomplete = "off" })
+                                        </div>
+                                    </div>*@
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" style="color:white" id="iAdicionarMaterial" title="@RsCadastros.ADICIONAR">@RsCadastros.ADICIONAR</a>
+                                        @*<button class="btn btn-success">Action</button>*@
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <table class="table table-hover nowrap" id="datatableMateriais" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @*Tab de Serviço*@
+            <div role="tabpanel" class="tab-pane" id="iTabServico">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                <span class="text-bold-card">Itens de @RsCadastros.SERVICO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                @*<div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iUnidade_Custo">@RsCadastros.UNIDADE_CUSTO</label>
+                                            @Html.DropDownList("iUnid_Custo", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUnid_Custo", @autocomplete = "off" })
+
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iServico">Item de @RsCadastros.SERVICO:</label>
+                                            @Html.DropDownList("iServico", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iServico", @autocomplete = "off" })
+
+                                        </div>
+                                    </div>*@
+
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" style="color:white" id="iAdicionarServico" title="@RsCadastros.ADICIONAR">@RsCadastros.ADICIONAR</a>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <table class="table table-hover nowrap" id="datatableServicos" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <a href="@Url.Action("Index", "Painel_Servicos")" target="_parent" class="float-cancel" onclick="ShowPageLoading(); return true;">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+
+
+}

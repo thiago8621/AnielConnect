@@ -1,0 +1,750 @@
+﻿@model Aniel.Connect.Models.Timeline_ServicosModels
+
+@{
+    ViewBag.Title = RsCadastros.TIMELINE_SERVICOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    <link href="~/Content/tableTimeLine.css" rel="stylesheet" />
+    <style>
+
+
+        .bg-fora-agendamento {
+            background-color: #8080803d;
+            border-radius: 0 !important;
+        }
+
+        .tooltip-inner {
+            max-width: 200px;
+            padding: 3px 8px;
+            color: #000;
+            text-align: center;
+            background-color: #fff;
+            border-radius: .25rem;
+            border: 1px solid #000;
+        }
+
+        .tooltip.bs-tooltip-auto[x-placement^=top] .arrow::before, .tooltip.bs-tooltip-top .arrow::before {
+            margin-left: -3px;
+            content: "";
+            border-width: 5px 5px 0;
+            border-top-color: #000;
+        }
+
+        .tooltip.bs-tooltip-auto[x-placement^=right] .arrow::before, .tooltip.bs-tooltip-right .arrow::before {
+            margin-top: -3px;
+            content: "";
+            border-width: 5px 5px 5px 0;
+            border-right-color: #000;
+        }
+
+        .tooltip.bs-tooltip-auto[x-placement^=bottom] .arrow::before, .tooltip.bs-tooltip-bottom .arrow::before {
+            margin-left: -3px;
+            content: "";
+            border-width: 0 5px 5px;
+            border-bottom-color: #000;
+        }
+
+        .tooltip.bs-tooltip-auto[x-placement^=left] .arrow::before, .tooltip.bs-tooltip-left .arrow::before {
+            right: 0;
+            margin-top: -3px;
+            content: "";
+            border-width: 5px 0 5px 5px;
+            border-left-color: #000;
+        }
+
+        .spanTecnico {
+            margin-bottom: 0px;
+        }
+
+        .spanDetalheTecnico {
+            margin-bottom: 0px;
+            font-size: 10px;
+            color: #ffd800
+        }
+
+        .container_table {
+            overflow: hidden;
+        }
+
+        .frozen {
+            width: 100%;
+            height: 100%;
+            overflow: scroll;
+            position: relative;
+        }
+
+        table thead th {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            color: #000;
+            white-space: nowrap;
+            border-right: 1px solid #ddd;
+            text-align: center;
+        }
+
+        table thead th:first-child {
+            left: 0;
+            z-index: 1;
+        }
+
+        .popover {
+            max-width: 300px !important;
+        }
+
+    </style>
+}
+
+@section scripts
+{
+    <script>
+
+        $(document).ready(function () {
+
+            HandleSupervMonitor();
+            $('#iSupervisor').trigger('change');
+
+            var areaInicial = "@( Model.Cod_Area )";
+            var localidadeInicial = "@( Model.Cod_Localidade )";
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea').empty();
+            $('#iLocalidade').empty();
+
+            $.ajax({
+                url: enderecoApi,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function (data) {
+
+                $('#iArea').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                    $('#iArea').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+                var grupo_area = $('#iGrupoArea option:selected').val();
+                var area = $('#iArea option:selected').val();
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+                $('#iLocalidade').empty();
+
+                $.getJSON(enderecoApi, function (data) {
+                    $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                        $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+                    if (areaInicial) {
+
+                        $("#iArea").val(areaInicial);
+
+                        var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + areaInicial;
+
+                        $('#iLocalidade').empty();
+
+                        $.getJSON(enderecoApi, function (data) {
+                            $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                            $.each(data.objeto, function (key, value) {
+                                 $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                            });
+
+                            $("#iLocalidade").val(localidadeInicial);
+                        });
+                    }
+                });
+
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) { console.log(ex); }
+
+                });
+
+
+        });
+
+        AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Monitor", "@RsBase.SELECIONE", false);
+        AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Num_Fre_Supervisor", "@RsBase.SELECIONE", false);
+
+        var HandleSupervMonitor = function () {
+            $('#iSupervisor, #iMonitor').change(function () {
+                if ($("#iSupervisor").is(":checked")) {
+                    $("#divSupervisor").show();
+                    $("#divMonitor").hide();
+                    $("#idMonitor").val("").trigger("change");
+                }
+                else {
+                    $("#divSupervisor").hide();
+                    $("#divMonitor").show();
+
+                    $("#idSupervisor").val("").trigger("change");
+                }
+            });
+        }
+
+       function carregaSelect2(){
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+            AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Monitor", "@RsBase.SELECIONE", false);
+            AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Num_Fre_Supervisor", "@RsBase.SELECIONE", false);
+       }
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+            $('#iGrupoArea').val(null).trigger('change')
+            $('#iArea').val(null).trigger('change')
+            $('#iLocalidade').val(null).trigger('change')
+            $('#idMonitor').val(null).trigger('change')
+            $('#idSupervisor').val(null).trigger('change')
+            $('#iIdNatureza').val(null).trigger('change')
+            carregaSelect2()
+        })
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show')
+            carregaSelect2()
+        });
+
+        $("#btnAtualizar").click(() => {
+
+            var dataInicio = $('#iData').val();
+            var dataFinal = $('#iDataFinal').val();
+            $("#lbDataFiltro").html('Data de Agendamento: ' + dataInicio + " a " + dataFinal);
+
+            if ($("#iStatusServico").is(":checked")) {
+                $("#lbAgrupadoPor").html('Filtrado por: @Html.Raw("Status de Serviço")');
+            } else {
+                if ($("#iPrazoSLA").is(":checked")) {
+                   $("#lbAgrupadoPor").html('Filtrado por: @Html.Raw("Prazo de SLA")');
+                } else if ($("#iPrazoAtendimento").is(":checked")) {
+                   $("#lbAgrupadoPor").html('Filtrado por: @Html.Raw("Prazo de Atendimento")');
+                }
+            }
+        });
+
+        $('#iPrazoServico').change(function () {
+            if ($("#iPrazoServico").is(":checked")) {
+                $("#divPrazo").show();
+            }
+        });
+
+        $('#iStatusServico').change(function () {
+            if ($("#iStatusServico").is(":checked")) {
+                $("#divPrazo").hide();
+                $("#divLegendaExecucaoSLA").hide();
+                $("#divLegendaExecucaoAgendamento").hide();
+                $("#divLegendaStatusServico").show();
+            }
+        });
+
+
+        //LEGENDA DINÂMICA
+        $('#iPrazoSLA').change(function () {
+            if ($("#iPrazoSLA").is(":checked")) {
+                $("#divLegendaExecucaoSLA").show();
+                $("#divLegendaExecucaoAgendamento").hide();
+                $("#divLegendaStatusServico").hide();
+            }
+        });
+        $('#iPrazoAtendimento').change(function () {
+            if ($("#iPrazoAtendimento").is(":checked")) {
+                $("#divLegendaExecucaoAgendamento").show();
+                $("#divLegendaExecucaoSLA").hide();
+                $("#divLegendaStatusServico").hide();
+            }
+        });
+
+        $('#iGrupoArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea').empty();
+            $('#iLocalidade').empty();
+
+            $.ajax({
+                url: enderecoApi,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function (data) {
+
+                $('#iArea').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                    $('#iArea').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+                var grupo_area = $('#iGrupoArea option:selected').val();
+                var area = $('#iArea option:selected').val();
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+                $('#iLocalidade').empty();
+
+                $.getJSON(enderecoApi, function (data) {
+                    $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                        $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+                });
+
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) { console.log(ex); }
+
+                });
+
+        });
+
+
+        $('#iArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var area = $('#iArea option:selected').val();
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+            $('#iLocalidade').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+                $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+                        $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+            });
+
+
+        });
+
+        //Filtro Nome ou Matrícula
+        function filterTable() {
+
+            var input, filter, tbody, tr, td, td2, i, txtValue;
+            input = document.getElementById("txtSearch");
+            filter = input.value.toUpperCase();
+            tbody = document.getElementById("iTbodyTecnicos");
+            tr = tbody.getElementsByTagName("tr");
+
+            for (i = 0; i < tr.length; i++) {
+                td = tr[i].getElementsByClassName("spanTecnico")[0]
+                td2 = tr[i].getElementsByClassName("spanEquipe")[0]
+
+                if (td || td2) {
+                    txtValue = td.textContent || td.innerText;
+                    txtValue2 = td2.textContent || td2.innerText;
+
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    }
+                    else if (txtValue2.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
+                }
+                //if (td2) {
+                //    txtValue2 = td2.textContent || td2.innerText;
+                //    if (txtValue2.toUpperCase().indexOf(filter) > -1) {
+                //        tr[i].style.display = "";
+                //    } else {
+                //        tr[i].style.display = "none";
+                //    }
+                //}
+            }
+
+        }
+
+
+    </script>
+}
+
+@using (Html.BeginForm("Timeline_Servicos", "Gestao_Equipe", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @Html.AntiForgeryToken()
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto pr-0">
+            <input type="text" class="input-search mt-4" id="txtSearch" onkeyup="filterTable()" placeholder="Nome ou Nº Matrícula" autocomplete="off">
+            <i class="la la-search la-2x" style="color: #999"></i>
+        </div>
+
+        <div class="col-auto pl-2">
+            <a class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999; top: 12px; position: relative;font-size: 30px;"></i></a>
+        </div>
+
+
+
+        @*<div class="ml-2 mr-3">
+                <div class="form-group col-sm-push-1">
+                    <label for="iId_WidePay" class="mr-3"></label><br>
+                    <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda dos status dos serviços com base no horário que foram agendados"
+                       data-content="<div style='font-size: 10px'>
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-prev2'></i> Serviço Previsto</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-tec-desloc2'></i> Serviço com Técnico em Deslocamento</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-inic2'></i> Serviço Iniciado ou Reiniciado</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-baixo-prod2'></i> Serviço Baixado no Prazo Produtivo</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-baixa-improd2'></i> Serviço Baixado no Prazo Improdutivo</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-baixa-fora-prod2'></i> Serviço Baixado Fora do Prazo Produtivo</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-baixa-fora-improd2'></i> Serviço Baixado Fora do Prazo Improdutivo</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-atend_finalizado2'></i> Serviço com Atendimento Finalizado</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-atrasado2'></i> Serviço Atrasado</span><br />
+                                        <span class='p-3'><i class='fas fa-circle bg-serv-paralisado2'></i> Serviço Paralisado</span><br />
+                                    </div>"></i>
+                </div>
+            </div>*@
+
+        <!--LEGENDAS DINÂMICAS-->
+        <div class="ml-2 mr-3" id="divLegendaExecucaoSLA" style="display: none">
+            <div class="form-group col-sm-push-1">
+                <label for="iId_WidePay" class="mr-3"></label><br>
+                <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda do Status por Prazo de Execução (SLA)"
+                   data-content="<div style='font-size: 10px'>
+                    <span class='p-3'><i class='fas fa-circle' style='color: limegreen'></i> Serviço Dentro do Prazo</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: yellow'></i> Serviço em SLA de Atenção</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: orange'></i> Serviço com SLA Próximo do Vencimento</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: red'></i> Serviço com SLA em Risco de Preza do Prazo </span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: black'></i> Serviço com Prazo Vencido</span><br />
+                    </div>"></i>
+            </div>
+        </div>
+
+        <div class="ml-2 mr-3" id="divLegendaExecucaoAgendamento" style="display: none">
+            <div class="form-group col-sm-push-1">
+                <label for="iId_WidePay" class="mr-3"></label><br>
+                <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda do Status por Prazo de Execução (Do Horário de Agendamento)"
+                   data-content="<div style='font-size: 10px'>
+                    <span class='p-3'><i class='fas fa-circle' style='color: limegreen'></i> Serviço Dentro do Prazo</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: yellow'></i> Serviço Próximo do Vencimento</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: red;'></i> Serviço com Prazo Vencido</span><br />
+                    </div>"></i>
+            </div>
+        </div>
+
+        <div class="ml-2 mr-3" id="divLegendaStatusServico" style="display: none">
+            <div class="form-group col-sm-push-1">
+                <label for="iId_WidePay" class="mr-3"></label><br>
+                <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda dos Status por Serviço"
+                   data-content="<div style='font-size: 10px'>
+                    <span class='p-3'><i class='fas fa-circle' style='color: grey'></i> Serviço Agendado para o Técnico</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: dodgerblue'></i> Serviço com Técnico em Deslocamento</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: mediumblue'></i> Serviço Iniciado ou Reiniciado</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: yellow'></i> Serviço Pausado</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: limegreen'></i> Serviço Baixado Produtivo</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: orange'></i> Serviço Baixado Improdutivo</span><br />
+                    <span class='p-3'><i class='fas fa-circle' style='color: darkblue'></i> Serviço com Atendimento Finalizado</span><br />
+                    </div>"></i>
+            </div>
+        </div>
+        <!--LEGENDAS DINÂMICAS-->
+        @*<div class="ml-2 mr-2">
+                <div class="mt-3 mr-2" style="">
+                    <button class="btn btn-success pl-2 pr-2" type="submit" id="btnAtualizar" title="Atualizar" onclick="ShowPageLoading();">
+                        <i class="fas fa-sync-alt" style="color: #fff"></i>
+                    </button>
+                </div>
+            </div>*@
+
+    </div>
+
+    <div id="divSubTitle">
+        <div id="lbDataFiltro" class="fs-12 mr-2 ml-2 form-inline"></div>
+        <div id="lbAgrupadoPor" class="fs-12 mr-2 ml-2 form-inline"></div>
+    </div>
+
+</div>
+
+    if (!String.IsNullOrEmpty(Model.Data))
+    {
+        <div id="divTable">
+            <div class="table-responsive container_table pl-10 pr-10 pb-10 pt-2">
+                <div class="frozen">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th scope="row" class="title-equipe">
+                                    <!-- style="min-width: 258px;"-->
+                                    <div class="title-tb-header">
+                                        <i class="fas fa-users"></i> Técnico
+                                    </div>
+                                </th>
+                                <th colspan="23">
+                                    <div class="progress" style="margin-left: -28px;">
+                                        <!--style="margin-left: -30px;"-->
+                                        @if (Model.Data == DateTime.Now.ToString("dd/MM/yyyy"))
+                                        {
+                                            @*<div class="horaAtual" style="left: @( (DateTime.Now.Hour * 60) + DateTime.Now.Minute )px;"><span>@DateTime.Now.ToString("HH:mm")</span></div>*@
+                                            <div class="horaAtual" style="left: @( (DateTime.Now.Hour * 60) + DateTime.Now.Minute)px; border-style: dashed;border-color: red;border-width: thin; position: absolute; top: 48px; height: 100vh;"><span style="top:-30px;left: auto;">@DateTime.Now.ToString("HH:mm")</span></div>
+                                        }
+                                        <div class="linha-vertical-0"></div>
+                                        <div class="progress-bar horas">00</div>
+                                        <div class="linha-vertical-1"></div>
+                                        <div class="progress-bar horas">01</div>
+                                        <div class="linha-vertical-2"></div>
+                                        <div class="progress-bar horas">02</div>
+                                        <div class="linha-vertical-3"></div>
+                                        <div class="progress-bar horas">03</div>
+                                        <div class="linha-vertical-4"></div>
+                                        <div class="progress-bar horas">04</div>
+                                        <div class="linha-vertical-5"></div>
+                                        <div class="progress-bar horas">05</div>
+                                        <div class="linha-vertical-6"></div>
+                                        <div class="progress-bar horas">06</div>
+                                        <div class="linha-vertical-7"></div>
+                                        <div class="progress-bar horas">07</div>
+                                        <div class="linha-vertical-8"></div>
+                                        <div class="progress-bar horas">08</div>
+                                        <div class="linha-vertical-9"></div>
+                                        <div class="progress-bar horas">09</div>
+                                        <div class="linha-vertical-10"></div>
+                                        <div class="progress-bar horas">10</div>
+                                        <div class="linha-vertical-11"></div>
+                                        <div class="progress-bar horas">11</div>
+                                        <div class="linha-vertical-12"></div>
+                                        <div class="progress-bar horas">12</div>
+                                        <div class="linha-vertical-13"></div>
+                                        <div class="progress-bar horas">13</div>
+                                        <div class="linha-vertical-14"></div>
+                                        <div class="progress-bar horas">14</div>
+                                        <div class="linha-vertical-15"></div>
+                                        <div class="progress-bar horas">15</div>
+                                        <div class="linha-vertical-16"></div>
+                                        <div class="progress-bar horas">16</div>
+                                        <div class="linha-vertical-17"></div>
+                                        <div class="progress-bar horas">17</div>
+                                        <div class="linha-vertical-18"></div>
+                                        <div class="progress-bar horas">18</div>
+                                        <div class="linha-vertical-19"></div>
+                                        <div class="progress-bar horas">19</div>
+                                        <div class="linha-vertical-20"></div>
+                                        <div class="progress-bar horas">20</div>
+                                        <div class="linha-vertical-21"></div>
+                                        <div class="progress-bar horas">21</div>
+                                        <div class="linha-vertical-22"></div>
+                                        <div class="progress-bar horas">22</div>
+                                        <div class="linha-vertical-23"></div>
+                                        <div class="progress-bar horas">23</div>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="iTbodyTecnicos">
+
+
+                            @for (var i = 0; i < Model.Equipes.Count(); i++)
+                            {
+                                <tr>
+                                    <th scope="row">
+                                        <p class="spanTecnico">@Model.Equipes[i].Nome_Equipe</p>
+                                        <div class="spanEquipe d-none">@Model.Equipes[i].Equipe</div>
+
+                                        @if (!String.IsNullOrEmpty(Model.Equipes[i].Justificativa))
+                                        {
+                                            <p class="spanDetalheTecnico" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="<div style='font-size:10px'>@RsCadastros.JUSTIFICATIVA: @Model.Equipes[i].Justificativa</div>">@Model.Equipes[i].Detalhe_Equipe</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="spanDetalheTecnico">@Model.Equipes[i].Detalhe_Equipe</p>
+                                        }
+                                    </th>
+                                    <td colspan="23">
+                                        <div class="progress">
+
+                                            @if (Model.Equipes[i] != null && Model.Equipes[i].Servicos != null)
+                                            {
+                                                for (var y = 0; y < Model.Equipes[i].Servicos.Count(); y++)
+                                                {
+                                                    
+                                                        <div class="progress-bar badge badge-pill @Model.Equipes[i].Servicos[y].ClasseCorServico" role="progressbar" style="width: @Model.Equipes[i].Servicos[y].Pixels" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="@Model.Equipes[i].Servicos[y].HtmlTitle">
+                                                        </div>
+                                                    
+                                                }
+                                            }
+                                            <!--
+                                            <div class="progress-bar bg-serv-prev" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Previsto"></div>
+                                            <div class="progress-bar bg-tec-desloc" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Técnico em Deslocamento"></div>
+                                            <div class="progress-bar bg-serv-inic" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Iniciado"></div>
+                                            <div class="progress-bar bg-serv-baixo-prod" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Baixado no Prazo Produtivo"></div>
+                                            <div class="progress-bar bg-serv-baixa-improd" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Baixado no Prazo Improdutivo"></div>
+                                            <div class="progress-bar bg-serv-baixa-fora-prod " role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Baixado Fora do Prazo Produtivo"></div>
+                                            <div class="progress-bar bg-serv-baixa-fora-improd" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Baixado Fora do Prazo Improdutivo"></div>
+                                            <div class="progress-bar bg-serv-atrasado" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Serviço Atrasado"></div>
+                                            <div class="progress-bar bg-serv-paralisado" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Paralisado"></div>
+                                            <div class="progress-bar bg-tec-ausente" role="progressbar" style="width: 60px" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" data-toggle="tooltip" data-html="true" title="Técnico Ausente"></div>
+                                            -->
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    <!--Modal Filters-->
+    <div class="modal" id="modal-filter">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                    @*<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>*@
+                </div>
+                <div class="modal-body">
+
+                    <div class="row">
+                        <div class="col-12 mt-1 text-left">
+                            <div class="form-group">
+                                <label for="exampleFormControlSelect1">Data de Agendamento:</label>
+                                <center>
+                                    @Html.TextBoxFor(m => m.Data, new { @class = "form-control datepicker", @style = "background: #fff;color: #000", @data_provide = "datepicker", @id = "iData", @autocomplete = "off", @required = true })
+                                    a
+                                    @Html.TextBoxFor(m => m.DataFinal, new { @class = "form-control datepicker", @style = "background: #fff;color: #000", @data_provide = "datepicker", @id = "iDataFinal", @autocomplete = "off", @required = false })
+                                </center>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-1 text-left">
+                            <div class="form-group">
+                                <label for="exampleFormControlSelect2">Visualizar por:</label><br />
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.TipoVisualizacao, "0", new { @id = "iPrazoServico" })
+                                    <label class="form-check-label" for="iPrazoServico"> Prazo Execução</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.TipoVisualizacao, "1", new { @id = "iStatusServico" })
+                                    <label class="form-check-label" for="iStatusServico"> Status Serviço</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 mt-1 text-left" style="display: block" id="divPrazo">
+                            <div class="form-group">
+                                <label for="exampleFormControlSelect2">Prazo por:</label><br />
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.Prazo, "0", new { @id = "iPrazoSLA" })
+                                    <label class="form-check-label" for="iPrazoSLA"> SLA</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.Prazo, "1", new { @id = "iPrazoAtendimento" })
+                                    <label class="form-check-label" for="iPrazoAtendimento"> Janela de Atendimento</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 text-left">
+                            <div class="form-group">
+                                <label for="exampleFormControlSelect3">Equipes por:</label><br/>
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.TipoFiltro, "0", new { @id = "iSupervisor" })
+                                    <label class="form-check-label" for="iSupervisor"> Supervisor de Técnico</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    @Html.RadioButtonFor(m => m.TipoFiltro, "1", new { @id = "iMonitor" })
+                                    <label class="form-check-label" for="iMonitor"> Monitor de Técnico</label>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="col-12 mb-2 text-center">
+                            <div class="form-group" id="divSupervisor">
+                                @Html.DropDownListFor(model => model.Num_Fre_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control text-center", @id = "idSupervisor" })
+                            </div>
+                            <div class="form-group" id="divMonitor">
+                                @Html.DropDownListFor(model => model.Id_Monitor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control text-center", @id = "idMonitor" })
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-1">
+                            <div class="mt-1 form-group">
+                                <label for="iVendedor">@RsCadastros.HABILIDADE_TECNICA</label>
+                                @Html.DropDownListFor(model => model.Id_Natureza, new SelectList(ViewBag.Natureza, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iIdNatureza", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iAno">@RsCadastros.GRUPO_AREA:</label>
+                                @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(ViewBag.GruposArea, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoArea" })
+                            </div>
+                        </div>
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iAno">@RsCadastros.AREA:</label>
+                                @Html.DropDownListFor(model => model.Cod_Area, new SelectList(ViewBag.Areas), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea" })
+                            </div>
+                        </div>
+                        <div class="col-12  mt-1">
+                            <div class="form-group">
+                                <label for="iAno">@RsCadastros.LOCALIDADE:</label>
+                                @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(ViewBag.Localidades), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidade" })
+                            </div>
+                        </div>
+
+                        <div class="col-12 text-center">
+                            <div class="mt-2 mb-2" style="">
+                                <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                                <button class="btn btn-success pl-2 pr-2" type="submit" id="btnAtualizar" title="Aplicar" onclick="ShowPageLoading();">
+                                    @RsCadastros.APLICAR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+
+
+}

@@ -1,0 +1,1166 @@
+﻿@model Aniel.Connect.Repository.Model.AlteracaoPlanoContratoCadastroModel
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Model.enumerado
+@using Microsoft.AspNet.Identity
+
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    ViewBag.Title = @RsCadastros.ALTERACAO_PLANO_CONTRATO;
+}
+
+@{ var _areas = (List<Aniel.Connect.Models.T5.AreaModuloModel>)ViewBag.Areas;
+    var areascobertura = (List<long>)ViewBag.AreasCobertura;
+    var exigeAssinaturaTermo = ViewBag.ExigeAssinaturaTermo;
+    long? IdCliente = Model.VendaBase != null ? Model.VendaBase.Id_Cliente : (long?)null;
+    string Login = Model.VendaBase != null ? Model.VendaBase.Login : String.Empty;
+    string Senha = Model.VendaBase != null ? Model.VendaBase.Senha : String.Empty;
+    string CodEscritorio = Model.VendaBase != null ? Model.VendaBase.EnderecoInstalacao.Cod_Escritorio : String.Empty;
+    string CodArea = Model.VendaBase != null ? Model.VendaBase.EnderecoInstalacao.Cod_Area : String.Empty;
+    string CodLocalidade = Model.VendaBase != null ? Convert.ToString(Model.VendaBase.EnderecoInstalacao.Cod_Localidade) : String.Empty;
+    string Localidade = Model.VendaBase != null ? Model.VendaBase.EnderecoInstalacao.Localidade : String.Empty;
+}
+@section styles{
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        .circle-consulta-pendente {
+            font-size: 1.5em;
+            color: #CCCCCC;
+        }
+
+        .circle-consulta-aprovada {
+            font-size: 1.5em;
+            color: #8BC53F;
+        }
+
+        .circle-consulta-reprovada {
+            font-size: 1.5em;
+            color: #FF0000;
+        }
+
+        .inherit-width {
+            width: inherit
+        }
+
+        .legenda-status-sem-acesso {
+            color: #CCCCCC;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-aprovado {
+            color: #8BC53F;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-aprovado-manual {
+            color: #2db3eb;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-pedente {
+            color: #CCCCCC;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-reprovado {
+            color: #FF0000;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .swal2-popup .swal2-actions {
+            z-index: 0 !important;
+        }
+
+        .swal2-lg {
+            width: 600px !important;
+        }
+    </style>
+}
+
+@section scripts {
+    <script src="~/bin/Scripts/cliente.js"></script>
+    <script src="~/bin/Scripts/valida_cpf_cnpj.js"></script>
+    <script src="~/bin/Scripts/bootstrap-validate.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&libraries=places,geometry" async defer></script>
+    <script src="~/bin/Scripts/bootstrap-validate.js"></script>
+    <script>
+
+        const statusEtapaTermoAdesao = @((int)Model.EtapaTermoAdesao);
+        const statusEtapaCriarOS = @((int)Model.EtapaCriacaoOS);
+        const exigeAssinaturaTermo = @Html.Raw(Json.Encode(exigeAssinaturaTermo));
+        let tecnologiaPlanoAntigo = null;
+
+        const STATUS_CONSULTA_PENDENTE = 0;
+        const STATUS_CONSULTA_APROVADA = 1;
+        const STATUS_CONSULTA_REPROVADA = 2;
+        const STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR = 3;
+
+        const TERMO_ADESAO = @((int) EnumEtapaVenda.TermoAdesao);
+        const ORDEM_SERVICO = @((int) EnumEtapaVenda.OrdemServico);
+
+        let clicked = false;
+        let erro = false;
+        const planoAnterior = @(Model.VendaBase != null ? Html.Raw(Json.Encode(Model.VendaBase.Planos)):Html.Raw(Json.Encode(new List<Aniel.Connect.Repository.Model.PlanoProdutoListModel>())));
+        const configCombo = [];
+        const desabilita_vendedor = "@Model.Id_Vendedor" == "" ? false : true;
+        const possui_venda = "@Model.IdVenda" == 0 ? false : true;
+
+        $("#iLinkComercial").on("click", async function () {
+            let comercial = "@Url.Action("Index", "Comercial")";
+            ShowPageLoading();
+            window.location.href = comercial;
+
+        });
+
+        $("#iLinkIndex").on("click", async function () {
+            let index = "@Url.Action("Index", "AlteracaoPlanoContrato")";
+            ShowPageLoading();
+            window.location.href = index;
+        });
+
+        $("#btnAlterarVendedorSupervisor").on("click", function () {
+            EnableSelect('idVendedor');
+            EnableSelect('idSupervisor');
+            EnableSelect('iDepartamento');
+        });
+
+        const HandleVendedor = async function () {
+            $('#idVendedor').unbind('select2:select select2:unselecting');
+            $('#idVendedor').on('select2:select select2:unselecting', async function (e) {
+                VendedorSelecionado = e.params.data;
+
+                const id_venda = @Model.IdVenda;
+                True = true;
+                False = false;
+                area = @Aniel.Connect.Core.Helpers.AcessoHelper.TemAcesso(_areas, "266");
+                if (id_venda == 0) {
+                    if (VendedorSelecionado != undefined) {
+                        await AddSelect('idSupervisor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor', @CONSTANTES.PaginacaoRegistros, null, null, VendedorSelecionado.id_Supervisor, '@RsBase.SELECIONE', desabilita_vendedor);
+                        await AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, VendedorSelecionado.id_Departamento, "@RsBase.SELECIONE", desabilita_vendedor);
+                    }
+                    else {
+                        await AddSelect('idSupervisor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor', @CONSTANTES.PaginacaoRegistros, null, null, null, '@RsBase.SELECIONE', desabilita_vendedor);
+                        await AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Departamento", "@RsBase.SELECIONE", desabilita_vendedor);
+                    }
+                }
+                return true;
+            });
+        };
+
+        $(document).ready(async function () {
+
+            AtualizarIndicadorStatusConsulta(@((int)EnumEtapaVenda.TermoAdesao), statusEtapaTermoAdesao);
+            AtualizarIndicadorStatusConsulta(@((int)EnumEtapaVenda.OrdemServico), statusEtapaCriarOS);
+            const id_contrato_plano_selecionado = planoAnterior[0] != null ? planoAnterior[0].Id_Contrato : "";
+
+            await AddSelect('idVendedor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor', @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Vendedor", '@RsBase.SELECIONE', desabilita_vendedor, HandleVendedor);
+            await AddSelect('idSupervisor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor', @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Supervisor", '@RsBase.SELECIONE', desabilita_vendedor);
+            await AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Departamento", "@RsBase.SELECIONE", desabilita_vendedor);
+            await AddSelect("iPlanoAnteriorSelecionado", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboPlanoByClienteContrato",@CONSTANTES.PaginacaoRegistros, "@IdCliente", id_contrato_plano_selecionado, "@Model.IdPlanoAnterior", "@RsBase.SELECIONE", "@Model.IdPlanoAnterior" != 0? true : false, null, null, null, { tecnologia: tecnologiaPlanoAntigo });
+
+            @if (Model.VendaBase != null)
+            {
+            <text>
+            if ('@Html.Raw(Model.IdPlanoAnterior)' != "" && '@Html.Raw(Model.IdPlanoAnterior)' != null && '@Html.Raw(Model.IdPlanoAnterior)' != undefined && '@Html.Raw(Model.IdPlanoAnterior)' != 0 && '@Html.Raw(Model.IdPlanoAnterior)' != "null") {
+                await $.get({ url: `@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetTecnologiaPlano?plano=@Model.IdPlanoAnterior`, type: "GET", dataType: "json", }).done(function (apiTecnologia) {
+                    if (apiTecnologia != null && apiTecnologia.ok) {
+                        tecnologiaPlanoAntigo = apiTecnologia.objeto;
+                    }
+                });
+                configCombo.push({ Key: "TECNOLOGIA", Value: tecnologiaPlanoAntigo });
+            }
+            </text>
+            }
+            @if(areascobertura.Count > 0)
+            {
+             <text>
+            configCombo.push({ Key: "AREACOBERTURA", Value:@Html.Raw(Json.Encode(areascobertura))});
+            </text>
+            }
+            await AddSelect("iPlanoSelecionado", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboPlanoTecnologia",@CONSTANTES.PaginacaoRegistros, null, "@IdCliente", "@Model.IdPlanoProduto", "@RsBase.SELECIONE", possui_venda, null, null, null, configCombo);
+        });
+        $('#iPlanoSelecionado').unbind('select2:select select2:unselecting');
+        $("#iPlanoSelecionado").on("select2:select select:unselect", async function (e) {
+            if (e.params._type == "unselect") {
+                $("#iDetalhes").empty();
+                return;
+                $("#iIdPlanoProduto").val(null).trigger("change");
+                $("#iPlanoProduto").val(null).trigger("change");
+            }
+            else {
+                let { id, text } = e.params.data;
+                await renderDetalhesPlano(id, text);
+                ValidaContrato()
+                    .then(async (erroContrato) => {
+                        if (!erroContrato) {
+                            if ($("#iPlanoAnteriorSelecionado").val()) {
+                                let objGravacao = await getPlanoProdutoList(e.params.data);
+                                fillPlanoProduto(objGravacao);
+                                $("#iIdPlanoProduto").val(id).trigger("change");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", "Plano vigente não foi escolhido na rotina", "warning");
+                            }
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", "erro na validação de contrato", "warning");
+                            $("#iIdPlanoProduto").val(null).trigger("change");
+                            $("#iPlanoProduto").val(null).trigger("change");
+                        }
+                    });
+            }
+        });
+
+
+        async function renderDetalhesPlano(id, text) {
+            let idplanoAnterior = Number("@Model.IdPlanoAnterior");
+            let detalhesPlano = { perguntas: [], respostas: [] };
+            let url = "@CONSTANTES.URLPortal/api/clienteapi/FindByIdClientePlanoProduto?Id=" + $("#iPlanoAnteriorSelecionado").val();
+
+            const detalhesPlanoAnterior = await $.get({
+                url: url, type: "GET", dataType: "json",
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                } });
+            const obj_plano_anterior = detalhesPlanoAnterior.objeto;
+
+            await $.get({
+                url: `@CONSTANTES.URLPortal/api/PlanoApi/GetListDetalhes?Id_Plano=${id}`, type: "GET", dataType: "json",
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                } }).done(async function (data) {
+                let detalhe = "";
+                let periodoCarencia = data.objeto.periodo_Carencia;
+
+                detalhesPlano["perguntas"].push(`— Descrição do Plano: `);
+                detalhesPlano["perguntas"].push(`— Valor de Instalação: R$ `);
+                detalhesPlano["perguntas"].push(`— Valor final total a ser pago - Sem instalação: R$ `);
+                detalhesPlano["perguntas"].push(`— Valor final total a ser pago - Com instalação: R$ `);
+                detalhesPlano["perguntas"].push(`— Período de Carencia:`);
+                detalhesPlano["perguntas"].push(`— Quantidade de Meses: `);
+                detalhesPlano["perguntas"].push(`— Valor da multa por Rescisão: `);
+
+                detalhesPlano["respostas"].push(`${text}`);
+                detalhesPlano["respostas"].push(`${data.objeto.valorInstalacao} `);
+                detalhesPlano["respostas"].push(`${data.objeto.valorTotalSemInstalacao}`);
+                detalhesPlano["respostas"].push(`${data.objeto.valorTotalComInstalacao}`);
+                detalhesPlano["respostas"].push(`${periodoCarencia}`);
+                detalhesPlano["respostas"].push(`${data.objeto.multa_Carencia_Periodo} `);
+                detalhesPlano["respostas"].push(`${data.objeto.multa_Carencia_Reais}`);
+
+                const valor_plano_produto = obj_plano_anterior != null ? parseFloat(obj_plano_anterior.valorPlanoProduto.replace(/[^0-9,.]/g, '').replace(/[.]/g, '').replace(',', '.')) : 0;
+                const valor_plano_produto_final = parseFloat(data.objeto.valorPlanoProdutoFinal.replace(/[^0-9,.]/g, '').replace(/[.]/g, '').replace(',', '.'));
+                if (valor_plano_produto_final != valor_plano_produto) {
+                    let tipoAlteracao = valor_plano_produto_final > valor_plano_produto ? "UPGRADE" : "DOWNGRADE";
+                    detalhesPlano["perguntas"].push(tipoAlteracao);
+                    detalhesPlano["respostas"].push("");
+                    if (tipoAlteracao == "UPGRADE") {
+                        $("#iTipoAlteracao").val(@((int)Aniel.Connect.Model.enumerado.TipoAlteracaoPlanoContratoEnum.upgrade));
+                    }
+                    else if (tipoAlteracao == "DOWNGRADE") {
+                        $("#iTipoAlteracao").val(@((int)Aniel.Connect.Model.enumerado.TipoAlteracaoPlanoContratoEnum.downgrade));
+                    }
+                }
+                for (let iterator = 0; iterator < detalhesPlano["perguntas"].length; iterator++) {
+                    detalhe += `<span class="font-weight-bold"> ${detalhesPlano['perguntas'][iterator]}</span> <span> ${detalhesPlano["respostas"][iterator]}</span><br />`
+                }
+
+                $("#iDetalhes").html(detalhe);
+            });
+        }
+
+        function AtualizarIndicadorStatusConsulta(consulta, status) {
+            let statusClass = null;
+            switch (status) {
+                case STATUS_CONSULTA_PENDENTE:
+                    statusClass = "circle-consulta-pendente";
+                    break;
+                case STATUS_CONSULTA_APROVADA:
+                    statusClass = "circle-consulta-aprovada";
+                    break;
+                case STATUS_CONSULTA_REPROVADA:
+                case STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR:
+                    statusClass = "circle-consulta-reprovada";
+                    break;
+            }
+
+            if (statusClass != null) {
+
+
+                switch (consulta) {
+                    case TERMO_ADESAO:
+                        let statusTermoSelector = "#statusTermoAdesao";
+                        AtualizaStatusConsulta(statusTermoSelector, true, statusClass);
+                        alteraBtnTermo(status);
+                        break;
+
+                    case ORDEM_SERVICO:
+                        let statusOSSelector = "#statusCriacaoOS";
+                        AtualizaStatusConsulta(statusOSSelector, true, statusClass);
+                        break;
+                }
+            }
+        }
+
+        function AtualizaStatusConsulta(element, visualiza, classe) {
+            $(element).removeClass("circle-consulta-pendente");
+            $(element).removeClass("circle-consulta-aprovada");
+            $(element).removeClass("circle-consulta-reprovada");
+
+            if (@Html.Raw(Json.Encode(Aniel.Connect.Core.Helpers.AcessoHelper.TemAcesso(_areas, "322")))) {
+                $(element).addClass(classe);
+            }
+            else if (visualiza) {
+                $(element).addClass(classe);
+            }
+            else {
+                $(element).addClass("circle-consulta-pendente");
+            }
+        }
+
+        function alteraBtnTermo(status) {
+            if (statusEtapaTermoAdesao == @((int)(StatusEtapaVenda.Aprovado))) {
+                $("#btnVisualizaTermo").removeClass("d-none");
+                $("#btnReenvioTermo").addClass("d-none");
+                $("#btnEnvioTermo").addClass("d-none");
+            }
+            else if (statusEtapaTermoAdesao == @((int)(StatusEtapaVenda.Reprovado))) {
+                $("#btnReenvioTermo").removeClass("d-none");
+                $("#btnEnvioTermo").addClass("d-none");
+                $("#btnVisualizaTermo").addClass("d-none");
+            }
+            else {
+                $("#btnEnvioTermo").removeClass("d-none");
+                $("#btnReenvioTermo").addClass("d-none");
+                $("#btnVisualizaTermo").addClass("d-none");
+            }
+        }
+
+        function ValidaContrato() {
+            return new Promise(async (resolve, reject) => {
+                let erro = false;
+                if ($("#iPlano").val()) {
+                    let link = '@String.Concat(CONSTANTES.URLPortal, "/api/Planoapi/FindById?Id=")' + $("#iPlanoSelecionado").val();
+                    await $.getJSON(link, async function (data) {
+                        if (data.objeto == null) {
+                            link = '@String.Concat(CONSTANTES.URLPortal, "/api/Produtoapi/FindById?Id=")' + $("#iPlanoSelecionado").val();
+
+                            await $.getJSON(link, function (data) {
+                                erro = validaContratoPlanoProduto(data.objeto);
+                                resolve(erro);
+                            });
+                        }
+                        else {
+                            erro = validaContratoPlanoProduto(data.objeto);
+                            resolve(erro);
+                        }
+                    });
+                }
+
+                resolve(erro);
+            });
+        }
+        function validaContratoPlanoProduto(planoProduto) {
+            let erro = false;
+            if (planoProduto.emitirContratoProduto == true) {
+                const id_modelo_contrato = planoAnterior[0] != null ? planoAnterior[0].Id_Modelo_Contrato : "";
+                if (!id_modelo_contrato) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MODELO_CONTRATO)", "warning");
+                    erro = true;
+                }
+
+                const numero_contrato = planoAnterior[0] != null ? planoAnterior[0].Numero_Contrato : "";
+                if (!numero_contrato) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO_CONTRATO)", "warning");
+                    erro = true;
+                }
+            }
+            return erro;
+        }
+
+        function validaSubmit() {
+            if (clicked) { return false; }
+
+            ShowPageLoading();
+            erro = false;
+            clicked = true;
+
+            if (!$("#iPlanoSelecionado").val()) {
+                erro = true;
+                Notificar("@RsBase.ATENCAO_", "Preencha o Plano Produto", "warning");
+            }
+
+            if (!$("#idVendedor").val()) {
+                erro = true;
+                Notificar("@RsBase.ATENCAO_", "Preencha Vendedor", "warning")
+            }
+            if (!$("#idSupervisor").val()) {
+                erro = true;
+                Notificar("@RsBase.ATENCAO_", "Preencha Vendedor", "warning")
+            }
+            if (!$("#iDepartamento").val()) {
+                erro = true;
+                Notificar("@RsBase.ATENCAO_", "Preencha Departamento", "warning")
+            }
+
+            if (erro) {
+                HidePageLoading();
+                clicked = false;
+
+                return false;
+            }
+            $("#form").submit();
+        }
+
+        function geracaocharCode(numeroContrato) {
+            let charCodeAppended = "";
+            for (let iterator = 0; iterator < numeroContrato.length; iterator++) {
+                charCodeAppended += numeroContrato.charCodeAt(iterator);
+            }
+            return charCodeAppended;
+        }
+
+        async function getPlanoProdutoList(data) {
+            let registroPlanoAnterior = await $.get({ url: `@String.Concat(CONSTANTES.URLPortal, "/api/Planoapi/FindById?Id=")@Model.IdPlanoAnterior`, type: "GET", dataType: "json" });
+
+            let registroPlanoProdutoListModel = {};
+
+            registroPlanoProdutoListModel.Id = 0;
+            registroPlanoProdutoListModel.Id_Endereco = 0;
+            registroPlanoProdutoListModel.Id_Plano_Produto = data.id;
+            registroPlanoProdutoListModel.Id_Troca_Plano = registroPlanoAnterior.objeto.id;
+            registroPlanoProdutoListModel.Descricao = data.text;
+            registroPlanoProdutoListModel.Disponibiliza_Telefonia = false;
+            registroPlanoProdutoListModel.JsonTelefonia = "";
+            registroPlanoProdutoListModel.ServicosAdicionais = "";
+            registroPlanoProdutoListModel.Utilizar_ServicoSelecionado = false;
+
+            registroPlanoProdutoListModel.ValorTotal = data.valorTotal;
+            registroPlanoProdutoListModel.ValorPlanoProduto = parseFloat(data.valorReal);
+            registroPlanoProdutoListModel.ValorPlanoProduto_Final = parseFloat(data.valorFinal);
+            registroPlanoProdutoListModel.ValorInstalacao = !data.valorInstalacao ? '' : parseFloat(data.valorInstalacao.replace(',', '.'));
+            registroPlanoProdutoListModel.ValorInstalacao_Final = !data.valorInstalacaoFinal ? '' : parseFloat(data.valorInstalacaoFinal.replace(',', '.'));
+            registroPlanoProdutoListModel.Status = "@Convert.ToInt32(Status_PlanoProduto.Aguardando_Aprovacao_Venda)";
+            registroPlanoProdutoListModel.Status_PlanoProduto_Str = "@RsCadastros.AGUARDANDO_APROVACAO_VENDA";
+            registroPlanoProdutoListModel.Cod_Area = "@CodArea";
+            registroPlanoProdutoListModel.Cod_Escritorio = "@CodEscritorio";
+            registroPlanoProdutoListModel.Cod_Localidade = "@CodLocalidade";
+            registroPlanoProdutoListModel.Localidade = "@Localidade";
+
+            registroPlanoProdutoListModel.Tipo_Tecnologia = data.tipo_Tecnologia;
+            registroPlanoProdutoListModel.Id_Contrato = null;
+            registroPlanoProdutoListModel.Id_Modelo_Contrato = registroPlanoAnterior.objeto.idModeloContrato;
+            registroPlanoProdutoListModel.Numero_Contrato = planoAnterior[0] != null ? planoAnterior[0].Numero_Contrato : "";
+            registroPlanoProdutoListModel.Id_PlanoMudanca = planoAnterior[0] != null ? planoAnterior[0].Id : 0;
+            registroPlanoProdutoListModel.Id_MudancaPlano = planoAnterior[0] != null ? planoAnterior[0].Id : 0;
+            registroPlanoProdutoListModel.Tipo = data.tipo;
+            registroPlanoProdutoListModel.Login_Radius = "@Login";
+            registroPlanoProdutoListModel.Senha_Radius = "@Senha";
+
+            registroPlanoProdutoListModel.Numero_Parcelas = registroPlanoAnterior.objeto.numero_Parcelas_Instalacao;
+            registroPlanoProdutoListModel.Qtde_Dias = registroPlanoAnterior.objeto.qtde_Dias;
+            registroPlanoProdutoListModel.Meses_Carencia = registroPlanoAnterior.objeto.meses_Carencia;
+            registroPlanoProdutoListModel.Teste_Gratis = registroPlanoAnterior.objeto.checkTesteGratis;
+            registroPlanoProdutoListModel.Periodo_Carencia = registroPlanoAnterior.objeto.checkPeriodoCarencia;
+            registroPlanoProdutoListModel.Id_Endereco = planoAnterior[0] != null ? planoAnterior[0].Id_Endereco : 0;
+
+            registroPlanoProdutoListModel.NecessitaCriarOS = "";
+            registroPlanoProdutoListModel.PossuiOSCriada = "";
+            registroPlanoProdutoListModel.NumOS = "";
+            registroPlanoProdutoListModel.Id_Forma_Pagamento_Cliente = planoAnterior[0] != null ? planoAnterior[0].Id_Forma_Pagamento_Cliente : 0;
+            registroPlanoProdutoListModel.Id_Forma_De_Pagamento = planoAnterior[0] != null ? planoAnterior[0].Id_Forma_Pagamento_Cliente : 0;
+
+            registroPlanoProdutoListModel.Desc_Forma_Pagto = "";
+            registroPlanoProdutoListModel.FlagTrocaPlano = true;
+            registroPlanoProdutoListModel.Id_Tecnologia = data.id_Tecnologia;
+
+            return registroPlanoProdutoListModel;
+
+        }
+        function fillPlanoProduto(registroPlanoProdutoListModel) {
+            $("#iPlanoCod_Escritorio").val(registroPlanoProdutoListModel.Cod_Escritorio);
+            $("#iPlanoCod_Area").val(registroPlanoProdutoListModel.Cod_Area);
+            $("#iPlanoCod_Localidade").val(registroPlanoProdutoListModel.Cod_Localidade);
+            $("#iPlanoLocalidade").val(registroPlanoProdutoListModel.Localidade);
+
+            $("#iPlanoPeriodo_Carencia").val(registroPlanoProdutoListModel.Periodo_Carencia);
+            $("#iPlanoMeses_Carencia").val(registroPlanoProdutoListModel.Meses_Carencia);
+            $("#iPlanoId_Plano_Produto").val(registroPlanoProdutoListModel.Id_Plano_Produto);
+            $("#iPlanoLogin_Radius").val(registroPlanoProdutoListModel.Login_Radius);
+
+            $("#iPlanoSenha_Radius").val(registroPlanoProdutoListModel.Senha_Radius);
+            $("#iPlanoValorTotal").val(registroPlanoProdutoListModel.ValorTotal);
+            $("#iPlanoValor_Instalacao_Final").val(registroPlanoProdutoListModel.ValorInstalacao_Final);
+            $("#iPlanoId_Venda").val("@Model.IdVenda");
+
+            $("#iPlanoId_PlanoMudanca").val(registroPlanoProdutoListModel.Id_PlanoMudanca);
+            $("#iPlanoId_MudancaPlano").val(registroPlanoProdutoListModel.Id_MudancaPlano);
+            $("#iPlanoId_TrocaPlano").val(registroPlanoProdutoListModel.Id_MudancaPlano);
+            $("#iPlanoJsonTelefonia").val(registroPlanoProdutoListModel.JsonTelefonia);
+
+            $("#iPlanoStatus").val(registroPlanoProdutoListModel.Status);
+            $("#iPlanoFlagTrocaPlano").val(registroPlanoProdutoListModel.FlagTrocaPlano);
+            $("#iPlanoId_Modelo_Contrato").val(registroPlanoProdutoListModel.Id_Modelo_Contrato);
+            $("#iPlanoNumero_Contrato").val(registroPlanoProdutoListModel.Numero_Contrato);
+
+            $("#iPlanoTipo").val(registroPlanoProdutoListModel.Tipo);
+            $("#iPlanoTipo_Tecnologia").val(registroPlanoProdutoListModel.Tipo_Tecnologia);
+            $("#iId_Forma_Pagamento_Cliente").val(registroPlanoProdutoListModel.Id_Forma_Pagamento_Cliente);
+            $("#iId_Endereco").val(registroPlanoProdutoListModel.Id_Endereco);
+        }
+
+        @if (Model.IdVenda != 0) {
+
+        <text>
+        async function alterarStatus(status) {
+            return await $.ajax({
+                url: "@String.Concat(CONSTANTES.URLPortal,"/api/Vendaapi/AlterarStatus")",
+                dataType: "json",
+                type: "POST",
+                data: {
+                    id:@Model.IdVenda,
+                    status: status,
+                    usuario: "@User.Identity.GetUserId()"
+                },
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                }
+            });
+        }
+        async function ReenviarTermoAdesao() {
+            var consulta_plano = await ConsultaPlanoEmVenda();
+            if (!consulta_plano) {
+                Notificar("@RsBase.ATENCAO_", "Não foi possível reenviar o termo por e-mail, pois, não existe PLANO vinculado a essa venda.", "warning");
+            } else {
+                const link = '@String.Concat(CONSTANTES.URLPortal, "/api/TermoAdesaoApi/enviarTermoAdesao")' + "?IdVenda=" + "@Model.IdVenda";
+
+                const data = await $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+                    beforeSend: function () {
+                        $("#divProgress").show();
+                    },
+                    complete: function () {
+                        $("#divProgress").hide();
+                    }
+                });
+
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "Termo de adesão enviado", "info");
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", "Erro ao enviar o termo de adesão - " + data.mensagem, "warning");
+                }
+            }
+        }
+        async function ConsultaPlanoEmVenda() {
+            const link = '@String.Concat(CONSTANTES.URLPortal, "/api/VendaApi/ConsultaPlanoEmVenda")' + "?IdVenda=" + "@Model.IdVenda";
+            const data = await $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                }
+            });
+
+            return data.ok;
+        }
+        $("#btnEnvioTermo, #btnReenvioTermo").on("click", async function () {
+            await ReenviarTermoAdesao();
+            if ($(this).attr("id") == "btnEnvioTermo") {
+                await $.get({
+                    url: `@CONSTANTES.URLPortal/api/VendaApi/AlterarStatusEtapaVenda?idVenda=@Model.IdVenda&etapa=${TERMO_ADESAO}&status=${STATUS_CONSULTA_REPROVADA}&IdConsulta=&idTrocaTitular=`,
+                    dataType: "json",
+                    type: "GET",
+                    beforeSend: function () {
+                        $("#divProgress").show();
+                    },
+                    complete: function () {
+                        $("#divProgress").hide();
+                    }
+                }).done(function (data) {
+                    if (data.ok) {
+                        @*Alteração de Status do Termo de Adesão para Reprovado*@
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+
+        function VisualizarTermoAdesao() {
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/TermoAdesaoApi/getPdfTermoAdesao")' + "?IdVenda=" + "@Model.IdVenda";
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                }
+            })
+                .done(function (data) {
+                    if (data.ok) {
+                        let caminho = "@CONSTANTES.URLPortal/Arquivos/TermoAdesao/termo_adesao_@Model.IdVenda" + ".pdf";
+                        window.open(caminho);
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+        }
+
+        $("#btnVisualizaTermo").on("click", function () {
+            VisualizarTermoAdesao();
+        });
+
+        $("#iAprovar").on("click", async function () {
+            if (exigeAssinaturaTermo) {
+                if (statusEtapaTermoAdesao != STATUS_CONSULTA_APROVADA) {
+                    //Notificar("@RsBase.ATENCAO_", "Termo de Adesão pendente de Assinatura", "warning");
+                    await Swal.fire({
+                        type: 'warning',
+                        title: '@RsBase.ATENCAO_',
+                        text: `Termo de Adesão pendente de Assinatura`,
+                        confirmButtonText: 'OK'
+                    });
+                    return false;
+                }
+            }
+            let retorno = await alterarStatus(@((int)Status_Venda.Venda_Aprovada));
+            if (retorno.ok) {
+                //Notificar("Sucesso", "Proposta de Alteração de Plano foi efetuada com sucesso", "info");
+                await Swal.fire({
+                    type: 'success',
+                    title: 'Sucesso',
+                    text: '@Html.Raw("Proposta de Alteração de Plano foi efetuada com sucesso")',
+                    confirmButtonText: 'OK'
+                });
+                $("#divProgress").show();
+                window.location.reload(true);
+            }
+            else
+            {
+                //Notificar("@RsBase.ATENCAO_", retorno.mensagem, "warning");
+                await Swal.fire({
+                    type: 'warning',
+                    title: '@RsBase.ATENCAO_',
+                    text: `${retorno.mensagem}`,
+                    confirmButtonText: 'OK'
+                });
+            }
+            return true;
+        });
+
+        $("#iReprovar").on("click", async function () {
+            let retorno = await alterarStatus(@((int)Status_Venda.Venda_Cancelada));
+            if (retorno.ok) {
+                Notificar("@RsBase.ATENCAO_", "Proposta de Alteração de Plano foi recusada", "info");
+                window.location.reload(true);
+            }
+            else
+            {
+                Notificar("@RsBase.ATENCAO_", retorno.mensagem, "warning");
+            }
+
+            return true;
+        });
+
+        $("#iCriarAtendimento").on("click", function () {
+            ShowPageLoading();
+
+            window.location.href = `@Url.Action("cadastro","Atendimento")?IdVenda=@Model.IdVenda&IdClienteContrato=@Model.PlanoProduto.Id_Contrato&IdClientePlanoProduto=@Model.PlanoProduto.Id`;
+        });
+
+        $("#iHistorico").on("click", function () {
+            ShowPageLoading();
+            window.location.href = "@Url.Action("Historico_Alteracao","AlteracaoPlanoContrato")?id=@Model.PlanoProduto.Id&venda=@Model.IdVenda"
+        });
+
+        $("#btnCriarOS").on("click", function () {
+            ShowPageLoading();
+            AddAba('@Url.Action("Criar_Ordem_Servico", "Painel_Servicos", new { Id_Cliente = Model.Id_Cliente, Id_Venda = Model.IdVenda })&Id_PlanoProduto=@Model.PlanoProduto.Id&Id_PlanoProdutoAnterior=@Model.PlanoProduto.Id_Troca_Plano&Id_Venda=@Model.IdVenda', '@Html.Raw(RsCadastros.CRIAR_ORDEM_SERVICO)');
+            HidePageLoading();
+        });
+
+        $("#btnVisualizarOS").on("click", function () {
+            ShowPageLoading();
+            const url = `@Html.Raw(Url.Action("Index", "Acompanhamento_Servico", new { CodCt = Model.cod_ct, Projeto = Model.projeto, Num_Obra = Model.numeroOS, Num_Doc = Model.num_doc}))`;
+            AddAba(url, '@Html.Raw(RsCadastros.ACOMPANHAMENTO_SERVICO)');
+            HidePageLoading();
+        });
+        </text>
+        }
+    </script>
+}
+
+<input type="hidden" id="iStatusTermoAdesao" value="0" />
+<div class="container-fluid">
+    <div class="card" style="border:none">
+        <div class="card-body">
+            <!--main-->
+            <div class="row">
+                <div class="col-auto mr-auto main-title">
+                    <h4 class="title-page">
+                        <i class="fas fa-retweet"></i>@ViewBag.Title
+                    </h4>
+
+                    <nav class="mt-25">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="#" style="color:#367fa9" id="iLinkComercial">@RsCadastros.COMERCIAL</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="#" style="color:#367fa9" id="iLinkIndex">@RsCadastros.LISTAGEM_ALTERACOES_PLANO_CONTRATO</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+
+                </div>
+                @if (Model.IdVenda != 0)
+                {
+                    <div class="col-auto mb-3">
+                        <button class="btn btn-default btn-add" type="button" title="Opções" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                            <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                            @if (Model.Status == Aniel.Connect.Core.Helpers.HtmlEnumExtensions.GetEnumDescription(Status_Venda.Analise_Cliente))
+                            {
+                                <a class="dropdown-item" id="iAprovar" href="javascript:void(0)"><i class="fas fa-thumbs-up"></i> Aprovar Mudança de Plano</a>
+                                <a class="dropdown-item" id="iReprovar" href="javascript:void(0)"><i class="fas fa-thumbs-down"></i> Cancelar Mudança de Plano</a>
+                            }
+                            <a class="dropdown-item" id="iCriarAtendimento" href="javascript:void(0)"><i class="fas fa-headphones"></i> @RsCadastros.CRIAR_ATENDIMENTO</a>
+                            <a class="dropdown-item" id="iHistorico" href="javascript:void(0)"><i class="fas fa-history "></i> @RsCadastros.HISTORICO_ALTERACOES</a>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    @using (Html.BeginForm("Cadastro", "AlteracaoPlanoContrato", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+    {
+        @*@Html.HiddenFor(p => p.VendaBase, new { @id = "iVendaBase", @value = Html.Raw(Model.VendaBase) })*@
+        @Html.HiddenFor(p => p.Id_Cliente, new { @id = "iCliente" })
+        @Html.HiddenFor(p => p.VendaBase.Id_Categoria_Cliente, new { @id = "iCategoriaCliente" })
+        @Html.HiddenFor(p => p.VendaBase.CpfCnpj, new { @id = "iCpfCnpj" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Descricao, new { @id = "iDescricaoPlano" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Meses_Carencia, new { @id = "iPeriodoFidelidade" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Descricao_Contrato, new { @id = "iContrato" })
+        @Html.HiddenFor(p => p.VendaBase.NomeFantasia, new { @id = "iNomeFantasia" })
+        @Html.HiddenFor(p => p.VendaBase.Contrato, new { @id = "iVigenciaContrato" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Multa_Carencia_Reais, new { @id = "iValorMulta" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Desc_Forma_Pagto, new { @id = "iFormaPagamento" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Periodo_Carencia, new { @id = "iFidelidade" })
+        @Html.HiddenFor(p => p.VendaBase.Planos[0].Desc_Periodo_Carencia, new { @id = "iDesc_Periodo_Carencia" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.CEP, new { @id = "iCEP" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Bairro, new { @id = "iBairro" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Logradouro, new { @id = "iLogradouro" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Desc_Tipo_Imovel, new { @id = "iTipoImóvel" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Numero, new { @id = "iNumero" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Pais, new { @id = "iPais" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.UF, new { @id = "iUF" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Complemento, new { @id = "iComplemento" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Cidade, new { @id = "iCidade" })
+        @Html.HiddenFor(p => p.VendaBase.EnderecoInstalacao.Ponto_Referencia, new { @id = "iPontoReferencia" })
+        @Html.HiddenFor(m => m.VendaBase.Status, new { @class = "form-control readonly", @id = "iStatus" })
+        @Html.HiddenFor(m => m.VendaBase.DataCriacao, new { @class = "form-control readonly", @data_provide = "datepicker", @id = "iDataCriacao" })
+        @Html.HiddenFor(p => p.VendaBase.Cargo_Responsavel, new { @id = "iCargo_Responsavel" })
+        @Html.HiddenFor(p => p.VendaBase.CPFResponsavel, new { @id = "iCPFResponsavel" })
+        @Html.HiddenFor(p => p.VendaBase.Representante, new { @id = "iRepresentante" })
+        @Html.HiddenFor(p => p.VendaBase.Inscricao_Municipal, new { @id = "iInscricao_Municipal" })
+        @Html.HiddenFor(p => p.VendaBase.Inscricao_Estadual, new { @id = "iInscricao_Estadual" })
+        @Html.HiddenFor(p => p.VendaBase.Porte, new { @id = "iPorte" })
+        @Html.HiddenFor(p => p.VendaBase.Data_Abertura, new { @id = "iData_Abertura" })
+        @Html.HiddenFor(p => p.VendaBase.NomeFantasia, new { @id = "iNomeFantasia" })
+        @Html.HiddenFor(p => p.VendaBase.Ramo_Atividade, new { @id = "iRamo_Atividade" })
+        @Html.HiddenFor(p => p.VendaBase.Razao_Social, new { @id = "iRazao_Social" })
+        @Html.HiddenFor(p => p.VendaBase.Tipo_Cliente, new { @id = "iTipo_Cliente" })
+        @Html.HiddenFor(p => p.VendaBase.Id_Cliente, new { @id = "iId_Cliente" })
+        @Html.HiddenFor(p => p.VendaBase.CpfCnpj, new { @id = "iCpfCnpj" })
+        @Html.HiddenFor(p => p.VendaBase.NomeCompleto, new { @id = "iNomeCompleto" })
+        @Html.HiddenFor(p => p.VendaBase.DataNascimento, new { @id = "iDataNascimento" })
+        @Html.HiddenFor(p => p.VendaBase.Nacionalidade, new { @id = "iNacionalidade" })
+        @Html.HiddenFor(p => p.VendaBase.Sexo, new { @id = "iSexo" })
+        @Html.HiddenFor(p => p.VendaBase.EstadoCivil, new { @id = "iEstadoCivil" })
+        @Html.HiddenFor(p => p.VendaBase.RG, new { @id = "iRG" })
+        @Html.HiddenFor(p => p.VendaBase.DataEmissao, new { @id = "iDataEmissao" })
+        @Html.HiddenFor(p => p.VendaBase.Orgao, new { @id = "iOrgao" })
+        @Html.HiddenFor(p => p.VendaBase.Instrucao, new { @id = "iInstrucao" })
+        @Html.HiddenFor(p => p.VendaBase.Profissao, new { @id = "iProfissao" })
+        @Html.HiddenFor(p => p.VendaBase.Pai, new { @id = "iPai" })
+        @Html.HiddenFor(p => p.VendaBase.Mae, new { @id = "iMae" })
+        @Html.HiddenFor(p => p.VendaBase.Qual_Meio, new { @id = "iQual_Meio" })
+        @Html.HiddenFor(p => p.VendaBase.TipoPessoa, new { @id = "iTipoPessoa" })
+        @Html.HiddenFor(p => p.VendaBase.Email, new { @id = "iEmail" })
+        @Html.HiddenFor(p => p.VendaBase.TelefoneFixo, new { @id = "iTelefoneFixo" })
+        @Html.HiddenFor(p => p.VendaBase.TelefoneCelular, new { @id = "iTelefoneCelular" })
+        @Html.HiddenFor(p => p.VendaBase.TelefoneRecado, new { @id = "iTelefoneRecado" })
+        @Html.HiddenFor(p => p.VendaBase.NomeRecado, new { @id = "iNomeRecado" })
+        @Html.HiddenFor(p => p.VendaBase.Quem_Indicou, new { @id = "iQuem_Indicou" })
+        @Html.HiddenFor(p => p.VendaBase.Id_Categoria_Cliente, new { @id = "iId_Categoria_Cliente" })
+        @Html.HiddenFor(p => p.VendaBase.DescCategoriaCliente, new { @id = "iDescCategoriaCliente" })
+        @*@Html.HiddenFor(p => p.VendaBase.Id_Meio_Captacao, new { @id = "iId_Meio_Captacao" })
+            @Html.HiddenFor(p => p.VendaBase.Meio_Captacao, new { @id = "iMeio_Captacao" })
+            @Html.HiddenFor(p => p.VendaBase.Id_Quem_Indicou, new { @id = "iId_Quem_Indicou" })
+            @Html.HiddenFor(p => p.VendaBase.Quem_Indicou, new { @id = "iQuem_Indicou" })*@
+
+        @*PlanoProduto*@
+        @Html.HiddenFor(m => m.PlanoProduto.Cod_Escritorio, new { @id = "iPlanoCod_Escritorio" })
+        @Html.HiddenFor(m => m.PlanoProduto.Cod_Area, new { @id = "iPlanoCod_Area" })
+        @Html.HiddenFor(m => m.PlanoProduto.Localidade, new { @id = "iPlanoLocalidade" })
+        @Html.HiddenFor(m => m.PlanoProduto.Cod_Localidade, new { @id = "iPlanoCod_Localidade" })
+        @Html.HiddenFor(m => m.PlanoProduto.Periodo_Carencia, new { @id = "iPlanoPeriodo_Carencia" })
+        @Html.HiddenFor(m => m.PlanoProduto.Meses_Carencia, new { @id = "iPlanoMeses_Carencia" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Plano_Produto, new { @id = "iPlanoId_Plano_Produto" })
+        @Html.HiddenFor(m => m.PlanoProduto.Combo, new { @id = "iPlanoCombo" })
+        @Html.HiddenFor(m => m.PlanoProduto.Multa_Carencia_Reais, new { @id = "iPlanoMulta_Carencia_Reais" })
+        @Html.HiddenFor(m => m.PlanoProduto.CancelaContratoFimCarencia, new { @id = "iPlanoCancelaContratoFimCarencia" })
+        @Html.HiddenFor(m => m.PlanoProduto.Tem_Reajuste, new { @id = "iPlanoTem_Reajuste" })
+        @Html.HiddenFor(m => m.PlanoProduto.Frequencia_Reajuste, new { @id = "iPlanoFrequencia_Reajuste" })
+        @Html.HiddenFor(m => m.PlanoProduto.Renovar_CarenciaAuto, new { @id = "iPlanoRenovar_CarenciaAuto" })
+        @Html.HiddenFor(m => m.PlanoProduto.End_Instalacao_Igual_Principal, new { @id = "iPlanoEnd_Instalacao_Igual_Principal" })
+        @Html.HiddenFor(m => m.PlanoProduto.Login_Radius, new { @id = "iPlanoLogin_Radius" })
+        @Html.HiddenFor(m => m.PlanoProduto.Senha_Radius, new { @id = "iPlanoSenha_Radius" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Pool_Ip_Endereco, new { @id = "iPlanoPool_Ip" })
+        @Html.HiddenFor(m => m.PlanoProduto.ValorTotal, new { @id = "iPlanoValorTotal" })
+        @Html.HiddenFor(m => m.PlanoProduto.ValorInstalacao_Final, new { @id = "iPlanoValor_Instalacao_Final" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Venda, new { @id = "iPlanoId_Venda" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Troca_Plano, new { @id = "iPlanoId_TrocaPlano" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_PlanoMudanca, new { @id = "iPlanoId_PlanoMudanca" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_MudancaPlano, new { @id = "iPlanoId_MudancaPlano" })
+        @Html.HiddenFor(m => m.PlanoProduto.JsonTelefonia, new { @id = "iPlanoJsonTelefonia" })
+        @Html.HiddenFor(m => m.PlanoProduto.Status, new { @id = "iPlanoStatus" })
+        @Html.HiddenFor(m => m.PlanoProduto.FlagTrocaPlano, new { @id = "iPlanoFlagTrocaPlano" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Modelo_Contrato, new { @id = "iPlanoId_Modelo_Contrato" })
+        @Html.HiddenFor(m => m.PlanoProduto.Numero_Contrato, new { @id = "iPlanoNumero_Contrato" })
+        @Html.HiddenFor(m => m.PlanoProduto.Tipo, new { @id = "iPlanoTipo" })
+        @Html.HiddenFor(m => m.PlanoProduto.Tipo_Tecnologia, new { @id = "iPlanoTipo_Tecnologia" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Forma_Pagamento_Cliente, new { @id = "iId_Forma_Pagamento_Cliente" })
+        @Html.HiddenFor(m => m.PlanoProduto.Id_Endereco, new { @id = "iId_Endereco" })
+
+        @Html.HiddenFor(m => m.TipoAlteracao, new { @id = "iTipoAlteracao" })
+        @Html.HiddenFor(p => p.IdVenda, new { id = "iVenda" })
+
+        @*Dados do Titular*@
+        <div class="accordion mt-2">
+            <div class="card div-card-accord mt-2">
+                <div class="card-header title-card">
+                    <h4 class="text-muted" style="font-size:15px"> @RsCadastros.DADOS do @RsCadastros.TITULAR </h4>
+                </div>
+                <div class="card-body body-card-accord">
+                    <div class="form-group panel">
+                        <div class="row mt-1">
+                            <div class="col-sm-2">
+                                <label for="iDescCategoriaCliente" class="font-weight-bold"> @RsCadastros.CATEGORIA_CLIENTE </label>
+                                @Html.DisplayFor(p => p.VendaBase.DescCategoriaCliente)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iCpfCnpj" class="font-weight-bold"> @RsCadastros.CPFCNPJ </label>
+                                @Html.DisplayFor(p => p.VendaBase.CpfCnpj)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iDescricaoPlano" class="font-weight-bold"> Descrição do Plano Vigente </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Descricao)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iPeriodoFidelidade" class="font-weight-bold"> @RsCadastros.PERIODO_FIDELIDADE_MESES_ </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Meses_Carencia)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-2">
+                                <label for="iContrato" class="font-weight-bold"> @RsCadastros.CONTRATO </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Descricao_Contrato)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iNomeFantasia" class="font-weight-bold"> @RsCadastros.NOMEFANTASIA </label>
+                                @Html.DisplayFor(p => p.VendaBase.NomeFantasia)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iVigenciaContrato" class="font-weight-bold"> Prazo de Vigência do contrato </label>
+                                @Html.DisplayFor(p => p.VendaBase.Encerra_Carencia)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iValorMulta" class="font-weight-bold"> @RsCadastros.VALOR_MULTA_RESCISAO </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Multa_Carencia_Reais)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-2 offset-sm-2">
+                                <label for="iFormaPagamento" class="font-weight-bold"> @RsCadastros.FORMA_PAGAMENTO </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Desc_Forma_Pagto)
+                            </div>
+                            <div class="col-sm-2">
+                                <label for="iDesc_Periodo_Carencia" class="font-weight-bold"> @RsCadastros.TEM_FIDELIDADE_ </label>
+                                @Html.DisplayFor(p => p.VendaBase.Planos[0].Desc_Periodo_Carencia)
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-sm-4">
+                                <h5 class="text-muted font-weight-bold" style="font-size:15px">@RsCadastros.ENDERECO_DE_INSTALACAO </h5>
+                                <hr />
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-4">
+                                <label for="iCEP" class="font-weight-bold"> @RsCadastros.CEP </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.CEP)
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="iBairro" class="font-weight-bold"> @RsCadastros.BAIRRO </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Bairro)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-4">
+                                <label for="iLogradouro" class="font-weight-bold"> @RsCadastros.LOGRADOURO </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Logradouro)
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="iTipoImóvel" class="font-weight-bold"> @RsCadastros.TIPO_IMOVEL </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Desc_Tipo_Imovel)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-4">
+                                <label for="iNumero" class="font-weight-bold"> @RsCadastros.NUMERO </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Numero)
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="iPais" class="font-weight-bold"> @RsCadastros.PAIS </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Pais)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-4">
+                                <label for="iUF" class="font-weight-bold"> @RsCadastros.UF </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.UF)
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="iComplemento" class="font-weight-bold"> @RsCadastros.COMPLEMENTO </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Complemento)
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-sm-4">
+                                <label for="iCidade" class="font-weight-bold"> @RsCadastros.CIDADE </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Cidade)
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="iPontoReferencia" class="font-weight-bold"> @RsCadastros.PONTOREFERENCIA </label>
+                                @Html.DisplayFor(p => p.VendaBase.EnderecoInstalacao.Ponto_Referencia)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*Dados da Venda*@
+        <div class="accordion mt-2">
+            <div class="card div-card-accord mt-1">
+                <div class="card-header title-card">
+                    <h4 class="text-muted" style="font-size:15px">Dados da Venda</h4>
+                </div>
+                <div class="card-body body-card-accord">
+                    <span class="text-bold-card"></span><span class="text-bold-card"></span><span class="text-bold-card"></span>
+                    <!--Contato-->
+                    <div class="form-group panel">
+                        <div class="row pb-2">
+                            <div class="col-sm-3">
+                                <div class="form_group">
+                                    <label for="iNumVenda">@RsCadastros.NUMERO_VENDA:</label>
+
+                                    @Html.DisplayFor(p => p.IdVenda, new { id = "iNumVenda" })
+                                </div>
+                            </div>
+                            <div id="exibirStatusVenda" class=" col-sm-3">
+                                <div class="form-group">
+                                    <label for="iStatusVenda">@RsCadastros.STATUS_VENDA:</label><br>
+                                    @Html.TextBoxFor(m => m.Status, new { @class = "form-control readonly", @id = "iStatusVenda", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <label>@RsCadastros.DATA_CRIACAO:</label>
+                                <div class="form-group">
+                                    @Html.TextBoxFor(m => m.DataCriacao, new { @class = "form-control readonly", @data_provide = "datepicker", @id = "iDataCriacao", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <label for="iNomeVendedor"><span class="text-danger">*</span> @RsCadastros.VENDEDOR</label>
+                                <div class="form-group">
+                                    @Html.DropDownListFor(model => model.Id_Vendedor, new SelectList(new List<Aniel.Connect.Core.ObjBusca<Int64?>>()), RsBase.SELECIONE, new { @id = "idVendedor", @class = "form-control", @style = "width: 100%" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label for="iNomeSupervisor"><span class="text-danger">*</span> Supervisor do Vendedor</label>
+                                <div class="form-group">
+                                    @Html.DropDownListFor(model => model.Id_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjBusca<Int64?>>()), RsBase.SELECIONE, new { @id = "idSupervisor", @class = "form-control", @style = "width: 100%" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-3">
+                                <label for="iDepartamento"><span class="text-danger">*</span> Departamento</label>
+                                <div class="form-group">
+                                    @Html.DropDownListFor(model => model.Id_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjBusca<Int64?>>()), RsBase.SELECIONE, new { @id = "iDepartamento", @class = "form-control", @style = "width: 100%" })
+                                </div>
+                            </div>
+
+                            @if (Aniel.Connect.Core.Helpers.AcessoHelper.TemAcesso(ViewBag.Areas, "153") && Model.IdVenda > 0 && Model.Status_Venda != Status_Venda.Venda_Cancelada && Model.Status_Venda != Status_Venda.Venda_Aprovada)
+                            {
+                                <div class="col-sm-3">
+                                    <input type="button" id="btnAlterarVendedorSupervisor" value="Trocar Vendedor" class="btn btn-outline-secondary" style="margin-top: 10px;margin-bottom: 10px;">
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @*Mudança de Plano*@
+        <div class="accordion mt-2">
+            <div class="card div-card-accord mt-2">
+                <div class="card-header title-card">
+                    <h4 class="text-muted" style="font-size:15px">Mudança de Plano</h4>
+                </div>
+                <div class="card-body body-card-accord">
+                    <div class="form-group panel">
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <label for="iPlanoAnteriorSelecionado"> Selecione o Plano a ser trocado:</label>
+                                <div class="form-group">
+                                    @Html.DropDownListFor(p => p.IdPlanoAnterior, new SelectList(new List<Aniel.Connect.Core.ObjCombo<Int64?>>()), RsBase.SELECIONE, new { @id = "iPlanoAnteriorSelecionado", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <label for="iPlanoSelecionado"> Selecione o novo Plano:</label>
+                                <div class="form-group">
+                                    @Html.DropDownListFor(p => p.IdPlanoProduto, new SelectList(new List<Aniel.Connect.Core.ObjCombo<Int64?>>()), RsBase.SELECIONE, new { @id = "iPlanoSelecionado", @class = "form-control" })
+                                </div>
+                            </div>
+                            @if (Model.IdVenda != 0)
+                            {
+                                <div class="col-sm-3 mt-3">
+                                    <div class="col-md-8 d-flex">
+                                        <div class="row inherit-width">
+                                            <div class="col-2">
+                                                <i id="statusTermoAdesao"
+                                                   class="fas fa-circle circle-consulta-pendente"></i>
+                                            </div>
+                                            <div class="col-10">@RsCadastros.TERMO_ADESAO</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-2 d-flex">
+                                        <a href="javascript:void(0)"
+                                           id="btnEnvioTermo"
+                                           class="btn btn-outline-primary btn_Termo">Enviar Termo</a>
+                                        <a href="javascript:void(0)"
+                                           id="btnReenvioTermo"
+                                           class="btn btn-outline-primary btn_Termo d-none">@RsCadastros.REENVIAR_TERMO_ADESAO</a>
+                                        <a href="javascript:void(0)"
+                                           id="btnVisualizaTermo"
+                                           class="btn btn-outline-primary btn_Termo d-none">@RsCadastros.VISUALIZAR_TERMO_ADESAO</a>
+                                    </div>
+                                </div>
+                                if (Model.NecessitaCriarOS && Model.Status == Aniel.Connect.Core.Helpers.HtmlEnumExtensions.GetEnumDescription(Status_Venda.Venda_Aprovada))
+                                {
+                                    <div class="col-sm-3 mt-3">
+                                        <div class="col-md-8 d-inline">
+                                            <div class="row inherit-width">
+                                                <div class="col-1">
+                                                    <i id="statusCriacaoOS"
+                                                       class="fas fa-circle circle-consulta-pendente"></i>
+                                                </div>
+                                                <div class="col-10">Número da OS: <span>@Model.numeroOS</span> </div>
+                                            </div>
+                                        </div>
+                                        @if (String.IsNullOrEmpty(Model.numeroOS))
+                                        {
+                                            <div class="col-2 d-flex @(Model.EtapaCriacaoOS != StatusEtapaVenda.Pendente ? "d-none":"")">
+                                                <a href="javascript:void(0)"
+                                                   id="btnCriarOS"
+                                                   class="btn btn-outline-primary">@RsCadastros.CRIAR_OS</a>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="col-2 d-flex">
+                                                <a href="javascript:void(0)"
+                                                   id="btnVisualizarOS"
+                                                   class="btn btn-outline-primary">@RsCadastros.VISUALIZAR_ORDEM_DE_SERVICO</a>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                            }
+                        </div>
+
+                    </div>
+                    <div class="title-card">
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <h5 style="font-size:15px" class="font-weight-bold text-muted">@RsCadastros.DETALHES_DO_PLANO Novo</h5>
+                                <hr />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body body-card-accord">
+                        <div clas="row">
+                            <div class="col-sm-4">
+                                <div id="iDetalhes"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+<a href="@Url.Action("Index", "AlteracaoPlanoContrato")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data - toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return validaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

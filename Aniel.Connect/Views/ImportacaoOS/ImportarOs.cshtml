@@ -1,0 +1,348 @@
+﻿@model  Aniel.Connect.Models.T5.TipoServicoImpVinculoRequest
+
+@{
+    ViewBag.Title = @RsConfiguracao.IMPORTAR_OS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section Scripts
+{
+    <script>
+
+        $(document).ready(function () {
+            @if (TempData["tipoOs"] != null && Convert.ToString(TempData["tipoOs"]) == "M")
+            {
+                <text>
+            $("#importacaoCliente").prop("checked", "false");
+            $("#importacaoManutencao").prop("checked", "true");
+            </text>
+            }
+
+            @if (TempData["TipoServicoNaoEncontrado"] != null)
+            {
+                if (((List<string>)TempData["TipoServicoNaoEncontrado"]).Count > 0)
+                {
+                    <text>
+                    $('#modal-tiposervico').modal('show');
+                    AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@(TempData["Contrato"])", "@RsBase.SELECIONE", false);
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@(TempData["Contrato"])", "@(TempData["Projeto"])", "@RsBase.SELECIONE", false);
+                    AddSelect("iCusto", "@CONSTANTES.URLPortal/api/Unidade_Custoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@(TempData["UnidadeCusto"])", "@RsBase.SELECIONE", false);
+
+                    for (item of $('.tipoServSelect'))
+                    {
+                        AddSelect($(item).attr("id"), "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    }
+                    </text>
+                }
+            }
+
+
+            @if (TempData["Erros"] != null || TempData["Sucessos"] != null)
+            {
+
+                if (TempData.ContainsKey("Sucessos"))
+                {
+                    if (((List<string>)TempData["Sucessos"]).Count > 0)
+                    {
+
+                    <text>
+                    Notificar("Operação Finalizada", "Importação concluída com sucesso, verifique os logs para  mais informações.", "info");
+                    </text>
+                    }
+                }
+                if (TempData.ContainsKey("Erros"))
+                {
+
+                    if (((List<string>)TempData["Erros"]).Count > 0)
+                    {
+
+                    <text>
+            Notificar("Operação com ERRO", "Importação não pode ser concluída, verifique os logs para  mais informações.", "info");
+                    </text>
+                    }
+                }
+
+            }
+
+
+        })
+
+        AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iCusto", "@CONSTANTES.URLPortal/api/Unidade_Custoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        $(".acaoTipoServ").change(function () {
+
+            let tiposervindex = $(this).attr("data-tiposervindex");
+
+            if ($(this).val() === "vincular") {
+                $(`#iDivTipoServ${tiposervindex}`).show();
+            }
+            else {
+                $(`#iDivTipoServ${tiposervindex}`).hide();
+            }
+
+        })
+
+        $("#iContrato").change(function() {
+            if($("#iContrato").val())
+            {
+                $("#iProjeto").prop("disabled", false);
+                AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iContrato").val(), null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+        function formClick() {
+            $('#arquivoInput').click()
+        }
+
+        function submitForm() {
+            $("#contratoForm").val($("#iContrato").val())
+            $("#projetoForm").val($("#iProjeto").val())
+            $("#custoForm").val($("#iCusto").val())
+            $("#tipoOSForm").val($('input[name=importacaoTipo]:checked').val())
+
+
+            $('#arquivoForm').submit()
+        }
+
+
+    </script>
+}
+
+@section Styles
+{
+    <style>
+        .modal-body {
+            height: 250px;
+            overflow-y: auto;
+        }
+
+        @@media (min-height: 500px) {
+            .modal-body {
+                height: 400px;
+            }
+        }
+
+        @@media (min-height: 800px) {
+            .modal-body {
+                height: 600px;
+            }
+        }
+    </style>
+}
+<div class="row">
+    <div class="col-10 mr-auto">
+
+        <h4 class="title-page"><i class="fas fa-file-import"></i> @ViewBag.Title</h4>
+
+
+
+        <nav aria-label="breadcrumb" class="mt-25">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a></li>
+                <li class="breadcrumb-item">
+                    <span>@ViewBag.Title</span>
+                </li>
+            </ol>
+
+        </nav>
+
+    </div>
+
+    <div class="col mt-4 ml-4">
+        <a class="btn btn-info" href="@Url.Action("Log", "ImportacaoOS")"><i class="fas fa-clipboard-list"></i> <span class="pl-2">Log</span></a>
+    </div>
+</div>
+
+<div class="container-fluid" style="overflow:hidden;padding-bottom:10px" id="divTitle">
+
+    <div class="card p-2 pl-3">
+        <h4 class="pt-1">Para importar as Ordens de Serviço, siga os seguintes passos abaixo:</h4>
+
+        <div class="pt-1">
+            <p>1 - Informe se a importação é para Atendimento ao Cliente ou Manutenção de Rede;</p>
+            <p>2 - Informe Contrato, Projeto e Unidade de Custo</p>
+            <p>3 - Certifique de que realizou a configuração de todas as colunas para o contrato e projeto. Acesse menu lateral Configurações/ em Serviços e Técnicos - Configurar Campos Importação de Ordens de Serviço</p>
+            <p>4 - Faça upload da planilha com os dados a serem importados</p>
+            <p>5 - Aguarde o processo realizado pelo sistema, e certifique que um log de importação foi baixado para seu dispositivo em downloads.</p>
+            <p>A importação não prosseguirá caso:</p>
+        </div>
+        <div class="pl-2">
+            <p>                - Uma ou mais coluna(s) da planilha Excel estiver com nome diferente do que estiver configurado;</p>
+            <p>                - Se houver alguma coluna na planilha que não tem nome definido na configuração;</p>
+            <p>                - Se houver estiver faltando na planilha Excel colunas que estão definidas para importação.</p>
+        </div>
+
+
+        <div class="row pl-1">
+            <div class="col-12">
+                <p style="font-weight: bold; font-size: 0.8rem; margin-bottom: 0.3rem;">Importar Ordem de Serviço para:</p>
+            </div>
+        </div>
+        <div class="row pl-3" style="margin-bottom: 1rem;">
+            <div class="col-15">
+                <label style="font-size: 0.7rem;">
+                    <input type="radio" name="importacaoTipo" id="importacaoCliente" value="C" checked>
+                    Atendimento Cliente
+                </label>
+            </div>
+            <div class="col-3">
+                <label style="font-size: 0.7rem;">
+                    <input type="radio" name="importacaoTipo" id="importacaoManutencao" value="M">
+                    Manutenção de Rede
+                </label>
+            </div>
+        </div>
+        <div class="row" style="margin-top: 1rem;">
+            <div class="col-3">
+                <div class="form-group">
+                    <label for="iContrato" class="font-weight-bold">@RsCadastros.CONTRATO:</label>
+                    <select class="form-control" id="iContrato" name="contrato"></select>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="form-group">
+                    <label for="iProjeto" class="font-weight-bold">@RsCadastros.PROJETO:</label>
+                    <select class="form-control" id="iProjeto" name="projeto" disabled></select>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="form-group">
+                    <label for="iCusto" class="font-weight-bold">@RsCadastros.UNIDADE_CUSTO:</label>
+                    <select class="form-control" id="iCusto" name="unidadeCusto"></select>
+                </div>
+            </div>
+        </div>
+        <br>
+
+
+        <div class="row ml-1">
+            <form action="@Url.Action("EnviarPlanilha","ImportacaoOS")" id="arquivoForm" enctype="multipart/form-data" style="display:none" method="post">
+                @Html.TextBoxFor(x => x.FileField, new { type = "file", id = "arquivoInput", name = "arquivo", onchange = "$('#divProgress').show();submitForm()" })
+                @*<input type="file" id="arquivoInput" name="arquivo" onchange="$('#divProgress').show();submitForm()" />*@
+                <input type="text" id="projetoForm" name="projeto" />
+                <input type="text" id="contratoForm" name="contrato" />
+                <input type="text" id="custoForm" name="unidadeCusto" />                
+                <input type="text" id="tipoOSForm" name="importacaoTipo" />                
+            </form>
+            <a class="btn btn-success text-white text-center col-3" onclick="formClick()"><i class="fas fa-upload"></i> Upload Planilha</a>
+        </div>
+
+
+    </div>
+
+    @*<div class="mt-1">
+
+            <div class="col-6">
+                @if (TempData["Erros"] != null)
+                {
+                    foreach (string err in (List<string>)TempData["Erros"])
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            @err
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="col-6">
+                @if (TempData["Sucessos"] != null)
+                {
+                    foreach (string suc in (List<string>)TempData["Sucessos"])
+                    {
+                        <div class="alert alert-success" role="alert">
+                            @suc
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>*@
+
+</div>
+
+<div class="modal" id="modal-tiposervico">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" style="color: darkgray"> <i class="fas fa-filter"></i>Tipos de Serviços Não Cadastrados</h4>
+                <button type="button" class="close" data-dismiss="modal" arial-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <form action="@Url.Action("EnviarPlanilha","ImportacaoOS")" id="arquivoModal" enctype="multipart/form-data" method="post">
+
+                    <input type="hidden" id="projetoForm" name="projeto" value="@(TempData["Projeto"])" />
+                    <input type="hidden" id="contratoForm" name="contrato" value="@(TempData["Contrato"])" />
+                    <input type="hidden" id="custoForm" name="unidadeCusto" value="@(TempData["UnidadeCusto"])" />
+                    <input type="hidden" id="DocumentosJsonForm" name="DocumentosJson" value="@(TempData["DocumentosJson"])" />
+
+                    @if (TempData["TipoServicoNaoEncontrado"] != null)
+                    {
+
+                        <div class="row mb-2">
+                            <div class="col">
+                                <p class="font-weight-bold">Tipo de Serviço</p>
+                            </div>
+                            <div class="col">
+                                <p class="font-weight-bold">Ação</p>
+                            </div>
+                            <div class="col">
+                                <p class="font-weight-bold">Tipo de Serviço à Vincular</p>
+                            </div>
+                        </div>
+
+
+                        List<string> TipoServicoNaoEncontrado = ((List<string>)TempData["TipoServicoNaoEncontrado"]);
+                        for (int i = 0; i < TipoServicoNaoEncontrado.Count; i++)
+                        {
+                            <div class="row">
+                                <div class="col-4">
+                                    <p>@TipoServicoNaoEncontrado[i]</p>
+                                    <input type="hidden" value="@TipoServicoNaoEncontrado[i]" name="TiposNaoEncontrado[@i].Descricao">
+                                </div>
+                                <div class="col-4">
+                                    <select name="TiposNaoEncontrado[@i].Acao" class="form-control acaoTipoServ" data-tiposervindex="@i">
+                                        <option value="cadastrar">Cadastrar</option>
+                                        <option value="vincular">Vincular</option>
+                                    </select>
+                                </div>
+                                <div class="col-4" id="iDivTipoServ@(i)" style="display:none">
+                                    <select style="max-width:100%" name="TiposNaoEncontrado[@i].TipoServicoVincular" type="text" class="form-control tipoServSelect" id="iTipoServ@(i)" placeholder="">
+                                    </select>
+                                </div>
+                            </div>
+                        }
+                    }
+
+
+                </form>
+
+
+            </div>
+            <div class="modal-footer justify-content-center">
+                <div class="row text-center justify-content-center">
+                    <button class="btn" type="button" onclick="$('#arquivoModal').submit();">Importar</button>
+                    <button class="btn" type="button"onclick="$('#modal-tiposervico').modal('hide')">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+
+

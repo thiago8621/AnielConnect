@@ -1,0 +1,1016 @@
+﻿@model Aniel.Connect.Models.LoginRadiusCadastroModel
+@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_LOGIN;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/maskip")
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+<script>
+        var clicked = false;
+        let ipV4, ipV6;
+        let cpfCliente;
+        let primeiraVez = true;
+    $('#divStatus').hide();
+
+       @if (AcessoHelper.TemAcesso(_areas, "394"))
+          {
+           <text>
+        /// Exibe o botão para alterar o status de login
+        // apenas para usuários que pertencem a esta área de acesso.
+           $('#divStatus').show();
+            console.log('tem acesso');
+           </text>
+         }
+
+
+
+        $(`#iTipoAutenticacaoLogin`).change(function(){
+
+            if($(this).val() == "2"){
+                $('#iDivCamposIPOE').show();
+            }
+            else {
+                $('#iDivCamposIPOE').hide()
+            }
+        });
+
+       var HandleCliente = function () {
+    // Attach the event handler after the AddSelect has finished populating the element
+    $('#iCliente').on('select2:select select2:unselecting', async function (e) {
+        ClienteSelecionado = e.params.data;
+
+        if (ClienteSelecionado != undefined) {
+            // Wait for the AddSelect function to complete before proceeding
+            await AddSelect("iContratoCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente", @CONSTANTES.PaginacaoRegistros, null, ClienteSelecionado.id, null, "@RsBase.SELECIONE", false, HandleSelectPlano);
+
+            cpfCliente = ClienteSelecionado.cpf;
+        } else {
+            // Clear select options when no client is selected
+            await AddSelect("iContratoCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleSelectPlano);
+            cpfCliente = "";
+        }
+
+        // Reset contract value
+        $(`#iContrato`).val('');
+    });
+    };
+
+    var HandleSelectPlano = function () {
+        $('#iContratoCliente').on('select2:select select2:unselecting', async function (e) {
+            var contratoSelecionado = e.params.data;
+            if (contratoSelecionado != undefined) {
+                await AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, contratoSelecionado.id, null, null, "@RsBase.SELECIONE", false, HandleClientePlanoProduto);
+            } else {
+                await AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleClientePlanoProduto);
+            }
+
+            $(`#iContrato`).val('');
+
+        });
+     };
+
+var HandleClientePlanoProduto = function () {
+    // Attach the event handler after the AddSelect has finished populating the element
+    $('#iPlanoProduto').on('select2:select select2:unselecting', function (e) {
+        PlanoProdutoSelecionado = e.params.data;
+
+        if (PlanoProdutoSelecionado != undefined) {
+            // Set contract value
+            $(`#iContrato`).val(PlanoProdutoSelecionado.contrato);
+
+            // Autofill the login if cpfCliente and PlanoProduto are defined
+            if (!$('#iLogin').val() && cpfCliente) {
+                $('#iLogin').val(cpfCliente + '-' + $('#iPlanoProduto option:selected').val());
+            }
+        } else {
+            // Reset contract value if no product is selected
+            $(`#iContrato`).val('');
+        }
+    });
+};
+
+
+        var HandleIsIpFixo = function (e) {
+            if (e.params.data.isPoolIpFixo === false) {
+
+                $('#divPoolEndereco').hide();
+                //$('#iInfoIPDinamico').show();
+                $('.ip-input-container .ip-input-item').val('');
+            }
+            else {
+                $('#divPoolEndereco').show();
+                //$('#iInfoIPDinamico').hide();
+            }
+        }
+
+        var HandlePool_Ip = function () {
+            //Pool Vinculado
+            $('#iPoolIp').on('select2:select select2:unselecting', function (e) {
+                if (e.params.data != undefined) {
+                    $('#divPoolIp').show();
+                    $('#divPoolEndereco').show();
+                    AddSelect("iPool_Endereco", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                    HandleIsIpFixo(e);
+                }
+                else {
+                    $('#divPoolEndereco').hide();
+                    $('#iPool_Endereco').val('').trigger('change');
+                }
+                return true
+            });
+        }
+
+        var HandleConcentradora = function () {
+            $('#iConcentradora').on('select2:select select2:unselecting', function (e) {
+
+                if (e.params.data != undefined) {
+                    AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                    $('#divPoolIp').show();
+                }
+                else{
+                    $('#iPoolIp').val('').trigger('change');
+                    $('#iPool_Endereco').val('').trigger('change');
+                    $('#divPoolIp').hide();
+                    $('#divPoolEndereco').hide();
+                }
+                return true
+            });
+        }
+
+        var HandleCaixaFTTH = function () {
+
+            $('#iCaixa_FTTH').on('select2:select select2:unselecting', function (e) {
+                if (primeiraVez && e.params.data != undefined) {
+                    e.params.data = undefined;
+                    primeiraVez = false;
+                }
+
+                if (e.params.data != undefined) {
+                    AddSelect("iPorta_FTTH", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPortaDisponivel", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                }
+
+                return true
+            });
+
+        };
+
+        $(document).ready(async function () {
+            ipV4 = $('#iIp').ipInput();
+        ipV4.setIp('@Model.EnderecoIPV4');
+
+    const tasks = [];
+
+    tasks.push(AddSelect("iPOP", "@CONSTANTES.URLPortal/api/POPapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_POP", "@RsBase.SELECIONE", false));
+            tasks.push(AddSelect("iConcentradora", "@CONSTANTES.URLPortal/api/ConcentradoraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Concentradora", "@RsBase.SELECIONE", false, HandleConcentradora)
+                .then(() => {
+                    AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Concentradora", "@Model.Id_Pool", "@RsBase.SELECIONE", false, HandlePool_Ip)
+                        .then(() => {
+                            if (@Model.Id_Pool_Ip_Endereco.GetValueOrDefault(0) != 0) {
+                                AddSelect("iPool_Endereco", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Pool", "@Model.Id_Pool_Ip_Endereco", "@RsBase.SELECIONE", false);
+                            }
+                        });
+                })
+            );
+    tasks.push(AddSelect("iOLT", "@CONSTANTES.URLPortal/api/OLTApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_OLT", "@RsBase.SELECIONE", true));
+    tasks.push(AddSelect("iSlot", "@CONSTANTES.URLPortal/api/SlotApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Slot", "@RsBase.SELECIONE", true));
+    tasks.push(AddSelect("iPon", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_PON", "@RsBase.SELECIONE", true));
+    tasks.push(AddSelect("iCliente", "@CONSTANTES.URLPortal/api/ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Cliente", "@RsBase.SELECIONE", false, HandleCliente)
+        .then(() => {
+
+            AddSelect("iContratoCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Cliente", "@Model.Id_PlanoProduto", "@RsBase.SELECIONE", false, HandleSelectPlano)
+
+                .then(() => {
+
+                     AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Cliente", "@Model.Id_PlanoProduto", "@RsBase.SELECIONE", false, HandleClientePlanoProduto)
+
+                })
+
+        })
+    );
+    @*tasks.push(AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Cliente", "@Model.Id_PlanoProduto", "@RsBase.SELECIONE", false, HandleClientePlanoProduto));*@
+    tasks.push(AddSelect("iAtributoIpoe", "@CONSTANTES.URLPortal/api/Atributo_IPOEApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Atributo_IPOE", "@RsBase.SELECIONE", false));
+
+            tasks.push(AddSelect("iCaixa_FTTH", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Caixa_FTTH", "@RsBase.SELECIONE", false, HandleCaixaFTTH));
+            tasks.push(AddSelect("iPorta_FTTH", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPortaDisponivel", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Caixa_FTTH", "@Model.Id_Porta_FTTH", "@RsBase.SELECIONE", false));
+
+
+            @*
+                 tasks.push(AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Concentradora", "@Model.Id_Pool", "@RsBase.SELECIONE", false, HandlePool_Ip));
+    if (@Model.Id_Pool_Ip_Endereco.GetValueOrDefault(0) != 0) {
+        tasks.push(AddSelect("iPool_Endereco", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Pool", "@Model.Id_Pool_Ip_Endereco", "@RsBase.SELECIONE", false));
+    }
+            *@
+
+
+    await Promise.all(tasks);
+
+
+    $('#iOLT').prop('disabled', true);
+    $('#iSlot').prop('disabled', true);
+    $('#iPon').prop('disabled', true);
+
+    if (@Model.Id == 0) {
+        $('#divPoolEndereco').hide();
+    }
+
+    // Trigger the change event after all select elements are initialized
+    $(`#iTipoAutenticacaoLogin`).trigger('change');
+
+    if (@Model.Id != 0 && @Model.Id_PlanoProduto.GetValueOrDefault(0) != 0) {
+        getSituacao(@Model.Id_PlanoProduto.GetValueOrDefault(0));
+    }
+});
+
+
+        document.getElementById("iLogin").addEventListener("input", function () {
+            var input = this.value;
+            var errorMessage = document.getElementById("loginError");
+            if (/[()]/.test(input)) {
+                errorMessage.style.display = "block";
+            } else {
+                errorMessage.style.display = "none";
+            }
+        });
+
+        function ValidaSubmit() {
+            const ipV4Val = ipV4.getIp();
+            $("#iHiddenIp").val(ipV4Val);
+
+            if (clicked) {
+                return false;
+            }
+
+            var erro = false;
+
+
+            var loginValue = $("#iLogin").val();
+            if (/[()]/.test(loginValue)) {
+                erro = true;
+
+                $("#loginError").text("Parênteses não são permitidos.").show();
+            } else {
+
+                $("#loginError").hide();
+            }
+
+            if ($("#iCaixa_FTTH option:selected").val() && !$('#iPorta_FTTH option:selected').val()) {
+                Notificar("@RsBase.ATENCAO_", "Obrigatório preencher Porta FTTH pois foi informada Caixa FTTH", "warning")
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            clicked = true;
+            ShowPageLoading();
+
+
+            $('#form')[0].submit();
+            return true;
+        }
+
+
+        $(document).ready(function () {
+            $("#form").submit(function (event) {
+                event.preventDefault();
+                ValidaSubmit();
+            });
+        });
+
+        async function getSituacao(id_plano_produto) {
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/IntegracaoRadiusApiController/TesteLogin")';
+
+                        $.ajax({
+                            url: link,
+                            type: 'POST',
+                            dataType: 'json',
+                            data: {
+                                idClientePlanoProduto: id_plano_produto
+                            }
+                        })
+                        .done(function (data) {
+                            if (data.result) {
+                                setSituacaoElement(1);
+                            }
+                            else if (!data.result && data.message == null) {
+                                setSituacaoElement(2);
+                            }
+                            else {
+                                //document.getElementById("iSituacao").className = "far fa-3x fa-times-circle";
+                                setSituacaoElement(0);
+                            }
+                        })
+                         .fail(function (e) {
+                             //document.getElementById("iSituacao").className = "far fa-3x fa-times-circle";
+                             setSituacaoElement(0);
+                        })
+        }
+
+        function setSituacaoElement(tipoSituacao) {
+            //0 - Indisponivel
+            //1 - Online
+            //2 - Offline
+            document.getElementById("iSituacao").classList.remove('fa-hourglass-start');
+
+            if (tipoSituacao == 0) {
+                document.getElementById("iSituacao").classList.remove('fa-circle');
+                document.getElementById("iSituacao").classList.remove('fa-check-circle');
+                document.getElementById("iSituacao").classList.add('fa-times-circle');
+                $("#lbSituacao").text("@Html.Raw(RsCadastros.NAO_FOI_POSSIVEL_DETERMINAR_SITUACAO)");
+                document.getElementById("iSituacao").style.color = "#5f5f5f";
+            }
+            else if (tipoSituacao == 1) {
+                document.getElementById("iSituacao").classList.remove('fa-times-circle');
+                document.getElementById("iSituacao").classList.remove('fa-circle');
+                document.getElementById("iSituacao").classList.add('fa-check-circle');
+                document.getElementById("iSituacao").style.color = 'green';
+                $("#lbSituacao").text("@Html.Raw(RsCadastros.ONLINE)");
+            }
+            else if (tipoSituacao == 2) {
+                document.getElementById("iSituacao").classList.remove('fa-times-circle');
+                document.getElementById("iSituacao").classList.remove('fa-check-circle');
+                document.getElementById("iSituacao").classList.add('fa-circle');
+                document.getElementById("iSituacao").style.color = "red";
+                $("#lbSituacao").text("@Html.Raw(RsCadastros.OFFLINE)");
+            }
+            else {
+                document.getElementById("iSituacao").classList.remove('fa-circle');
+                document.getElementById("iSituacao").classList.remove('fa-check-circle');
+                document.getElementById("iSituacao").classList.add('fa-times-circle');
+                $("#lbSituacao").text("@Html.Raw(RsCadastros.NAO_FOI_POSSIVEL_DETERMINAR_SITUACAO)");
+                document.getElementById("iSituacao").style.color = "#5f5f5f";
+            }
+
+    }
+
+    let oDatatableHistorico = null;
+
+    ValidaPeriodo("iDataInicialFiltro", "iDataFinalFiltro", "@String.Format(RsBase.PERIODO_INVALIDO)");
+
+    function FiltrarDataTable() {
+        const dataInicialStr = $("#iDataInicialFiltro").val();
+        const dataFinalStr = $("#iDataFinalFiltro").val();
+
+        const dataIncialArr = dataInicialStr.split('/');
+        const dataFinalArr = dataFinalStr.split('/');
+
+        const dataInicial = new Date(dataIncialArr[2], dataIncialArr[1], dataIncialArr[0]);
+        const dataFinal = new Date(dataFinalArr[2], dataFinalArr[1], dataFinalArr[0]);
+        const diferencaEmDias = (dataFinal - dataInicial) / (1000 * 60 * 60 * 24);
+
+        if (diferencaEmDias > 365) {
+            Notificar("@RsBase.ATENCAO_", "Por favor, escolha um período de até um ano.");
+            return;
+        } else {
+            ShowPageLoading();
+
+            if (oDatatableHistorico === null) {
+                TableManageButtons.init();
+            } else {
+                oDatatableHistorico.draw();
+            }
+        }
+    }
+
+    var handleDataTableButtons = function () {
+        "use strict";
+
+            //"Blfrtip"
+            oDatatableHistorico = $("#datatableHistorico").length && $("#datatableHistorico").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "";
+                            //return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                pageLength: 10,
+                deferRender: true,
+                scrollY: '73vh',
+
+                //stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/LoginRadiusapi/HistoricoLoginAlteracao',
+                    type: 'POST',
+                    data: function (data) {
+                        data.DataIni = $("#iDataInicialFiltro").val();
+                        data.DataFim = $("#iDataFinalFiltro").val();
+                        data.Id = "@Model.Id";
+
+                    },
+                    error: function (e) {
+                        HidePageLoading();
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        HidePageLoading();
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                preDrawCallback: function () {
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+
+                    HidePageLoading();
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "" },
+                    { data: "usuarioCriacao", title: "Usuário", orderable: true },
+                    { data: "nome_usuario", title: "Nome do Usuário ", orderable: true },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATAHORA", orderable: true },
+                    { data: "campo", title: "@RsCadastros.ACAO", orderable: true },
+                    {
+                        data: "campo_ValorAntes",
+                        title: "@RsCadastros.VALOR_ANT",
+                        orderable: false,
+                        render: function (data) {
+                            if (data.length !== 0) {
+                                return `<span>${data}</span>`;
+                            } else {
+                                return `<span>N/A</span>`;
+                            }
+                        }
+                    },
+                    {
+                        data: "campo_ValorDepois",
+                        title: "@RsCadastros.VALOR_ATUAL",
+                        orderable: false,
+                        render: function (data) {
+                            if (data.length !== 0) {
+                                return `<span>${data}</span>`;
+                            } else {
+                                return `<span>N/A</span>`;
+                            }
+                        }
+                    },
+                ]
+            });
+
+            console.log(oDatatableHistorico);
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "LoginRadius", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="sticky-top bg-white">
+                    <div class="row">
+                        <div class="col main-title">
+                            <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+
+                            <nav aria-label="breadcrumb" class="mb-20">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "LoginRadius")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_LOGIN_RADIUS</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <span>@ViewBag.Title</span>
+                                    </li>
+
+                                </ol>
+                            </nav>
+                        </div>
+                        <div class="col-auto">
+
+                            <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.VISUALIZAR_CONSUMO</a>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="sticky-top">
+                        <ul class="nav nav-tabs" id="myTab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="login-tab" data-toggle="tab" href="#iCadastroLogin" role="tab" aria-selected="true">&nbsp; @RsCadastros.LOGIN_RADIUS</a>
+
+                            </li>
+
+                            @if (Model.Id != 0)
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" id="historico-tab" data-toggle="tab" href="#iHistoricosLogin" role="tab" aria-selected="false">@RsCadastros.HISTORICO_LOGIN</a>
+                                </li>
+                            }
+
+                        </ul>
+                    </div>
+                </div>
+
+
+                <div class="tab-content">
+                    <!--Tab Cadastro do Login-->
+                    <div role="tabpanel" class="tab-pane active" id="iCadastroLogin">
+
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                        <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iID" class="mr-3">@RsCadastros.ID:</label>
+                                                @Html.TextBoxFor(model => model.Id, new { @class = "form-control", @id = "iID", @autocomplete = "off", @readonly = "readonly" })
+                                                @Html.ValidationMessageFor(model => model.Id, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iCliente" class="mr-3">@RsCadastros.CLIENTE:</label>
+                                                @Html.DropDownListFor(model => model.Id_Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCliente", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Id_Cliente, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iContratoCliente" class="mr-3">@RsCadastros.CONTRATO_CLIENTE:</label>
+                                                @Html.DropDownListFor(model => model.Contrato, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iContratoCliente", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Contrato, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iPlanoProduto" class="mr-3">@RsCadastros.PLANO_PRODUTO:</label>
+                                                @Html.DropDownListFor(model => model.Id_PlanoProduto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlanoProduto", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Id_PlanoProduto, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+
+
+
+                                    </div>
+
+
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iLogin" class="mr-3">@RsCadastros.LOGIN:</label>
+                                                @Html.TextBoxFor(model => model.Login, new { @class = "form-control", @id = "iLogin", @autocomplete = "off", @required = true })
+                                                <span id="loginError" class="text-danger" style="display:none;">Parênteses não são permitidos.</span>
+                                                @Html.ValidationMessageFor(model => model.Login, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iLogin" class="mr-3">@RsCadastros.TIPO_AUTENTICACAO:</label>
+                                                @Html.EnumDropDownListFor(model => model.Tipo_Autenticacao_Login, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoAutenticacaoLogin", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Tipo_Autenticacao_Login, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iContrato" class="mr-3">@RsCadastros.CONTRATO:</label>
+                                                @Html.TextBoxFor(model => model.Contrato, new { @class = "form-control", @id = "iContrato", @autocomplete = "off", @readonly = "readonly" })
+                                                @Html.ValidationMessageFor(model => model.Contrato, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-3 pt-3" id="divStatus">
+                                                <div class="form-group">
+                                                    <label for="iSaldo_Caixa" class="mr-3">@RsFinanceiro.STATUS:</label>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        }
+
+                                    </div>
+
+                                    @if (Model.Id != 0)
+                                    {
+                                        <div class="row m-4">
+                                            @*@if (String.IsNullOrEmpty(Model.Situacao))
+                                                {
+                                                    <i id="iSituacao" class="far fa-3x fa-times-circle"></i>
+                                                    <label for="iSituacao" id="lbSituacao" class="m-2">@RsCadastros.NAO_FOI_POSSIVEL_DETERMINAR_SITUACAO</label>
+                                                }
+                                                else if (Model.Situacao == "ONLINE")
+                                                {
+                                                    <i id="iSituacao" class="fas fa-3x fa-circle" style="color: green;"></i>
+                                                    <label for="iSituacao" id="lbSituacao" class="m-2">Online</label>
+                                                }
+                                                else if (Model.Situacao == "OFFLINE")
+                                                {
+                                                    <i id="iSituacao" class="fas fa-3x fa-circle" style="color: red;"></i>
+                                                    <label for="iSituacao" id="lbSituacao" class="m-2">Offline</label>
+                                                }*@
+                                            <i id="iSituacao" class="fas fa-3x fa-hourglass-start"></i>
+                                            <label for="iSituacao" id="lbSituacao" class="m-2">Consultando Status...</label>
+
+                                        </div>
+                                    }
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card div-card-accord mt-3">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                        <span class="text-bold-card">@RsCadastros.DADOS_CONEXAO</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                <div class="card-body body-card-accord">
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iEnderecoIPV4">@RsCadastros.ENDERECO_IPV4:</label>
+                                                @Html.HiddenFor(m => m.EnderecoIPV4, new { id = "iHiddenIp" })
+                                                <div id="iIp" class="ip-input">
+                                                    <div class="ip-input-container form-control">
+                                                        <input type="text" class="ip-input-item" value="">
+                                                        <i class="ip-input-dot"></i>
+                                                        <input type="text" class="ip-input-item" value="">
+                                                        <i class="ip-input-dot"></i>
+                                                        <input type="text" class="ip-input-item" value="">
+                                                        <i class="ip-input-dot"></i>
+                                                        <input type="text" class="ip-input-item" value="">
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iEnderecoIPV6" class="mr-3">@RsCadastros.ENDERECO_IPV6:</label>
+                                                @Html.TextBoxFor(model => model.EnderecoIPV6, new { @class = "form-control", @id = "iEnderecoIPV6", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.EnderecoIPV6, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSenhaPPPOE" class="mr-3">@RsCadastros.SENHA_PPPOE:</label>
+                                                @Html.TextBoxFor(model => model.SenhaPPPOE, new { @class = "form-control", @id = "iSenhaPPPOE", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.SenhaPPPOE, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2" id="iDivCamposIPOE">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iAgentCircuitId">@RsCadastros.AGENT_CIRCUIT_ID:</label>
+                                                @Html.TextBoxFor(model => model.AgentCircuit_ID, new { @class = "form-control", @id = "iAgentCircuitId", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Atributo_IPOE, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iAtributoIpoe" class="mr-3">@RsCadastros.ATRIBUTO_IPOE:</label>
+                                                @Html.DropDownListFor(model => model.Atributo_IPOE, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iAtributoIpoe", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Atributo_IPOE, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUsuarioRoteador">@RsCadastros.USUARIO_ROTEADOR:</label>
+                                                @Html.TextBoxFor(model => model.UsuarioRoteador, new { @class = "form-control", @id = "iUsuarioRoteador", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.MAC, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSenhaRoteador" class="mr-3">@RsCadastros.SENHA_ROTEADOR:</label>
+                                                @Html.TextBoxFor(model => model.SenhaRoteador, new { @class = "form-control", @id = "iSenhaRoteador", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.MAC, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSSID_WIFI" class="mr-3">@RsCadastros.SSID_WIFI:</label>
+                                                @Html.TextBoxFor(model => model.SSID_WIFI, new { @class = "form-control", @id = "iSSID_WIFI", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.SSID_WIFI, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSenhaWifi" class="mr-3">@RsCadastros.SENHA_WIFI:</label>
+                                                @Html.TextBoxFor(model => model.Senha_WIFI, new { @class = "form-control", @id = "iSenhaWifi", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Senha_WIFI, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iDataHora_UltimaConexao">@RsCadastros.DATAHORA_ULTIMACONEXAO:</label>
+                                                @Html.TextBoxFor(model => model.DataHora_UltimaConexao, new { @class = "form-control readonly", @id = "iDataHora_UltimaConexao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.DataHora_UltimaConexao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iTotalHorasConectado" class="mr-3">@RsCadastros.TOTAL_HORAS_CONECTADO:</label>
+                                                @Html.TextBoxFor(model => model.TotalHorasConectado, new { @class = "form-control readonly", @id = "iTotalHorasConectado", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TotalHorasConectado, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iTotalDownload" class="mr-3">@RsCadastros.TRAFEGO_DOWN:</label>
+                                                @Html.TextBoxFor(model => model.TotalDownload, new { @class = "form-control readonly", @id = "iTotalDownload", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TotalDownload, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iTotalUpload" class="mr-3">@RsCadastros.TRAFEGO_UPLOAD:</label>
+                                                @Html.TextBoxFor(model => model.TotalUpload, new { @class = "form-control readonly", @id = "iTotalUpload", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TotalUpload, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card div-card-accord mt-3">
+                            <div class="card-header title-card" id="heading-3">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                        <span class="text-bold-card">@RsCadastros.INFORMACOES_TECNICAS</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                                <div class="card-body body-card-accord">
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iPOP">@RsCadastros.POP:</label>
+                                                @Html.DropDownListFor(p => p.Id_POP, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPOP", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_POP, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iConcentradora" class="mr-3">@RsCadastros.CONCENTRADORA:</label>
+                                                @Html.DropDownListFor(model => model.Id_Concentradora, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iConcentradora", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Concentradora, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iOLT" class="mr-3">@RsCadastros.OLT:</label>
+                                                @Html.DropDownListFor(model => model.Id_OLT, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iOLT", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_OLT, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iObservacoes">@RsCadastros.OBSERVACOES:</label>
+                                                @Html.TextAreaFor(model => model.Observacoes, new { @class = "form-control", @id = "iObservacoes", rows = "6", spellcheck = "false", autocomplete = "off" })
+                                            </div>
+
+
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSlot">@RsCadastros.SLOT:</label>
+                                                @Html.DropDownListFor(p => p.Id_Slot, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSlot", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Slot, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iPon" class="mr-3">@RsCadastros.PON:</label>
+                                                @Html.DropDownListFor(model => model.Id_PON, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPon", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_PON, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2" id="divPoolIp">
+                                            <div class="form-group">
+                                                <label for="iPoolIp" class="mr-3">@RsCadastros.POOL_IP:</label>
+                                                @Html.DropDownListFor(model => model.Id_Pool, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPoolIp", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Pool, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2" id="divPoolEndereco">
+                                            <div class="form-group">
+                                                <label for="iPool_Endereco">@RsCadastros.ENDERECO_IP</label>
+                                                @Html.DropDownListFor(model => model.Id_Pool_Ip_Endereco, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPool_Endereco" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iCaixa_FTTH">@RsCadastros.CAIXA_FTTH:</label>
+                                                @Html.DropDownListFor(p => p.Id_Caixa_FTTH, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCaixa_FTTH", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Caixa_FTTH, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iPorta_FTTH" class="mr-3">@RsCadastros.PORTA_FTTH:</label>
+                                                @Html.DropDownListFor(model => model.Id_Porta_FTTH, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPorta_FTTH", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Id_Porta_FTTH, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iVLAN" class="mr-3">@RsCadastros.VLAN:</label>
+                                                @Html.TextBoxFor(model => model.VLAN, new { @class = "form-control", @id = "iVLAN", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.VLAN, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iSerial" class="mr-3">@RsCadastros.SERIAL:</label>
+                                                @Html.TextBoxFor(model => model.Serial, new { @class = "form-control", @id = "iSerial", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Serial, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iMAC" class="mr-3">@RsCadastros.MAC:</label>
+                                                @Html.TextBoxFor(model => model.MAC, new { @class = "form-control", @id = "S", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.MAC, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--Tab Históricos do Login-->
+                    <div role="tabpanel" class="tab-pane" id="iHistoricosLogin">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">@RsCadastros.HISTORICO_LOGIN</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-4" class="collapse show">
+                                <div class="card-body body-card-accord">
+                                    <div class="row">
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iDataInicialFiltro" class="mr-3">@RsCadastros.PERIODO @RsCadastros.DE:</label>
+                                            </div>
+                                            <input type="text" class="form-control datepicker" value="@DateTime.Today.Date.ToString("dd/MM/yyyy")" data_provide="datepicker" placeholder="00/00/0000" id="iDataInicialFiltro" />
+
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iDataFinalFiltro" class="mr-3">@RsCadastros.PARA:</label>
+                                            </div>
+                                            <input type="text" class="form-control datepicker" value="@DateTime.Today.Date.ToString("dd/MM/yyyy")" data_provide="datepicker" placeholder="00/00/0000" id="iDataFinalFiltro" />
+
+                                        </div>
+
+                                        <div class="col-sm-1 text-right mt-4 pb-2 pr-5">
+                                            <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                                        </div>
+
+                                    </div>
+                                </div>
+
+
+                                <div id="divTableHistorico" class="pl-3 pr-3">
+                                    <table class="table table-hover nowrap" id="datatableHistorico" style="width:100%">
+                                    </table>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "LoginRadius")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+}

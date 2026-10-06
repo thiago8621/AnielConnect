@@ -1,0 +1,400 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.CONFIGURACAO_AREAS_ACESSO_OLA_CLIENTE;
+    ViewBag.Sessao = "Area Acesso Olá";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+    <script>
+        var rows_selected = [];
+        var oDatatable     
+
+         $(document).ready(function () {
+            
+        });
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarVisibilidade(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/AreaAcessoOlaapi/AlterarVisibilidadeRecurso")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        ocultar: Status
+                    }
+                })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable",{
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti" ,
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    },
+                    {
+                        targets: [2, 3],
+                        orderable: true
+                    },
+                    {
+                        targets: 4,
+                        orderable: false,
+                        render: function (data, type, full, meta) {
+                            if(data == true) //true -> acesso oculto
+                                return "@RsCadastros.NAO";
+                            else 
+                                return "@RsCadastros.SIM";
+                        }
+                    }
+
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',                
+                stateSave: false,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/AreaAcessoOlaapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        ShowPageLoading();                       
+                        data.search.option = $("#optionSearch").val();
+                        data.status_Visibilidade = $("#iVisibilidadeRecurso option:selected").val()
+                    },
+                    error: function (e) {
+                        HidePageLoading();
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        HidePageLoading();
+                        return d.data;
+                    }
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "cod_Area", title: "@RsCadastros.COD_AREA_ACESSO" },                   
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO" },
+                    { data: "ocultar_Acesso", title: "@RsCadastros.RECURSO_VISIVEL_APLICATIVO?" },                   
+                    { data: "observacao", title: "@RsCadastros.OBSERVACAO" },                   
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+                $("#iVisibilidadeRecurso").val("");                
+
+                $('#txtSearch').val("");
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            $("#btnTornarVisivel").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Visível
+                AlterarVisibilidade(0);
+
+            });
+
+           $("#btnOcultarRecurso").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Oculto
+                AlterarVisibilidade(1);
+            });         
+
+             // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;                   
+                }
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">               
+                <div class="form-inline pl-4 pr-2">
+                    <select class="form-control" id="optionSearch">
+                        <option value="cod_area">@RsCadastros.COD_AREA_ACESSO</option>
+                        <option value="descricao">@RsCadastros.DESCRICAO</option>
+                    </select>
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui para busca rápida" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>              
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" onclick="$('#txtSearch').val('');oDatatable.search('').draw();" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" id="btnTornarVisivel" href="#" onclick="return false;">@RsCadastros.TORNAR_RECURSO_VISIVEL</a>
+                    <a class="dropdown-item" id="btnOcultarRecurso" href="#" onclick="return false;">@RsCadastros.OCULTAR_RECURSO</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div id="divCadastro"></div>
+
+<div class="modal" id="modal-filter">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Filtros </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iVisibilidadeRecurso">@RsCadastros.VISIBILIDADE_ACESSO_RECURSO</label>
+                                    <select class="form-control" id="iVisibilidadeRecurso">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="1">@RsCadastros.OCULTO</option>
+                                        <option value="0">@RsCadastros.VISIVEL</option>
+                                    </select>                                    
+                                </div>
+                            </div>                                                        
+
+                        </div>                       
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+</div>

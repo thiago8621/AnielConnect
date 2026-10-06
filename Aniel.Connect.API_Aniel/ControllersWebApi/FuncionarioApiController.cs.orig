@@ -1,0 +1,229 @@
+﻿using Aniel.Connect.API_Aniel.Models;
+using Aniel.Connect.Core;
+using NHibernate;
+using Sinapse.DAO.repository;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Http;
+using Aniel.T5.Model.nhibernate;
+using Aniel.T5.Model.enumerado;
+using System.Linq;
+using Aniel.Connect.Core.Helpers;
+
+namespace Aniel.Connect.API_Aniel.ControllersWebApi
+{
+    public class FuncionarioApiController : BaseApiController
+    {
+        /// <summary>
+        /// Retorna a Listagem dos Funcionarios do Aniel
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [Route("api/FuncionarioApi/GetAll")]
+        public async Task<ApiResponse<Funcionario_ListaModel>> GetAll(Funcionario_ApiRequest request)
+        {
+
+
+            List<Funcionario_ListaModel> retorno = new List<Funcionario_ListaModel>();
+            try
+            {
+
+                using (var api = new UsuarioApiController())
+                {
+                    if (!(await api.GetUsuarioValido(request.settings)).Ok)
+                    {
+                        throw new Exception("Usuário e/ou Senha e/ou Token Invalidos");
+                    }
+                }
+
+
+                using (ISession sessionT5 = HibernateUtil.GetSessionT5())
+                {
+
+                    Dictionary<String, Object> parametros = new Dictionary<string, object>();
+
+                    //Select
+                    using (var com = sessionT5.Connection.CreateCommand())
+                    {
+
+                        var ativo = "ativo"; var inativo = "inativo";
+
+                        #region Sql
+                        StringBuilder sql = new StringBuilder();
+                        sql.AppendLine("  SELECT * FROM TB_FUNCIONARIO A");
+                        if (!String.IsNullOrEmpty(request.situacao))
+                        {
+                            if (request.situacao.ToLower() == ativo)
+                            {
+                                sql.AppendLine("WHERE A.SITUACAO NOT IN (2)");
+                            }
+                            else if (request.situacao.ToLower() == inativo)
+                            {
+                                sql.AppendLine("WHERE A.SITUACAO IN (2)");
+                            }
+                            else 
+                            { 
+                                throw new Exception("digite uma situação válida para pesquisas");
+                            }
+                        }
+                        else 
+                        { 
+                            throw new Exception("Digite uma situação para pesquisar"); }
+                        #endregion
+
+                        using (var reader = await CommandHelper.ExecuteReader(com, sql, parametros, sessionT5.Connection, null))
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                retorno.Add(new Funcionario_ListaModel
+                                {
+                                    Cod_Secao = reader["COD_SECAO"] != DBNull.Value ? Convert.ToInt32(reader["COD_SECAO"]) : 0,
+                                    CPF = reader["CPF"] != DBNull.Value ? Convert.ToString(reader["CPF"]) : "-",
+                                    Apelido = !String.IsNullOrEmpty(Convert.ToString(reader["APELIDO"])) ? Convert.ToString(reader["APELIDO"]) : "-",
+                                    Data_Nascimento = !String.IsNullOrEmpty(Convert.ToString(reader["DATA_NASC"])) ? Convert.ToString(reader["DATA_NASC"]) : "-",
+                                    Nacionalidade = !String.IsNullOrEmpty(Convert.ToString(reader["NACIONALIDADE"])) ? Convert.ToString(reader["NACIONALIDADE"]) : "-",
+                                    Nome = !String.IsNullOrEmpty(Convert.ToString(reader["NOME"])) ? Convert.ToString(reader["NOME"]) : "-",
+                                    Naturalidade = !String.IsNullOrEmpty(Convert.ToString(reader["NATURALIDADE"])) ? Convert.ToString(reader["NATURALIDADE"]) : "-",
+                                    RG = !String.IsNullOrEmpty(Convert.ToString(reader["RG"])) ? Convert.ToString(reader["RG"]) : "-",
+                                    //Salario = !String.IsNullOrEmpty(Convert.ToString(reader["SALARIO_MES"])) ? Convert.ToString(reader["SALARIO_MES"]) : "-",
+                                    Endereco = !String.IsNullOrEmpty(Convert.ToString(reader["ENDERECO"])) ? Convert.ToString(reader["ENDERECO"]) : "-",
+                                    Mae = !String.IsNullOrEmpty(Convert.ToString(reader["MAE"])) ? Convert.ToString(reader["MAE"]) : "-",
+                                    Pai = !String.IsNullOrEmpty(Convert.ToString(reader["PAI"])) ? Convert.ToString(reader["PAI"]) : "-",
+                                    Bairro = !String.IsNullOrEmpty(Convert.ToString(reader["BAIRRO"])) ? Convert.ToString(reader["BAIRRO"]) : "-",
+                                    Celular = !String.IsNullOrEmpty(Convert.ToString(reader["TEL_CELULAR"])) ? Convert.ToString(reader["TEL_CELULAR"]) : "-",
+                                    Situacao = HtmlEnumExtensions.GetEnumDescription<SituacaoFuncionarioAniel>(Convert.ToString(reader["SITUACAO"]))
+
+
+                                });
+                            }
+                        }
+
+                    }
+
+
+                    return new ApiResponse<Funcionario_ListaModel>()
+                    {
+                        draw = request.settings.length,
+                        data = retorno,
+                        error = ""
+                    };
+
+                }
+            }
+            catch (Exception e)
+            {
+                return new ApiResponse<Funcionario_ListaModel>()
+                {
+                    draw = request.settings.length,
+                    data = retorno,
+                    error = e.Message
+                };
+            }
+        }
+
+        /// <summary>
+<<<<<<< HEAD
+        /// Grava um  Funcionário
+=======
+        /// Cadastr um novo Funcionário
+>>>>>>> 75f8ad9a4d87a5355f475557cc7ebf8af760edb5
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [Route("api/FuncionarioApi/GravarFuncionario")]
+        public async Task<ApiResponse<Funcionario_ListaModel>> GravarFuncionario(Funcionario_CadastroModel request)
+        {
+            List<Funcionario_ListaModel> retorno = new List<Funcionario_ListaModel>();
+
+            try
+            {
+                using (var api = new UsuarioApiController())
+                {
+                    if (!(await api.GetUsuarioValido(request.settings)).Ok)
+                    {
+                        throw new Exception("Usuário e/ou Senha e/ou Token Invalidos");
+                    }
+                }
+
+
+
+                using (ISession sessionT5 = HibernateUtil.GetSessionT5())
+                using (var repoFuncionario = new Conexao<FuncionarioAniel>(sessionT5))
+                {
+
+                    Dictionary<String, Object> parametros = new Dictionary<string, object>();
+
+                    IList<FuncionarioAniel> BancoFuncionarioLista = await repoFuncionario.select(a => a.Num_Fre == request.Num_Fre);
+
+                    if (String.IsNullOrEmpty(request.Num_Fre))
+                    {
+                        BancoFuncionarioLista = await repoFuncionario.select(b => b.Matricula_Aux == request.Matricula_Aux);
+                    }
+
+
+                    FuncionarioAniel BancoFuncionario;
+                    if (BancoFuncionarioLista.Count == 0) 
+                    { 
+                        
+                        BancoFuncionario = new FuncionarioAniel();
+                    }
+                    else 
+                    {
+                        BancoFuncionario = BancoFuncionarioLista.First(); 
+                    }
+                    if (BancoFuncionarioLista.Count == 0)
+                    {
+                        if (String.IsNullOrEmpty(request.Num_Fre))
+                        {
+                            throw new Exception("Num_Fre é obrigatório para o cadastro dos Funcionarios");
+                        }
+                      
+                            BancoFuncionario.Num_Fre = request.Num_Fre;
+                            BancoFuncionario.Nome = request.Nome;
+                    }
+                        #region BindModel
+                    
+                    BancoFuncionario.Cod_Depto = request.Cod_Depto;
+                    BancoFuncionario.Cpf = request.Cpf;
+                    BancoFuncionario.Email = request.Email;
+                    BancoFuncionario.Id_Municipio_Trabalho = request.Id_Municipio_Trabalho;
+                    BancoFuncionario.Municipio_Trabalho = request.Municipio_Trabalho;                    
+                    BancoFuncionario.Situacao = SituacaoFuncionarioAniel.Ativo;
+                    BancoFuncionario.Supervisor = request.Supervisor;
+                    BancoFuncionario.Telefone_Celular = request.Telefone_Celular;
+                    BancoFuncionario.Uf_Trabalho = request.Uf_Trabalho;
+
+
+
+                    #endregion
+
+                    await repoFuncionario.SaveOrUpdate(BancoFuncionario);
+
+
+
+                    return new ApiResponse<Funcionario_ListaModel>()
+                    {
+                        draw = request.settings.length,
+                        data = retorno,
+                        error = ""
+                    };
+                }
+            }
+
+            catch (Exception e)
+            {
+                return new ApiResponse<Funcionario_ListaModel>()
+                {
+                    draw = request.settings.length,
+                    data = retorno,
+                    error = e.Message
+                };
+            }
+        }
+
+    }
+}

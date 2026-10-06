@@ -1,0 +1,759 @@
+﻿@model Aniel.Connect.Models.Horario_CadastroModel
+
+@{
+    /**/
+
+    ViewBag.Title = RsCadastros.CADASTROHORARIO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    <style>
+        .popover-body {
+            background-color: #357ca5;
+            color: white;
+            font-style: normal;
+        }
+
+
+    </style>
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script>
+
+        $("#iOpcao_Trabalha_Feriado").change(function () {
+
+            if ($("#iOpcao_Trabalha_Feriado").is(':checked')) {
+                $("#feriado").show();
+                $("#feriado2").show();
+            }
+            else {
+                $("#feriado").hide();
+                $("#feriado2").hide();
+            }
+
+
+        });
+
+    $('#iTipo').change(function () {
+
+        if ($(this).val() == "0") {
+            $('.agendamento').hide();
+            $('.agendamento').val('');
+        }
+        else {
+            $('.agendamento').show();
+        }
+
+        if ($(this).val() == "2") {
+            $(".QtdHE").show();
+        } else {
+            $(".QtdHE").each(function () {
+                $(this).attr("id", null);
+            });
+            $(".QtdHE").hide();
+        }
+
+
+    });
+
+        function verificaRepetido(array) {
+            let temp = []
+
+            for (let i = 0; i < array.length; i++) {
+                let value = array[i]
+                if (temp.indexOf(value) !== -1) {
+                    return true
+                }
+                temp.push(value)
+            }
+            return false
+        }
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+
+            var erro = false;
+            var campospreenchidos = false;
+
+            if ($('#iDescricao').val() == "") {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DESCRICAO)", "warning");
+                erro = true;
+            }
+
+            var dias = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
+
+            //validacoes caso checkbox feriado esteja marcada
+            if ($('#iOpcao_Trabalha_Feriado').is(':checked')) {
+
+
+                camposhorasferiado = [$("#iInicio_Feriado").val(),$("#iInicio_Intervalo_Feriado").val(),$("#iTermino_Feriado").val(),$("#iTermino_Intervalo_Feriado").val()];
+                for (var j = 0; j < camposhorasferiado.length; j++){
+                    var regexp = /([01][0-9]|[02][0-3]):[0-5][0-9]/;
+                    var correct = (camposhorasferiado[j].search(regexp) >= 0) ? true : false;
+
+                    if (camposhorasferiado[j] != "") {
+                        if (!correct) {
+                            Notificar("@RsBase.ATENCAO_", "@RsCadastros.PREENCHA_HORA_CORRETAMENTE", 'warning');
+                            erro = true;
+                            clicked = false;
+                            return false;
+                        }
+                    }
+
+
+                };
+
+
+                if (($("#iInicio_Feriado").val() == "" && $("#iInicio_Intervalo_Feriado").val() == "" && $("#iTermino_Feriado").val() == "" && $("#iTermino_Intervalo_Feriado").val() == "")) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.PELO_MENOS_UM_HORARIO_FERIADO)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+                }
+
+                if (($("#iInicio_Feriado").val() !== "") && ($("#iInicio_Intervalo_Feriado").val() == "")) {
+
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                        erro = true;
+                        clicked = false;
+                        return false;
+
+                }
+
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iInicio_Feriado").val() >= $("#iInicio_Intervalo_Feriado").val() &&
+                    $("#iInicio_Feriado").val() != "" && $("#iInicio_Intervalo_Feriado").val() != "") {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+                }*@
+
+                if (($("#iTermino_Feriado").val() !== "") && ($("#iTermino_Intervalo_Feriado").val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+
+                }
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iTermino_Feriado").val() <= $("#iTermino_Intervalo_Feriado").val() &&
+                    $("#iTermino_Feriado").val()!= "" && $("#iTermino_Intervalo_Feriado").val() != "") {
+                     Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                     return false;
+                }*@
+
+                if (($("#iTermino_Intervalo_Feriado").val() !== "") && ($("#iTermino_Feriado").val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                     return false;
+
+                }
+
+
+                if (($("#iInicio_Intervalo_Feriado").val() !== "") && ($("#iInicio_Feriado").val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+
+                }
+
+
+            }
+
+            for (var i = 0; i < dias.length; i++) {
+
+                // valida se a hora informada nos dias da semana são validas
+                camposhoras = [$("#iInicio_" + dias[i]).val(),$("#iInicio_Intervalo_" + dias[i]).val(),$("#iTermino_" + dias[i]).val(),$("#iTermino_Intervalo_" + dias[i]).val()];
+                for (var j = 0; j < camposhoras.length; j++){
+                    var regexp = /([01][0-9]|[02][0-3]):[0-5][0-9]/;
+                    var arrayTemp = [];
+
+                    if (camposhoras[j] != "") {
+
+                        if (verificaRepetido(camposhoras.filter(p => p != ""))) {
+                            Notificar("@RsBase.ATENCAO_", "@RsCadastros.AVISO_HORAS_IGUAIS", 'warning');
+                            erro = true;
+                            clicked = false;
+                            return false;
+                        }
+
+                        var correct = (camposhoras[j].search(regexp) >= 0) ? true : false;
+
+                        if (!correct) {
+                            Notificar("@RsBase.ATENCAO_", "@RsCadastros.PREENCHA_HORA_CORRETAMENTE", 'warning');
+                            erro = true;
+                            clicked = false;
+                            return false;
+                        }
+                    }
+                };
+
+
+                //valida se posui algum dia da semana com horario preenchido
+                if (($("#iInicio_" + dias[i]).val() != "") || ($("#iInicio_Intervalo_" + dias[i]).val() != "") ||
+                    ($("#iTermino_Intervalo_" + dias[i]).val() != "") || ($("#iTermino_" + dias[i]).val() != "")) {
+                    campospreenchidos = true;
+                }
+
+                //validacoes de preenchimento e lógica de hora inicio fim
+                if (($("#iTermino_" + dias[i]).val() !== "") && ($("#iTermino_Intervalo_" + dias[i]).val() == "")) {
+
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                        erro = true;
+                        clicked = false;
+                        return false;
+
+                }
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iTermino_" + dias[i]).val() <= $("#iTermino_Intervalo_" + dias[i]).val() &&
+                    $("#iTermino_"+ dias[i]).val() != "" && $("#iTermino_Intervalo_" + dias[i]).val() != "") {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+                }*@
+
+                if (($("#iInicio_" + dias[i]).val() !== "") && ($("#iInicio_Intervalo_" + dias[i]).val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+
+                }
+
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iInicio_Intervalo_" + dias[i]).val() <= $("#iInicio_" + dias[i]).val() &&
+                    $("#iInicio_Intervalo_" + dias[i]).val()!= "" && $("#iInicio_" + dias[i]).val() != "") {
+                     Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                     return false;
+                }*@
+
+                if (($("#iTermino_Intervalo_" + dias[i]).val() !== "") && ($("#iTermino_" + dias[i]).val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                     return false;
+
+                }
+
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iTermino_Intervalo_" + dias[i]).val() >= $("#iTermino_" + dias[i]).val() &&
+                $("#iTermino_Intervalo_" + dias[i]).val() != "" && $("#iTermino_" + dias[i]).val() != "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+                }*@
+
+                if (($("#iInicio_Intervalo_" + dias[i]).val() !== "") && ($("#iInicio_" + dias[i]).val() == "")) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DIAS_SEMANA_HORARIOS_INCOMPLETOS)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+
+                }
+
+                /*COMENTADO PARA PERMITIR HORARIOS NOTURNOS (DE VIRADA DE DIA)*/
+                @*else if ($("#iInicio_" + dias[i]).val() >= $("#iInicio_Intervalo_" + dias[i]).val() &&
+                    $("#iInicio_Intervalo_" + dias[i]).val() != "" && $("#iInicio_" + dias[i]).val() != "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.HORARIO_FAIXA_INVALIDO)", "warning");
+                    erro = true;
+                    clicked = false;
+                    return false;
+                }*@
+
+            }
+
+            if (!campospreenchidos) {
+
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.PELO_MENOS_UM_HORARIO)", "warning");
+                clicked = false;
+                erro = true;
+                return false;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+            ShowPageLoading();
+            $('#form').submit();
+
+        }
+
+    $(document).ready(function () {
+        $("#iOpcao_Trabalha_Feriado").trigger('change');
+        $('#iTipo').trigger('change')
+    });
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Horario", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="far fa-clock"></i> @ViewBag.Title
+                        </h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Horario")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTA_HORARIOS</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                        @*<span style="font-size:11px" id="dtLegend"></span>*@
+                    </div>
+                </div>
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <span class="text-bold-card pt-0">@ViewBag.Title</span>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                @if (Model.Id != 0)
+                                {
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iStatus" class="mr-3">@RsFinanceiro.STATUS:</label><br>
+                                            @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @name = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPadrao" class="mr-3">@RsFinanceiro.PADRAO:</label><br>
+                                        @*@Html.CheckBoxFor(model => model.Padrao, new { @class = "form-control", @id = "iPadrao", @name = "iPadrao", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })*@
+                                        @Html.CheckBoxFor(m => m.Padrao, new { @class = "form-control", @id = "iPadrao", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="form-group col-sm-2">
+                                    <label for="iCodigo" class="mr-3">@RsCadastros.CODIGO:</label><br>
+                                    @Html.TextBoxFor(model => model.Codigo, new { @maxlength = 4, @class = "form-control", @id = "iCodigo" })
+                                    @Html.ValidationMessageFor(model => model.Codigo, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="form-group col-sm-4">
+                                    <label for="iDescricao" class="mr-3">@RsCadastros.DESCRICAO:</label><br>
+                                    @Html.TextBoxFor(model => model.Descricao, new { @maxlength = 50, @class = "form-control", @id = "iDescricao" })
+                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="form-group col-sm-4">
+                                    <label for="iTipo" class="mr-3">@RsCadastros.TIPO:</label><br>
+                                    @Html.EnumDropDownListFor(model => model.Tipo, new { @class = "form-control", @id = "iTipo" })
+                                    @Html.ValidationMessageFor(model => model.Tipo, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+
+
+                            @*<h4>@RsCadastros.HORARIOS</h4>*@
+                            <div class="row mt-5">
+                                <div class="" style="display: contents; margin-right: 40px">
+
+                                    <!--Domingo-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Domingo" class="text-center">Dom</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Domingo, new { @class = "form-control hora", @id = "iInicio_Domingo", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Domingo, new { @class = "form-control hora", @id = "iInicio_Intervalo_Domingo", @placeholder = "00:00", @autocomplete = "on", @tabindex = 11 })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Domingo" style="margin-left: 75px;">Dom</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Domingo, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Domingo", @placeholder = "00:00", @autocomplete = "off", @tabindex = 12 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iTermino_Domingo">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Domingo, new { @class = "form-control agendamento hora", @id = "iTermino_Domingo", @placeholder = "00:00", @autocomplete = "off", @tabindex = 13 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Domingo" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Domingo, new { @class = "form-control hora", @id = "iHE_Domingo", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+
+                                    <!--Segunda-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Segunda" class="text-center">Seg</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Segunda, new { @class = "form-control  hora", @id = "iInicio_Segunda", @placeholder = "00:00", @autocomplete = "off", @tabindex = 14 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Segunda, new { @class = "form-control hora", @id = "iInicio_Intervalo_Segunda", @placeholder = "00:00", @autocomplete = "off", @tabindex = 15 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Segunda" style="margin-left: 75px;">Seg</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Segunda, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Segunda", @placeholder = "00:00", @autocomplete = "off", @tabindex = 16 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iSegunda_Saida">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Segunda, new { @class = "form-control agendamento hora", @id = "iTermino_Segunda", @placeholder = "00:00", @autocomplete = "off", @tabindex = 17 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Segunda" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Segunda, new { @class = "form-control hora", @id = "iHE_Segunda", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--Terça-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Terca" class="text-center">Ter</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Terca, new { @class = "form-control hora", @id = "iInicio_Terca", @placeholder = "00:00", @autocomplete = "off", @tabindex = 18 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Terca, new { @class = "form-control hora", @id = "iInicio_Intervalo_Terca", @placeholder = "00:00", @autocomplete = "off", @tabindex = 19 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Terca" style="margin-left: 75px;">Ter</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Terca, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Terca", @placeholder = "00:00", @autocomplete = "off", @tabindex = 20 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iTermino_Terca">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Terca, new { @class = "form-control agendamento hora", @id = "iTermino_Terca", @placeholder = "00:00", @autocomplete = "off", @tabindex = 21 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Terca" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Terca, new { @class = "form-control hora", @id = "iHE_Terca", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--Quarta-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Quarta" class="text-center">Qua</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Quarta, new { @class = "form-control hora", @id = "iInicio_Quarta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 22 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Quarta, new { @class = "form-control hora", @id = "iInicio_Intervalo_Quarta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 23 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Quarta" style="margin-left: 75px;">Qua</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Quarta, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Quarta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 24 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iTermino_Quarta">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Quarta, new { @class = "form-control agendamento hora", @id = "iTermino_Quarta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 25 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Quarta" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Quarta, new { @class = "form-control hora", @id = "iHE_Quarta", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--Quinta-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Quinta" class="text-center">Qui</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Quinta, new { @class = "form-control hora", @id = "iInicio_Quinta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 26 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Quinta, new { @class = "form-control hora", @id = "iInicio_Intervalo_Quinta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 27 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Quinta" style="margin-left: 75px;">Qui</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Quinta, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Quinta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 28 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @* <label for="iTermino_Quinta">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Quinta, new { @class = "form-control agendamento hora", @id = "iTermino_Quinta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 29 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Quinta" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Quinta, new { @class = "form-control hora", @id = "iHE_Quinta", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--Sexta-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Sexta" class="text-center">Sex</div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Sexta, new { @class = "form-control hora", @id = "iInicio_Sexta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 30 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Sexta, new { @class = "form-control hora", @id = "iInicio_Intervalo_Sexta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 31 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @* <label for="iInicio_Sexta" style="margin-left: 75px;">Sex</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Sexta, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Sexta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 32 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iTermino_Sexta">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Sexta, new { @class = "form-control agendamento hora", @id = "iTermino_Sexta", @placeholder = "00:00", @autocomplete = "off", @tabindex = 33 })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div for="iHE_Sexta" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Sexta, new { @class = "form-control hora", @id = "iHE_Sexta", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--Sabado-->
+                                    <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                        <div for="iInicio_Sabado" class="text-center">Sab</div>
+                                        <div class="row">
+                                            <div class="col-6">
+
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Sabado, new { @class = "form-control hora", @id = "iInicio_Sabado", @placeholder = "00:00", @autocomplete = "off", @tabindex = 34 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Inicio_Intervalo_Sabado, new { @class = "form-control hora", @id = "iInicio_Intervalo_Sabado", @placeholder = "00:00", @autocomplete = "off", @tabindex = 35 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iInicio_Sabado" style="margin-left: 75px;">Sab</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Intervalo_Sabado, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Sabado", @placeholder = "00:00", @autocomplete = "off", @tabindex = 36 })
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                @*<label for="iTermino_Sabado">&nbsp;</label>*@
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Termino_Sabado, new { @class = "form-control agendamento hora", @id = "iTermino_Sabado", @placeholder = "00:00", @autocomplete = "off", @tabindex = 37 })
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div for="iHE_Sabado" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                        <div class="row QtdHE">
+                                            <div class="col-6">
+                                                <div class="form-group">
+                                                    @Html.TextBoxFor(m => m.Qtd_HE_Sabado, new { @class = "form-control hora", @id = "iHE_Sabado", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                                </div>
+                                                <br />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!--Opcao Trabalha Feriado-->
+                            <div class="row mt-4" id="Opcao_Trabalha_Feriado">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        @Html.CheckBoxFor(m => m.Opcao_Trabalha_Feriado, new { @id = "iOpcao_Trabalha_Feriado" })
+                                        <span> @RsCadastros.TRABALHAFERIADO </span><br>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!--Feriado-->
+                            <div class="row" id="feriado" style="display:none">
+                                @*<div class="" style="display: flex; margin-right: 40px">*@
+                                <div class="col-xs-12 col-sm-4 col-md-3 col-lg-2">
+                                    <div for="iInicio_Feriado" class="text-center">Feriado</div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Inicio_Feriado, new { @class = "form-control hora", @id = "iInicio_Feriado", @placeholder = "00:00", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Inicio_Intervalo_Feriado, new { @class = "form-control hora", @id = "iInicio_Intervalo_Feriado", @placeholder = "00:00", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            @*<label for="iInicio_Intervalo_Feriado" style="margin-left: 75px;">Feriado</label>*@
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Termino_Intervalo_Feriado, new { @class = "form-control agendamento hora", @id = "iTermino_Intervalo_Feriado", @placeholder = "00:00", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            @*<label for="iTermino_Intervalo_Feriado">&nbsp;</label>*@
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Termino_Feriado, new { @class = "form-control agendamento hora", @id = "iTermino_Feriado", @placeholder = "00:00", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div for="v" class="QtdHE">@RsCadastros.DEFINA_QTD_HE: <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" data-content="Atenção! Este campo <b>NÃO</b> influenciará na roteirização. O objetivo é demostrar uma cor diferente na Timeline quando o técnico estiver fazendo Hora Extra."></i></div>
+                                    <div class="row QtdHE">
+                                        <div class="col-6">
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Qtd_HE_Feriado, new { @class = "form-control hora", @id = "iHE_Feriado", @placeholder = "00:00", @autocomplete = "on", @tabindex = 10 })
+                                            </div>
+                                            <br />
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                                @*</div>*@
+                            </div>
+
+
+
+                        </div>
+                    </div>
+
+                    <!--Button Float-->
+                    <!--Button Float-->
+                    <a href="@Url.Action("Index", "Horario")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+                        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                            <i class="fas fa-times fa-2x"></i>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="ValidaSubmit();" class="float-save" id="btnGravar">
+                        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                            <i class="fas fa-save fa-2x"></i>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}

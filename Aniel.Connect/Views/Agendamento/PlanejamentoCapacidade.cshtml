@@ -1,0 +1,621 @@
+﻿@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = RsCadastros.PAINEL_PLANEJAMENTO_CAPACIDADE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+
+        .nowrap th td {
+            white-space: nowrap !important;
+        }
+
+        .text-center th td {
+            text-align: center !important;
+        }
+
+
+        tr, td {
+            text-align: center;
+        }
+
+        .dtfc-fixed-left {
+            background: white;
+        }
+
+        td.dtfc-fixed-left {
+            text-align: left !important;
+        }
+
+        .table.dataTable.stripe tbody tr.odd {
+            background-color: #f9f9f9;
+        }
+
+        .table td {
+            padding: 0.4rem;
+            white-space: normal !important;
+        }
+
+        .table th {
+            padding: 0.3rem;
+            white-space: normal !important;
+            min-width: 75px !important;
+            vertical-align: middle;
+        }
+
+        .table td {
+            padding: 0.4rem;
+            white-space: normal !important;
+            min-width: 60px !important;
+        }
+
+
+        td.colunaAgrupamento {
+            white-space: nowrap !important;
+        }
+
+        .toggle.btn {
+            min-width: 3.7rem !important;
+            min-height: 1.7rem !important;
+        }
+
+        .header-group {
+            text-align: center;
+            background: darkgray;
+            color: white;
+            font-size: 12px
+        }
+
+        .dataTable {
+            border-spacing: 5px !important;
+        }
+    </style>
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+    <script src="https://cdn.datatables.net/fixedcolumns/4.0.2/js/dataTables.fixedColumns.min.js"></script>
+
+    <script>
+        let oDatatable = null;
+        let oDatatableLimite = null;
+
+        $("#iLimparFiltroModal").click(function () {
+            $("#iGrupoArea").val(null).trigger("change");
+            $("#iArea").val(null).trigger("change");
+            $("#iNatureza").val(null).trigger("change");
+
+            $("#iData").val("");
+            /*$("#iDataFim").val("");*/
+        });
+
+        $('#iGravarLimiteAgendamento').click(async function () {
+
+            let dados = oDatatableLimite.data().toArray();
+            let areas = dados.map(p => {
+                let percentual = $(`input[data-idnatureza="${p.idNatureza}"][data-area="${p.area}"][data-grupoarea="${p.grupoArea}"]`).val();
+                return {
+                    area: p.area,
+                    grupoArea: p.grupoArea,
+                    natureza: p.idNatureza,
+                    percentual: percentual
+                };
+            });
+
+            let dadosLimite = await $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/Agendamento_Equipeapi/GravarLimitacao",
+                data: {
+                    Natureza: $("#iNatureza").val(),
+                    Data: $("#iData").val(),
+                    Areas: areas
+                }
+            });
+
+            if (!dadosLimite.ok)
+            {
+                Notificar("@RsBase.ATENCAO_", dadosLimite.mensagem, "warning");
+            }
+            else
+            {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Limites atualizados!", "info");
+                oDatatable.draw();
+            }
+
+        });
+
+        $("#iLimparFiltro").click(function () {
+            $("#iGrupoArea").val(null).trigger("change");
+            $("#iArea").val(null).trigger("change");
+            $("#iNatureza").val(null).trigger("change");
+
+            $("#iData").val("");
+            /*$("#iDataFim").val("");*/
+
+            $("#modal-filter").modal("show");
+        });
+
+        $("#iPesquisar").on("click", function () {
+            let erro = false;
+
+            if (!$("#iData").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DATA)", "warning");
+                erro = true;
+            }
+            @*else if (DateDiff($("#iDataInicio").val(), $("#iDataFim").val()) < 0) {
+                Notificar("@RsBase.ATENCAO_", "Informe um período válido", "warning");
+                erro = true;
+            }*@
+
+            if (!$("#iNatureza").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NATUREZA)", "warning");
+                erro = true;
+            }
+            if (!$("#iGrupoArea").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.GRUPO_AREA)", "warning")
+                erro = true;
+            }
+            if (!$("#iArea").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.AREA)", "warning")
+                erro = true;
+            }
+
+            if (!erro) {
+                TableManageButtons.init();
+
+                $("#modal-filter").modal("hide");
+                $("#divTable").show();
+            }
+        });
+
+        const handleGrupoArea = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+                const grupoArea = e.params.data
+
+                if (grupoArea)
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoArea.id), null, "@RsBase.SELECIONE", false);
+                else
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            });
+        };
+
+        $(document).ready(function () {
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleGrupoArea);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iNatureza", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            $("#modal-filter").modal("show");
+        });
+
+        const filterState = {
+            data: {
+                label: "@RsFinanceiro.DATA",
+                removable: false,
+                getDisplay: function () {
+                    return $("#iData").val()
+                },
+            },
+            grupoArea: {
+                label: "@RsCadastros.GRUPO_AREA",
+                getDisplay: () => $("#iGrupoArea").val() ? $("#iGrupoArea option:selected").text() : "",
+                removable: false
+            },
+            area: {
+                label: "@RsCadastros.AREA",
+                getDisplay: () => $("#iArea").val() ? $("#iArea option:selected").text() : "",
+                removable: false
+            },
+            natureza: {
+                label: "@RsCadastros.NATUREZA",
+                getDisplay: () => $("#iNatureza").val() ? $("#iNatureza option:selected").text() : "",
+                removable: false
+            }
+        }
+
+        $('#modal-limite').on('shown.bs.modal', function () {
+
+            if (oDatatableLimite)
+            {
+                oDatatableLimite.columns.adjust();
+            }
+        });
+
+        const handleDataTableButtonsLimite = async function () {
+
+            if (oDatatableLimite) {
+                oDatatableLimite.clear();
+                oDatatableLimite.destroy();
+            }
+
+            let dados = oDatatable.data().toArray();
+            let areas = dados.map(p => {
+                return {
+                    area: p.codArea,
+                    grupoArea: p.codGrupoArea
+                };
+            });
+
+            let dadosLimite = await $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/Agendamento_Equipeapi/GetLimitacao",
+                data: {
+                    Natureza: $("#iNatureza").val(),
+                    Data: $("#iData").val(),
+                    Areas: areas
+                }
+            });
+
+
+            oDatatableLimite = new DataTable("#datatableLimite", {
+                dom: "frti",
+                select: 'multi',
+                searching: true,
+                ordering: false,
+                paging: false,
+                deferRender: true,
+                deferLoading: true,
+                autoWidth: false,
+                stateSave: true,
+                fixedHeader: true,
+                scrollY: '22vh',
+                data: dadosLimite.data,
+                columns: [
+                    { data: "grupoAreaDescricao", title: "@RsCadastros.GRUPO_AREA" },
+                    { data: "areaDescricao", title: "@RsCadastros.AREA" },
+                    { data: "natureza", title: "@RsCadastros.NATUREZA" },
+                    {
+                        data: "percentual",
+                        title: "@RsCadastros.PERCENTUAL",
+                        render: function (data, type, row, meta)
+                        {
+                            return `<input type="text" data-idnatureza="${row.idNatureza}" data-area="${row.area}" data-grupoarea="${row.grupoArea}" class="form-control text-center" value="${data}"/>`;
+                        }
+                    }
+                ],
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: function () {
+                    TagFilter("FiltrosUtilizados", filterState, "Filtrado por:");
+                    $('#iAtualizarLimitacao').show();
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTableRelatorio({
+                    title: "@Html.Raw(ViewBag.Title)"
+                }),
+            });
+        },
+            TableManageButtonsLimite = function () {
+                "use strict";
+                return {
+                    init: async function () {
+                        await handleDataTableButtonsLimite();
+                    }
+                }
+            };
+
+        const handleDataTableButtons = async function () {
+
+            if (oDatatable) {
+                oDatatable.clear();
+                oDatatable.destroy();
+            }
+
+            let dados = await $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/Agendamento_Equipeapi/GetPlanejamentoCapacidade",
+                data: {
+                    GrupoArea : $("#iGrupoArea").val(),
+                    Area : $("#iArea").val(),
+                    Natureza : $("#iNatureza").val(),
+                    DataInicio : $("#iData").val(),
+                    DataFim : $("#iData").val(),
+                }
+            });
+
+            oDatatable = new DataTable("#datatable", {
+                dom: "Bfrti",
+                select: 'multi',
+                searching: true,
+                ordering: false,
+                paging: false,
+                autoWidth: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                data: dados.data,
+                columns: [                   
+                    { data: "data", title: "@RsCadastros.DATA" },
+                    { data: "grupo", title: "@RsCadastros.GRUPO_AREA" },
+                    { data: "area", title: "@RsCadastros.AREA" },
+                    { data: "tecnicos", title: "@RsCadastros.QUANTIDADE_TECNICOS" },
+                    { data: "escalados", title: "@RsCadastros.TECNICOS_ESCALADOS" },
+                    { data: "exclusivosNatureza", title: "@RsCadastros.TECNICOS_EXCLUSIVOS_NATUREZA" },
+                    { data: "capacidadeExclusiva", title: "@RsCadastros.CAPACIDADE_EXCLUSIVA_NATUREZA (h)" },
+                    { data: "multiskill", title: "@RsCadastros.TECNICOS_MULTISKILL" },
+                    { data: "capacidadeMultiskill", title: "@RsCadastros.CAPACIDADE_MULTISKILL" },
+                    { data: "capacidadePlena", title: "Capacidade Total" },
+                    { data: "limiteMultiskillPerc", title: "@RsCadastros.LIMITE_AGENDAMENTO_MULTISKILL_PERC" },
+                    { data: "capacidadeLimitadaMultiskill", title: "@RsCadastros.CAPACIDADE_LIMITADA_MULTISKILL" },
+                    { data: "tempoMedioServico", title: "@RsCadastros.TEMPO_MEDIO_SERVICO" },
+
+                    {
+                        data: "data",
+                        title: "@RsCadastros.JANELA",
+                        render: function(data, type, row, meta) {
+                            let janelas = "";
+                            for (let item of row.janelas) {
+                                janelas += item.janela + "<br/>";
+                            }
+                            return janelas;
+                        }
+                    },
+                    {
+                        data: "data",
+                        title: "@RsCadastros.AGENDAMENTO_MAXIMO",
+                        render: function (data, type, row, meta) {
+                            let agendamentoMaximos = "";
+                            for (let item of row.janelas) {
+                                agendamentoMaximos += item.agendamentoMaximo + "<br/>";
+                            }
+                            return agendamentoMaximos;
+                        }
+                    },
+                    {
+                        data: "data",
+                        title: "@RsCadastros.AGENDAMENTO_REALIZADO",
+                        render: function (data, type, row, meta) {
+                            let agendamentoRealizados = "";
+                            for (let item of row.janelas) {
+                                agendamentoRealizados += item.agendamentoRealizado + "<br/>";
+                            }
+                            return agendamentoRealizados;
+                        } },
+                    {
+                        data: "data",
+                        title: "@RsCadastros.PERC_OCUPADO",
+                        render: function (data, type, row, meta) {
+                            let percOcupados = "";
+                            for (let item of row.janelas) {
+                                percOcupados += item.percOcupado + "<br/>";
+                            }
+                            return percOcupados;
+                        }
+                    },
+                    {
+                        data: "data",
+                        title: "@RsCadastros.AGENDAMENTO_RESTANTE",
+                        render: function (data, type, row, meta) {
+                            let agendamentoRestantes = "";
+                            for (let item of row.janelas) {
+                                agendamentoRestantes += item.agendamentoRestante + "<br/>";
+                            }
+                            return agendamentoRestantes;
+                        } },
+                    {
+                        data: "data",
+                        title: "@RsCadastros.AGENDAMENTO_COMPARTILHADO_NATUREZA_AREA",
+                        render: function (data, type, row, meta) {
+                            let agendamentoCompartilhadoNaturezaAreas = "";
+                            for (let item of row.janelas) {
+                                agendamentoCompartilhadoNaturezaAreas += item.agendamentoCompartilhadoNaturezaArea + "<br/>";
+                            }
+                            return agendamentoCompartilhadoNaturezaAreas;
+                        }
+                    },
+
+                    { data: "horasAguardandoAgendamento", title: "@RsCadastros.HORAS_AGUARDANDO_AGENDAMENTO" },
+                    { data: "horasAgendado", title: "@RsCadastros.HORAS_AGENDADO" },
+                    { data: "horasEsforcoNecessario", title: "@RsCadastros.HORAS_ESFORCO_NECESSARIO" },
+                    { data: "horasAtribuidosTecnico", title: "@RsCadastros.SERVICOS_ATRIBUIDOS_TECNICO" },
+                    { data: "restaAtribuirTecnico", title: "@RsCadastros.RESTA_ATRIBUIR_TECNICOS" },
+                    { data: "realizavelCapacidadePlena", title: "@RsCadastros.REALIZAVEL_CAPACIDADE_PLENA" },
+                    { data: "realizavelCapacidadeLimitada", title: "@RsCadastros.REALIZAVEL_CAPACIDADE_LIMITADA" },
+                ],
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: function () {
+                    var api = this.api();
+                    let dadosDraw = api.rows({ page: 'current' }).data().toArray();
+                    TagFilter("FiltrosUtilizados", filterState, "Filtrado por:");
+                    $("#datatable").DataTable().columns.adjust();
+                    $('#iAtualizarLimitacao').show();
+
+                },
+                order: [],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTableRelatorio({
+                    title: "@Html.Raw(ViewBag.Title)"
+                }),
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+
+
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-cogs"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2"></div>
+        <button class="btn-primary btn" onclick="TableManageButtonsLimite().init();" data-toggle="modal" data-target="#modal-limite" type="button" style="display:none" id="iAtualizarLimitacao">Atualizar Limitação</button>
+    </div>
+</div>
+
+<div id="divTable" style="display: none; width: 99%">
+    <table class="table table-hover nowrap datatable-multi-row" id="datatable" style="width:100%">
+        <thead>
+            <tr>
+                <th class="header-group" colspan="13">Força de Trabalho</th>
+                <th class="header-group" colspan="6">Agendamento</th>
+                <th class="header-group" colspan="7">Roteirização</th>
+            </tr>
+            <tr>
+                <th>@RsCadastros.DATA</th>
+                <th>@RsCadastros.GRUPO_AREA</th>
+                <th>@RsCadastros.AREA</th>
+                <th>@RsCadastros.QUANTIDADE_TECNICOS</th>
+                <th>@RsCadastros.TECNICOS_ESCALADOS</th>
+                <th>@RsCadastros.TECNICOS_EXCLUSIVOS_NATUREZA</th>
+                <th>@RsCadastros.CAPACIDADE_EXCLUSIVA_NATUREZA</th>
+                <th>@RsCadastros.TECNICOS_MULTISKILL</th>
+                <th>@RsCadastros.CAPACIDADE_MULTISKILL</th>
+                <th>@RsCadastros.CAPACIDADE_PLENA</th>
+                <th>@RsCadastros.LIMITE_AGENDAMENTO_MULTISKILL_PERC</th>
+                <th>@RsCadastros.CAPACIDADE_LIMITADA_MULTISKILL</th>
+                <th>@RsCadastros.TEMPO_MEDIO_SERVICO</th>
+
+                <th>@RsCadastros.JANELA</th>
+                <th>@RsCadastros.AGENDAMENTO_MAXIMO</th>
+                <th>@RsCadastros.AGENDAMENTO_REALIZADO</th>
+                <th>@RsCadastros.PERC_OCUPADO</th>
+                <th>@RsCadastros.AGENDAMENTO_RESTANTE</th>
+                <th>@RsCadastros.AGENDAMENTO_COMPARTILHADO_NATUREZA_AREA</th>
+
+                <th>@RsCadastros.HORAS_AGUARDANDO_AGENDAMENTO</th>
+                <th>@RsCadastros.HORAS_AGENDADO</th>
+                <th>@RsCadastros.HORAS_ESFORCO_NECESSARIO</th>
+                <th>@RsCadastros.SERVICOS_ATRIBUIDOS_TECNICO</th>
+                <th>@RsCadastros.RESTA_ATRIBUIR_TECNICOS</th>
+                <th>@RsCadastros.REALIZAVEL_CAPACIDADE_PLENA</th>
+                <th>@RsCadastros.REALIZAVEL_CAPACIDADE_LIMITADA</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                            <select id="iGrupoArea" class="form-control">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iArea">@RsCadastros.AREA:</label>
+                            <select id="iArea" class="form-control">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iNatureza">@RsCadastros.NATUREZA:</label>
+                            <select id="iNatureza" class="form-control">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group mt-2">
+                            <label>@RsCadastros.DATA:</label>
+                            <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iData" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="modal fade" id="modal-limite">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Atualização de limite de agendamento</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-hover nowrap" id="datatableLimite">
+                </table>
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iCancelarLimiteAgendamento">@RsBase.CANCELAR</button>
+                        <button type="button" class="btn btn-success" id="iGravarLimiteAgendamento">Gravar</button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

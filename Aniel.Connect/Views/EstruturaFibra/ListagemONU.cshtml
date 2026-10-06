@@ -1,0 +1,765 @@
+﻿@model Aniel.Connect.Models.ONUListModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_ONU;
+    ViewBag.Sessao = RsCadastros.CLIENTE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        const HandleSlot = function () {
+                $('#iSlot').on('select2:select select2:unselecting', function (e) {
+                    const SlotSelecionado = e.params.data;
+
+                    if ($('#iPON').val()) {
+                        AddSelect("iPON", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, SlotSelecionado.id, $('#iPON').val(), "@RsBase.SELECIONE", false);
+                    }
+                    else {
+                        AddSelect("iPON", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, SlotSelecionado.id, null, "@RsBase.SELECIONE", false);
+                    }
+
+                    $(".select2-selection").addClass("outlineNone")
+
+                    return true;
+                });
+            }
+
+            const HandleCliente = function () {
+                $('#iCliente').on('select2:select select2:unselecting', function (e) {
+                    const clienteSelecionado = e.params.data;
+
+                    if (e.params.data != undefined) {
+                        AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboVinculoONUCliente", @CONSTANTES.PaginacaoRegistros, null, clienteSelecionado.id, null, "@RsBase.SELECIONE", false);
+                        AddSelect("iLoginRadius", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetComboVinculoCliente", @CONSTANTES.PaginacaoRegistros, null, clienteSelecionado.id, null, "@RsBase.SELECIONE", false);
+                    }
+                    else {
+                        AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                        AddSelect("iLoginRadius", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    }
+
+                    $(".select2-selection").addClass("outlineNone")
+
+                    return true;
+                });
+            }
+
+        $(document).ready(function () {
+            const HandleOLT = function () {
+                $('#iOLT').on('select2:select select2:unselecting', function (e) {
+                    const OLTSelecionada = e.params.data;
+
+                    if ($('#iSlot').val()) {
+                        AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, $("#iSlot").val(), "@RsBase.SELECIONE", false);
+                    }
+                    else {
+                        AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, null, "@RsBase.SELECIONE", false);
+                    }
+
+                    $(".select2-selection").addClass("outlineNone")
+
+                    return true;
+                });
+            }
+
+            AddSelect("iOLT", "@CONSTANTES.URLPortal/api/OLTapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleOLT);
+            AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleSlot);
+
+            AddSelect("iPON", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iPOP", "@CONSTANTES.URLPortal/api/POPapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect("iCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleCliente);
+            AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iLoginRadius", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        });
+
+        $("#iDesautorizarONU").on("click", function () {
+            if (rows_selected.length > 0) {
+                @*if (oDatatable.data().filter(p => p.status != '@RsCadastros.ONLINE' && p.status != '@RsCadastros.OFFLINE').length) {
+                    Notificar("@RsCadastros.ATENCAO", "Não é possível desautorizar ONUs com status diferente de Online ou Offline.", "warning");
+                }*@
+
+            ShowPageLoading()
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/IntegracaoAtivacaoApiController/DesautorizarOnuEmMassa",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    ListIdONU: rows_selected
+                }
+            })
+                .done(function (data) {
+                    @*if (data.result) {
+                    if (rows_selected.length > 1) {
+                        Notificar("@RsBase.INFORMACAO", "ONUs desautorizadas com sucesso", "info")
+                    }
+                    else {
+                        Notificar("@RsBase.INFORMACAO", "ONU desautorizada com sucesso", "info")
+                    }
+
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.message, "warning")
+                    }*@
+                    if (data.ok) {
+
+                        data.mensagens.forEach(p => Notificar(p.tipo === 0 ? "@RsBase.ATENCAO_" : "@RsBase.OPERACAOBEMSUCEDIDA", p.mensagem, p.tipo === 0 ? "warning" : "info"))
+                        let onuIndisponivel = "A ONU se encontra indisponível na OLT";
+
+                        if (data.mensagens[0].mensagem === onuIndisponivel) {
+
+                        $('#confirmDeleteModal').modal('show');
+                        $('#confirmDeleteButton').on('click', function () {
+                            $('#confirmDeleteModal').modal('hide');
+                            ShowPageLoading()
+                            rows_selected.forEach(function (selectedRow) {
+                                $.ajax({
+                                    url: '@String.Concat(@CONSTANTES.URLPortal, "/api/ListagemONUApi/DeleteONUByID?id=")' + selectedRow,
+                                    type: "DELETE"
+                                }).done(function (response) {
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "ONU(s) excluída(s) com sucesso.", "info");
+                                }).fail(function (xhr, status, error) {
+                                    Notificar("@RsBase.ATENCAO_", xhr.responseText, "warning");
+
+                                }).always(function () {
+                                    HidePageLoading();
+                                    oDatatable.draw();
+                                });
+
+                            });
+                        });
+
+                    }
+
+
+            } else {
+              Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+            }
+               HidePageLoading()
+               oDatatable.draw();
+             })
+            }
+            else {
+                Notificar("@RsCadastros.ATENCAO", "Selecione uma ONU para desautorizar", "warning");
+            }
+        })
+
+        $("#iReiniciarONU").on("click", function () {
+            if (rows_selected.length > 0) {
+            ShowPageLoading()
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/IntegracaoAtivacaoApiController/ReiniciarOnuEmMassa",
+                type: "POST",
+                dataType: "json",
+                data: {
+                    ListIdONU: rows_selected
+                }
+            })
+                .done(function (data) {
+                    @*if (data.result) {
+                    if (rows_selected.length > 1) {
+                        Notificar("@RsBase.INFORMACAO", "ONUs desautorizadas com sucesso", "info")
+                    }
+                    else {
+                        Notificar("@RsBase.INFORMACAO", "ONU desautorizada com sucesso", "info")
+                    }
+
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.message, "warning")
+                    }*@
+                    console.log("Response Data: ", data);
+                    if (data.ok)
+                    {
+                        data.mensagens.forEach(p => Notificar(p.tipo === 0 ? "@RsBase.ATENCAO_" : "@RsBase.OPERACAOBEMSUCEDIDA", p.mensagem != null ? p.mensagem : "", p.tipo === 0 ? "warning" : "info"))
+                    }
+                    else
+                    {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                    }
+                    HidePageLoading()
+                    oDatatable.draw();
+
+                    })
+            }
+            else {
+                Notificar("@RsCadastros.ATENCAO", "Selecione uma ONU para reiniciar", "warning");
+            }
+        })
+$("#iExcluirRegistroONU").on("click", function (e) {
+    
+    e.preventDefault();
+
+    if (rows_selected.length == 1) {
+        
+        $('#confirmationModal').modal('show');
+    } else {
+        Notificar("@RsCadastros.ATENCAO", "Selecione uma ONU para excluir", "warning");
+    }
+});
+
+
+$("#confirmDeletion").on("click", function () {
+    
+    ShowPageLoading();
+
+    
+    $.ajax({
+        url: "@CONSTANTES.URLPortal/api/ONUapi/DeleteONUByIDApi",
+        type: "POST",
+        dataType: "json",
+        data: {
+            id: rows_selected[0]
+        }
+    })
+    .done(function (data) {
+        if (data.result) {
+            Notificar("@RsBase.INFORMACAO", "Registro removido com sucesso", "info");
+        } else {
+            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+        }
+
+        
+        HidePageLoading();
+
+       
+        oDatatable.draw();
+    })
+    .fail(function () {
+        
+        HidePageLoading();
+        Notificar("@RsBase.ERRO", "Ocorreu um erro ao tentar excluir a ONU.", "warning");
+    });
+
+    
+    $('#confirmationModal').modal('hide');
+});
+
+
+        $("#iResetarONU").on("click", function () {
+            if (rows_selected.length == 1) {
+
+                ShowPageLoading();
+                Swal.fire({
+                    title: '@RsBase.ATENCAO_',
+                    //text: "Este procedimento redefinirá as configurações do equipamento, retornando ao padrão de fábrica e aplicando configurações pré-definidas ao equipamento. Deseja prosseguir?",
+                    html: '<p align="center">Este procedimento redefinirá as configurações do equipamento, retornando ao padrão de fábrica e aplicando configurações predefinidas ao equipamento.</p><p>Deseja prosseguir?</p></br>',
+                    showCancelButton: true,
+                    confirmButtonColor: '#357ca5',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Sim',
+                    cancelButtonText: 'Não',
+                }).then(async (okay) => {
+                    if (okay.value) {
+                        //Swal.fire('Recurso ainda está em desenvolvimento.');
+                        var requestReiniciar = $.ajax({
+                            url: "@CONSTANTES.URLPortal/api/IntegracaoAtivacaoApiController/ResetarONU",
+                            type: "POST",
+                            data: {
+                                idONU: rows_selected[0]
+                            }
+                        })
+                            .done(function (data) {
+                                if (data.result)
+                                    Notificar("@RsBase.INFORMACAO", "Equipamento resetado com sucesso", "info")
+                                else
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                                swal.close();
+                            }).fail(function (jqXHR, textStatus, errorThrown) {
+                                Notificar("@RsBase.ATENCAO_", "Ocorreu um erro ao resetar ONU", "warning")
+                                swal.close();
+                            });
+
+                    }
+
+                    rows_selected = [];
+                    HidePageLoading();
+
+                });
+            }
+            else {
+                Notificar("@RsCadastros.ATENCAO", "Selecione uma ONU para resetar", "warning");
+            }
+        });
+
+        var handleDataTableButtons = function () {
+
+            "use strict";
+            ShowPageLoading();
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[4, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/ListagemONUApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.idOLT = $("#iOLT").val()
+                        data.idSlot = $("#iSlot").val()
+
+                        data.idPON = $("#iPON").val()
+                        data.idPOP = $("#iPOP").val();
+                        data.IdStatus = $("#iStatus").val();
+                        data.idVLAN = $("#iVLAN").val();
+                        data.idCaixaFTTH = $("#iCaixaFTTH").val();
+                        data.idPortaFTTH = $("#iPortaFTTH").val();
+                        data.idCliente = $("#iCliente").val();
+                        data.idPlano = $("#iPlano").val();
+                        data.idLoginRadius = $("#iLoginRadius").val();
+                    },
+                    error: function (e) {
+                        HidePageLoading();
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        HidePageLoading();
+                        return d.data;
+                    }
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 50,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    {
+                        data: "status",
+                        title: "@RsCadastros.STATUS",
+                        render: function (data, type, row, meta) {
+                            return `<i class="fas fa-circle" style="vertical-align: middle; font-size: 16px; margin-top: -2px;color: ${data === "Online" ? "green" : data === "Indisponível" ? "gray" : data === "Loss" ? "orange" : "red" }"></i>  ${data}`
+                        }
+                    },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "serial", title: "@RsCadastros.SERIAL" },
+                    { data: "serialConvertido", title: "@RsCadastros.SERIAL_CONVERTIDO" },
+                    { data: "mac", title: "@RsCadastros.MAC" },
+                    { data: "cliente", title: "@RsCadastros.CLIENTE" },
+                    { data: "planoProduto", title: "@RsCadastros.PLANO_PRODUTO" },
+                    { data: "dataUltimaAtualizacaoStatus", title: "@RsCadastros.DATAHORA_ULTIMA_AUTALIZACAO" }
+                ]
+            });
+
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+                $('#txtSearch').val("");
+                $('#iSlot').val(null).trigger('change');
+                $('#iOLT').val(null).trigger('change');
+                $('#iPON').val(null).trigger('change');
+                $('#iPOP').val(null).trigger('change');
+                $('#iStatus').val("");
+                $('#iCaixaFTTH').val("");
+                $("#iPortaFTTH").val("");
+                $("#iVLAN").val("");
+                $('#iPlano').val(null).trigger('change');
+                $('#iCliente').val(null).trigger('change');
+                $("#iLoginRadius").val(null).trigger('change');
+
+                AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleSlot);
+                AddSelect("iPON", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect("iLoginRadius", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#datatable tbody').on('click', 'tr', function () {
+                if (oDatatable.row(this).data() != null) {
+                    var _id = oDatatable.row(this).data().id;
+                    var url = '@Url.Action("ConfigurarONU", "EstruturaFibra", new { IdONU = "__id__" })';
+
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+            });
+
+        },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-headset"></i> @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="MAC ou Serial" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+
+
+                <a class="btn btn-success btn-add" href="@Url.Action("ConfigurarONU", "EstruturaFibra")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="@Url.Action("ImportacaoONU", "EstruturaFibra")" onclick="ShowPageLoading(); return true;">@RsCadastros.IMPORTAR_ONUS</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "399"))
+                    {
+                        <a class="dropdown-item" href="@Url.Action("ExclusaoONU", "EstruturaFibra")" onclick="ShowPageLoading(); return true;">@RsBase.EXCLUIR_ONUS_EM_MASSA</a>
+                        <a id="iExcluirRegistroONU" class="dropdown-item" href="#">Excluir Registro ONU</a>
+                    }
+                    <a id="iDesautorizarONU" class="dropdown-item" href="#">Desautorizar ONU</a>
+                    <a id="iReiniciarONU" class="dropdown-item" href="#">Reiniciar ONU</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "407"))
+                    {
+                        <a id="iResetarONU" class="dropdown-item" href="#">Resetar ONU</a>
+                    }
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-6">
+
+                        <div class="form-group">
+                            <label for="iPOP">@RsCadastros.POP</label>
+                            <select class="form-control" id="iPOP">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iSlot">@RsCadastros.SLOT</label>
+                            <select class="form-control" id="iSlot">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iCliente">@RsCadastros.CLIENTE</label>
+                            <select class="form-control" id="iCliente">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iPlano">@RsCadastros.PLANO</label>
+                            <select class="form-control" id="iPlano">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iLoginRadius">@RsCadastros.LOGIN_RADIUS</label>
+                            <select class="form-control" id="iLoginRadius">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iStatus">@RsCadastros.STATUS</label>
+
+                            @Html.DropDownList("iStatus", Enum.GetValues(typeof(Sinapse.Model.enumerados.StatusONU))
+                                                .Cast<Sinapse.Model.enumerados.StatusONU>()
+                                                .OrderBy(e => Enum.GetName(typeof(Sinapse.Model.enumerados.StatusONU), e))
+                                                .Select(e => new SelectListItem
+                                                {
+                                                    Value = ((int)e).ToString(),
+                                                    Text = e.ToString()
+                                                }), RsBase.SELECIONE, new { @class = "form-control", @id = "iStatus", @autocomplete = "off" })
+                        </div>
+
+                    </div>
+
+                    <div class="col-sm-6">
+
+                        <div class="form-group">
+                            <label for="iOLT">@RsCadastros.OLT</label>
+                            <select class="form-control" id="iOLT">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iPON">@RsCadastros.PON</label>
+                            <select class="form-control" id="iPON">
+                                <option>@RsBase.SELECIONE</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iPortaFTTH">@RsCadastros.PORTA_FTTH</label>
+                            <input class="form-control" type="text" maxlength="20" id="iPortaFTTH" placeholder="Digite a @RsCadastros.PORTA_FTTH" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iCaixaFTTH">@RsCadastros.CAIXA_FTTH</label>
+                            <input class="form-control" type="text" maxlength="20" id="iCaixaFTTH" placeholder="Digite a @RsCadastros.CAIXA_FTTH" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="iVLAN">@RsCadastros.VLAN &emsp;&emsp;&nbsp;</label>
+                            <input class="form-control" type="text" maxlength="20" id="iVLAN" placeholder="Digite a @RsCadastros.VLAN" />
+                        </div>
+
+                        @*
+                            <div class="form-group">
+                                <label for="iVLAN" class="mr-3">@RsCadastros.VLAN:</label>
+                                @Html.TextBoxFor(model => model.VLAN, new { @class = "form-control", @id = "iVLAN", @autocomplete = "off" })
+                                @Html.ValidationMessageFor(model => model.VLAN, "", new { @class = "text-danger" })
+                            </div>
+                        *@
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Modal - Mensagem de confirmação para deletar ONU do banco -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" role="dialog" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                ONU não encontrada na OLT. Deseja remover a ONU dos registros?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Não</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteButton">Sim</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para confirmação de exclusão do registro da ONU -->
+<div id="confirmationModal" class="modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmação da operação</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Você tem certeza que deseja excluir a ONU? Esta ação resultará na remoção permanente do registro da ONU no sistema.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeletion">Excluir</button>
+            </div>
+        </div>
+    </div>
+</div>

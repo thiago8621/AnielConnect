@@ -1,0 +1,769 @@
+﻿@model Aniel.Connect.Models.OLTCadastroModel
+@using System.Linq
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_OLT;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/maskip")
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+        let ip, ipTL1;
+
+    let clicked = false;
+
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            ExcluirGrupoArea();
+
+            let ip_value = ip.getIp();
+            $('#iHiddenIp').val(ip_value);
+
+            let ipTL1_value = ipTL1.getIp()
+            $('#iHiddenIpTL1').val(ipTL1_value)
+
+            clicked = true;
+
+            let erro = false
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if ($("#iGrupoArea option:selected").val() && !$("#iArea option:selected").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.AREA)", "warning");
+                erro = true;
+            }
+
+            ValidaCampoIP(ip, "iIP")
+
+            /*if (ipTL1 != undefined && ipTL1 != null && ipTL1 != '') {
+                ValidaCampoIP(ipTL1, "iIpServidorTL1")
+            }*/
+
+            if (!$("#iPortaSSH").val() && !$("#iPortaTelnet").val() && !$("#iPortaTL1").val() && !$("#iPortaTL1_SSH").val()) {
+                Notificar("@RsBase.ATENCAO_", "É obrigatório informar ao menos uma porta de comunicação com a OLT (SSH, Telnet ou TL1)", "warning");
+                erro = true;
+            }
+
+	        if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+
+            return true;
+        }
+
+        $("#btnTestarConexao").on("click", function () {
+            ShowPageLoading()
+
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/OLTApi/TesteConexao",
+                type: "POST",
+                data: {
+                    IP: ip.getIp(),
+                    Login: $("#iLogin").val(),
+                    Senha: $("#iSenha").val(),
+                    PortaSsh: $("#iPortaSSH").val(),
+                    PortaTelnet: $("#iPortaTelnet").val(),
+                    IPTL1: ipTL1.getIp(),
+                    UsuarioTL1: $("#iLoginTL1").val(),
+                    SenhaTL1: $("#iSenhaTL1").val(),
+                    PortaTL1: $("#iPortaTL1").val()
+
+                }
+            })
+            .done(function (data) {
+                if (data.ok) {
+                    const protocolosNaoConectado = data.objeto.filter(p => p.conectado == false)
+                    protocolosNaoConectado.forEach(p => Notificar("@RsBase.ATENCAO_", `Não foi possível se conectar pelo protocolo ${p.protocolo}`, "warning"))
+
+                    const protocolosConectado = data.objeto.filter(p => p.conectado == true)
+                    protocolosConectado.forEach(p => Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Conexão pelo protocolo ${p.protocolo} realizada com sucesso`, "info"))
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                }
+
+                HidePageLoading()
+            })
+        })
+
+    $('#iMarcaModelo').on("change", function () {
+        var marca_modelo = $('#iMarcaModelo option:selected').val();
+
+        if (marca_modelo === "1" || marca_modelo === "10") {
+            $('.versaoOLT').show();
+        }
+        else {
+            $('.versaoOLT').hide();
+        }
+    })
+
+    $('#iGrupoArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea').empty();
+            $('#iLocalidade').empty();
+
+            $.ajax({
+                url: enderecoApi,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function (data) {
+
+                $('#iArea').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+
+                $.each(data.objeto, function (key, value) {
+                    $('#iArea').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+                var grupo_area = $('#iGrupoArea option:selected').val();
+                var area = $('#iArea option:selected').val();
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+                $('#iLocalidade').empty();
+
+                $.getJSON(enderecoApi, function (data) {
+                    $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+
+                    $.each(data.objeto, function (key, value) {
+                        $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+                });
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                parent.App.stopPageLoading();
+            });
+
+    });
+
+     var oDatatableGrupoArea;
+        var array = @Html.Raw(Json.Encode(Model.GruposArea));
+        let ListaExclusao = [];
+        function handleExcluirGrupoArea() {
+            $(".btnExcluirGrupoArea").unbind('click');
+            $(".btnExcluirGrupoArea").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("excluir");
+
+                var trLinkButton = $(this).parents('tr');
+
+                if (idArquivo == 0) {
+
+                    oDatatableGrupoArea.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    ListaExclusao.push(parseInt(idArquivo));
+                    oDatatableGrupoArea.row(trLinkButton).remove().draw(false);
+
+                }
+            });
+        }
+
+        function ExcluirGrupoArea() {
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/OLT_Grupo_AreaApi/ExcluirGrid")';
+            if (ListaExclusao.length !== 0)
+            {
+                $.ajax({
+                    url: link,
+                    dataType: 'json',
+                    data: { ids: ListaExclusao },
+                    type: 'POST',
+                    dataType: 'json',
+                })
+                    .done(function (data) {
+                        ListaExclusao = [];
+                        if (data.ok) {
+                            oDatatableGrupoArea.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+            }
+        }
+
+        //datatable Grupo e Area
+        var handleDataTableButtonsGrupoArea = function () {
+            "use strict";
+
+            var nome_lista = "GruposArea"; //Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatableGrupoArea = $("#datatableGrupoArea").length && $("#datatableGrupoArea").DataTable({
+                dom: "Bfrti",
+                rowId: 'extn',
+                select: true,
+                language: traducaoDataTableSimples,
+                data: array,
+                pageLength: 50,
+                columns: [
+                    {
+                        data: "Id",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+
+                            const botaoexcluir = row.Id == 0;
+
+                            return (botaoexcluir ? '<a href="#" class="btnExcluirGrupoArea" id="btnExcluirGrupoArea_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>' +
+
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Area" name="' + nome_lista + '[' + meta.row + '].Cod_Area" type="hidden" value="' + TrataNulo(row.Cod_Area) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Escritorio" name="' + nome_lista + '[' + meta.row + '].Cod_Escritorio" type="hidden" value="' + TrataNulo(row.Cod_Escritorio) + '">'
+
+                                :  //else
+
+                                '<a href="#" class="btnExcluirGrupoArea" id="btnExcluirGrupoArea_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Area" name="' + nome_lista + '[' + meta.row + '].Cod_Area" type="hidden" value="' + TrataNulo(row.Cod_Area) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Escritorio" name="' + nome_lista + '[' + meta.row + '].Cod_Escritorio" type="hidden" value="' + TrataNulo(row.Cod_Escritorio) + '">'
+                            );
+                        }
+                    },
+                    {
+                        data: "Desc_Escritorio",
+                        title: "@RsCadastros.GRUPO_AREA",
+                        orderable: true,
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Escritorio" name="' + nome_lista + '[' + meta.row + '].Desc_Escritorio" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Desc_Area",
+                        title: "@RsCadastros.AREA",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data  + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Area" name="' + nome_lista + '[' + meta.row + '].Desc_Area" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                ]
+            });
+
+            $("#btnAdicionarGrupoArea").unbind('click');
+            $("#btnAdicionarGrupoArea").on('click', async function () {
+
+                var erro = false;
+
+                        if (!$("#iGrupoArea option:selected").val()) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.GRUPO_AREA)", "warning");
+                            erro = true;
+                        }
+
+                        if (!$("#iArea option:selected").val()) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.AREA)", "warning");
+                            erro = true;
+                        }
+
+                        var colunas =
+                        [
+                            "Cod_Escritorio",
+                            "Cod_Area"
+                        ];
+                        var valores =
+                        [
+                            $("#iGrupoArea option:selected").val(),
+                            $("#iArea option:selected").val()
+                        ];
+
+                        if (ExisteValoresNasColunas(oDatatableGrupoArea,valores,colunas))
+                        {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.GRUPO_AREA + " e " + RsCadastros.AREA )", "warning");
+                            erro = true;
+                        }
+
+
+                        if (erro) {
+                            return false;
+                        }
+
+                        oDatatableGrupoArea.row.add({
+                            Id: 0,
+                            Cod_Area: $("#iArea option:selected").val(),
+                            Cod_Escritorio: $("#iGrupoArea option:selected").val(),
+                            Desc_Escritorio: $("#iGrupoArea option:selected").text(),
+                            Desc_Area: $("#iArea option:selected").text(),
+
+                        }).draw(false);
+
+                        handleExcluirGrupoArea();
+
+                        $('#iGrupoArea').val("")
+                        $('#iArea').val("")
+
+            });
+        },
+            TableManageButtonsGrupoArea = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsGrupoArea();
+                        handleExcluirGrupoArea();
+                    }
+                }
+            }();
+
+        TableManageButtonsGrupoArea.init();
+
+        $('#iArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var area = $('#iArea option:selected').val();
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+            $('#iLocalidade').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+                $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+                    $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+            });
+        });
+
+        $(document).ready(function () {
+
+            ip = $('#iIP').ipInput();
+            ipTL1 = $('#iIpServidorTL1').ipInput();
+
+            var getMarcaModelo = $('#iMarcaModelo option:selected').val();
+
+            if (getMarcaModelo === "1" || getMarcaModelo === "10") {
+                $('.versaoOLT').show();
+            }
+            else {
+                $('.versaoOLT').hide();
+            }
+
+            $('.ip-input-container').addClass('form-control')
+
+            ip.setIp('@Model.Ip');
+            ipTL1.setIp('@Model.IpTL1')
+
+            AddSelect("iPOP", "@CONSTANTES.URLPortal/api/POPapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdPOP", "@RsBase.SELECIONE", false);
+
+            if ($("#iGrupoArea").val())
+            {
+                $("#iGrupoArea").trigger('change');
+            }
+
+            $("#iConfigPppoeManual").trigger('change');
+
+            $('#iDelay').on('input', function () {
+                const max = parseInt($(this).attr('max'), 10);
+               if (parseInt($(this).val(), 10) > max) {
+                    $(this).val(max);
+                    $('#iDelayMessage').show();
+
+                }
+                else {
+                    $('#iDelayMessage').hide();
+                }
+            });
+        })
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "OLT", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div>
+        <div class="card" style="border:none;">
+            <div class="card-body">
+
+                <div class="row">
+                    <div class="col-auto mr-auto">
+                        <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "OLT")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_OLT</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                        <span style="font-size:11px" id="dtLegend"></span>
+                    </div>
+                    <div class="col-auto mb-3">
+                        <div class="row title-page">
+                            <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                <a class="dropdown-item" id="btnTestarConexao" href="#" onclick="return false;">@RsCadastros.TESTAR_CONEXAO</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">Cadastro</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iId">@RsCadastros.ID:</label>
+                                        @Html.TextBoxFor(p => p.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCodigoAuxiliar">@RsCadastros.CODIGO_AUXILIAR:</label>
+                                        @Html.TextBoxFor(p => p.CodigoAuxiliar, new { @class = "form-control integer", @id = "iCodigoAuxiliar", @autocomplete = "off", @type = "text" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iNumOLT">@RsCadastros.NUM_OLT:</label>
+                                        @Html.TextBoxFor(p => p.NumOLT, new { @class = "form-control integer", @id = "iNumOLT", @autocomplete = "off", @type = "text" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.NOME_OLT:</label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control obrigatorio", @id = "iDescricao", @placeholder = "Informe a Descrição OLT", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iMarcaModelo">@RsCadastros.MARCA_MODELO:</label>
+                                        @Html.DropDownListFor(m => m.Marca_Modelo, EnumHelper.GetSelectList(typeof(Sinapse.Model.enumerados.Marca_Modelo_OLT)).OrderBy(x => x.Text), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iMarcaModelo", @autocomplete = "off" })
+                                    </div>
+                                    <div class="form-group versaoOLT">
+                                        <label for="iVersaoOLT">@RsCadastros.VERSAO_OLT:</label>
+                                        @Html.DropDownListFor(m => m.Versao_OLT, EnumHelper.GetSelectList(typeof(Sinapse.Model.enumerados.Versao_OLT)).OrderBy(x => x.Text), RsBase.SELECIONE, new { @class = "form-control", @id = "iVersaoOLT", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1">
+                                    @if (Model.Id != 0)
+                                    {
+                                        <div class="form-group">
+                                            <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label><br />
+                                            @Html.CheckBoxFor(m => m.Status, new { @class = "form-control obrigatorio", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iSubrack">Subrack</label>
+                                        @Html.TextBoxFor(p => p.Subrack, new { @class = "form-control", id = "iSubrack" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <label for="iPOP">@RsCadastros.POP:</label>
+                                    @Html.DropDownListFor(m => m.IdPOP, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPOP", @autocomplete = "off" })
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iIP">@RsCadastros.IP:</label>
+                                        @Html.HiddenFor(model => model.Ip, new { id = "iHiddenIp" })
+                                        <div id="iIP" class="ip-input">
+                                            <div class="ip-input-container form-control">
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iTipo_Identificacao">@RsCadastros.TIPO_IDENTIFICACAO:</label>
+                                        @Html.EnumDropDownListFor(m => m.Tipo_Identificacao, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iTipo_Identificacao", @autocomplete = "off" })
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="iCoverteOlt" class="mr-3">@RsCadastros.CONVERTE_OLT:</label><br />
+                                        @Html.CheckBoxFor(m => m.ConverteOlt, new { @class = "form-control obrigatorio", @id = "iCoverteOlt", @name = " iCoverteOlt", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iDelay">@RsCadastros.DELAY:</label>
+                                        @Html.TextBoxFor(p => p.Delay, new { @class = "form-control", id = "iDelay", type = "number", max = "10000", })
+                                        <small id="iDelayMessage" style="color: red; display: none;">
+                                            Insira um valor menor ou igual a 10.000.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iLimitePotenciaOnuBaixa" class="mr-1">@RsCadastros.POTENCIA_MAXIMA_SAIDA:</label>
+                                        <!--<i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" title="Detalhes potência ONU Baixa" data-content="Se o técnico tentar baixar a OS com potência de sinal da ONU acima deste limite informado o sistema irá gerar crítica, impedindo o processo."></i>
+                                        <br>-->
+                                        @Html.TextBoxFor(p => p.LimitePotenciaONUBaixa, new { @class = "form-control", @id = "iLimitePotenciaOnuBaixa", @autocomplete = "off", @type = "number" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iLogin" class="mr-3">@RsCadastros.LOGIN:</label><br>
+                                        @Html.TextBoxFor(model => model.Login, new { @class = "form-control obrigatorio", @id = "iLogin", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iSenha" class="mr-3">@RsCadastros.SENHA:</label><br>
+                                        @Html.TextBoxFor(model => model.Senha, new { @class = "form-control obrigatorio", @id = "iSenha", @type = "password", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaTelnet">@RsCadastros.PORTA_TELNET:</label>
+                                        @Html.TextBoxFor(p => p.PortaTelnet, new { @class = "form-control", id = "iPortaTelnet" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaAPI">@RsCadastros.PORTA_API:</label>
+                                        @Html.TextBoxFor(p => p.PortaAPI, new { @class = "form-control", id = "iPortaAPI" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaHTTP">@RsCadastros.PORTA_HTTP:</label>
+                                        @Html.TextBoxFor(p => p.PortaHTTP, new { @class = "form-control", id = "iPortaHTTP" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaSSH">@RsCadastros.PORTA_SSH:</label>
+                                        @Html.TextBoxFor(p => p.PortaSSH, new { @class = "form-control", id = "iPortaSSH" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iVlanUplink">@RsCadastros.VLAN_UPLINK:</label>
+                                        @Html.TextBoxFor(p => p.VLAN_Uplink, new { @class = "form-control", @type = "number", @id = "iVlanUplink", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iConfigPppoeManual" class="mr-3">@RsCadastros.GERAR_ALERTA_PPPOE_MANUAL?</label>
+                                        <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" title="@RsCadastros.CONFIGURACAO_PPPOE_MANUAL?" data-content="Com esta opção marcada, caso seja necessário configurar o PPPOE de forma manual na ONU o sistema gerará um alerta no momento do provisionamento."></i>
+                                        <br />
+                                        @Html.CheckBoxFor(m => m.Config_PPPOE_Manual, new { @class = "form-control", @id = "iConfigPppoeManual", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card div-card-accord mt-2">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">Servidor TL1</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iIpServidorTL1">@RsCadastros.IP_TL1</label>
+                                        @Html.HiddenFor(p => p.IpTL1, new { id = "iHiddenIpTL1" })
+                                        <div id="iIpServidorTL1" class="ip-input">
+                                            <div class="ip-input-container form-control">
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                                <i class="ip-input-dot"></i>
+                                                <input type="text" class="ip-input-item" value="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iLoginTL1">@RsCadastros.LOGIN_TL1</label>
+                                        @Html.TextBoxFor(p => p.LoginTL1, new { @class = "form-control", id = "iLoginTL1" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iSenhaTL1">@RsCadastros.SENHA_TL1</label>
+                                        @Html.TextBoxFor(p => p.SenhaTL1, new { @class = "form-control", type = "password", id = "iSenhaTL1" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaTL1">@RsCadastros.PORTA_TL1</label>
+                                        @Html.TextBoxFor(p => p.PortaTL1, new { @class = "form-control", id = "iPortaTL1" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPortaTelnet">@RsCadastros.PORTA_TL1_SSH:</label>
+                                        @Html.TextBoxFor(p => p.PortaTL1_SSH, new { @class = "form-control", id = "iPortaTL1_SSH" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iGabinete">Gabinete</label>
+                                        @Html.TextBoxFor(p => p.Gabinete, new { @class = "form-control", id = "iGabinete" })
+                                    </div>
+                                </div>
+                                @*<div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iSubrack">Subrack</label>
+                                            @Html.TextBoxFor(p => p.Subrack, new { @class = "form-control", id = "iSubrack" })
+                                        </div>
+                                    </div>*@
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card div-card-accord mt-2">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">Cadastro/Listagem de Grupos e Áreas vinculados a OLT</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+                            <div class="row mt-2">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                                        @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(ViewBag.GruposArea, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoArea" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iArea">@RsCadastros.AREA:</label>
+                                        @Html.DropDownListFor(model => model.Cod_Area, new SelectList(ViewBag.Areas), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" style="margin-left: auto;margin-right: 0;">
+                                    <div class="form-group">
+                                        <div class="text-right mt-2" style="margin-right: 100px;">
+                                            <button type="button" id="btnAdicionarGrupoArea" class="btn btn-success"><i class="fas fa-check"></i> @RsCadastros.INSERIR_GRUPO_AREA</button>
+                                            <a target="_blank" href="@Url.Action("Login", "Home")" onclick="ShowPageLoading(); return true;"></a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap text-left" id="datatableGrupoArea" style="width:100%;"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "OLT")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+}

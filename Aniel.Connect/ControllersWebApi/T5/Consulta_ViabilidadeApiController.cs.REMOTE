@@ -1,0 +1,1050 @@
+﻿using Aniel.Connect.ConnectBusiness.Connect;
+using Aniel.Connect.ConnectBusiness.T5.Consulta_de_Viabilidade;
+using Aniel.Connect.Core;
+using Aniel.Connect.Core.Models;
+using Aniel.Connect.Model.enumerado;
+using Aniel.Connect.Model.nhibernate;
+using Aniel.Connect.Models;
+using Aniel.Connect.Models.T5;
+using Aniel.Connect.Repository.Cidade;
+using Aniel.Connect.Repository.ConfiguracoesGerais;
+using Aniel.Connect.Repository.ConsultaViabilidade;
+using Aniel.Connect.Repository.EnderecoCliente;
+using Aniel.Connect.Repository.EnderecoLogradouro;
+using Aniel.Connect.Repository.EtapaVenda;
+using Aniel.Connect.Repository.Model;
+using Aniel.Connect.Repository.MotivoInviabilidade;
+using Aniel.Connect.Repository.Repository.T5.ElementoRedeEnderecos;
+using Aniel.Connect.Repository.T5.AreaCoberturaMongo;
+using Aniel.Connect.Repository.T5.ElementoRede;
+using Aniel.Connect.Repository.T5.ElementoRedeEnderecos;
+using Aniel.Connect.Repository.T5.ElementoRedePorta;
+using Aniel.Connect.Repository.Venda;
+using Aniel.T5.Model.nhibernate;
+using Microsoft.AspNet.Identity;
+using NHibernate;
+using Sinapse.DAO.MongoDB;
+using Sinapse.DAO.repository;
+using Sinapse.Model;
+using Sinapse.Model.enumerados;
+using Sinapse.Util;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Web.Http;
+
+
+namespace Aniel.Connect.ControllersWebApi.T5
+{
+    public class Consulta_ViabilidadeApiController : BaseApiController
+    {
+        /// <summary>
+        /// <summary>
+        ///  Listagem de caixas e planos/produtos disponíveis dentro do raio de lat/long
+        /// </summary>
+        /// <param name="latitude"></param>
+        /// <param name="longitude"></param>
+        /// <returns></returns>
+        [HttpGet]        
+        [Route("api/Consulta_ViabilidadeApi/ConsultaViabilidadeVendas")]
+        public async Task<GetApiRetorno<List<Consulta_ViabilidadeCaixa>>> ConsultaViabilidadeVendas(
+            Double? latitude,
+            Double? longitude,
+            Int64? IdVenda = null,
+            long? cliente_PlanoProduto = null,
+            long? cliente = null,
+            long? idLogradouro = null,
+            string numero = null,
+            string logradouro = "",
+            long? cidade = null
+        )
+        {
+            var retorno = new GetApiRetorno<List<Consulta_ViabilidadeCaixa>>();
+
+
+            //              -------/   Uso das Sessions   /-------
+            using (ISession sessionT5 = HibernateUtil.GetSessionT5())
+            using (ISession session = HibernateUtil.GetSession())
+
+            //              -------/   Uso dos Repositórios do T5  /-------
+            using (Conexao<Elemento_Rede> repoElemento = new Conexao<Elemento_Rede>(sessionT5))
+            using (Conexao<Elemento_Rede_Porta> repoPortas = new Conexao<Elemento_Rede_Porta>(sessionT5))
+            using (Conexao<Elemento_Rede_Enderecos> repoAdress = new Conexao<Elemento_Rede_Enderecos>(sessionT5))
+
+            //              -------/   Uso dos Repositórios do Connect   /-------
+            using (Conexao<Configuracoes_Gerais> repoConfig = new Conexao<Configuracoes_Gerais>(session))
+            using (Conexao<Venda> repoVenda = new Conexao<Venda>(session))
+            using (Conexao<Endereco_Logradouro> repoLogradouro = new Conexao<Endereco_Logradouro>(session))
+            using (Conexao<Endereco_Cliente> repoEnderecoCliente = new Conexao<Endereco_Cliente>(session))
+            using (Conexao<Cliente> repoCliente = new Conexao<Cliente>(session))
+            using (Conexao<Venda_Ultimo_Contato> repoVenda_Ultimo_Contato = new Conexao<Venda_Ultimo_Contato>(session))
+            {
+                try
+                {
+                    Configuracoes_Gerais config = await repoConfig.selectFirst();
+                    List<Elemento_Rede> caixasPossiveis = new List<Elemento_Rede>();
+                    List<Elemento_Rede> caixasRaio = new List<Elemento_Rede>();
+                    List<Consulta_ViabilidadeCaixa> caixa_via = new List<Consulta_ViabilidadeCaixa>();
+
+                    if (config.Disponibilidade.HasValue)
+                    {
+                        var raio = (config.Disponibilidade) / 1000.0;
+
+                        // Calculo da lat/long mínima e máxima
+                        var kmInLongitudeDegree = 111.320 * Math.Cos(Convert.ToDouble(latitude) / 180.0 * Math.PI);
+
+                        var deltaLat = raio / 111.1;
+                        var deltaLong = raio / kmInLongitudeDegree;
+
+                        var minLat = latitude - deltaLat;
+                        var maxLat = latitude + deltaLat;
+                        var minLong = longitude - deltaLong;
+                        var maxLong = longitude + deltaLong;
+
+
+
+                        caixasRaio = (await repoElemento.select(p =>
+                            (p.Latitude >= minLat) &&
+                            (p.Latitude <= maxLat) &&
+                            (p.Longitude >= minLong) &&
+                            (p.Longitude <= maxLong) &&
+                            p.Capacidade > 0
+
+                        )).ToList();
+                    }
+
+
+                    if (caixasRaio.Count == 0)
+                    {
+                        var listagemLogradouroElemento = new List<Elemento_Rede_Enderecos>();
+                        var elementos = new List<Elemento_Rede>();
+
+                        if (config.Utiliza_Cadastro_Endereco)
+                        {
+                            listagemLogradouroElemento = (await repoAdress.select(p => p.Id_EnderecoLogradouro == idLogradouro && p.Numero == numero)).ToList();
+
+                            if (listagemLogradouroElemento.Count > 0)
+                            {
+                                elementos = listagemLogradouroElemento.Select(p => p.Elemento_Rede).ToList();
+                            }
+                        }
+                        else
+                        {
+                            using (var repoCidade = new Conexao<Cidade>(session))
+                            {
+                                var registroCidade = await repoCidade.selectFirst(cid => cid.Id == cidade);
+                                if (registroCidade != null)
+                                {
+                                    var enderecoLogradouro = (await repoLogradouro.selectFirst(p => p.Descricao == logradouro && p.Cidade == registroCidade));
+
+                                    if (enderecoLogradouro != null)
+                                    {
+                                        listagemLogradouroElemento = (await repoAdress.select(p => p.Id_EnderecoLogradouro == enderecoLogradouro.Id && p.Numero == numero)).ToList();
+                                        elementos = listagemLogradouroElemento.Select(p => p.Elemento_Rede).ToList();
+                                    }
+
+                                }
+                            }
+                        }
+
+                        foreach (var elemento in elementos.Distinct())
+                        {
+                            caixasRaio.Add(elemento);
+                        }
+                    }
+                    //Aplicação dos motivos de inviabilidade
+
+                    foreach (var caixa in caixasRaio)
+                    {
+                        var portas = await repoPortas.select(p =>
+                            p.Caixa.Id == caixa.Id
+                        );
+
+                        var portasDisponiveis = portas.Where(p => p.Status == Sinapse.Model.enumerados.Situacao_Porta.Disponivel);
+
+                        Elemento_Rede_Porta portaReservadaPlano = cliente_PlanoProduto.HasValue ? portas.FirstOrDefault(p => p.Cliente_Plano_Prod == cliente_PlanoProduto) : null;
+
+                        if (portasDisponiveis.Count() > 0)
+                        {
+
+                            double distanciaCaixa = MapaService.GetMenorDistancia(Convert.ToDouble(latitude),
+                                                                   Convert.ToDouble(longitude),
+                                                                   caixa.Latitude,
+                                                                   caixa.Longitude) / 1852;
+
+                            bool portaReservada = portaReservadaPlano != null;
+
+                            portasDisponiveis = portasDisponiveis.Where(p => p.Cliente_Plano_Prod == null);                            
+
+                            var obj = new Consulta_ViabilidadeCaixa
+                            {
+                                Id = caixa.Id,
+                                Descricao = caixa.Descricao,
+                                Latitude = caixa.Latitude,
+                                Longitude = caixa.Longitude,
+                                PortasDisponiveis = portasDisponiveis.Select(p => p.Porta),
+                                IdsPortasDisponiveis = portasDisponiveis.Select(p => p.Id),
+                                reservada = portaReservada,
+                                DistanciaKm = distanciaCaixa,
+                                Capacidade = caixa.Capacidade,
+                                path = caixa.Tipo?.Icone?.Caminho,
+                                cor = caixa.Tipo?.Cor,
+                            };
+
+                            caixa_via.Add(obj);
+                        }
+                    }
+
+                    retorno.Objeto = caixa_via.OrderBy(p => p.DistanciaKm).ToList();
+
+                    if (IdVenda.HasValue && IdVenda != 0)
+                    {
+                        Venda_Ultimo_Contato historico = new Venda_Ultimo_Contato
+                        {
+                            DataHoraCriacao = DateTime.Now,
+                            Acao = "Verificar Disponibilidade",
+                            Data_Ultimo_Contato = DateTime.Now,
+                            Id_Venda = IdVenda.Value,
+                            Venda = await repoVenda.selectFirst(p => p.Id == IdVenda),
+                            UsuarioCriacao = User.Identity.GetUserId(),
+                            Observacao = retorno.Objeto.Count > 0 ? "Disponível em sua região" : "Indisponível em sua região"
+                        };
+
+                        await repoVenda_Ultimo_Contato.Save(historico);
+                    }
+
+                    retorno.Ok = true;
+
+                }
+                catch (Exception ex)
+                {
+                    retorno.Ok = false;
+
+                    retorno.Objeto = null;
+                    retorno.Mensagem = ex.Message;
+
+                    if (ex.InnerException != null)
+                        retorno.InnerException = ex.InnerException.Message;
+
+                    CONSTANTES.log4Net.Error(ex.Message, ex);
+                }
+            }
+
+            return retorno;
+        }
+        [AllowAnonymous]
+        [HttpPost]
+        [Route("api/Consulta_ViabilidadeApi/ExecutarConsultaViabilidade")]
+        public async Task<GetApiRetorno<ConsultaViabilidadeResponse>> ExecutarConsultaViabilidade(ExecutarConsultaViabilidadeRequest request)
+        {
+            var retorno = new GetApiRetorno<ConsultaViabilidadeResponse>();
+            retorno.Objeto = new ConsultaViabilidadeResponse();
+
+            var motivos = new List<MotivoInviabilidadeConsulta>();
+
+            try
+            {
+                using (ISession sessionNh = HibernateUtil.GetSession())
+                using (ISession sessionT5Nh = HibernateUtil.GetSessionT5())
+                using (var sessionMongo = new ConexaoMongoGeography())
+                using (Conexao<Venda_Ultimo_Contato> repoVenda_Ultimo_Contato = new Conexao<Venda_Ultimo_Contato>(sessionNh))
+                {
+                    IConsultaViabilidadeRepository repoConsultaViabilidade = new ConsultaViabilidadeRepository(sessionT5Nh);
+                    IElementoRedeAnielRepository repoElemRede = new ElementoRedeAnielRepository(sessionT5Nh);
+                    IElementoRedePortaAnielRepository repoPorta = new ElementoRedePortaAnielRepository(sessionNh, sessionT5Nh);
+                    ICidadeRepository repositoryCidade = new CidadeRepository(sessionNh);
+                    IEnderecoLogradouroRepository repositoryEndLogradouro = new EnderecoLogradouroRepository(sessionNh);
+
+                    IElementoRedeEnderecosAnielRepository repositoryElementoRedeEnderecos = new ElementoRedeEnderecosAnielRepository(sessionT5Nh);
+                    IConfiguracoesGeraisRepository repositoryConfig = new ConfiguracoesGeraisRepository(sessionNh);
+                    IMotivoInviabilidadeRepository repoMotivo = new MotivoInviabilidadeRepository(sessionNh);
+                    IAreaCoberturaMongoRepository repoAreaCobertura = new AreaCoberturaMongoRepository(sessionMongo);
+
+                    var consultaViabilidadeBusiness =
+                        new ConsultaViabilidadeBusiness(
+                            repoConsultaViabilidade,
+                            repoElemRede,
+                            repoPorta,
+                            repositoryConfig,
+                            repoMotivo,
+                            repoAreaCobertura
+                        );
+
+                    var config = repositoryConfig.GetConfiguracoesGerais();
+                    var raio = (config.Disponibilidade) / 1000.0;
+
+                    List<Consulta_ViabilidadeCaixa> caixasConsulta = new List<Consulta_ViabilidadeCaixa>();
+                    //Consulta por Cadastro de Endereço
+                    var caixasCadastroEndereco = consultaViabilidadeBusiness.ExecutarEtapaConsultaViabilidade(
+                                                                        new ConsultaViabilidadeCadastroEndereco(request.Latitude,
+                                                                        request.Longitude, request.IdClientePlanoProduto, 
+                                                                        config.Utiliza_Cadastro_Endereco, request.IdEnderecoLogradouro,
+                                                                        request.IdCondominio,request.Numero, request.IdCidade, 
+                                                                        request.Logradouro, request.IdBloco, request.IdApto_Numero, repositoryCidade, 
+                                                                        repositoryElementoRedeEnderecos, repositoryEndLogradouro));
+                    //Consulta por Campo Dentro do Raio
+                   var caixasDentroRaio = consultaViabilidadeBusiness.ExecutarEtapaConsultaViabilidade(
+                                                                        new ConsultaViabilidadeDentroRaio(request.Latitude, 
+                                                                        request.Longitude, request.IdClientePlanoProduto, raio, repoElemRede));
+                    //Consulta por Área de Cobertura
+                    var consultaCobertura = consultaViabilidadeBusiness.ExecutarEtapaConsultaViabilidade(
+                                                                        new ConsultaViabilidadeAreaCobertura(request.Latitude, 
+                                                                        request.Longitude, request.IdClientePlanoProduto, repoAreaCobertura));
+
+                    caixasConsulta.AddRange(caixasCadastroEndereco.caixasEncontradas.ToList());
+                    caixasConsulta.AddRange(caixasDentroRaio.caixasEncontradas.ToList());
+
+                    if ((!caixasCadastroEndereco.aprovacao) || (!caixasDentroRaio.aprovacao) || !consultaCobertura.aprovacao)
+                    {                        
+                        motivos =
+                            consultaViabilidadeBusiness
+                                .VerificarMotivosInviabilidade(
+                                    caixasConsulta,
+                                    request.Latitude,
+                                    request.Longitude,
+                                    consultaCobertura.aprovacao
+                                );
+                    }
+
+                    ConsultaViabilidade consultaViabilidade =
+                        consultaViabilidadeBusiness
+                            .GravarConsultaViabilidade(
+                                request.Latitude,
+                                request.Longitude,
+                                caixasConsulta,
+                                motivos,
+                                config
+                            );
+
+                    if (consultaViabilidade == null)
+                    {
+                        throw new Exception("Erro ao gravar os dados da consulta de viabilidade");
+                    }
+
+                    StatusConsultaViabilidade possuiDisponibilidade = consultaViabilidade.Status;
+                    if (request.IdVenda.HasValue)
+                    {
+                        IVendaRepository repoVenda = new VendaRepository(sessionNh);
+                        IEtapaVendaRepository repoEtapaVenda = new EtapaVendaRepository(sessionNh);
+                        IEnderecoClienteRepository repoEnderecoCliente = new EnderecoClienteRepository(sessionNh);
+                        IConfiguracoesGeraisRepository repoConfiguracao = new ConfiguracoesGeraisRepository(sessionNh);
+
+
+                        var vendaBusiness = new VendaBusiness(repoVenda, repoEnderecoCliente);
+
+                        Venda venda = vendaBusiness.GetVendaById(request.IdVenda.Value);
+
+                        if (venda == null)
+                        {
+                            throw new Exception("Erro ao gravar os dados da consulta de viabilidade,Esta Sem Etapa de Venda");
+                        }
+                        venda.EnderecoInstalacao.Latitude = request.Latitude;
+                        venda.EnderecoInstalacao.Longitude = request.Longitude;
+                    
+                        Venda_Ultimo_Contato historico = new Venda_Ultimo_Contato
+                        {
+                            DataHoraCriacao = DateTime.Now,
+                            Acao = "Verificar Disponibilidade",
+                            Data_Ultimo_Contato = DateTime.Now,
+                            Id_Venda = request.IdVenda.Value,
+                            Venda = venda,
+                            UsuarioCriacao = User.Identity.GetUserId(),
+                            Observacao = possuiDisponibilidade != StatusConsultaViabilidade.Reprovado ? "Disponível em sua região" : "Indisponível em sua região"
+                        };
+                       
+                        vendaBusiness.Update(venda);
+                        vendaBusiness.GravarIdConsultaRestricao(venda, EnumEtapaVenda.ConsultaViabilidade, consultaViabilidade.Id);
+                        await repoVenda_Ultimo_Contato.Save(historico);
+                    }
+                    var listaMotivos = consultaViabilidade.Etapas.SelectMany(p => p.Motivos).ToList();
+                    retorno.Objeto.IdConsultaViabilidade = consultaViabilidade.Id;
+                    retorno.Objeto.PossuiDisponibilidade = possuiDisponibilidade;
+                    retorno.Objeto.Motivos = listaMotivos.Select(p => new MotivoInviabilidadeConsulta                    
+                                                                        {                                                                                                                                                        
+                                                                            Id = p.Id,                                                                                                                                                         
+                                                                            Motivo = p.Motivo,                                                                                                                                                        
+                                                                        }).ToList();
+                    retorno.Objeto.Passos = consultaViabilidadeBusiness.PassosConsultaViabilidade(listaMotivos);
+                    retorno.Objeto.Caixas = caixasConsulta.ToList();
+                    retorno.Objeto.Latitude = request.Latitude;
+                    retorno.Objeto.Longitude = request.Longitude;                    
+                }
+                retorno.Ok = true;
+            }
+            catch (Exception ex)
+            {
+                retorno.Ok = false;
+                retorno.Mensagem = ex.Message;
+
+                if (ex.InnerException != null)
+                    retorno.InnerException = ex.InnerException.Message;
+
+                CONSTANTES.log4Net.Error(ex.Message, ex);
+            }
+
+            return retorno;
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        [Route("api/Consulta_ViabilidadeApi/GetDadosViabilidadeByLatLong")]
+        public GetApiRetorno<ConsultaViabilidadeResponse> GetDadosViabilidadeByLatLong(double lat,
+                                                                                       double lon,
+                                                                                       long? idVenda,
+                                                                                       long? idClientePlanoProduto,
+                                                                                       long? idCliente,
+                                                                                       long? idEnderecoLogradouro,
+                                                                                       long? idCondominio,
+                                                                                       string numero,
+                                                                                       string logradouro,
+                                                                                       long? idCidade)
+        {
+            lat = Convert.ToDouble(string.Format("{0:F7}", lat));
+            lon = Convert.ToDouble(string.Format("{0:F7}", lon));
+
+            var retorno = new GetApiRetorno<ConsultaViabilidadeResponse>();
+            retorno.Objeto = new ConsultaViabilidadeResponse();
+
+            try
+            {
+                using (ISession sessionNh = HibernateUtil.GetSession())
+                using (ISession sessionT5Nh = HibernateUtil.GetSessionT5())
+                using (var sessionMongo = new ConexaoMongoGeography())
+                {
+                    IConsultaViabilidadeRepository repoConsultaViabilidade = new ConsultaViabilidadeRepository(sessionT5Nh);
+                    IElementoRedeAnielRepository repoElemRede = new ElementoRedeAnielRepository(sessionT5Nh);
+                    IElementoRedePortaAnielRepository repoPorta = new ElementoRedePortaAnielRepository(sessionNh,sessionT5Nh);
+                    IConfiguracoesGeraisRepository repoConfig = new ConfiguracoesGeraisRepository(sessionNh);
+                    IMotivoInviabilidadeRepository repoMotivo = new MotivoInviabilidadeRepository(sessionNh);
+                    IAreaCoberturaMongoRepository repoAreaCobertura = new AreaCoberturaMongoRepository(sessionMongo);
+
+                    var consultaViabilidadeBusiness =
+                        new ConsultaViabilidadeBusiness(
+                            repoConsultaViabilidade,
+                            repoElemRede,
+                            repoPorta,
+                            repoConfig,
+                            repoMotivo,
+                            repoAreaCobertura
+                        );
+
+                    ConsultaViabilidade consultaViabilidade = consultaViabilidadeBusiness.GetConsultaViabilidadeByLatLong(lat, lon);
+                    IEnumerable<Consulta_ViabilidadeCaixa> caixasConsulta = new List<Consulta_ViabilidadeCaixa>();
+                    IEnumerable<MotivoInviabilidadeConsulta> motivosConsulta = new List<MotivoInviabilidadeConsulta>();
+
+                    if (consultaViabilidade == null)
+                    {
+                        var retornoExecucao = ExecutarConsultaViabilidade(new ExecutarConsultaViabilidadeRequest
+                        {
+                            Latitude = lat,
+                            Longitude = lon,
+                            IdVenda = idVenda,
+                            IdClientePlanoProduto = idClientePlanoProduto,
+                            IdCliente = idCliente,
+                            IdEnderecoLogradouro = idEnderecoLogradouro,
+                            IdCondominio = idCondominio,
+                            Numero = numero,
+                            Logradouro = logradouro,
+                            IdCidade = idCidade
+                        }).Result;
+
+                        consultaViabilidade = consultaViabilidadeBusiness.GetConsultaViabilidadeByLatLong(lat, lon);
+                    }
+
+                    caixasConsulta = consultaViabilidadeBusiness.GetCaixasByLatLong(lat, lon).caixas.ToList();
+
+                    motivosConsulta =
+                       consultaViabilidadeBusiness.GetMotivosInviabilidadeByLatLong(lat, lon).ToList();
+
+
+                    // Caso não haja caixas disponíveis a API retorna com uma mensagem de erro, assim
+                    // como a API da execução da consulta de viabilidade, para que a estrutura que
+                    // recebe esses dados das caixas na venda seja mantida                   
+                    var listaMotivos = consultaViabilidade.Etapas.SelectMany(p => p.Motivos).ToList();
+                    retorno.Objeto.Latitude = lat;
+                    retorno.Objeto.Longitude = lon;
+                    retorno.Objeto.Caixas = caixasConsulta;
+                    retorno.Objeto.IdConsultaViabilidade = consultaViabilidade.Id;
+                    retorno.Objeto.Motivos = listaMotivos.Select(p => new MotivoInviabilidadeConsulta                                                          
+                                                            {                                       
+                                                                Id = p.Id,                        
+                                                                Motivo = p.Motivo,                        
+                                                            }).ToList();
+
+                    retorno.Objeto.Passos = consultaViabilidadeBusiness.PassosConsultaViabilidade(listaMotivos);
+                    retorno.Objeto.PossuiDisponibilidade = consultaViabilidade.Status;
+                }
+
+                retorno.Ok = true;
+            }
+            catch (Exception ex)
+            {
+                retorno.Ok = false;
+
+                retorno.Objeto = null;
+                retorno.Mensagem = ex.Message;
+
+                if (ex.InnerException != null)
+                    retorno.InnerException = ex.InnerException.Message;
+
+                CONSTANTES.log4Net.Error(ex.Message, ex);
+            }
+
+            return retorno;
+        }
+
+
+        [AllowAnonymous]
+        [HttpGet]
+        [Route("api/Consulta_ViabilidadeApi/GetDadosViabilidadeByVenda")]
+        public GetApiRetorno<ConsultaViabilidadeResponse> GetDadosViabilidadeByVenda(long IdVenda)
+        {
+            var retorno = new GetApiRetorno<ConsultaViabilidadeResponse>();
+            retorno.Objeto = new ConsultaViabilidadeResponse();
+
+            try
+            {
+                using (ISession sessionNh = HibernateUtil.GetSession())
+                using (ISession sessionT5Nh = HibernateUtil.GetSessionT5())
+                using (var sessionMongo = new ConexaoMongoGeography())
+                {
+                    IConsultaViabilidadeRepository repoConsultaViabilidade = new ConsultaViabilidadeRepository(sessionT5Nh);
+                    IElementoRedeAnielRepository repoElemRede = new ElementoRedeAnielRepository(sessionT5Nh);
+                    IElementoRedePortaAnielRepository repoPorta = new ElementoRedePortaAnielRepository(sessionNh, sessionT5Nh);
+                    IConfiguracoesGeraisRepository repoConfig = new ConfiguracoesGeraisRepository(sessionNh);
+                    IMotivoInviabilidadeRepository repoMotivo = new MotivoInviabilidadeRepository(sessionNh);
+                    IAreaCoberturaMongoRepository repoAreaCobertura = new AreaCoberturaMongoRepository(sessionMongo);
+
+                    var consultaViabilidadeBusiness =
+                        new ConsultaViabilidadeBusiness(
+                            repoConsultaViabilidade,
+                            repoElemRede,
+                            repoPorta,
+                            repoConfig,
+                            repoMotivo,
+                            repoAreaCobertura
+                        );
+
+                    IVendaRepository repoVenda = new VendaRepository(sessionNh);
+                    var vendaBusiness = new VendaBusiness(repoVenda);
+
+                    // Caso não haja caixas disponíveis a API retorna com uma mensagem de erro, assim
+                    // como a API da execução da consulta de viabilidade, para que a estrutura que
+                    // recebe esses dados das caixas na venda seja mantida                    
+
+                    IEnumerable<Consulta_ViabilidadeCaixa> caixasConsulta = new List<Consulta_ViabilidadeCaixa>();
+                    IEnumerable<MotivoInviabilidadeConsulta> motivosConsulta = new List<MotivoInviabilidadeConsulta>();
+
+                    ConsultaViabilidade consultaViabilidade = null;
+                    Venda venda = vendaBusiness.GetVendaById(IdVenda);
+
+                    if (venda?.IdConsultaViabilidade != null)
+                    {
+                        consultaViabilidade = consultaViabilidadeBusiness.GetConsultaViabilidadeById(venda.IdConsultaViabilidade.Value);
+                    }
+
+                    if (consultaViabilidade != null)
+                    {
+                        caixasConsulta =
+                            consultaViabilidadeBusiness
+                                .GetCaixasByLatLong(
+                                    consultaViabilidade.Latitude,
+                                    consultaViabilidade.Longitude
+                                ).caixas.ToList();
+
+                        motivosConsulta =
+                            consultaViabilidadeBusiness
+                                .GetMotivosInviabilidadeByLatLong(
+                                    consultaViabilidade.Latitude,
+                                    consultaViabilidade.Longitude
+                                ).ToList();
+                    }
+                  
+                    retorno.Objeto.MotivoAprovacaoManual = venda?.MotivoAprovManualViabilidade;
+                    var listaMotivos = consultaViabilidade?.Etapas.SelectMany(p => p.Motivos).ToList();
+                    if (consultaViabilidade != null) 
+                    {
+                        retorno.Objeto.IdConsultaViabilidade = consultaViabilidade.Id;
+                        retorno.Objeto.Passos = consultaViabilidadeBusiness.PassosConsultaViabilidade(consultaViabilidade?.Motivos);
+                        retorno.Objeto.PossuiDisponibilidade = consultaViabilidade.Status;
+
+                        retorno.Objeto.Latitude = consultaViabilidade?.Latitude;
+                        retorno.Objeto.Longitude = consultaViabilidade?.Longitude;
+                        retorno.Objeto.Caixas = caixasConsulta;
+                        retorno.Objeto.Motivos = listaMotivos.Select(p => new MotivoInviabilidadeConsulta
+                                                              {
+                                                                  Id = p.Id,
+                                                                  Motivo = p.Motivo,
+                                                              })
+                                                              .ToList();
+                    }
+                    else
+                        retorno.Objeto.IdConsultaViabilidade = 0;
+                }
+
+                retorno.Ok = true;
+            }
+            catch (Exception ex)
+            {
+                retorno.Ok = false;
+
+                retorno.Objeto = null;
+                retorno.Mensagem = ex.Message;
+
+                if (ex.InnerException != null)
+                    retorno.InnerException = ex.InnerException.Message;
+
+                CONSTANTES.log4Net.Error(ex.Message, ex);
+            }
+
+            return retorno;
+        }
+
+
+        /// <summary>
+        ///     API que informa se existe consulta de viabilidade para determinadas coordenadas e, caso exista, também retorna os
+        ///     dados da consulta
+        /// </summary>
+        /// <param name="lat">Latitude do local</param>
+        /// <param name="lon">Longitude do local</param>
+        [AllowAnonymous]
+        [HttpGet]
+        [Route("api/Consulta_ViabilidadeApi/ExisteConsultaViabilidade")]
+        public GetApiRetorno<ExisteConsultaViabilidadeResponse> ExisteConsultaViabilidade(double lat, double lon)
+        {
+            var retorno = new GetApiRetorno<ExisteConsultaViabilidadeResponse>
+            {
+                Objeto = new ExisteConsultaViabilidadeResponse()
+            };
+
+            try
+            {
+                using (ISession sessionNh = HibernateUtil.GetSession())
+                using (ISession sessionT5Nh = HibernateUtil.GetSessionT5())
+                using (var sessionMongo = new ConexaoMongoGeography())
+                {
+                    IConsultaViabilidadeRepository repoConsultaViabilidade = new ConsultaViabilidadeRepository(sessionT5Nh);
+                    IElementoRedeAnielRepository repoElemRede = new ElementoRedeAnielRepository(sessionT5Nh);
+                    IElementoRedePortaAnielRepository repoPorta = new ElementoRedePortaAnielRepository(sessionNh,sessionT5Nh);
+                    IConfiguracoesGeraisRepository repoConfig = new ConfiguracoesGeraisRepository(sessionNh);
+                    IMotivoInviabilidadeRepository repoMotivo = new MotivoInviabilidadeRepository(sessionNh);
+                    IAreaCoberturaMongoRepository repoAreaCobertura = new AreaCoberturaMongoRepository(sessionMongo);
+
+                    var consultaViabilidadeBusiness =
+                        new ConsultaViabilidadeBusiness(
+                            repoConsultaViabilidade,
+                            repoElemRede,
+                            repoPorta,
+                            repoConfig,
+                            repoMotivo,
+                            repoAreaCobertura
+                        );
+
+                    ConsultaViabilidade consultaViabilidade = consultaViabilidadeBusiness.GetConsultaViabilidadeByLatLong(lat, lon);
+
+                    retorno.Objeto.ExisteConsulta = consultaViabilidade != null;
+                    retorno.Objeto.PossuiDisponibilidade = consultaViabilidade?.Status;
+                    retorno.Objeto.IdConsultaViabilidade = consultaViabilidade?.Id;
+                    retorno.Objeto.Dados = consultaViabilidadeBusiness.GetCaixasByLatLong(lat, lon).caixas.ToList();
+                }
+
+                retorno.Ok = true;
+            }
+            catch (Exception ex)
+            {
+                retorno.Ok = false;
+
+                retorno.Objeto = null;
+                retorno.Mensagem = ex.Message;
+
+                if (ex.InnerException != null)
+                    retorno.InnerException = ex.InnerException.Message;
+
+                CONSTANTES.log4Net.Error(ex.Message, ex);
+            }
+
+            return retorno;
+        }
+
+        #region Consulta Viabilidade
+        /// <summary>
+        /// <summary>
+        ///  Listagem de caixas e planos/produtos disponíveis dentro do raio de lat/long
+        /// </summary>
+        /// <param name="latitude"></param>
+        /// <param name="longitude"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [Route("api/Elemento_RedeApi/ConsultaViabilidadeVendas")]
+        public async Task<GetApiRetorno<Consulta_ViabilidadeResponseModel>> ConsultaViabilidadeVendas(Consulta_ViabilidadeRequestModel request)
+        {
+            GetApiRetorno<Consulta_ViabilidadeResponseModel> retorno = new GetApiRetorno<Consulta_ViabilidadeResponseModel>
+            {
+                Objeto = new Consulta_ViabilidadeResponseModel()
+            };
+
+            using (ISession sessionT5 = HibernateUtil.GetSessionT5())
+            using (ISession session = HibernateUtil.GetSession())
+            using (Conexao<Configuracoes_Gerais> repoConfig = new Conexao<Configuracoes_Gerais>(session))
+            using (Conexao<Elemento_Rede> repoElemento = new Conexao<Elemento_Rede>(sessionT5))
+
+            using (Conexao<Venda> repoVenda = new Conexao<Venda>(session))
+            using (Conexao<Cliente_PlanoProduto> repoClientePlanoProduto = new Conexao<Cliente_PlanoProduto>(session))
+            using (Conexao<Venda_Ultimo_Contato> repoVenda_Ultimo_Contato = new Conexao<Venda_Ultimo_Contato>(session))
+            using (Conexao<Campanha> repoCampanha = new Conexao<Campanha>(session))
+            using (Conexao<Motivo_Inviabilidade> repoMotivo = new Conexao<Motivo_Inviabilidade>(session))
+            {
+                try
+                {
+                    var cliente = (await repoClientePlanoProduto.selectFirst(p => p.Id == request.Cliente_PlanoProduto))?.Cliente;
+                    //Consulta Serasa
+                    var response = this.GetConsultaCliente(cliente?.CpfCnpj);
+                    if (!response)
+                    {
+                        var reason = Motivo_Principal_InviabilidadeEnum.Situacao_Serasa;
+                        var inviabilidade = await repoMotivo.selectFirst(p => p.Motivo_Principal == reason && p.Status == Status_Default.Ativo);
+                        if (inviabilidade != null)
+                        {
+                            retorno.Objeto.Inviabilidade = new Motivo_InviabilidadeCadastroModel
+                            {
+                                Id = inviabilidade.Id,
+                                Motivo = inviabilidade.Motivo,
+                                Motivo_Principal = inviabilidade.Motivo_Principal,
+                                Status = inviabilidade.Status.HasValue ? Convert.ToBoolean(inviabilidade.Status) : false,
+                            };
+                        }
+
+                    }
+
+                    if (retorno.Objeto.Inviabilidade == null)
+                    {
+                        var Areas = (await GetAreas_Consulta(sessionT5, request.Latitude, request.Longitude));
+                        if (Areas.Count == 0)
+                        {
+                            var reason = Motivo_Principal_InviabilidadeEnum.Sem_Area_Cobertura;
+                            var inviabilidade = await repoMotivo.selectFirst(p => p.Motivo_Principal == reason && p.Status == Status_Default.Ativo);
+                            if (inviabilidade != null)
+                            {
+                                retorno.Objeto.Inviabilidade = new Motivo_InviabilidadeCadastroModel
+                                {
+                                    Id = inviabilidade.Id,
+                                    Motivo = inviabilidade.Motivo,
+                                    Motivo_Principal = inviabilidade.Motivo_Principal,
+                                    Status = inviabilidade.Status.HasValue ? Convert.ToBoolean(inviabilidade.Status) : false,
+                                };
+                            }
+                        }
+                    }
+
+                    if (retorno.Objeto.Inviabilidade == null)
+                    {
+                        Configuracoes_Gerais config = await repoConfig.selectFirst();
+                        var raio = (config.Disponibilidade) / 1000.0;
+
+                        // Calculo da lat/long mínima e máxima
+                        var kmInLongitudeDegree = 111.320 * Math.Cos(Convert.ToDouble(request.Latitude) / 180.0 * Math.PI);
+
+                        var deltaLat = raio / 111.1;
+                        var deltaLong = raio / kmInLongitudeDegree;
+
+                        var minLat = request.Latitude - deltaLat;
+                        var maxLat = request.Latitude + deltaLat;
+                        var minLong = request.Longitude - deltaLong;
+                        var maxLong = request.Longitude + deltaLong;
+
+                        var caixasRaio = await repoElemento.select(p =>
+                            (p.Latitude >= minLat) &&
+                            (p.Latitude <= maxLat) &&
+                            (p.Longitude >= minLong) &&
+                            (p.Longitude <= maxLong) &&
+                            p.Capacidade > 0
+                        );
+
+                        //List<Consulta_ViabilidadeCaixa> caixasViaveis = new List<Consulta_ViabilidadeCaixa>();
+                        List<Campanha> campanhas = (await repoCampanha.select()).Where(p => p.Definir_Area_Cobertura == Status_Default.Ativo).ToList();
+
+                        List<Consulta_ViabilidadeCaixa> caixa_via = (await GetCaixas_Consulta(sessionT5, request.Latitude, request.Longitude, caixasRaio.ToList(), campanhas, request.Cliente_PlanoProduto));
+
+                        if (caixa_via.Count == 0)
+                        {
+                            var reason = Motivo_Principal_InviabilidadeEnum.Sem_Elemento_Rede;
+                            var inviabilidade = await repoMotivo.selectFirst(p => p.Motivo_Principal == reason && p.Status == Status_Default.Ativo);
+
+                            if (inviabilidade != null)
+                            {
+                                retorno.Objeto.Inviabilidade = new Motivo_InviabilidadeCadastroModel
+                                {
+                                    Id = inviabilidade.Id,
+                                    Motivo = inviabilidade.Motivo,
+                                    Motivo_Principal = inviabilidade.Motivo_Principal,
+                                    Status = inviabilidade.Status.HasValue ? Convert.ToBoolean(inviabilidade.Status) : false,
+                                };
+                            }
+                        }
+
+                        if (request.IdVenda.HasValue && request.IdVenda != 0)
+                        {
+                            Venda_Ultimo_Contato historico = new Venda_Ultimo_Contato
+                            {
+                                DataHoraCriacao = DateTime.Now,
+                                Acao = "Verificar Disponibilidade",
+                                Data_Ultimo_Contato = DateTime.Now,
+                                Id_Venda = request.IdVenda.Value,
+                                Venda = await repoVenda.selectFirst(p => p.Id == request.IdVenda),
+                                UsuarioCriacao = User.Identity.GetUserId(),
+                                Observacao = retorno.Objeto.Inviabilidade == null ? "disponível em sua região" : "indisponível em rua região"
+                            };
+
+                            await repoVenda_Ultimo_Contato.Save(historico);
+                        }
+
+                        retorno.Objeto.Caixas_Viaveis = caixa_via.OrderBy(p => p.DistanciaKm).ToList();
+
+                    }
+
+                    retorno.Ok = true;
+
+                }
+                catch (Exception ex)
+                {
+                    retorno.Ok = false;
+                    retorno.Objeto = null;
+                    retorno.Mensagem = ex.Message;
+                    if (ex.InnerException != null) retorno.InnerException = ex.InnerException.Message;
+                    CONSTANTES.log4Net.Error(ex.Message, ex);
+                }
+            }
+
+            return retorno;
+        }
+        #endregion
+
+
+        [AllowAnonymous]
+        [HttpPost]
+        [Route("api/Consulta_ViabilidadeApi/GravarMotivoAprovacaoManual")]
+        public PostApiRetorno GravarMotivoAprovacaoManual(GravarMotivoAprovacaoManualRequest request)
+        {
+            var retorno = new PostApiRetorno();
+            
+            try
+            {
+                using (ISession sessionNh = HibernateUtil.GetSession())
+                using (ISession sessionT5Nh = HibernateUtil.GetSessionT5())
+                {
+                    IVendaRepository repoVenda = new VendaRepository(sessionNh);
+
+                    var vendaBusiness = new VendaBusiness(repoVenda);
+
+                    vendaBusiness.GravarMotivoAprovacaoManualViabilidade(request.IdVenda, request.MotivoAprovacao);
+                }
+
+                retorno.Ok = true;
+            }
+            catch (Exception ex)
+            {
+                retorno.Ok = false;
+                retorno.Mensagem = ex.Message;
+
+                if (ex.InnerException != null)
+                    retorno.InnerException = ex.InnerException.Message;
+
+                CONSTANTES.log4Net.Error(ex.Message, ex);
+            }
+
+            return retorno;
+        }
+
+        /// <summary>
+        /// Consulta de Cpf para verificação de viabilidade aos produtos fornecidos
+        /// </summary>
+        /// <param name="cpfCnpj"></param>
+        /// <returns></returns>
+        private bool GetConsultaCliente(String cpfCnpj)
+        {
+            #region Consulta Cliente 
+            try { }
+            catch (Exception)
+            {//                                      *******      Pro Tip     *******
+                //Use o Quick Watch com o comando (shift + F9) quando debugar a variável $exception para mais detalhes do erro.
+            }
+            return true;
+            #endregion
+        }
+
+        /// <summary>
+        /// Consulta das Áreas de Cobertura para verificação de viabilidade
+        /// </summary>
+        /// <param name="sessionT5"></param>
+        /// <param name="latitude"></param>
+        /// <param name="longitude"></param>
+        /// <returns></returns>
+        private async Task<List<Area_Cobertura>> GetAreas_Consulta(ISession sessionT5, double? latitude, double? longitude)
+        {
+            #region  Consulta Areas 
+            var retorno = new List<Area_Cobertura>();
+            var HandlerArea = new GeographyPattern();
+            try
+            {
+                using (Conexao<Area_Cobertura> repoArea_Cobertura = new Conexao<Area_Cobertura>(sessionT5))
+                {
+                    var areas = (await repoArea_Cobertura.select(p => p.Situacao == Status_Default.Ativo)).ToList();
+
+                    foreach (var area in areas)
+                    {
+                        Dictionary<List<Location>, bool> e_valido = new Dictionary<List<Location>, bool>();
+                        var Poligonos = JsonService.DeserializeObject<List<List<Double>>>(area.Coordenadas);
+                        List<List<Location>> locations = Poligonos.Select(poligono =>
+                        {
+                            List<Location> locationsPoly = new List<Location>();
+                            for (int iterator = 0; iterator < poligono.Count; iterator++)
+                            {
+                                locationsPoly.Add(new Location(poligono[iterator], poligono[++iterator]));
+                            }
+                            return locationsPoly;
+                        }).ToList();
+
+
+                        foreach (var loc in locations)
+                        {
+                            var validado = HandlerArea.IsPointInPolygon(loc, new Location(latitude.Value, longitude.Value));
+                            e_valido.Add(loc, validado);
+                        }
+
+                        if (e_valido.Any(p => p.Value))
+                        {
+                            retorno.Add(area);
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                //                                      *******      Pro Tip     *******
+                //Use o Quick Watch com o comando (shift + F9) quando debugar a variável $exception para mais detalhes do erro.
+            }
+
+            return retorno;
+            #endregion
+        }
+
+        /// <summary>
+        /// Verificação das Caixas viáveis na consulta
+        /// </summary>
+        /// <param name="sessionT5"></param>
+        /// <param name="latitude"></param>
+        /// <param name="longitude"></param>
+        /// <param name="elements"></param>
+        /// <param name="campanhas"></param>
+        /// <param name="cpp"></param>
+        /// <returns></returns>
+        private async Task<List<Consulta_ViabilidadeCaixa>> GetCaixas_Consulta(ISession sessionT5, double? latitude, double? longitude, List<Elemento_Rede> elements, List<Campanha> campanhas, long? cpp)
+        {
+            #region Consulta Caixas 
+            var retorno = new List<Consulta_ViabilidadeCaixa>();
+            var HandlerArea = new GeographyPattern();
+
+            try
+            {
+                using (Conexao<Area_Cobertura> repoArea_Cobertura = new Conexao<Area_Cobertura>(sessionT5))
+                using (Conexao<Elemento_Rede_Porta> repoPortas = new Conexao<Elemento_Rede_Porta>(sessionT5))
+                {
+                    foreach (var caixa in elements)
+                    {
+                        var campanhas_validadas = new List<Campanha>();
+
+                        var portas = await repoPortas.select(p =>
+                            p.Caixa.Id == caixa.Id
+                        );
+
+                        var portasDisponiveis = portas.Where(p => p.Status == Sinapse.Model.enumerados.Situacao_Porta.Disponivel);
+
+                        Elemento_Rede_Porta portaReservada = cpp.HasValue ? portas.FirstOrDefault(p => p.Cliente_Plano_Prod == cpp) : null;
+
+
+                        if (portasDisponiveis.Count() > 0)
+                        {
+
+                            var distanciaCaixa = MapaService.GetMenorDistancia(Convert.ToDouble(latitude),
+                                                                   Convert.ToDouble(longitude),
+                                                                   caixa.Latitude,
+                                                                   caixa.Longitude) / 1852;
+
+                            foreach (var campanha in campanhas)
+                            {
+                                campanha.AreaCobertura.Select(async (area) =>
+                                {
+                                    var obj = (await repoArea_Cobertura.selectFirst(p => p.Id == area.Area_Cobertura.Value));
+                                    var locations = JsonService.DeserializeObject<List<List<Double>>>(obj.Coordenadas).Select(coordinates =>
+                                    {
+                                        return new Location(coordinates[0], coordinates[1]);
+                                    }).ToList();
+
+                                    var viabilidade_in_Area = HandlerArea.IsPointInPolygon(locations, new Location(caixa.Latitude.Value, caixa.Longitude.Value));
+
+                                    if (viabilidade_in_Area)
+                                    {
+                                        campanhas_validadas.Add(campanha);
+                                    }
+                                });
+                            }
+
+                            var disponiveis = portasDisponiveis.Where(p => p.Cliente_Plano_Prod == null).Select(p => p.Porta).ToList();
+                            if (campanhas_validadas.Count > 0)
+                                foreach (var validado in campanhas_validadas)
+                                {
+                                    var obj = new Consulta_ViabilidadeCaixa
+                                    {
+                                        Id = caixa.Id,
+                                        Descricao = caixa.Descricao,
+                                        Latitude = caixa.Latitude,
+                                        Longitude = caixa.Longitude,
+                                        CampanhaVinculada = validado.Titulo,
+                                        PortasDisponiveis = disponiveis,
+                                        reservada = portaReservada == null ? false : true,
+                                        DistanciaKm = distanciaCaixa,
+                                        Capacidade = caixa.Capacidade,
+                                        path = caixa.Tipo?.Icone?.Caminho,
+                                        cor = caixa.Tipo?.Cor,
+                                    };
+
+                                    retorno.Add(obj);
+                                }
+
+                            else
+                            {
+                                var obj = new Consulta_ViabilidadeCaixa
+                                {
+                                    Id = caixa.Id,
+                                    Descricao = caixa.Descricao,
+                                    Latitude = caixa.Latitude,
+                                    Longitude = caixa.Longitude,
+                                    CampanhaVinculada = String.Empty,
+                                    PortasDisponiveis = disponiveis,
+                                    reservada = portaReservada == null ? false : true,
+                                    DistanciaKm = distanciaCaixa,
+                                    Capacidade = caixa.Capacidade,
+                                    path = caixa.Tipo?.Icone?.Caminho,
+                                    cor = caixa.Tipo?.Cor,
+                                };
+
+                                retorno.Add(obj);
+                            }
+
+                        }
+
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                //                                      *******      Pro Tip     *******             
+                //Use o Quick Watch com o comando (shift + F9) quando debugar a variável $exception para mais detalhes do erro.
+            }
+
+            return retorno;
+            #endregion
+        }       
+    }
+}

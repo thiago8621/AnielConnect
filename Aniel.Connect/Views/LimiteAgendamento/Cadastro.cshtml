@@ -1,0 +1,360 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@model Aniel.Connect.Repository.Model.LimiteAgendamentoModel
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_LIMITE_AGENDAMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        #divTable {
+            margin-right: 20px;
+            padding-top: 13px;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+<script>
+        /// <reference path="../../../../AnielConnectCore/Aniel.Connect.Core/Scripts/connect.js" />
+        let oDatatable;
+
+        $(document).ready(function () {
+            @if (!String.IsNullOrEmpty(Model.Data))
+            {
+                <text>
+                    AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.CodEscritorio", "@RsBase.SELECIONE", true);
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.CodEscritorio", "@Model.CodArea", "@RsBase.SELECIONE", true);
+                </text>
+            }
+            else
+            {
+                <text>
+                    const handleGrupoArea = function () {
+                        $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+                            const grupoSelecionado = e.params.data
+
+                            if (grupoSelecionado)
+                                AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoSelecionado.id), null, "@RsBase.SELECIONE", false);
+                            else
+                                AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                        });
+                    };
+
+                    AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleGrupoArea);
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                </text>
+            }
+        });
+
+        function bindEventosPercentualNatureza() {
+            @* Máscara do input de percentual. *@
+            $(".percentage").mask("##0%", { reverse: true });
+
+            $(".btnEditar").click(function () {
+                const row = $(this).data("row");
+                const idNatureza = $(this).data("natureza");
+
+                const idInputPercentual = "iPercNatureza" + row + "_" + idNatureza;
+                const idSpanPercentual = "spanPercNatureza" + row + "_" + idNatureza;
+
+                $("#" + idSpanPercentual).addClass("d-none");
+                $("#" + idInputPercentual).removeClass("d-none");
+            });
+
+            $(".inputPercentual").keyup(function (event) {
+                if (event.keyCode === 13) {
+                    @* Caso a tecla pressionada tenha sido "Enter" atualiza o valor da tabela *@
+                    const idxRow = Number($(this).data("row"));
+
+                    @* Atualizando o percentual da natureza com o valor inserido *@
+                    const rowData = oDatatable.row(idxRow).data();
+                    const perc = $(this).val();
+
+                    rowData.Percentual = perc;
+
+                    oDatatable
+                        .row(idxRow)
+                        .data(rowData)
+                        .draw();
+                } else if (event.keyCode === 27) {
+                    @* Caso a tecla pressionada tenha sido "ESC" esconde o input *@
+
+                    const idNatureza = Number($(this).data("natureza"));
+                    const idxRow = Number($(this).data("row"));
+
+                    const idInputPercentual = "iPercNatureza" + idxRow + "_" + idNatureza;
+                    const idSpanPercentual = "spanPercNatureza" + idxRow + "_" + idNatureza;
+
+                    $("#" + idSpanPercentual).removeClass("d-none");
+                    $("#" + idInputPercentual).addClass("d-none");
+                    $("#" + idInputPercentual).val($("#" + idSpanPercentual).text());
+                }
+                else if ($(this).val()) {
+                    @* Caso o "Enter" não seja pressionado e o input esteja preenchido garante que o input seja menor ou igual a 100% *@
+                    const perc = Number($(this).val().replace("%", ""))
+                    if (perc > 100) {
+                        $(this).val("100%");
+                    }
+                }
+            });
+        }
+
+        let clicked = false;
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            let erro = false;
+
+            @if (String.IsNullOrEmpty(Model.Data))
+            {
+            <text>
+                if (!$("#iDataInicio").val() || !$("#iDataFim").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO)", "warning");
+                    erro = true;
+                }
+                else if (DateDiff($("#iDataInicio").val(), $("#iDataFim").val()) < "0") {
+                    Notificar("@RsBase.ATENCAO_", "Informe um período válido", "warning");
+                    erro = true;
+                }
+            </text>
+            }
+
+            if (!$("#iGrupoArea").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.GRUPO_AREA)", "warning");
+                erro = true;
+            }
+
+            if (!$("#iArea").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.AREA)", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+        const handleDataTableButtons = function () {
+            "use strict";
+
+            //"Blfrtip"
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                serverSide: false,
+                searching: false,
+                ordering: false,
+                paging: false,
+                deferRender: true,
+                stateSave: false,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                data: @Html.Raw(Json.Encode(Model.PercentualNatureza)),
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    {
+                        data: "Natureza",
+                        title: "@RsCadastros.NATUREZA",
+                        render: function (data, type, row, meta) {
+                            return `<input name="PercentualNatureza[${meta.row}].IdNatureza" type="hidden" value="${TrataNulo(row.IdNatureza)}" />
+                                    <input name="PercentualNatureza[${meta.row}].Natureza" type="hidden" value="${TrataNulo(data)}" />
+                                    ${data}`
+                        }
+                    },
+                    {
+                        data: "Percentual",
+                        title: "@RsCadastros.PERCENTUAL",
+                        render: function (data, type, row, meta) {
+                            const idInputPercentual = "iPercNatureza" + meta.row + "_" + row.IdNatureza;
+                            const idSpanPercentual = "spanPercNatureza" + meta.row + "_" + row.IdNatureza;
+
+                            return `<div class="row">
+                                        <div class="col-4">
+                                            <span id="${idSpanPercentual}">${TrataNulo(data) }</span>
+                                            <input type="text"
+                                                   name="PercentualNatureza[${meta.row}].Percentual"
+                                                   id="${idInputPercentual}"
+                                                   class="d-none form-control percentage inputPercentual"
+                                                   data-natureza="${row.IdNatureza}"
+                                                   data-row="${meta.row}"
+                                                   value="${TrataNulo(data)}" />
+                                        </div>
+                                        <div class="col-8">
+                                            <a href="javascript:void(0);"
+                                               class="btnEditar"
+                                               data-natureza="${row.IdNatureza}"
+                                               data-row="${meta.row}">
+                                                <i class="fas fa-pencil-alt" aria-hidden="true"></i>
+                                            </a>
+                                        </div>
+                                    </div>`;
+                        }
+                    },
+                ],
+                drawCallback: function () {
+                    bindEventosPercentualNatureza();
+                },
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "LimiteAgendamento", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-auto mr-auto">
+
+                <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+                <nav aria-label="breadcrumb" class="mt-25">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <span>@ViewBag.Title</span>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <div class="accordion" id="accordion_1">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_1">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                            <span class="text-bold-card">@RsCadastros.AREA</span>
+                        </a>
+                    </h5>
+                </div>
+                <div id="collapse_1" class="collapse show" aria-labelledby="heading_1" data-parent="#accordion_1">
+                    <div class="card-body body-card-accord">
+                        <div class="row">
+                                @if (!String.IsNullOrEmpty(Model.Data))
+                                {
+                                    <div class="col-2">
+                                        <div class="form-group">
+                                            <label for="iData">@RsCadastros.DATA</label>
+                                            @Html.TextBoxFor(m => m.Data, new { id = "iData", @class = "form-control", @readonly = "readonly" })
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="col-3">
+                                        <div class="form-group">
+                                            <label for="divPeriodo">@RsCadastros.PERIODO</label>
+                                            <div id="divPeriodo">
+                                                @Html.TextBoxFor(m => m.DataInicio, new { id = "iDataInicio", @class = "form-control datepicker" })
+                                                a
+                                                @Html.TextBoxFor(m => m.DataFim, new { id = "iDataFim", @class = "form-control datepicker" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                        </div>
+
+                        <div class="row">
+                            <div class="col-2">
+                                <div class="form-group">
+                                    <label for="iGrupoArea">@RsCadastros.GRUPO_AREA</label>
+                                    @Html.DropDownListFor(p => p.CodEscritorio, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoArea", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-2">
+                                <div class="form-group">
+                                    <label for="iArea">@RsCadastros.AREA</label>
+                                    @Html.DropDownListFor(p => p.CodArea, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion" id="accordion_2">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_2">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                            <span class="text-bold-card">Naturezas</span>
+                        </a>
+                    </h5>
+                </div>
+                <div id="collapse_2" class="collapse show" aria-labelledby="heading_2" data-parent="#accordion_2">
+                    <div class="card-body body-card-accord">
+                        <div id="divTable" class="ml-20">
+                            <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--Button Float-->
+    <a href="#" onclick="BotaoCancelar('@Url.Action("Index", "LimiteAgendamento")');" class="float-cancel">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar" id="btnSalvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}

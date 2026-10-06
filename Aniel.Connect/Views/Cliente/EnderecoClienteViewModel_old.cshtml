@@ -1,0 +1,498 @@
+﻿@model Aniel.Connect.Repository.Model.EnderecoClienteViewModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+@using Aniel.Connect.Models
+@using Aniel.Connect.ControllersWebApi
+@using Aniel.Connect.Model.enumerado
+@{
+
+
+    var camposObrigatorios = (Dictionary<String, Boolean>)ViewBag.CamposObrigatorios;
+    var camposBloqueados = new Dictionary<string, bool>();
+
+    var stringObrigatorio = Html.Raw("<span class=\"text-danger\">* </span>");
+    
+}
+
+@if (Model.Tipo == Tipo_EnderecoCliente.Instalacao)
+{
+@* Indica se o endereço da instalação é igual ao endereço principal.
+   Value com string vazia = false
+   Value com string preenchida = true *@
+@Html.HiddenFor(m => m.EnderecoInstalacaoIgualPrincipal, new { id = "iEnderecoInstalacaoIgualPrincipal" })
+
+@* Indica se o endereço da instalação é igual ao endereço do cadastro do lead.
+   Value com string vazia = false
+   Value com string preenchida = true *@
+@Html.HiddenFor(m => m.EnderecoInstalacaoIgualProspecto, new { id = "iEnderecoInstalacaoIgualProspecto" })
+
+@Html.HiddenFor(m => m.Cod_Escritorio_Prospect, new { id = "iGrupoAreaProspect" })
+@Html.HiddenFor(m => m.Cod_Area_Prospect, new { id = "iAreaProspect" })
+@Html.HiddenFor(m => m.Cod_Localidade_Prospect, new { id = "iLocalidadeProspect" })
+}
+
+@if (ViewBag.Utiliza_Cadastro_Endereco)
+{
+    @Html.HiddenFor(model => model.Id_Endereco, new { @id = "iId_Endereco" + Model.Tipo })
+
+    <div class="row mb-4">
+        <div class="col-3">
+            <div class="form-group">
+                <label for="iBuscarEndereco">@RsCadastros.BUSCAR_ENDERECO:</label>
+            </div>
+
+            @Html.DropDownList("Endereco" + Model.Tipo + ".Busca_Endereco", EnumHelper.GetSelectList(typeof(Busca_Endereco)), RsBase.SELECIONE, new { @class = "form-control", @id = "iBuscaEndereco" + Model.Tipo, @autocomplete = "off", @value = @Html.Raw((Int16?)@Model.Busca_Endereco) })
+
+            @Html.HiddenFor(m => m.Busca_Endereco, new { @id = "iBuscaEndereco" + Model.Tipo })
+
+        </div>
+
+        <div class="col-5 Endereco_Logradouro" name="Endereco @Model.Tipo .divEnderecoLogradouro">
+            <div class="form-group">
+                <label for="iId_Endereco_Logradouro">@RsBase.SELECIONE:</label>
+            </div>
+            @Html.DropDownList("Endereco" + Model.Tipo + ".Id_Endereco_Logradouro", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @name="Endereco" + " " + Model.Tipo + " .DivEnderecoLogradouro", @class = "form-control Endereco_Logradouro", @id = "iId_Endereco_Logradouro" + Model.Tipo, @autocomplete = "off", @style = "width:100%;" })
+            @Html.HiddenFor(m => m.Id_Endereco_Logradouro, new { @id = "iId_Endereco_Logradouro" + Model.Tipo })
+
+        </div>
+
+        <div class="col-5 Condominio_Predio" name="Endereco @Model.Tipo .divCondominioPredio">
+            <div class="form-group">
+                <label for="iId_Condominio_Predio">@RsBase.SELECIONE:</label>
+            </div>
+            @Html.DropDownList("Endereco" + Model.Tipo + ".Id_Condominio_Predio", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @name = "Endereco" + " " + Model.Tipo + " .divCondominioPredio", @class = "form-control Condominio_Predio", @id = "iId_Condominio_Predio" + Model.Tipo, @autocomplete = "off", @style = "width:100%;" })
+            @Html.HiddenFor(m => m.Id_Condominio_Predio, new { @id = "iId_Condominio_Predio" + Model.Tipo })
+
+        </div>
+
+        @if (Model.Tipo == Tipo_EnderecoCliente.Prospecto && AcessoHelper.TemAcesso(ViewBag.Areas, "334"))
+        {
+            <div class="col-sm-3 mt-auto pt-4 ml-5">
+                <button type="button" class="btn btn-success h-50 d-block" id="btnCadastroEndereco">
+                    <span style="font-size:14px">@RsCadastros.CADASTRAR_ENDERECO</span>
+                </button>
+            </div>
+        }
+
+        @if (Model.Tipo != Tipo_EnderecoCliente.Cobranca)
+        {
+            <div id="iViabilidadeContainer_@Model.Tipo" name="Endereco @Model.Tipo .divEnderecoVazio" class="col-sm-3 mt-auto pt-4 ml-5 Endereco_Vazio"></div>
+        }
+
+    </div>
+
+    <div class="row mb-4 Endereco_Vazio" name="Endereco @Model.Tipo .divEnderecoVazio">
+        <div class="col-sm-1">
+            <div class="form-group">
+                <label for="iCep">@RsCadastros.CEP:</label>
+                <br>
+                <span id="@("iCEPText" + Model.Tipo)"></span>
+                @Html.HiddenFor(model => model.CEP, new { @id = "iCEP" + Model.Tipo })
+            </div>
+        </div>
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="iTipo">@RsCadastros.TIPO_ENDERECO_LOGRADOURO:</label>
+                <br>
+                <span id="@("iTipo" + Model.Tipo)"></span>
+            </div>
+        </div>
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="iLogradouro">@RsCadastros.ENDERECO_LOGRADOURO:</label>
+                <br>
+                <span id="@("iLogradouro" + Model.Tipo)"></span>
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group" id="iCondominioPredio">
+                <label for="iCondominioPredio">@RsCadastros.CONDOMINIO_PREDIO:</label>
+                <br>
+                <span id="@("iCondominioPredio" + Model.Tipo)"></span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row mb-4 Endereco_Vazio" name="Endereco @Model.Tipo .divEnderecoVazio">
+        <div class="col-sm-1">
+            <div class="form-group">
+                <label for="iPais">@RsCadastros.PAIS:</label>
+                <br>
+                <span id="@("iPaisText" + Model.Tipo)"></span>
+                @Html.HiddenFor(m => m.Pais, new { @class = "form-control", @id = "iPais" + Model.Tipo })
+            </div>
+        </div>
+
+        <div class="col-sm-1">
+            <div class="form-group">
+                <label for="iUF">@RsCadastros.UF:</label>
+                <br>
+                <span id="@("iUFText" + Model.Tipo)"></span>
+                @Html.HiddenFor(m => m.UF, new { @class = "form-control", @id = "iUF" + Model.Tipo })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iCidade">@RsCadastros.CIDADE:</label>
+                <br>
+                <span id="@("iCidadeText" + Model.Tipo)"></span>
+                @Html.HiddenFor(m => m.Cidade, new { @id = "iCidadeTextModel" + Model.Tipo })
+                @Html.HiddenFor(m => m.Id_Cidade, new { @id = "iCidade" + Model.Tipo })
+
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iBairroText">@RsCadastros.BAIRRO:</label>
+                <br>
+                <span id="@("iBairroText" + Model.Tipo)"></span>
+                @Html.HiddenFor(m => m.Bairro, new { @class = "form-control", @id = "iBairro" + Model.Tipo })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iNumero"><span class="text-danger">*</span>N°/Lote/Apto/Casa:</label>
+                @Html.TextBoxFor(model => model.Numero, new { @class = "form-control endereco", @id = "iNumero" + Model.Tipo, @autocomplete = "off", @Maxlength = 8 })
+                @Html.ValidationMessageFor(model => model.Numero, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iTipoImovel" + @Model.Tipo><span class="text-danger">*</span> @RsCadastros.TIPO_IMOVEL:</label>
+                @Html.HiddenFor(m => m.Desc_Tipo_Imovel, new { @id = "Desc_Tipo_Imovel" + Model.Tipo })
+                @Html.DropDownListFor(model => model.Id_Tipo_Imovel, new SelectList(ViewBag.Tipos_Imovel, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control " + (camposBloqueados.ContainsKey(RsCadastros.TIPO_IMOVEL) ? "readonly" : ""), @id = "iTipo_Imovel" + @Model.Tipo })
+                @Html.ValidationMessageFor(model => model.Id_Tipo_Imovel, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row mb-4 Endereco_Vazio" name="Endereco @Model.Tipo .divEnderecoVazio">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iComplemento"> @RsCadastros.COMPLEMENTO:</label>
+                @Html.TextBoxFor(model => model.Complemento, new { @class = "form-control", @id = "iComplemento" + Model.Tipo, @autocomplete = "off", @Maxlength = 80 })
+                @Html.ValidationMessageFor(model => model.Complemento, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-6">
+            <div class="form-group">
+                <label for="iReferencia">@RsCadastros.PONTO_REFERENCIA:</label>
+                @Html.TextBoxFor(model => model.Ponto_Referencia, new { @class = "form-control endereco", @id = "iReferencia" + Model.Tipo, @autocomplete = "off", @Maxlength = 80 })
+                @Html.ValidationMessageFor(model => model.Ponto_Referencia, "", new { @class = "text-danger" })
+            </div>
+        </div>
+    </div>
+
+    if (Model.Tipo == Tipo_EnderecoCliente.Principal || Model.Tipo == Tipo_EnderecoCliente.Instalacao || Model.Tipo == Tipo_EnderecoCliente.Prospecto)
+    {
+        <div class="row">
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                    @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(ViewBag.GruposArea, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoArea" + Model.Tipo })
+                </div>
+            </div>
+
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iArea">@RsCadastros.AREA:</label>
+                    @Html.DropDownListFor(model => model.Cod_Area, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea" + Model.Tipo })
+                </div>
+            </div>
+
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                    @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidade" + Model.Tipo })
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row mb-4 Endereco_Vazio" name="Endereco @Model.Tipo .divEnderecoVazio">
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iLatitude">@RsCadastros.LATITUDE:</label>
+                @Html.TextBoxFor(model => model.Latitude, new { @class = "form-control readonly", @id = "iLatitude" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Latitude, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iLongitude">@RsCadastros.LONGITUDE:</label>
+                @Html.TextBoxFor(model => model.Longitude, new { @class = "form-control readonly", @id = "iLongitude" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Longitude, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-1 text-center">
+            <button type="button" id="@( "iBtnAlert" + Model.Tipo )" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Mapa" style="margin-top: 20px;margin-bottom: 20px;"
+                    onclick="return ExibeMapa('@Model.Tipo');">
+                <i class="fas fa-map-marker-alt mr-1"></i>@RsCadastros.VISUALIZAR_MAPA
+            </button>
+        </div>
+
+    </div>
+}
+else
+{
+    @Html.HiddenFor(model => model.Id_Endereco, new { @id = "iId_Endereco" + Model.Tipo })
+
+    <div class="row">
+
+        <div class="col-sm-3 mb-2">
+
+            <div class="form-group">
+
+                <label for="iCEP">@RsCadastros.CEP:</label>
+
+            </div>
+            @Html.TextBoxFor(model => model.CEP, new { @class = "form-control busca cep  " + (camposBloqueados.ContainsKey(RsCadastros.CEP) ? "readonly" : ""), @id = "iCEP" + Model.Tipo, @autocomplete = "off", @placeholder = "Pesquisar" })
+
+            @Html.ValidationMessageFor(model => model.CEP, "", new { @class = "text-danger" })
+        </div>
+
+
+        <div class="col-sm-5">
+
+            <p class="text-muted fa-align-justify d-none Indisponivel" id="iAreaIndisponivel">
+                Você; não tem Disponibilidade.
+            </p>
+            @*<p class="text-muted fa-align-justify d-none Indisponivel" id="iCampoDisponibilidade">
+                    Os campos não foram preenchidos
+                </p>*@
+            <p class="text-muted fa-align-justify d-none Disponivel" id="iAreaDisponivel">
+                Você tem Disponibilidade neste Endereço.
+                Para visualizar as caixas de rede mais próximas,
+                <a href="@Url.Action("Index", "Area_Cobertura")">Clique Aqui!</a>
+            </p>
+        </div>
+
+        @if (Model.Tipo != Tipo_EnderecoCliente.Cobranca)
+        {
+
+            <div id="iViabilidadeContainer_@Model.Tipo" name="Endereco @Model.Tipo .divEnderecoVazio" class="col-sm-3 mt-auto pt-4 ml-5 Endereco_Vazio"></div>
+            @*<div class="col-sm-3 mt-auto">
+
+                    <button type="button" class="btn btn-success h-50 d-block verclasse" id="@("btnDisponibilidade" + Model.Tipo)" onclick="verificar_disponibilidade(this.id);">
+
+                        <span style="font-size:16px">@RsCadastros.VERIFICAR_DISPONIBILIDADE</span>
+
+                    </button>
+
+
+                    <div class="col-lg-10">
+                        <div class="form-group">
+
+                            <p id="@("CliqueAqui" + Model.Tipo)">
+                                <b>
+                                    * Cliente possui disponibilidade neste endereço.Para visualizar as caixas de atendimento mais próximas
+                                    <a style="color:deepskyblue" onclick="Visualizar_Caixa()">clique aqui</a>
+                                </b>
+                            </p>
+
+                        </div>
+                    </div>
+
+                </div>*@
+        }
+
+    </div>
+
+    <div class="row">
+
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iLograduro"><span class="text-danger">*</span> @RsCadastros.LOGRADOURO:</label>
+                @Html.TextBoxFor(model => model.Logradouro, new { @class = "form-control endereco", @id = "iLogradouro" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Logradouro, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-1">
+            <div class="form-group">
+                <label for="iNumero"><span class="text-danger">*</span> @RsCadastros.NUMERO:</label>
+                @Html.TextBoxFor(model => model.Numero, new { @class = "form-control endereco", @id = "iNumero" + Model.Tipo, @autocomplete = "off", @Maxlength = 8 })
+                @Html.ValidationMessageFor(model => model.Numero, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for=""><span class="text-danger">*</span> @RsCadastros.UF:</label>
+                <select class="form-control endereco" id="@( "iUF" + Model.Tipo)" autocomplete="off">
+                    <option value="" selected>@RsBase.SELECIONE</option>
+                    <option value="AC">AC</option>
+                    <option value="AL">AL</option>
+                    <option value="AP">AP</option>
+                    <option value="AM">AM</option>
+                    <option value="BA">BA</option>
+                    <option value="CE">CE</option>
+                    <option value="DF">DF</option>
+                    <option value="ES">ES</option>
+                    <option value="GO">GO</option>
+                    <option value="MA">MA</option>
+                    <option value="MT">MT</option>
+                    <option value="MS">MS</option>
+                    <option value="MG">MG</option>
+                    <option value="PA">PA</option>
+                    <option value="PB">PB</option>
+                    <option value="PR">PR</option>
+                    <option value="PE">PE</option>
+                    <option value="PI">PI</option>
+                    <option value="RJ">RJ</option>
+                    <option value="RN">RN</option>
+                    <option value="RS">RS</option>
+                    <option value="RO">RO</option>
+                    <option value="RR">RR</option>
+                    <option value="SC">SC</option>
+                    <option value="SP">SP</option>
+                    <option value="SE">SE</option>
+                    <option value="TO">TO</option>
+                </select>
+
+
+
+                @Html.ValidationMessageFor(model => model.UF, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iCidade">@RsCadastros.CIDADE:</label>
+                @Html.HiddenFor(m => m.Cidade, new { @id = "iDesc_Cidade" + Model.Tipo })
+                @Html.DropDownListFor(m => m.Id_Cidade, new SelectList(ViewBag.ComboTmp, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control endereco", @id = "iCidade" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Cidade, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iBairro">@RsCadastros.BAIRRO:</label>
+                @*Html.HiddenFor(m => m.Bairro, new { @id = "iDesc_Bairro" + Model.Tipo })*@
+                @*Html.DropDownListFor(m => m.Id_Bairro, new SelectList(ViewBag.ComboTmp, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iBairro" + Model.Tipo, @autocomplete = "off" })*@
+                @Html.TextBoxFor(model => model.Bairro, new { @class = "form-control endereco", @id = "iBairro" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Bairro, "", new { @class = "text-danger" })
+
+            </div>
+        </div>
+
+    </div>
+
+
+    <div class="row">
+
+        <div class="col-sm-4">
+
+            <div class="form-group">
+                <label for="iTipoImovel" + @Model.Tipo><span class="text-danger">*</span> @RsCadastros.TIPO_IMOVEL:</label>
+                @Html.HiddenFor(m => m.Desc_Tipo_Imovel, new { @id = "Desc_Tipo_Imovel" + Model.Tipo })
+                @Html.DropDownListFor(model => model.Id_Tipo_Imovel, new SelectList(ViewBag.Tipos_Imovel, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control " + (camposBloqueados.ContainsKey(RsCadastros.TIPO_IMOVEL) ? "readonly" : ""), @id = "iTipo_Imovel" + @Model.Tipo })
+                @Html.ValidationMessageFor(model => model.Id_Tipo_Imovel, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-4">
+
+            <div class="form-group">
+                <label for="iPais" + @Model.Tipo>@(camposObrigatorios.ContainsKey(RsCadastros.PAIS) ? Html.Raw(stringObrigatorio) : Html.Raw(""))@RsCadastros.PAIS:</label>
+                @Html.HiddenFor(m => m.Pais, new { @id = "Pais" + Model.Tipo })
+
+                @Html.DropDownListFor(model => model.Id_Pais, new SelectList(ViewBag.Paises, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control endereco " + (camposBloqueados.ContainsKey(RsCadastros.PAIS) ? "readonly" : ""), @id = "iPais" + @Model.Tipo })
+                @Html.ValidationMessageFor(model => model.Id_Pais, "", new { @class = "text-danger" })
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="row">
+
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iComplemento">@(camposObrigatorios.ContainsKey(RsCadastros.COMPLEMENTO) ? Html.Raw(stringObrigatorio) : Html.Raw(""))@RsCadastros.COMPLEMENTO:</label>
+                @Html.TextBoxFor(model => model.Complemento, new { @class = "form-control endereco " + (camposBloqueados.ContainsKey(RsCadastros.COMPLEMENTO) ? "readonly" : ""), @id = "iComplemento" + Model.Tipo, @autocomplete = "off", @Maxlength = 80 })
+                @Html.ValidationMessageFor(model => model.Complemento, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iLatitude">@RsCadastros.LATITUDE:</label>
+                @Html.TextBoxFor(model => model.Latitude, new { @class = "form-control readonly", @id = "iLatitude" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Latitude, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iLongitude">@RsCadastros.LONGITUDE:</label>
+                @Html.TextBoxFor(model => model.Longitude, new { @class = "form-control readonly", @id = "iLongitude" + Model.Tipo, @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Longitude, "", new { @class = "text-danger" })
+            </div>
+        </div>
+
+        <div class="col-sm-1 text-center">
+            <button type="button" id="@( "iBtnAlert" + Model.Tipo )" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Mapa" style="margin-top: 20px;margin-bottom: 20px;"
+                    onclick="return ExibeMapa('@Model.Tipo');">
+                <i class="fas fa-map-marker-alt mr-1"></i>@RsCadastros.VISUALIZAR_MAPA
+            </button>
+        </div>
+
+
+    </div>
+
+    if (Model.Tipo == Tipo_EnderecoCliente.Principal || Model.Tipo == Tipo_EnderecoCliente.Instalacao || Model.Tipo == Tipo_EnderecoCliente.Prospecto)
+    {
+        <div class="row">
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                    @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(ViewBag.GruposArea, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoArea" + Model.Tipo })
+                </div>
+            </div>
+
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iArea">@RsCadastros.AREA:</label>
+                    @Html.DropDownListFor(model => model.Cod_Area, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea" + Model.Tipo })
+                </div>
+            </div>
+
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                    @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidade" + Model.Tipo })
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="form-group">
+                <label for="iReferencia">@(camposObrigatorios.ContainsKey(RsCadastros.PONTO_REFERENCIA) ? Html.Raw(stringObrigatorio) : Html.Raw(""))@RsCadastros.PONTOREFERENCIA:</label>
+                @Html.TextAreaFor(model => model.Ponto_Referencia, new { @class = "form-control  " + (camposBloqueados.ContainsKey(RsCadastros.PONTO_REFERENCIA) ? "readonly" : ""), @id = "iReferencia" + Model.Tipo, @autocomplete = "off", @rows = "6", @Maxlength = 80 })
+                @Html.ValidationMessageFor(model => model.Ponto_Referencia, "", new { @class = "text-danger" })
+            </div>
+        </div>
+    </div>
+
+
+
+}

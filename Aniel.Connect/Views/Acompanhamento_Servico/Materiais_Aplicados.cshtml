@@ -1,0 +1,522 @@
+﻿@model Aniel.Connect.Models.T5.Material_AplicadoListaModel
+
+@using Resources
+@using Aniel.Connect.Core;
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<Aniel.Connect.Models.T5.AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+
+        var oDatatable = null;
+        var rows_selected = [];
+        let configMaterial = {
+            classificacao: "'I','B'",
+            complementar: $("#iCodCpl").val(),
+        };
+        let configCpl = {
+            codct: "@Model.CodCt",
+            projeto: "@Model.Projeto",
+            codMat: $('#iMaterial').val(),
+        };
+
+        @*ValidaPeriodo("iDtInicialFiltro", "iDtFinalFiltro", "@String.Format(RsBase.PERIODO_INVALIDO)");*@
+
+        //function FiltrarDataTable() {
+
+        //    oDatatable.draw();
+        //}
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            //Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        //render: function (data, type, full, meta) {
+                        //    return "<input type='checkbox'></input>";
+                        //}
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: false,
+                deferRender: true,
+                scrollY: '73vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Material_TarefaApi/GetMaterialAplicado',
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.CodCt = "@Html.Raw(Request.Params["CodCt"])";
+                        data.Projeto = "@Html.Raw(Request.Params["Projeto"])";
+                        data.Num_Obra = "@Html.Raw(Request.Params["Num_Obra"])";
+                        data.Num_Doc = "@Html.Raw(Request.Params["Num_Doc"])";
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    /*{ title: "<input name='select_all' value='1' type='checkbox'>" },*/
+                    { data: "codigo", title: "@RsCadastros.CODIGO", orderable: true },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO", orderable: true },
+                    { data: "codigo_Complementar", title: "@RsCadastros.CODIGO_COMPLEMENTAR", orderable: true },
+                    { data: "unidade", title: "@RsCadastros.UNIDADE", orderable: true },
+                    { data: "valor_Unitario", title: "@RsCadastros.VALOR", orderable: true },
+                    { data: "quantidade", title: "@RsCadastros.QUANTIDADE", orderable: true },
+                    { data: "valor_Total", title: "@RsCadastros.VALORFINAL", orderable: true },
+                    { data: "equipe", title: "@RsCadastros.EQUIPE", orderable: true },
+
+                    {
+                        render: function (data, type, row, meta) {
+                            let retorno = "";
+                            @if (AcessoHelper.TemAcesso(_areas, "316"))
+                            {
+                                <text>
+                            retorno += '<a href="#" class="btnExcluir mr-3" id="btnExcluir_' + meta.row +
+                                '" data-codct="' + row.codCt +
+                                '" data-projeto="' + row.projeto +
+                                '" data-num_obra="' + row.num_Obra +
+                                '" data-num_doc="' + row.num_Doc +
+                                '" data-tarefa="' + row.tarefa +
+                                '" data-equipe="' + row.equipe +
+                                '" data-codigo="' + row.codigo +
+                                '" data-codigo_complementar="' + row.codigo_Complementar +
+                                '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            return retorno;
+                                </text>
+                            }
+                            return retorno;
+                        }
+                    }
+
+
+
+                ],
+                drawCallback: () => {
+                    $(".questionIcon").popover();
+                    handleExcluir();
+                }
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+            });
+
+            $("#iCodigo").on("blur", async function () {
+
+                if ($(this).val()) {
+
+                    ShowPageLoading();
+
+                    await AddSelect("iMaterial", "@CONSTANTES.URLPortal/api/MaterialApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(this).val(), "@RsBase.SELECIONE", false, handleMaterial, null, null, configMaterial);
+
+                    if (!$('#iMaterial').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@RsCadastros.MATERIAL_NAO_ENCONTRADO", "warning");
+                        $("#iCodigo").focus();
+                    }
+
+                    HidePageLoading();
+                }
+                else {
+                    await AddSelect("iMaterial", "@CONSTANTES.URLPortal/api/MaterialApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleMaterial, null, null, configMaterial);
+                }
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+
+
+    function handleExcluir() {
+        $(".btnExcluir").unbind('click');
+        $(".btnExcluir").click(function (e) {
+            e.preventDefault();
+
+            var trLinkButton = $(this).parents('tr');
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Material_TarefaApi/Excluir")';
+
+            $.ajax({
+                url: link,
+                type: 'POST',
+                contentType: "application/json; charset=utf-8",
+                data: JSON.stringify({
+                    usuario: "@User.Identity.GetUserId()",
+                    objeto: {
+                        codCt: $(this).data('codct'),
+                        projeto: $(this).data('projeto'),
+                        num_Obra: $(this).data('num_obra'),
+                        num_Doc: $(this).data('num_doc'),
+                        tarefa: $(this).data('tarefa'),
+                        equipe: $(this).data('equipe'),
+                        codMat: $(this).data('codigo'),
+                        codCpl: $(this).data('codigo_complementar')
+                    }
+                }),
+                dataType: 'json',
+
+            })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                })
+                .fail(function () {
+
+                })
+                .always(function () {
+
+                });
+        });
+    }
+
+    var handleMaterial = function () {
+
+        $('#iMaterial').unbind('select2:select select2:unselecting');
+        $('#iMaterial').on('select2:select select2:unselecting', function (e) {
+
+            let obj = e.params.data;
+
+            if (obj) {
+
+                if (obj.subCod === "S") {
+                    AddSelect("iCodCpl", "@CONSTANTES.URLPortal/api/Codigo_ComplementarApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, obj.id, null, "@RsBase.SELECIONE", false, null, null, null, configCpl);
+                    $("#iCodCpl").select2('focus');
+                }
+                else {
+                    AddSelect("iCodCpl", "@CONSTANTES.URLPortal/api/Codigo_ComplementarApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+
+                $('#iCodigo').val($(this).val());
+
+                if (obj.subCod_Exclusivo == "S") {
+                    $("#iQuantidade").addClass("readonly");
+                    $("#iQuantidade").val("1,00");
+                }
+                else {
+                    $("#iQuantidade").removeClass("readonly");
+                    if (obj.subCod !== "S")
+                        $("#iQuantidade").focus();
+                }
+
+                $("#iUnid").val(obj.unidade);
+            }
+            else {
+                AddSelect("iCodCpl", "@CONSTANTES.URLPortal/api/Codigo_ComplementarApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                $('#iCodigo').val(null);
+                $("#iUnid").val(null);
+                $('#iQuantidade').val(null);
+            }
+
+
+        });
+
+        };
+
+
+
+
+
+    $(document).ready(function () {
+
+        $('[data-toggle="popover"]').popover();
+
+        //AddSelect("iCodCpl", "@CONSTANTES.URLPortal/api/Codigo_ComplementarApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null, configCpl);
+        AddSelect("iMaterial", "@CONSTANTES.URLPortal/api/MaterialApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleMaterial, null, null, configMaterial);
+        DisableSelect("iCodCpl");
+
+        //$("#iMaterial").select2('focus');
+        $("#iCodigo").focus();
+
+
+        if ("@Model.Status_Auditoria" == 1) {
+            $('#iCodigo').attr('readonly', true);
+            DisableSelect("iCodCpl");
+            $("#iMaterial").prop('disabled', true);;
+            $('#iQuantidade').attr('readonly', true);
+        }
+
+
+    });
+
+    TableManageButtons.init();
+
+    var clicked = false;
+    async function validaSubmit(Permitir_TI_Automatica = false) {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+            let erro = false
+
+
+
+        if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+
+        try {
+            const result = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Material_TarefaApi/Inserir")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    usuario: "@User.Identity.GetUserId()",
+                    objeto: {
+                        codCt: $('#iCodCt').val(),
+                        projeto: $('#iProjeto').val(),
+                        num_Obra: $('#iNum_Obra').val(),
+                        num_Doc: $('#iNum_Doc').val(),
+                        codigo: $('#iMaterial').val(),
+                        codigo_Complementar: $('#iCodCpl').val(),
+                        quantidade: $('#iQuantidade').val(),
+                        retirada: false,
+                        Permitir_TI_Automatica: Permitir_TI_Automatica
+                    }
+                }
+            });
+
+            if (result.ok) {
+
+                $('#iCodigo').val(null);
+                $('#iMaterial').val(null).trigger("change");
+                $('#iCodCpl').val(null).trigger("change");
+                $('#iQuantidade').val(null);
+
+                if (result.idObjeto) {
+                    oDatatable.row.add(
+                        result.idObjeto
+                    ).draw(false);
+
+                    handleExcluir();
+                }
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", result.mensagem, "info");
+                $('#iCodigo').focus();
+            }
+            else {
+
+
+                if (result.innerException != null && result.innerException.includes("GERAR_TI_AUTO_APLIC")) {
+
+                    parent.Swal.fire({
+                        title: result.mensagem,
+                        showCancelButton: true,
+                        confirmButtonText: `@RsBase.SIM`,
+                        cancelButtonText: `@RsBase.NAO`,
+                    }).then((result) => {
+                        if (result.value) {
+                            validaSubmit(true);
+                        }
+
+                        $('#iCodigo').focus();
+
+                    })
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+                    $('#iCodigo').focus();
+                }
+            }
+
+
+        }
+        finally {
+            HidePageLoading();
+            clicked = false;
+        }
+
+        return true;
+    }
+
+
+
+
+</script>
+}
+
+
+@Html.HiddenFor(model => model.CodCt, new { @id = "iCodCt" })
+@Html.HiddenFor(model => model.Projeto, new { @id = "iProjeto" })
+@Html.HiddenFor(model => model.Num_Obra, new { @id = "iNum_Obra" })
+@Html.HiddenFor(model => model.Num_Doc, new { @id = "iNum_Doc" })
+
+
+@if (AcessoHelper.TemAcesso(_areas, "316"))
+{
+    <text>
+        <div style="padding:10px;">
+            <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+                <div class="card-body" style="padding-top: 0">
+                    <!--main-->
+                    <div class="row mt-2 mb-2 form-group">
+                        <div class="col-md-2">
+                            <label for="iCodigo" class="mr-3">@RsCadastros.CODIGO:</label>
+                            @Html.TextBoxFor(model => model.Codigo, new { @class = "form-control obrigatorio", @id = "iCodigo" })
+                        </div>
+                        <div class="col-md-3">
+                            <label for="iMaterial" class="mr-3">@RsCadastros.MATERIAL:</label>
+                            @Html.DropDownListFor(model => model.Codigo, new SelectList(new List<ObjBusca<Int64>>()), RsBase.SELECIONE, new { @id = "iMaterial", @class = "form-control obrigatorio" })
+                        </div>
+                        <div class="col-md-3">
+                            <label for="iCodCpl" class="mr-3">@RsCadastros.COD_COMPLEMENTAR:</label>
+                            @Html.DropDownListFor(model => model.Codigo_Complementar, new SelectList(new List<ObjBusca<Int64>>()), RsBase.SELECIONE, new { @id = "iCodCpl", @class = "form-control" })
+                        </div>
+                        <div class="col-md-1">
+                            <label for="iUnid" class="mr-3">@RsCadastros.UNID:</label>
+                            @Html.TextBoxFor(model => model.Unidade, new { @class = "form-control readonly", @id = "iUnid" })
+                        </div>
+                        <div class="col-md-1">
+                            <label for="iQuantidade" class="mr-3">@RsCadastros.QUANTIDADE:</label>
+                            @Html.TextBoxFor(model => model.Quantidade, new { @class = "form-control money obrigatorio", @id = "iQuantidade" })
+                        </div>
+                        <div class="col-md-3 col-lg-2 col-xl-2 mt-3 text-center">
+                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" onclick="return validaSubmit();" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            @*<div class="row mt-2 mb-2 form-group">
+                <div class="col-md-2">
+                    
+                </div>
+                <div class="col-md-3">
+                    <input type="checkbox" id="iExibirMaterial">
+                    <label for="iExibirMaterial" class="mr-3"> Exibir materiais vinculados:</label>
+                </div>
+                
+            </div>*@
+
+
+
+
+
+
+
+
+
+
+
+        </div>
+    </text>
+}
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+            </table>
+
+
+        </div>
+    </div>
+</div>

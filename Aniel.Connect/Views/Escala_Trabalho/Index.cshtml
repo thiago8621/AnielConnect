@@ -1,0 +1,1073 @@
+﻿@model Aniel.Connect.Models.Escala_Trabalho_FiltroModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Core
+
+
+@{ ViewBag.Title = RsCadastros.ESCALA_TRABALHO;
+    ViewBag.Sessao = RsCadastros.ESCALA_TRABALHO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+    ViewBag.Tecnico = Model.Id_Equipe;
+
+    }
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .custom-select {
+            width: 85px !important;
+        }
+
+        .table.dataTable thead th {
+            text-align: center;
+        }
+
+        .popover-block-container .popover-icon {
+            background: none;
+            color: none;
+            border: none;
+            padding: 0;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .i {
+            color: #04a0b2;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .popover {
+            max-width: 306.6px;
+            border-radius: 6px;
+            border: none;
+            box-shadow: 0 0 6px 1px #eee;
+        }
+
+        .popover-body {
+            border: none;
+            padding: 20px 49.4px 24px 24px;
+            color: #5f6976;
+            font-size: 12px;
+            font-style: italic;
+            z-index: 2;
+            line-height: 1.53;
+            letter-spacing: 0.1px;
+        }
+    </style>
+
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script src="~/bin/Content/DataTables/buttons.colVis.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/fixedcolumns/3.2.1/js/dataTables.fixedColumns.min.js"></script>
+
+    <script>
+
+        "use strict";
+
+
+        $('input[name=SupervisorMonitor]').change(function () {
+
+            $('#idMonitor').prop('disabled', true);
+            $('#idMonitor').val(null).trigger('change');
+            $('#idSupervisor').prop('disabled', true);
+            $('#idSupervisor').val(null).trigger('change');
+            $('#idTecnico').prop('disabled', true);
+            $('#idTecnico').val(null).trigger('change');
+
+            if ($('#iRadioSupervisor').is(':checked')) {
+
+                $('#idSupervisor').prop('disabled', false);
+            }
+
+            if ($('#iRadioMonitor').is(':checked')) {
+
+                $('#idMonitor').prop('disabled', false);
+            }
+
+            if ($('#iRadioTecnico').is(':checked')) {
+
+                $('#idTecnico').prop('disabled', false);
+            }
+
+        });
+
+
+       // reloadData("@*(CONSTANTES.URLPortal + "/api/FuncionarioAnielapi/GetComboSupervisor"*@)", "idSupervisor", "iDescSupervisor");
+        reloadData("@(CONSTANTES.URLPortal + "/api/Feriadoapi/GetAll")", "iFeriado", "iDescFeriado");
+
+
+        var oDatatable;
+        var dias_mes = null;
+        let dias_feriado = null;
+        var rows_selected = [];
+        let valorTecnico = '@Model.Id_Equipe';
+
+
+        $("#iMes").change(function () {
+
+                        try {
+                            var ano = $("#iAno option:selected").val();
+                            var mes = $("#iMes option:selected").val();
+                            dias_mes = new Date(ano, mes, 0).getDate();
+                        }
+                        catch {
+                            dias_mes = 31;
+                        }
+
+                    });
+
+        $("#iAno").change(function () {
+                        try {
+                            var ano = $("#iAno option:selected").val();
+                            var mes = $("#iMes option:selected").val();
+                            dias_mes = new Date(ano, mes, 0).getDate();
+                        }
+                        catch {
+                            dias_mes = 31;
+                        }
+
+                    });
+
+                    function CadastrarHorario(Id,mes,ano,dia,equipe) {
+                        @if (AcessoHelper.TemAcesso(_areas, "114"))
+                         {
+              <text>
+                        let nomeEquipe = oDatatable.data().toArray().filter(p => p.equipe == equipe)[0].nome;
+                        let horarioServicoAtribuidoValor = oDatatable.data().toArray().filter(p => p.equipe == equipe)[0].horarioServicoAtribuidoValor;
+
+                        ShowDialog(true, true, nomeEquipe, "@Url.Action("Cadastro", "Escala_Trabalho")" + "?id=" + Id + "&mes=" + mes + "&ano=" + ano + "&dia=" + dia + "&equipe=" + equipe + "&horarioAtribuido=" + horarioServicoAtribuidoValor, 'divCadastroHorario', 400, 400, 'iframeCadastroOrcamento', function () {
+                                try {
+                                    setTimeout(function () {
+                                        rows_selected = [];
+                                        oDatatable.draw();
+                                    }, 500);
+
+                }
+                     catch {
+                        setTimeout(function () {
+                                rows_selected = [];
+                                oDatatable.draw();
+                            }, 500);
+                }
+            });
+              </text>
+             }
+        };
+
+        function escalarMassa(num_fre) {
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            for (const equipe of rows_selected) {
+                let dadosEquipe = oDatatable.data().toArray().filter(p => p.equipe == equipe)[0];
+                if (dadosEquipe?.horarioServicoAtribuidoValor == "1")
+                {
+                    Notificar("@RsBase.ATENCAO_", "nao e possivel escalar em massa funcionarios configurados no point", "info");
+                    return false;
+                }
+            }
+
+            ShowDialog(true, true, "Escalar em Massa", "@Url.Action("EscalarEmMassa", "Escala_Trabalho")?tecnicos=" + rows_selected, 'divEscalarEmMassa', 400, 400, 'iframeEscalarEmMassa', function () {
+                    try {
+                        setTimeout(function () {
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }, 500);
+
+
+                    }
+                    catch {
+                        setTimeout(function () {
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }, 500);
+                    }
+                });
+        }
+
+        function HorarioServicoAtribuido(numfre) {
+
+            ShowDialog(true, true, "Horário de Serviço Atribuído", "@Url.Action("HorarioServicoAtribuido", "Escala_Trabalho")?tecnico=" + numfre, 'divHorarioServicoAtribuido', 400, 400, 'iframeHorarioServicoAtribuido', function () {
+                try {
+                    setTimeout(function () {
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }, 500);
+
+
+                }
+                catch {
+                    setTimeout(function () {
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }, 500);
+                }
+            });
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Escala_Trabalhoapi/GetAll")';
+
+                if (valorTecnico !== null) {
+                    rows_selected.push(valorTecnico);
+                }
+
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            var mes;
+
+            function hasValue(obj) {
+                return obj !== null && obj !== undefined;
+            }
+
+            $(document).ready(async function () {
+
+                @*AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetCombousuarioSupervisorEquipe", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboUsuarioMonitorEquipe", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+                await AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                await AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboUsuarioMonitorEquipe", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+                if (hasValue(valorTecnico)) {
+                    await AddSelect("idTecnico", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, valorTecnico, "@RsBase.SELECIONE", false);
+                    $('#iRadioTecnico').prop('checked', true);
+                    $('#iRadioSupervisor').prop('checked', false);
+                }
+                else {
+                    await AddSelect("idTecnico", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    $('#iRadioSupervisor').prop('checked', true);
+                    $('input[name=SupervisorMonitor]').trigger('change');
+                }
+
+                dias_feriado = await dias_feriados();
+
+             
+                $('input[name=SupervisorMonitor]').trigger('a');
+
+                $(function () {
+                    $('[data-toggle="popover"]').popover()
+                })
+
+            });
+            //funcao feriado
+            async function dias_feriados() {
+
+                if ($("#iMes").val() != "" && $("#iAno").val() != "") {
+
+                    var linkferiado = '@String.Concat(CONSTANTES.URLPortal, "/api/FeriadoApi/getList")' + "?mes=" + $("#iMes").val();
+
+                    await $.ajax({
+                        url: linkferiado,
+                        type: "POST",
+                        data: {
+
+                        }
+                    }).done(function (data) {
+                        if (data.ok) {
+
+                            dias_feriado = data.objeto;
+
+                            if (dias_feriado != null) {
+
+                                for (var i = 1; i < 31; i++) {
+
+                                    if (dias_feriado.contains(i))
+                                    {
+                                        oDatatable.column(i + 4).header().innerHTML = '<i class="icofont-beach" style="font-size:18px;color:#08B527" data-toggle="popover" data-trigger="hover" data-placement="top" data-content="FERIADO ATIVO"></i><br>' + i.toLocaleString('en-US', {
+                                            minimumIntegerDigits: 2,
+                                            useGrouping: false
+                                        });
+
+                                    }
+
+                                }
+                            }
+                            return dias_feriado;
+                        }
+
+                    });
+                }
+            }
+
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+
+                dom: "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                    //    return "";
+                    return "<input type='checkbox'></input>";
+                    }
+                }],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '50vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                fixedColumns: {
+                    leftColumns: 3
+                },
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Escala_Trabalhoapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                        let ano = $('#iAno').val();
+                        let mes = $('#iMes').val();
+                        let hasTecnicoSelect = $('#idTecnico option:selected').val();
+
+                        data.ano = ano;
+                        data.mes = mes;
+                        dias_mes = new Date(ano, mes, 0).getDate();
+
+                        data.situacao_Equipe = $("#iSituacao_Equipe").val();
+                        data.idSupervisor = $('#idSupervisor option:selected').val();
+                        data.idMonitor = $('#idMonitor option:selected').val();
+
+                        if (hasTecnicoSelect !== null && hasTecnicoSelect !== "") {
+                            data.idTecnico = hasTecnicoSelect;
+                        }
+                        else {
+                            data.idTecnico = valorTecnico;
+                        }
+                    },
+
+
+                    error: function (e) {
+                        console.log(e);
+                    },
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                drawCallback: function () {
+                    HidePageLoading();
+
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable.map(p => {
+
+                    p.customize = function (xlsx, row) {
+                        var sheet = xlsx.xl.worksheets['sheet1.xml'];
+                        $('row c', sheet).attr('s', '50');
+
+                    }
+
+                    return p;
+                }),
+                //buttons: [
+                //    'colvis'
+                //],
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+
+                    {
+                        data: "equipe",
+                        title: "@RsCadastros.EQUIPE"
+                    },
+
+                    {
+                        data: "nome",
+                        title: "@RsCadastros.NOME"
+                    },
+                    {
+                        data: "horarioServicoAtribuido",
+                        title: "Horário de Serviço Atribuido",
+                        render: function (data, type, row, meta) {
+                            return `<a href='#' onclick='HorarioServicoAtribuido("${row.numfre}");'>${data}</a>`;
+                        }
+                    },
+                    {
+                        data: "situacao",
+                        title: "@RsCadastros.SITUACAO",
+                        orderable: false
+                    },
+                    {
+                        data: "dia01", title: "01" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia01 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",1," + equipe + ");'> " + row.dia01 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia02", title: "02" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia02 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",2," + equipe + ");'> " + row.dia02 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia03", title: "03" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia03 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",3," + equipe + ");'> " + row.dia03 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia04", title: "04" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia04 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",4," + equipe + ");'> " + row.dia04 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia05", title: "05" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia05 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",5," + equipe + ");'> " + row.dia05 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia06", title: "06" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia06 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",6," + equipe + ");'> " + row.dia06 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia07", title: "07" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia07 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",7," + equipe + ");'> " + row.dia07 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia08", title: "08" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia08 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",8," + equipe + ");'> " + row.dia08 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia09", title: "09" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia09 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",9," + equipe + ");'> " + row.dia09 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia10", title: "10" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia10 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",10," + equipe + ");'> " + row.dia10 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia11", title: "11" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia11 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",11," + equipe + ");'> " + row.dia11 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia12", title: "12" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia12 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",12," + equipe + ");'> " + row.dia12 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia13", title: "13" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia13 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",13," + equipe + ");'> " + row.dia13 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia14", title: "14" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia14 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",14," + equipe + ");'> " + row.dia14 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia15", title: "15" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia15 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",15," + equipe + ");'> " + row.dia15 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia16", title: "16" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia16 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",16," + equipe + ");'> " + row.dia16 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia17", title: "17" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia17 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",17," + equipe + ");'> " + row.dia17 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia18", title: "18" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia18 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",18," + equipe + ");'> " + row.dia18 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia19", title: "19" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia19 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",19," + equipe + ");'> " + row.dia19 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia20", title: "20" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia20 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",20," + equipe + ");'> " + row.dia20 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia21", title: "21" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia21 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",21," + equipe + ");'> " + row.dia21 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia22", title: "22" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia22 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",22," + equipe + ");'> " + row.dia22 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia23", title: "23" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia23 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",23," + equipe + ");'> " + row.dia23 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia24", title: "24" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia24 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",24," + equipe + ");'> " + row.dia24 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia25", title: "25" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia25 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",25," + equipe + ");'> " + row.dia25 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia26", title: "26" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia26 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",26," + equipe + ");'> " + row.dia26 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia27", title: "27" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia27 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",27," + equipe + ");'> " + row.dia27 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia28", title: "28" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia28 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",28," + equipe + ");'> " + row.dia28 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia29", title: "29" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia29 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",29," + equipe + ");'> " + row.dia29 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia30", title: "30" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia30 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",30," + equipe + ");'> " + row.dia30 + "</a>";
+                        },
+                        orderable: false
+                    },
+                    {
+                        data: "dia31", title: "31" + (dias_feriado == null ? "" : (dias_feriado.contains(1) ? '<i style="font-size:12px" class="fas fa-sun"></i>' : "-")),
+                        render: function (data, type, row, meta) {
+                            var equipe = '"' + row.equipe + '"';
+                            return "<a href='#'  onclick='CadastrarHorario(" + row.id_Dia31 + "," + $('#iMes option:selected').val() + "," + $('#iAno option:selected').val() + ",31," + equipe + ");'> " + row.dia31 + "</a>";
+                        },
+                        orderable: false
+                    }
+
+                ],
+
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+
+                rows_selected = [];
+                ShowPageLoading();
+                oDatatable.search($(this).val()).draw();
+
+            });
+
+            var columns = oDatatable.columns();
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+            $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Escala_TrabalhoApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().equipe;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            $("body").on("click", 'input[name="select_all"]', function (e) {
+
+                if (this.checked) {
+                    $('tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+                // Handle click on "Select all" control
+
+            });
+        },
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+             TableManageButtons.init();
+
+        $("#iPesquisar").on("click", function () {
+
+            $("#modal-filter").modal('hide');
+
+            rows_selected = [];
+            ShowPageLoading();
+            oDatatable.draw();
+            return true;
+        });
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+            $("#iSupervisor").val(null).trigger('change');
+            $("#idSupervisor").val(null).trigger('change');
+            $("#idMonitor").val(null).trigger('change');
+            $("#iDescSupervisor").val(null).trigger('change');
+            $("#iSituacao_Equipe").val(null).trigger('change');
+            $('#txtSearch').val(null).trigger('change');
+            rows_selected = [];
+            //ShowPageLoading();
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("[data-toggle=popover]").popover({
+            html: true,
+                  content: function () {
+                var content = $(this).attr("data-popover-content");
+                return $(content).children(".popover-body").html();
+            }
+        });
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+        <h4 class="title-page"><i class="icofont-company"></i> @ViewBag.Title</h4>
+
+        <nav aria-label="breadcrumb" style="font-size:12px">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item" style="margin-top:-18px">
+                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                </li>
+                <li class="breadcrumb-item" style="margin-top:-18px">
+                    <span>@ViewBag.Title</span>
+                </li>
+            </ol>
+        </nav>
+
+        <span style="font-size:11px" id="dtLegend"></span>
+    </div>
+        <div class="col-auto">
+            <div class="row title-page">
+        <!--Info-->
+        <div class="mt-1" style="font-size: 14px;">
+
+            <div class="popover-block-container">
+                <button tabindex="0" type="button" class="popover-icon" data-popover-content="#unique-id" data-toggle="popover" data-placement="bottom" data-trigger="hover" title="<span style=font-size:13px;>Legenda dos status da Escala de Trabalho</span>">
+                    <i class="fas fa-info-circle fa-2x" style="color: #2092EC"></i>
+                </button>
+                <div id="unique-id" style="display:none;">
+
+                    <div class="popover-body">
+                        <span style="color: #FF0000;"><b>F</b></span> =<i> Feriado, técnico não está escalado</i> <br>
+                        <span style="color: #FF0000;"><b>I</b></span> =<i> O Técnico encontra-se indisponível para trabalhar </i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+            <a class="dropdown-item" href="#" onclick="escalarMassa()" ; return true; id="escalarMassa"><i class="fas fa-users"></i> Escalar em Massa</a>
+            <a class="dropdown-item" href="@Url.Action("Historico_Alteracao", "Escala_Trabalho")" onclick="ShowPageLoading(); return true;"><i class="fas fa-history"></i> Histórico de Alteração na Escala de Trabalho</a>
+
+        </div>
+
+    </div>
+        </div>
+    </div>
+
+    <div class="col-auto" style="margin-top: -12px;">
+        <div class="row title-page mt-2 pt-0">
+            <div class="input-group">
+                <div class="form-group">
+                    <label for="iAno">@RsBase.ANO:</label>
+                    @Html.DropDownListFor(model => model.Ano, new SelectList(ViewBag.Anos), RsBase.SELECIONE, new { @class = "form-control", @id = "iAno" })
+
+                </div>
+
+                <div class="col-sm-2">
+
+                    <div class="form-group">
+                        <label for="iMes">@RsBase.MES:</label>
+                        @Html.EnumDropDownListFor(model => model.Mes, RsBase.SELECIONE, new { @class = "form-control", @id = "iMes", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Mes, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+                <div class="col-sm-2">
+
+                    <div class="form-group">
+                        <label for="iSituacao">@RsCadastros.SITUACAO:</label>
+                        @Html.EnumDropDownListFor(model => model.Situacao_Equipe, "Todos", new { @class = "form-control", @id = "iSituacao_Equipe", @autocomplete = "off", @required = true })
+                        @Html.ValidationMessageFor(model => model.Situacao_Equipe, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+
+                <div class="col-sm-2">
+
+                    <div class="form-group">
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" id="iRadioSupervisor" type="radio" name="SupervisorMonitor" value="Supervisor">
+                            <label class="form-check-label ml-2" for="iRadioSupervisor" style="margin-right: 5%; font-size: 12px; }">@RsCadastros.SUPERVISOREQUIPE:</label>
+                        </div>
+                        <div class="input-group-append">
+                            @Html.DropDownList("select2Supervisor", new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "idSupervisor", @class = "form-control", @autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-2">
+
+                    <div class="form-group">
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" id="iRadioMonitor" type="radio" name="SupervisorMonitor" value="Monitor">
+                            <label class="form-check-label ml-2" for="iRadioMonitor" style="margin-right: 5%; font-size: 12px;">@RsCadastros.MONITOR_TECNICO:</label>
+                        </div>
+                        <div class="input-group-append">
+                            @Html.DropDownList("select2Monitor", new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "idMonitor", @class = "form-control", @autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-2">
+
+                    <div class="form-group">
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" id="iRadioTecnico" type="radio" name="SupervisorMonitor" value="Tecnico">
+                            <label class="form-check-label ml-2" for="iRadioTecnico" style="margin-right: 5%; font-size: 12px;">@RsCadastros.EQUIPE:</label>
+                        </div>
+                        <div class="input-group-append">
+                            @Html.DropDownList("select2Tecnico", new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "idTecnico", @class = "form-control", @autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col mt-2">
+
+                    <button type="button" @*onclick="rows_selected = []; oDatatable.draw();"*@ id="iPesquisar" class="btn btn-success" style="margin-top:10px;"><i class="fas fa-search"></i>Pesquisar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row ml-0">
+        <div class="col-sm-12 pt-2 pb-4">
+            <span class="text-danger" style="font-size: 14px;">Para realizar qualquer tipo de alteração de escala, deve-se clicar sobre o número que consta no dia desejado.Em caso da escala atribuída seja <b>Aniel Point</b>,as alterações realizadas nessa tela serão desconsideradas.</span>
+        </div>
+    </div>
+
+    <div id="divCadastroHorario"></div>
+    <div id="divEscalarEmMassa"></div>
+    <div id="divHorarioServicoAtribuido"></div>
+    <!--./main-->
+
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-10 container" style="align-content:center;">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="row">
+                                    <div class="col-12 form-group">
+                                        <label>@RsCadastros.SUPERVISOR</label>
+                                        <div class="input-group">
+                                            @Html.HiddenFor(model => model.Id_Supervisor, new { @id = "idSupervisor" })
+                                            @Html.DropDownListFor(model => model.Id_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisor", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-11">
+                                <div class="form-group">
+                                    <label for="iSituacao">@RsCadastros.SITUACAO:</label>
+                                    @Html.EnumDropDownListFor(model => model.Situacao_Equipe, "Todos", new { @class = "form-control", @id = "iSituacao_Equipe", @autocomplete = "off", @required = true })
+                                    @Html.ValidationMessageFor(model => model.Situacao_Equipe, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO...</span>
+            </div>
+</div>
+

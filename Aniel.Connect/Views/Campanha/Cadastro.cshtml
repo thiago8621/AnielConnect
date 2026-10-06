@@ -1,0 +1,1618 @@
+﻿@model Aniel.Connect.Models.CampanhaCadastroModel
+
+@{
+    ViewBag.Title = RsCadastros.CADASTROCAMPANHA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+    @if (Model.Id == 0)
+    {
+        <text>
+            <script>
+                $("#iStatus").prop("checked", true).change();
+                $("#divStatus").addClass('d-none');
+
+            </script>
+        </text>
+    }
+
+    <script>
+    var dataInicial = Date.parse(FormataStringData($("#iDataInicio").val()));
+    var dataFinal = Date.parse(FormataStringData($("#iDataFinal").val()));
+    var dataValidade = Date.parse(FormataStringData($("#iDataValidade").val()));
+
+    const handlePlanoProduto = function () {
+
+        $('#iPlano_Produto').on('select2:select select2:unselecting', function (e) {
+            const PlanoProdutoSelecionado = e.params.data;
+
+            if (PlanoProdutoSelecionado) {
+                /*alert("valor:" + PlanoProdutoSelecionado.valorPlanoProduto)*/
+                $('#iValorPlanoProduto').val(PlanoProdutoSelecionado.valorPlanoProduto)
+                $('#iValorInstalacao').val(PlanoProdutoSelecionado.valorInstalacao)
+            }
+        });
+    };
+
+
+    $("#iValidadePlanoProduto").change(function () {
+        if ($("#iValidadePlanoProduto").val() == 0) {
+            $('#dataValidade').removeClass('d-none');
+        }
+        else {
+            $('#dataValidade').addClass('d-none');
+            $('#iDataValidade').val(null)
+        }
+    });
+
+    $("#iModalValidadePlanoProduto").change(function () {
+        if ($("#iModalValidadePlanoProduto").val() == 0) {
+            $('#modaldataValidade').removeClass('d-none');
+        }
+        else {
+            $('#modaldataValidade').addClass('d-none');
+            $('#iModalDataValidade').val(null)
+        }
+    });
+
+    $("#iDefAreaCobertura").change(function () {
+        if ($("#iDefAreaCobertura").is(':checked') == true) {
+            $('#iCampanhaAreaCobertura').removeClass('d-none');
+        }
+        else {
+            $('#iCampanhaAreaCobertura').addClass('d-none');
+            $('#iArea_Cobertura').empty();
+
+        }
+    });
+    $("#iDefinirEquipeVendas").change(function () {
+        if ($("#iDefinirEquipeVendas").is(':checked') == true) {
+            $('#iExibirEquipeVenda').removeClass('d-none');
+        }
+        else {
+            $('#iExibirEquipeVenda').addClass('d-none');
+            /*$('#iArea_Cobertura').empty();*/
+            $('#iSetor').empty();
+            $('#iSupervisor').empty();
+            $('#iFuncionario').empty();
+            $('#iMetaIndividual').val(0);
+
+
+
+        }
+    });
+
+
+
+
+
+        $("#iCampanhaPorRegioes").change(function() {
+            if ($("#iCampanhaPorRegioes").is(':checked') == true) {
+                $('#iCampanhaRegiao').removeClass('d-none');
+            }
+            else {
+                $('#iCampanhaRegiao').addClass('d-none');
+                $('#iPais').empty();
+                $('#iEstado').empty();
+                $('#iCidade').empty();
+            }
+        });
+
+        $("#iCampTempDeterminado").change(function () {
+            if ($("#iCampTempDeterminado").is(':checked') == true) {
+                $('#iCampanhaDatas').removeClass('d-none');
+            }
+            else {
+                $('#iCampanhaDatas').addClass('d-none');
+                $('#iDataInicio').val(null);
+                $('#iDataFinal').val(null);
+
+            }
+        });
+        function reiniciarToggle() {
+            $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+            });
+        }
+
+        reiniciarToggle();
+
+     async function mudancaUF()  {
+         let estadoVal = $('#iEstado' + ' option:selected').val(),
+             estadoStr = $('#iEstado' + ' option:selected').text();
+         if (!estadoVal) {
+             $('#iCidade').select2('destroy');
+             $('#iCidade').empty();
+             $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.TODOS'));
+
+
+             return false;
+         }
+         AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, estadoVal, null, "@RsBase.TODOS", false);
+
+
+    };
+
+    /** @@param tabela {string}  @@param novoRegistro {object}
+     */
+    async function Consulta_dadosTabela(tabela, novoRegistro) {
+        let ok = true;
+        let dados = tabela.rows().data().toArray();
+
+
+        for (let dado of dados) {
+            //NovoRegistro
+            if (dado.Id === 0) {
+                if (JSON.stringify(dado) == JSON.stringify(novoRegistro)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.REGISTRO_DUPLICIDADE", "warning");
+                    ok = false;
+
+                }
+
+            }
+            //RegistroGravado
+            else {
+                let cloneRegistro = JSON.parse(JSON.stringify(dado)),
+                    cloneRegistroNovo = JSON.parse(JSON.stringify(novoRegistro));
+                delete cloneRegistro.Id;
+                delete cloneRegistroNovo.Id;
+
+                if (JSON.stringify(cloneRegistro) == JSON.stringify(cloneRegistroNovo)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.REGISTRO_DUPLICIDADE", "warning");
+                    ok = false;
+                }
+
+            }
+
+        }
+
+        return ok;
+    }
+
+    $('#iPais').change(function () { changeCountry() });
+    $('#iEstado').change(function () { mudancaUF() });
+
+    function changeCountry() {
+        let countryTxt = $('#iPais').text();
+        let countryVal = $('#iPais').val();
+
+        if (countryVal != null) {
+            if (countryTxt.toUpperCase() == "BRASIL") {
+           AddSelect("iEstado", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Estado", "@RsBase.TODOS", false);
+            } else {
+                $('#iEstado').val(null).trigger('change');
+                $('#iEstado').text("").trigger('change');
+                $('#iEstado').select2('destroy');
+            };
+
+        } else {
+            $('#iEstado').val(null).trigger('change');
+            $('#iEstado').text("").trigger('change');
+            $('#iEstado').select2('destroy');
+            $('#iEstado').append($('<option></option>').attr('value', "").text('@RsBase.TODOS'));
+        };
+    };
+
+
+
+    $(document).ready(function () {
+        if ($("#iCampTempDeterminado").is(':checked') == true) {
+            $('#iCampanhaDatas').removeClass('d-none');
+        };
+        if ($("#iDefinirEquipeVendas").is(':checked') == true) {
+            $('#iExibirEquipeVenda').removeClass('d-none');
+        };
+
+        $('#iValidadePlanoProduto').val(1);
+
+        AddSelect("iSetor", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Setor_Departamento", "@RsBase.SELECIONE", false);
+        AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Supervisor", "@RsBase.TODOS", false);
+        AddSelect("iFuncionario", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Funcionario", "@RsBase.TODOS", false);
+        AddSelect("iArea_Cobertura", "@CONSTANTES.URLPortal/api/Area_Coberturaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Area_Cobertura", "@RsBase.TODOS", false);
+        AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPais", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Pais", "@RsBase.TODOS", false);
+        AddSelect("iPlano_Produto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Plano_Produto", "@RsBase.SELECIONE", false, handlePlanoProduto);
+        AddSelect("iMeioCaptacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Meio_Captacao", "@RsBase.SELECIONE", false);
+        @*AddSelect("iEstado", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Estado", "@RsBase.TODOS", false);*@
+        @*AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, "@Model.Pais", "@Model.Estado", "@Model.Cidade", "@RsBase.TODOS", false);*@
+
+
+        $("#iCampanhaPorRegioes").trigger('change');
+        $("#iDefAreaCobertura").trigger('change');
+        $("#iDefinirEquipeVendas").trigger('change');
+
+        });
+
+    $("#iModalPlano_Produto").on("select2:select select2:unselecting", function (e) {
+        const ModalPlanoProdutoSelecionado = e.params.data;
+
+        if (ModalPlanoProdutoSelecionado) {
+            /*alert("valor:" + PlanoProdutoSelecionado.valorPlanoProduto)*/
+            $('#iModalValorPlanoProduto').val(ModalPlanoProdutoSelecionado.valorPlanoProduto);
+            $('#iModalValorInstalacao').val(ModalPlanoProdutoSelecionado.valorInstalacao);
+        }
+
+    });
+
+    async function adicionaEquipe() {
+        let erro = false;
+        let setor_departamento = $("#iSetor").val();
+        let setor_departamento_Desc = $("#iSetor option:selected").text();
+        let supervisor = $("#iSupervisor").val() ?? 0;
+        let supervisor_Desc = $("#iSupervisor").prop("nome")?? null;
+        let funcionario = $("#iFuncionario").val();
+        let funcionario_Desc = $("#iFuncionario").prop("nome");
+        let metas = $("#iMetaIndividual").val().replace(".", "");
+
+        if (supervisor == null) {
+            Notificar("@RsCadastros.SUPERVISOR", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+            erro = true;
+        }
+        if (metas == null) {
+            Notificar("@RsCadastros.META", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+            erro = true;
+        }
+        if (!erro) {
+
+            let equipeObj = {
+                Id: 0,
+                Setor_Departamento: setor_departamento,
+                Setor_Departamento_Desc: setor_departamento_Desc,
+                Id_Supervisor: supervisor,
+                Id_Supervisor_Desc: supervisor_Desc,
+                Id_Funcionario: funcionario,
+                Id_Funcionario_Desc: funcionario_Desc,
+                Meta: metas
+            };
+            let ok_consulta = await Consulta_dadosTabela(oDatatableEquipe, equipeObj);
+            if (ok_consulta) {
+                oDatatableEquipe.row.add(equipeObj).draw(false);
+            }
+        handleExcluirEquipe();
+        }
+
+    };
+
+    async function adicionaRegioes() {
+        let erro = false;
+
+        let pais = $("#iPais").val(),
+            pais_Desc = $("#iPais option:selected").text(),
+            estado = $("#iEstado").val(),
+            estado_Desc = $("#iEstado option:selected").text(),
+            cidade = $("#iCidade").val(),
+            cidade_Desc = $("#iCidade option:selected").text();
+
+        let objRegioes = {
+            Pais: pais,
+            Pais_Desc: pais_Desc,
+            Estado: estado,
+            Estado_Desc: estado_Desc,
+            Cidade: cidade,
+            Cidade_Desc: cidade_Desc,
+            Id: 0
+        };
+
+        let ok_Consulta = await Consulta_dadosTabela(oDatatableRegioes, objRegioes);
+        if (ok_Consulta) {
+
+        oDatatableRegioes.row.add(objRegioes).draw(false);
+        }
+
+        handleExcluirRegioes();
+    }
+
+    async function adicionaAreaCobertura() {
+        if ($("#iArea_Cobertura").val() == null) {
+            Notificar("@RsBase.ATENCAO_", "Área de Cobertura não Preenchida", "warning");
+            return false;
+        }
+        let area_cobertura = $("#iArea_Cobertura").val();
+        let area_cobertura_Desc = $("#iArea_Cobertura option:selected").text();
+
+        let objArea = {
+            Area_Cobertura: area_cobertura,
+            Area_Cobertura_Desc: area_cobertura_Desc,
+            Id: 0
+        };
+
+        let ok_Consulta = await Consulta_dadosTabela(oDatatableAreaCobertura, objArea);
+        if (ok_Consulta) {
+
+        oDatatableAreaCobertura.row.add(objArea).draw(false);
+        }
+        handleExcluirAreaCobertura();
+    };
+
+    function FormataStringData(data) {
+        var dia = data.split("/")[0];
+        var mes = data.split("/")[1];
+        var ano = data.split("/")[2];
+        return ano + '-' + ("0" + mes).slice(-2) + '-' + ("0" + dia).slice(-2);
+
+    }
+
+    function validarDatas() {
+        let execution = true;
+        if ($("#iCampTempDeterminado").val()) {
+            if (Date.parse(FormataStringData($("#iDataValidade").val())) != null) {
+
+                if (Date.parse(FormataStringData($("#iDataInicio").val())) > Date.parse(FormataStringData($("#iDataFinal").val()))) {
+
+                    Notificar("@RsBase.DATA_INVALIDA", "@RsCadastros.DATA_INICIAL_MAIOR", "warning");
+                    execution = false;
+                }
+                if ($("#iValidadePlanoProduto").val() == 0 && (Date.parse(FormataStringData($("#iDataValidade").val())) < Date.parse(FormataStringData($("#iDataInicio").val())) || Date.parse(FormataStringData($("#iDataValidade").val())) > Date.parse(FormataStringData($("#iDataFinal").val())))) {
+
+                    Notificar("@RsBase.DATA_INVALIDA", "@RsCadastros.DATA_VALIDADE_INVALIDA", "warning");
+                    execution = false;
+                }
+            }
+        }
+        return execution;
+    }
+
+    async function adicionarPlanosProdutos() {
+
+
+            const objBoolean = {
+                DateValidate: validarDatas(),
+                CamposPreenchidos: true,
+            }
+
+            if (($("#iPlano_Produto").val() == null) || ($("#iParcelasInstalacao").val() == "")) {
+                //Notificar("@RsCadastros.PLANO_PRODUTO", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                objBoolean.CamposPreenchidos = false;
+            };
+
+            if (objBoolean.DateValidate && objBoolean.CamposPreenchidos) {
+
+                let novo_nome_PP = $("#iNovoNomePlanoProduto").val(),
+                    id_plano_produto = $("#iPlano_Produto").val(),
+                    id_plano_produto_desc = $("#iPlano_Produto option:selected").text(),
+                    valor_plano_produto = $("#iValorPlanoProduto").val(),
+                    valor_instalacao = $("#iValorInstalacao").val(),
+                    validade_plano_produto = $("#iValidadePlanoProduto").val(),
+                    validade_plano_produto_desc = $("#iValidadePlanoProduto option:selected").text(),
+                    data_validade = $("#iDataValidade").val(),
+                    parcelaInstalacao = $("#iParcelasInstalacao").val();
+
+                let ObjPlanosProdutos = {
+                    Novo_Nome_Plano_Produto: novo_nome_PP,
+                    Id_Plano_Produto: id_plano_produto,
+                    Id_Plano_Produto_Desc: id_plano_produto_desc,
+                    Valor_Plano_Produto: valor_plano_produto,
+                    Valor_Instalacao: valor_instalacao,
+                    Validade_Plano_Produto: validade_plano_produto,
+                    Validade_Plano_Produto_Desc: validade_plano_produto_desc,
+                    Data_Validade: data_validade,
+                    Parcela_Instalacao: parcelaInstalacao,
+                    Id: 0,
+
+
+                };
+
+                let ok_Consulta = await Consulta_dadosTabela(oDatatablePlanosProdutos, ObjPlanosProdutos);
+
+                if (ok_Consulta) {
+
+                    oDatatablePlanosProdutos.row.add(ObjPlanosProdutos).draw(false);
+                }
+
+                handleExcluirPlanosProdutos();
+            }
+            else {
+
+                if (!objBoolean.CamposPreenchidos) { Notificar("@RsBase.ATENCAO_","@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS","warning"); }
+            }
+    };
+
+    $("#iSupervisor").on('select2:select select2:unselecting', function (e) {
+        let supervisor = e.params.data;
+        $(this).prop("nome", supervisor.nome);
+    });
+
+
+    $("#iFuncionario").on('select2:select select2:unselecting', function (e) {
+        let funcionario = e.params.data;
+        $(this).prop("nome", funcionario.nome);
+    });
+
+    //DataTable Equipe de Vendas
+    var arrayCampanha = @Html.Raw(Json.Encode(Model.EquipeVendas));
+    var nome_lista = "EquipeVendas";//Nome_utilizado para enganar o razor
+    var oDatatableEquipe = $("#datatableEquipe").length && $("#datatableEquipe").DataTable({
+       dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayCampanha,
+        columns: [
+            {
+                data: "Id",
+                render: function (data, type, row, meta) {
+                    let string = '';
+                    if (TrataNulo(data)) {
+                        string += `<a href="#" class="btnEditarEquipe" id="btnEditarEquipe_${meta.row}" editar="${row.Id}"><i class="fas fa-user-edit" style="font-size:16px;padding-right:2px;"></i></a>`;
+                    }
+                    string +=  `<a href="#" class="btnExcluirEquipe" id="btnExcluir_${meta.row}" excluir="${row.Id}"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>
+                         <input id="${nome_lista}_${meta.row}__Id" name="${nome_lista}[${meta.row}].Id" type="hidden" value="${TrataNulo(data)}">`;
+                    return string;
+                }
+            },
+            {
+                data: "Setor_Departamento_Desc",
+                title: "@RsCadastros.SETOR_DEPARTAMENTO",
+                render: function (data, type, row, meta) {
+                    let string = '';
+                    if (type === 'display') {
+                        if (data == null) {
+                            data = "@RsBase.TODOS";
+                        }
+                            string = data + ' <input id="' + nome_lista + '_' + meta.row + '__Setor_Departamento_Desc" name="' + nome_lista + '[' + meta.row + '].Setor_Departamento_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Setor_Departamento" name="' + nome_lista + '[' + meta.row + '].Setor_Departamento" type="hidden" value="' + TrataNulo(row.Setor_Departamento) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Id_Supervisor_Desc",
+                title: "@RsCadastros.SUPERVISOR",
+                render: function (data, type, row, meta) {
+                    let string = '';
+                    if (type === 'display') {
+                        if (data == null) {
+                            data = "@RsBase.TODOS";
+                        }
+                        string = data + ' <input id="' + nome_lista + '_' + meta.row + '__Id_Supervisor_Desc" name="' + nome_lista + '[' + meta.row + '].Id_Supervisor_Desc" type="hidden" value="' + TrataNulo(row.Id_Supervisor_Desc) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Supervisor" name="' + nome_lista + '[' + meta.row + '].Id_Supervisor" type="hidden" value="' + TrataNulo(row.Id_Supervisor) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Id_Funcionario_Desc",
+                title: "@RsCadastros.VENDEDOR",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (data == null) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_lista + '_' + meta.row + '__Id_Funcionario_Desc" name="' + nome_lista + '[' + meta.row + '].Id_Funcionario_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Funcionario" name="' + nome_lista + '[' + meta.row + '].Id_Funcionario" type="hidden" value="' + TrataNulo(row.Id_Funcionario) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Meta",
+                title: "@RsCadastros.META",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Meta" name="' + nome_lista + '[' + meta.row + '].Meta" type="hidden" value="' + TrataNulo(row.Meta) + '">';
+                    }
+                    return data;
+                }
+            },
+        ],
+        paging: false
+    });
+
+    function handleExcluirEquipe() {
+        $(".btnExcluirEquipe").unbind('click');
+        $(".btnExcluirEquipe").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatableEquipe.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Campanhaapi/ExcluirGridEquipe?value=")' + idArquivo;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableEquipe.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+    handleExcluirEquipe();
+
+    //DataTable Regiões
+    var arrayRegioes = @Html.Raw(Json.Encode(Model.Regioes));
+    var nome_regioes = "Regioes";//Nome_utilizado para enganar o razor
+    var oDatatableRegioes = $("#datatableRegioes").length && $("#datatableRegioes").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayRegioes,
+        columns: [
+            {
+                data: "Id",
+                render: function (data, type, row, meta) {
+                    return '<a href="#" class="btnExcluirRegioes" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                        ' <input id="' + nome_regioes + '_' + meta.row + '__Id" name ="'+nome_regioes+ '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    //+
+                    //' <input id="' + nome_lista + '_' + meta.row + '__Tipo" name="' + nome_lista + '[' + meta.row + '].Tipo" type="hidden" value="' + TrataNulo(row.Tipo) + '">' +
+                    //' <input id="' + nome_lista + '_' + meta.row + '__IdCONSTANTESPlano_Produto" name="' + nome_lista + '[' + meta.row + '].Id_Plano_Produto" type="hidden" value="' + TrataNulo(row.Id_Plano_Produto) + '">';
+                }
+            },
+            {
+                data: "Pais_Desc",
+                title: "@RsCadastros.PAIS",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (data == null) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_regioes + '_' + meta.row + '__Pais_Desc" name="' + nome_regioes + '[' + meta.row + '].Pais_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_regioes + '_' + meta.row + '__Pais" name="' + nome_regioes + '[' + meta.row + '].Pais" type="hidden" value="' + TrataNulo(row.Pais) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Estado_Desc",
+                title: "@RsCadastros.UF",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (!data) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_regioes + '_' + meta.row + '__Estado_Desc" name="' + nome_regioes + '[' + meta.row + '].Estado_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_regioes + '_' + meta.row + '__Estado" name="' + nome_regioes +'[' + meta.row + '].Estado" type="hidden" value="' + TrataNulo(row.Estado) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Cidade_Desc",
+                title: "@RsCadastros.CIDADE",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (!data) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_regioes + '_' + meta.row + '__Cidade_Desc" name="' + nome_regioes + '[' + meta.row + '].Cidade_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_regioes + '_' + meta.row + '__Cidade" name="' + nome_regioes + '[' + meta.row + '].Cidade" type="hidden" value="' + TrataNulo(row.Cidade) + '">';
+                    }
+                    return string;
+                }
+            },
+
+        ],
+        paging: false
+    });
+    function handleExcluirRegioes() {
+        $(".btnExcluirRegioes").unbind('click');
+        $(".btnExcluirRegioes").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatableRegioes.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Campanhaapi/ExcluirGridRegioes?value=")' + idArquivo;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableRegioes.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+    handleExcluirRegioes();
+
+    //DataTable Area de Cobertura
+    var arrayAreaCobertura = @Html.Raw(Json.Encode(Model.AreaCobertura));
+    var nome_area = "AreaCobertura";//Nome_utilizado para enganar o razor
+    var oDatatableAreaCobertura = $("#datatableAreaCobertura").length && $("#datatableAreaCobertura").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayAreaCobertura,
+        columns: [
+            {
+                data: "Id",
+                render: function (data, type, row, meta) {
+                    return '<a href="#" class="btnExcluirAreaCobertura" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                        ' <input id="' + nome_area + '_' + meta.row + '__Id" name="' + nome_area + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    //+
+                    //' <input id="' + nome_lista + '_' + meta.row + '__Tipo" name="' + nome_lista + '[' + meta.row + '].Tipo" type="hidden" value="' + TrataNulo(row.Tipo) + '">' +
+                    //' <input id="' + nome_lista + '_' + meta.row + '__Id_Plano_Produto" name="' + nome_lista + '[' + meta.row + '].Id_Plano_Produto" type="hidden" value="' + TrataNulo(row.Id_Plano_Produto) + '">';
+                }
+            },
+            {
+                data: "Area_Cobertura_Desc",
+                title: "@RsCadastros.AREA_COBERTURA",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (data == null) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_area + '_' + meta.row + '__Area_Cobertura_Desc" name="' + nome_area + '[' + meta.row + '].Area_Cobertura_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_area + '_' + meta.row + '__Area_Cobertura" name="' + nome_area + '[' + meta.row + '].Area_Cobertura" type="hidden" value="' + TrataNulo(row.Area_Cobertura) + '">';
+                    }
+                    return string;
+                }
+            },
+
+
+        ],
+        paging: false
+    });
+
+    function handleExcluirAreaCobertura() {
+        $(".btnExcluirAreaCobertura").unbind('click');
+        $(".btnExcluirAreaCobertura").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatableAreaCobertura.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Campanhaapi/ExcluirGridAreaCobertura?value=")' + idArquivo;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableAreaCobertura.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+    handleExcluirAreaCobertura();
+
+    //DataTable Planos e Produtos
+    var arrayPlanosProdutos = @Html.Raw(Json.Encode(Model.PlanosProdutos));
+    var nome_pp = "PlanosProdutos";//Nome_utilizado para enganar o razor
+    var oDatatablePlanosProdutos = $("#datatablePlanosProdutos").length && $("#datatablePlanosProdutos").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayPlanosProdutos,
+        columns: [
+            {
+                data: "Id",
+                render: function (data, type, row, meta) {
+                    let string = '';
+                    if (TrataNulo(data) != 0) {
+
+                        string += '<a href="#" class="btnEditarPlanosProdutos" id="btnEditar_' + meta.row + '" editar="' + row.Id + '"><i class="fas fa-user-edit" style="font-size:16px;;padding-right:2px;"></i></a>';
+
+                    }
+                    string += '<a href="#" class="btnExcluirPlanosProdutos" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                        ' <input id="' + nome_pp + '_' + meta.row + '__Id" name="' + nome_pp + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    return string;
+                }
+            },
+            {
+                data: "Novo_Nome_Plano_Produto",
+                title: "@RsCadastros.NOME_A_SER_EXIBIDO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Novo_Nome_Plano_Produto" name="' + nome_pp + '[' + meta.row + '].Novo_Nome_Plano_Produto" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Id_Plano_Produto_Desc",
+                title: "@RsCadastros.PLANO_PRODUTO",
+                render: function (data, type, row, meta) {
+                    let string = "";
+                    if (data == null) {
+                        data = "@RsBase.TODOS";
+                    }
+                    if (type === 'display') {
+                        string = data + ' <input id="' + nome_pp + '_' + meta.row + '__Id_Plano_Produto_Desc" name="' + nome_pp + '[' + meta.row + '].Id_Plano_Produto_Desc" type="hidden" value="' + TrataNulo(row.Id_Plano_Produto_Desc) + '">' +
+                            ' <input id="' + nome_pp + '_' + meta.row + '__Id_Plano_Produto" name="' + nome_pp + '[' + meta.row + '].Id_Plano_Produto" type="hidden" value="' + TrataNulo(row.Id_Plano_Produto) + '">' +
+                            '<input id="' + nome_pp + '_' + meta.row + '__IsPlanProd" name="' + nome_pp + '[' + meta.row + '].IsPlanProd" type="hidden" value="' + TrataNulo(row.IsPlanProd) + '">';
+                    }
+                    return string;
+                }
+            },
+            {
+                data: "Valor_Plano_Produto",
+                title: "@RsCadastros.VALOR @RsCadastros.PLANO_PRODUTO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Valor_Plano_Produto" name="' + nome_pp + '[' + meta.row + '].Valor_Plano_Produto" type="hidden" value="' + TrataNulo(row.Valor_Plano_Produto) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Valor_Instalacao",
+                title: "@RsCadastros.VALOR_INSTALACAO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Valor_Instalacao" name="' + nome_pp + '[' + meta.row + '].Valor_Instalacao" type="hidden" value="' + TrataNulo(row.Valor_Instalacao) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Validade_Plano_Produto_Desc",
+                title: "@RsCadastros.VALIDADE_PLANO_PRODUTO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Validade_Plano_Produto_Desc" name="' + nome_pp + '[' + meta.row + '].Validade_Plano_Produto_Desc" type="hidden" value="' + TrataNulo(row.Validade_Plano_Produto_Desc) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Data_Validade",
+                title: "@RsCadastros.DATA_VALIDADE",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Data_Validade" name="' + nome_pp + '[' + meta.row + '].Data_Validade" type="hidden" value="' + TrataNulo(row.Data_Validade) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Parcela_Instalacao",
+                title: "@RsCadastros.NUMERO_PARCELAS_INSTALACAO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_pp + '_' + meta.row + '__Parcela_Instalacao" name="' + nome_pp + '[' + meta.row + '].Parcela_Instalacao" type="hidden" value="' + TrataNulo(row.Parcela_Instalacao) + '">';
+                    }
+                    return data;
+                }
+            }
+        ],
+        paging: false,
+    });
+    function handleExcluirPlanosProdutos() {
+        $(".btnExcluirPlanosProdutos").unbind('click');
+        $(".btnExcluirPlanosProdutos").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatablePlanosProdutos.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Campanhaapi/ExcluirGrid?value=")' + idArquivo;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatablePlanosProdutos.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+
+    handleExcluirPlanosProdutos();
+
+    $('#iStatus').val();
+    $(".btnEditarEquipe").on("click", function () {
+
+        let idEdit = $(this).attr('editar');
+        let filtroEdit = oDatatableEquipe.data().toArray().filter(p => p.Id == idEdit)
+
+        if (filtroEdit.length === 0)
+        {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+            return false;
+        }
+
+        const objModalE_V = filtroEdit[0];
+
+        AddSelect("iModalE_VSetor", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, `${objModalE_V.Setor_Departamento}`, "@RsBase.SELECIONE", false);
+        AddSelect("iModalE_VFuncionario", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, `${objModalE_V.Id_Funcionario}`, "@RsBase.TODOS", false);
+        AddSelect("iModalE_VSupervisor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, `${objModalE_V.Id_Supervisor}`, "@RsBase.TODOS", false);
+
+        $("#iModalE_VId").val(objModalE_V.Id);
+        $("#iModalE_VMetaIndividual").val(objModalE_V.Meta);
+
+        $("#modal-editarEquipe").modal('show');
+    });
+
+    $("#iGravarEquipevenda").on("click", function () {
+        let dataE_V = {
+            Id: $("#iModalE_VId").val(),
+            Setor_Departamento: $("#iModalE_VSetor").val(),
+            Id_Funcionario: $("#iModalE_VFuncionario").val(),
+            Id_Supervisor: $("#iModalE_VSupervisor").val(),
+            Meta: $("#iModalE_VMetaIndividual").val(),
+        };
+        $.ajax({ url: "@CONSTANTES.URLPortal/api/Campanhaapi/EditarCampanhaEquipeVenda", type: "POST", data: dataE_V }).done(data => {
+            if (!data.ok) {
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+            }
+            else {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Registro Editado", "info");
+                ShowPageLoading($("#modal-editarEquipe"));
+                location.reload();
+            }
+
+        });
+    });
+
+    $("#iCancelarEquipeVenda").on("click", function () {
+        $(".modalEquipe").val(null).trigger('change');
+        $("#modal-editarEquipe").modal('hide');
+
+    });
+
+
+    $(".btnEditarPlanosProdutos").on("click", async function () {
+
+        let idEdit = $(this).attr('editar');
+        let filtroEdit = oDatatablePlanosProdutos.data().toArray().filter(p => p.Id == idEdit)
+
+        if (filtroEdit.length === 0)
+        {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "warning");
+            return false;
+        }
+
+        const objModalPlano = filtroEdit[0];
+
+
+
+        await AddSelect("iModalPlano_Produto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, `${objModalPlano.Id_Plano_Produto}`, "@RsBase.SELECIONE", false, handlePlanoProduto);
+
+        $("#iModalId").val(objModalPlano.Id);
+        $("#iModalPlano_Produto").val(objModalPlano.Id_Plano_Produto);
+        $("#iModalValidadePlanoProduto").val(objModalPlano.Validade_Plano_Produto).trigger('change');
+        $("#iModalNovoNomePlanoProduto").val(objModalPlano.Novo_Nome_Plano_Produto);
+        $("#iModalValorPlanoProduto").val(objModalPlano.Valor_Plano_Produto);
+        $("#iModalValorInstalacao").val(objModalPlano.Valor_Instalacao);
+        $("#iModalParcelasInstalacao").val(objModalPlano.Parcela_Instalacao);
+        $("#iModalDataValidade").val(objModalPlano.Data_Validade);
+
+        $("#modal-editarPlanoProduto").modal('show');
+    });
+
+    $("#iCancelarModal").on("click", function () {
+        $(".modalPlano").val(null).trigger('change');
+        $("#modal-editarPlanoProduto").modal('hide');
+
+    });
+
+    $("#iModalGravar").on("click", function () {
+        const data = {
+            Id: $("#iModalId").val(),
+            Id_Plano_Produto: $("#iModalPlano_Produto").val(),
+            Validade_Plano_Produto: $("#iModalValidadePlanoProduto").val(),
+            Validade_Plano_Produto_Desc: $("#iModalValidadePlanoProduto option:selected").text(),
+            Novo_Nome_Plano_Produto: $("#iModalNovoNomePlanoProduto").val(),
+            Valor_Plano_Produto: $("#iModalValorPlanoProduto").val(),
+            Valor_Instalacao: $("#iModalValorInstalacao").val(),
+            Parcela_Instalacao: $("#iModalParcelasInstalacao").val(),
+            Data_Validade: $("#iModalDataValidade").val(),
+
+        };
+
+        $.ajax({
+            url: "@CONSTANTES.URLPortal/api/Campanhaapi/EditarCampanhaPlano",
+            type: "POST",
+            data: data
+        }).done(data => {
+            if (!data.ok) {
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+            }
+            else {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Registro Editado", "info");
+                ShowPageLoading($("#modal-editarPlanoProduto"));
+                location.reload();
+            }
+
+        });
+
+    });
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            if (Date.parse(FormataStringData($("#iDataInicio").val())) > Date.parse(FormataStringData($("#iDataFinal").val()))) {
+                Notificar("@RsBase.DATA_INVALIDA", "@RsCadastros.DATA_INICIAL_MAIOR", "warning");
+                return Notificar;
+            }
+
+            erro = false;
+
+	        if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+            return true;
+        }
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Campanha", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <!--main-->
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-bullhorn"></i> @ViewBag.Title
+                        </h4>
+                        <nav class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Campanha")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_CAMPANHA</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                <!--Nav Tab-->
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="iDadosCampanha-tab" data-toggle="tab" href="#iDadosCampanha" role="tab" aria-controls="iDadosCampanha" aria-selected="true"><i class="fas fa-bullhorn"></i> @RsCadastros.DADOS_CAMPANHA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="iEquipeVendas-tab" data-toggle="tab" href="#iEquipeVendas" role="tab" aria-controls="iEquipeVendas" aria-selected="false"><i class="fas fa-users"></i> @RsCadastros.EQUIPE_VENDAS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="iRegioes-tab" data-toggle="tab" href="#iRegioes" role="tab" aria-controls="iRegioes" aria-selected="false"><i class="far fa-address-card"></i> @RsCadastros.REGIOES</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="iAreaCobertura-tab" data-toggle="tab" href="#iAreaCobertura" role="tab" aria-controls="iAreaCobertura" aria-selected="false"><i class="fas fa-map-marked-alt"></i> @RsCadastros.AREA_COBERTURA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="iPlanoProduto-tab" data-toggle="tab" href="#iPlanoProduto" role="tab" aria-controls="iPlanoProduto" aria-selected="false"><i class="fas fa-wifi"></i> @RsCadastros.PLANOS_E_PRODUTOS</a>
+                    </li>
+                </ul>
+
+                <!--Formulário Campanha-->
+                <div class="tab-content" id="myTabContent">
+                    <div class="tab-pane fade show active" role="tabpanel" id="iDadosCampanha" aria-labelledby="iDadosCampanha-tab">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                        <span class="text-bold-card">@ViewBag.Title</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-3">
+                                            <div class="form-group">
+                                                <label for="iTitulo">@RsCadastros.TITULO<label style="color:red">*</label>:</label>
+                                                @Html.TextBoxFor(model => model.Titulo, new { @class = "form-control", @id = "iTitulo", @maxlength = "100", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Titulo, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-2 offset-sm-1 text-center">
+                                            <div class="form-group">
+                                                <label for="iCampTempDeterminado">@RsCadastros.CAMPANHA_TEMPO_DETERMINADO:</label><br>
+                                                @Html.CheckBoxFor(m => m.Camp_Tempo_Determinado, new { @class = "form-control", @id = "iCampTempDeterminado", @name = "iCampTempDeterminado", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-6 d-none" id="iCampanhaDatas">
+
+                                            <div class="row">
+                                                <div class="col-3">
+                                                    <label for="iDataInicio">@RsCadastros.DATAINICIAL : </label>
+                                                    <div class="form-group">
+                                                        @Html.TextBoxFor(model => model.Data_Inicio, new { @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDataInicio", @inputlenght = "", @autocomplete = "off" })
+                                                        @*@Html.ValidationMessageFor(model => model.Data_Inicio, "", new { @class = "text-danger" })*@
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-3">
+                                                    <label for="iDataFinal">@RsCadastros.DATAFINAL: </label>
+                                                    <div class="form-group">
+                                                        @Html.TextBoxFor(model => model.Data_Final, new { @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDataFinal", @autocomplete = "off" })
+                                                        @*@Html.ValidationMessageFor(model => model.Data_Final, "", new { @class = "text-danger" })*@
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                    <div class="row">
+
+                                        <div class="col-sm-2">
+                                            <label for="iCupom"> @RsCadastros.PREFIXO_CUPOM </label>
+                                            @Html.TextBoxFor(model => model.PrefixoCupom, new { @class = "form-control", @id = "iCupom", @autocomplete = "off", @maxlength = "50" })
+
+                                        </div>
+                                        <div class="col-sm-2 ">
+                                            <label for="iCampanhaUtilizadaPor">@RsCadastros.CAMPANHA_UTILIZADA_POR </label>
+
+                                            @Html.EnumDropDownListFor(model => model.CampanhaUtilizadaPor, "Selecione", new { @class = "form-control", @id = "iCampanhaUtilizadaPor", @autocomplete = "off" })
+
+                                        </div>
+                                        <div class="col-sm-2 ">
+                                            
+                                            <label for="iMeioCaptacao"> @RsCadastros.MEIO_CAPTACAO :</label>
+                                            @Html.DropDownListFor(m => m.Id_Meio_Captacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMeioCaptacao", @autocomplete = "off" })
+
+                                        </div>
+                                        <div class="col-2 text-center">
+                                            <div class="form-group " id="divStatus">
+                                                <label for="iStatus">@RsCadastros.STATUS:</label><br>
+                                                @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @name = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!--Equipe de Vendas-->
+                    <div class="tab-pane fade" role="tabpanel" id="iEquipeVendas" aria-labelledby="iEquipeVendas-tab">
+
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                        <span class="text-bold-card">@RsCadastros.DEFINIR_EQUIPES_METAS_VENDA</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                <section class="card-body body-card-accord">
+                                    <div class="row">
+                                        <div class="col-2 text-center">
+                                            <div class="form-group">
+                                                <label for="iDefinirEquipeVendas">@RsCadastros.DEFINIR_CAMPANHA_EQUIPE_VENDA</label><br>
+                                                @Html.CheckBoxFor(m => m.Definir_CampanhaEquipeVenda, new { @class = "form-control", @id = "iDefinirEquipeVendas", @name = "iDefinirEquipeVendas", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-10 d-none" id="iExibirEquipeVenda">
+                                            <div class="row">
+                                                <div class="col-sm-4">
+                                                    <label for="iSetor"> @RsCadastros.SETOR_DEPARTAMENTO :</label>
+                                                    @Html.DropDownListFor(m => m.Setor_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSetor", @autocomplete = "off" })
+                                                </div>
+
+                                                <div class="col-sm-4">
+                                                    <label for="iSupervisor"> @RsCadastros.SUPERVISOR<span class="text-danger">*</span> :</label>
+                                                    @Html.DropDownListFor(m => m.Id_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisor", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-sm-4">
+                                                    <label for="iFuncionario"> @RsCadastros.VENDEDOR :</label>
+                                                    @Html.DropDownListFor(m => m.Id_Funcionario, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFuncionario", @autocomplete = "off" })
+
+                                                </div>
+
+                                                <div class="col-sm-4">
+                                                    <label for="iMetaIndividual">@RsCadastros.META_INDIVIDUAL:</label>
+                                                    <div class="form-group">
+                                                        @Html.TextBoxFor(model => model.Meta, new { @class = "form-control money", @id = "iMetaIndividual" })
+                                                        @Html.ValidationMessageFor(model => model.Meta, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                            <div class="row justify-content-end">
+                                                <div class="col-2 text-center">
+                                                    <div class="form-group" style="width:250px">
+                                                        <input type="button" class="btn btn-success p-2 font-weight-bold" id="iBtnAddEquipe" value="Adicionar" onclick="adicionaEquipe()" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+
+                            </div>
+                        </div>
+                        <div id="divTable" class="mt-5">
+                            <span class="text-bold-card ml-3">@RsCadastros.EQUIPES_METAS_ADICIONADAS</span>
+                            <hr>
+                            <table class="table table-hover nowrap" id="datatableEquipe" style="width:100%">
+                            </table>
+                        </div>
+
+
+                    </div>
+
+                    <!--Regiões-->
+                    <div class="tab-pane fade" role="tabpanel" id="iRegioes" aria-labelledby="iRegioes-tab">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-3">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                        <span class="text-bold-card">@RsCadastros.ADICIONAR_REGIOES</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+
+
+                                        <div class="col-2 text-center">
+                                            <div class="form-group">
+                                                <label for="iCampanhaPorRegioes">@RsCadastros.DEFINIR_CAMPANHA_REGIOES_ESPECIFICAS</label><br>
+                                                @Html.CheckBoxFor(m => m.Definir_CampanhaRegioes, new { @class = "form-control", @id = "iCampanhaPorRegioes", @name = "CampanhaPorRegioes", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col d-none" id="iCampanhaRegiao">
+
+                                            <div class="row">
+                                                <div class="col-2">
+                                                    <label for="iPais">@RsCadastros.PAIS: </label>
+                                                    <div class="form-group">
+                                                        @Html.DropDownListFor(m => m.Pais, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), "@RsBase.SELECIONE", new { @class = "form-control", @id = "iPais", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-2">
+                                                    <label for="iEstado">@RsCadastros.UF: </label>
+                                                    <div class="form-group">
+                                                        @Html.DropDownListFor(m => m.Estado, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEstado", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                                <div class="col-2">
+                                                    <label for="iCidade">@RsCadastros.MUNICIPIO: </label>
+                                                    <div class="form-group">
+                                                        @Html.DropDownListFor(m => m.Cidade, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="row justify-content-end">
+                                                        <div class="form-group" style="width:250px">
+                                                            <input type="button" class="btn btn-success p-2 font-weight-bold" id="iBtnAddRegion" value="Adicionar" onclick="adicionaRegioes()" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divTable" class="mt-5">
+                            <span class="text-bold-card ml-3">@RsCadastros.LISTA_REGIOES_ADICIONADAS</span>
+                            <hr>
+                            <table class="table table-hover nowrap" id="datatableRegioes" style="width:100%">
+                            </table>
+                        </div>
+
+                    </div>
+
+                    <!--Area de cobertura-->
+                    <div class="tab-pane fade" role="tabpanel" id="iAreaCobertura" aria-labelledby="iAreaCobertura">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">@RsCadastros.ADICIONAR @RsCadastros.AREA_COBERTURA</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-4" class="collapse show" data-parent="#accordion" aria-labelledby="heading-4">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-3">
+                                            <div class="form-group">
+                                                <label for="iDefAreaCobertura">@RsCadastros.DEFINIR_CAMP_AREA_COBERTURA_ESPECIFICA?</label><br>
+                                                @Html.CheckBoxFor(m => m.Definir_Area_Cobertura, new { @class = "form-control", @id = "iDefAreaCobertura", @name = "DefAreaCobertura", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col d-none" id="iCampanhaAreaCobertura">
+                                            <div class="row">
+                                                <div class="col-3">
+                                                    <label for="iArea_Cobertura">@RsCadastros.SELECIONAR_AREA_COBERTURA: </label>
+                                                    <div class="form-group">
+                                                        @Html.DropDownListFor(m => m.Area_Cobertura, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea_Cobertura", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="row justify-content-end">
+                                                        <div class="form-group" style="width:250px">
+                                                            <input type="button" class="btn btn-success p-2 font-weight-bold" id="iBtnAddArea" value="Adicionar" onclick="adicionaAreaCobertura()" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divTable" class="mt-5">
+                            <span class="text-bold-card ml-3">@RsCadastros.LISTA @RsCadastros.AREA_COBERTURA</span>
+                            <hr>
+                            <table class="table table-hover nowrap" id="datatableAreaCobertura" style="width:100%">
+                            </table>
+                        </div>
+
+                    </div>
+
+
+                    <!--Planos e Produtos-->
+                    <div class="tab-pane fade" role="tabpanel" id="iPlanoProduto" aria-labelledby="iPlanoProduto-tab">
+
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-5">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-5" aria-expanded="true" aria-controls="collapse-5">
+                                        <span class="text-bold-card">@RsCadastros.ADICIONAR @RsCadastros.PLANO_PRODUTO</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                <div class="card-body body-card-accord">
+
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <label for="iNovoNomePlanoProduto">@RsCadastros.NOME_A_SER_EXIBIDO:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Novo_Nome_Plano_Produto, new { @class = "form-control", @id = "iNovoNomePlanoProduto", @maxlength = "100", @autocomplet = "off" })
+                                                @Html.ValidationMessageFor(model => model.Novo_Nome_Plano_Produto, "", new { @class = "text-danger" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <label for="iPlano_Produto"> @RsCadastros.PLANO_PRODUTO<span class="text-danger">*</span>:</label>
+                                            @Html.DropDownListFor(m => m.Id_Plano_Produto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano_Produto", @autocomplete = "off" })
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <label for="iValorPlanoProduto">@RsCadastros.VALOR @RsCadastros.PLANO_PRODUTO<span class="text-danger">*</span>:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Valor_Plano_Produto, new { @class = "form-control money", @id = "iValorPlanoProduto", @maxlength = "18" })
+                                                @Html.ValidationMessageFor(model => model.Valor_Plano_Produto, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <label for="iValorInstalacao">@RsCadastros.VALOR @RsCadastros.INSTALACAO<span class="text-danger">*</span>:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Valor_Instalacao, new { @class = "form-control money", @id = "iValorInstalacao", @maxlength = "18" })
+                                                @Html.ValidationMessageFor(model => model.Valor_Instalacao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <label for="iValidadePlanoProduto">@RsCadastros.VALIDADE_PLANO_PRODUTO:</label>
+                                            <div class="form-group">
+                                                @Html.EnumDropDownListFor(m => m.Validade_Plano_Produto, new { @class = "form-control", @id = "iValidadePlanoProduto", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2 d-none" id="dataValidade">
+                                            <label for="iDataValidade">@RsCadastros.DATA_VALIDADE: </label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Data_Validade, new { @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDataValidade", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Data_Validade, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2 " id="iParcela">
+                                            <label for="iParcelasInstalacao">@RsCadastros.NUMERO_PARCELAS_INSTALACAO<span class="text-danger">*</span>:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Parcela_Instalacao, new { @class = "form-control", @value = 0, @type = "number", @min = "1", @id = "iParcelasInstalacao", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+
+
+
+                                        <div class="col">
+                                            <div class="row justify-content-end">
+                                                <div class="form-group" style="width:250px">
+                                                    <input type="button" class="btn btn-success p-2 font-weight-bold" id="iBtnAddPP" value="Adicionar" onclick="adicionarPlanosProdutos()" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divTable" class="mt-5">
+                            <span class="text-bold-card ml-3">@RsCadastros.PLANOS_PRODUTOS_ADICIONADOS</span>
+                            <hr>
+                            <table class="table table-hover nowrap" id="datatablePlanosProdutos" style="width:100%">
+                            </table>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Campanha")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+}
+
+<!--Modal de Editar Equipe Cadastrada-->
+<div class="modal" id="modal-editarEquipe">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Editar Equipe</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row" id="iExibirEquipeVenda">
+                    <div class="col-md-6">
+
+                        <input type="hidden" id="iModalE_VId" class="form-control modalEquipe" />
+
+                        <label for="iSetor"> @RsCadastros.SETOR_DEPARTAMENTO :</label>
+                        @Html.DropDownListFor(m => m.Setor_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control modalEquipe", @id = "iModalE_VSetor", @autocomplete = "off" })
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="iSupervisor"> @RsCadastros.SUPERVISOR<span class="text-danger">*</span> :</label>
+                        @Html.DropDownListFor(m => m.Id_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control modalEquipe", @id = "iModalE_VSupervisor", @autocomplete = "off" })
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="iFuncionario"> @RsCadastros.VENDEDOR :</label>
+                        @Html.DropDownListFor(m => m.Id_Funcionario, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control modalEquipe", @id = "iModalE_VFuncionario", @autocomplete = "off" })
+
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="iMetaIndividual">@RsCadastros.META_INDIVIDUAL:</label>
+                        <div class="form-group">
+                            <input type="text" class="form-control money modalEquipe" id="iModalE_VMetaIndividual" />
+                            @*@Html.ValidationMessageFor(model => model.Meta, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+
+                </div>
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iCancelarEquipeVenda"> Cancelar</button>
+                        <button type="button" class="btn btn-success" id="iGravarEquipevenda"> Gravar</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<!--Modal de Editar PlanoProduto Cadastrado-->
+<div class="modal" id="modal-editarPlanoProduto">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Editar Equipe</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <label for="iNovoNomePlanoProduto">@RsCadastros.NOME_A_SER_EXIBIDO:</label>
+                        <div class="form-group">
+                            <input type="hidden" class="modalPlano" id="iModalId" />
+                            <input type="text" class="form-control modalPlano" id="iModalNovoNomePlanoProduto" maxlength="100" autocomplete="off" />
+                            @*@Html.ValidationMessageFor(model => model.Novo_Nome_Plano_Produto, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="iPlano_Produto"> @RsCadastros.PLANO_PRODUTO<span class="text-danger">*</span>:</label>
+                        @Html.DropDownListFor(m => m.Id_Plano_Produto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control modalPlano", @id = "iModalPlano_Produto", @autocomplete = "off" })
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-3">
+                        <label for="iValorPlanoProduto">@RsCadastros.VALOR @RsCadastros.PLANO_PRODUTO<span class="text-danger">*</span>:</label>
+                        <div class="form-group">
+                            <input type="text" class="form-control money modalPlano" id="iModalValorPlanoProduto" maxlength="18" />
+                            @*@Html.ValidationMessageFor(model => model.Valor_Plano_Produto, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+
+                    <div class="col-sm-3">
+                        <label for="iValorInstalacao">@RsCadastros.VALOR @RsCadastros.INSTALACAO<span class="text-danger">*</span>:</label>
+                        <div class="form-group">
+                            <input type="text" class="form-control money modalPlano" id="iModalValorInstalacao" maxlength="18" />
+                            @*@Html.ValidationMessageFor(model => model.Valor_Instalacao, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+
+                    <div class="col-sm-4" id="iParcela">
+                        <label for="iParcelasInstalacao">@RsCadastros.NUMERO_PARCELAS_INSTALACAO<span class="text-danger">*</span>: </label>
+                        <div class="form-group">
+                            <input class="form-control modalPlano" type="number" min="1" id="iModalParcelasInstalacao" autocomplete="off" />
+                            @*@Html.ValidationMessageFor(model => model.Parcela_Instalacao, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <label for="iValidadePlanoProduto">@RsCadastros.VALIDADE_PLANO_PRODUTO:</label>
+                        <div class="form-group">
+                            @Html.EnumDropDownListFor(m => m.Validade_Plano_Produto, new { @class = "form-control modalPlano", @id = "iModalValidadePlanoProduto", @autocomplete = "off" })
+                        </div>
+                    </div>
+                    <div class="col-sm-3 d-none" id="modaldataValidade">
+                        <label for="iDataValidade">@RsCadastros.DATA_VALIDADE: </label>
+                        <div class="form-group">
+                            <input class="form-control datepicker modalPlano" data_provide="datepicker" id="iModalDataValidade" autocomplete="off" />
+                            @*@Html.ValidationMessageFor(model => model.Data_Validade, "", new { @class = "text-danger" })*@
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="col">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" id="iCancelarModal">Cancelar</button>
+                            <button type="button" class="btn btn-success" id="iModalGravar"> Gravar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

@@ -1,0 +1,72 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using Aniel.Connect.Core;
+using Aniel.T5.Model.nhibernate;
+using Aniel.T5.Model.enumerado;
+
+namespace Aniel.Connect.API_Aniel.Models
+{
+    /// <summary> Lista de Campos referentes a Funcionario </summary>
+    public class Funcionario_ListaModel 
+    {
+        public virtual string numFre { get; set; }
+        public virtual string numFreAux { get; set; }
+        public virtual string codSuperv { get; set; }
+        public virtual string nomeSuperv { get; set; }
+        public virtual string codFuncao { get; set; }
+        public virtual string funcaoFuncionario { get; set; }
+        public virtual Int64 Cod_Secao { get; set; }
+        public virtual String Nome { get; set; }
+        public virtual String Data_Nascimento { get; set; }
+        public virtual String Apelido  { get; set; }
+        public virtual String CPF  { get; set; }
+        public virtual String RG { get; set; }
+        public virtual String Nacionalidade { get; set; }
+        public virtual String Naturalidade { get; set; }
+        //public virtual String Salario { get; set; }
+        public virtual String Mae { get; set; }
+        public virtual String Pai { get; set; }
+        public virtual String Endereco { get; set; }
+        public virtual String Telefone { get; set; }
+        public virtual String Bairro { get; set; }
+        public virtual String Celular { get; set; }
+        public virtual String Situacao { get; set; }
+
+    }
+    public class Funcionario_ApiRequest : ApiRequest {
+        /// <summary> Configuração para saber a situação atual do Funcionário </summary>
+        public virtual String situacao { get; set; } 
+    }
+    /// <summary> Campos para cadastro de um novo Funcionario </summary>
+    public class Funcionario_CadastroModel : ApiRequest
+    {
+        /// <summary> Num_fre do Funcionário </summary>
+        public virtual String Num_Fre { get; set; }
+        /// <summary> Num_fre Auxíliar </summary>
+        public virtual String Matricula_Aux { get; set; }
+        /// <summary> Nome do Funcionario </summary>
+        public virtual String Nome { get; set; }
+        /// <summary> CPF do Funcionário </summary>
+        public virtual String Cpf { get; set; }
+        /// <summary> Situação do Funcionário </summary>
+        public virtual String Situacao { get; set; }
+        /// <summary> Celular do Funcionário </summary>
+        public virtual String Telefone_Celular { get; set; }
+        /// <summary> Email do Funcionário </summary>
+        public virtual String Email { get; set; }
+        /// <summary> Código de departamento do Funcionário </summary>
+        public virtual Int16? Cod_Depto { get; set; }
+        /// <summary> Supervisor  </summary>
+        public virtual String Supervisor { get; set; }
+        /// <summary> Identificador do Município do Funcionário </summary>
+        public virtual Int64 Id_Municipio_Trabalho { get; set; } // 30
+        /// <summary> Município do Trabalho do Funcionário </summary>
+        public virtual String Municipio_Trabalho { get; set; } // 30
+        /// <summary> Uf do Trabalho </summary>
+        public virtual String Uf_Trabalho { get; set; }
+        /// <summary> Matrícula do Funcionário </summary>
+        public virtual String Matricula_Auxiliar { get; set; }
+    }
+}

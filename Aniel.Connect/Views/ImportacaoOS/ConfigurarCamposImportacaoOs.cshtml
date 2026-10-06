@@ -1,0 +1,226 @@
+﻿@model IEnumerable<Aniel.Connect.Models.ImportacaoOsCampo>
+
+@{
+    ViewBag.Title = RsConfiguracao.CONFIGURAR_CAMPOS_IMPORTACAO_OS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section Scripts
+{
+    <script>
+        AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        $("#iContrato").change(function() {
+            if($("#iContrato").val())
+            {
+                $("#iProjeto").prop("disabled", false);
+                AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iContrato").val(), null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+        function CarregaCampos() {
+
+            if (!$("#iContrato").val() || !$("#iProjeto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                return false;
+            }
+
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/ImportacaoOsApi/GetCamposImportacao",
+                data: { projeto: $("#iProjeto").val(), contrato: $("#iContrato").val(), tipoOS: $('input[name=importacaoTipo]:checked').val() },
+                type: 'POST',
+            }).done(function (data) {
+                $("#tbody tr").remove();
+                $.each(data.objeto, function (key, item) {
+                    CriaCampoTabela(item);
+                });
+            });
+
+        }
+
+        function CriaCampoTabela(item) {
+
+            var html = '<tr><td style="display: none">' + item.id + '</td><td style="display: none">' + item.campoAniel + '</td> <td style="font-size : 12px">' + item.apelido + '</td> <td><input placeholder="Nome na planilha" type="text"';
+
+            if (item.campoPlanilha != null) {
+                html += "value='" +  item.campoPlanilha +  "'";
+            }
+
+            html += " class='form-control w-50' /> </td>";
+
+            html += '<td><select class="form-control w-25 mr-5" ';
+
+            if (item.chave) {
+                html += 'disabled';
+            }
+
+            html += ' ><option value = "true" > Sim</option > <option ';
+
+            if (item.importar == false) {
+                html += ' selected '
+            }
+
+            html += ' value="false">Não</option></select ></td ></tr > ';
+
+            $("#tabela").append(html);
+        }
+
+        function ValidaSubmit() {
+
+            if (!$("#iContrato").val() || !$("#iProjeto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");0
+                return false;
+            }
+
+            var arrayTabela = [];
+
+            $("#tbody tr").each(function () { //loop em todas as linhas
+
+                var arrayLinha = [];
+                var tableData = $(this).find('td');
+
+                if (tableData.length > 0) {
+
+                    var i = 0;
+
+                    tableData.each(function () { //loop em todas as colunas da linha
+                        switch (i) {
+                            case 0:
+                                var id = $(this).html();
+                                arrayLinha.push(id);
+                                break;
+                            case 1:
+                                var campoAniel = $(this).text().replace(/ /g, '')
+                                arrayLinha.push(campoAniel);
+                                break;
+                            case 2:
+                                var apelido = $(this).text();
+                                arrayLinha.push(apelido);
+                                break;
+                            case 3:
+                                var campoPlanilha = $(this).find(">:first-child").val()
+                                arrayLinha.push(campoPlanilha);
+                                break;
+                            case 4:
+                                var importacao = $(this).find(">:first-child").val()
+                                arrayLinha.push(importacao);
+                                break;
+                        }
+
+                        i++;
+
+                    });
+                  
+                    arrayTabela.push(arrayLinha);
+                }
+            });
+            
+            let camposAnielVaziosPlanilha = arrayTabela.filter(arrayLinha => !arrayLinha[3] && arrayLinha[4] == "true").map(record => record[2]);                      
+
+            if (camposAnielVaziosPlanilha.length > 0) {
+                Notificar("@RsBase.ATENCAO_", `Informação Ausente na Planilha! Preencha o(s) campo(s): ${camposAnielVaziosPlanilha.join()}`, "warning");
+                return false;
+            }
+             $.ajax({
+                 url: "@CONSTANTES.URLPortal/api/ImportacaoOsApi/SalvaConfiguracao",
+                 data: { projeto: $("#iProjeto").val(), contrato: $("#iContrato").val(), tipoOS: $('input[name=importacaoTipo]:checked').val(), campos: arrayTabela },
+                 type: 'POST',
+             }).done(function (data) {
+                 Notificar("@RsBase.ATENCAO_", "Configuração gravada com sucesso", "warning");
+             });
+        }
+
+    </script>
+
+}
+
+<div style="padding:10px">
+    <div class="card" style="border:none;">
+        <div class="card-body">
+            <div class="row">
+                <div class="col main-title">
+                    <h4 class="title-page">
+                        <i class="fas fa-file-import"></i> @ViewBag.Title
+                    </h4>
+                    <nav aria-label="breadcrumb" class="mb-20">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+
+          <div class="row pl-3">
+                <div class="col-12">
+                    <p style="font-weight: bold; font-size: 0.8rem;">Configurar Campos de Ordem de Serviço para:</p>
+                </div>
+            </div>            
+            <div class="row pl-3">
+                <div class="col-3">
+                    <label style ="font-size: 0.8rem;">
+                        <input type="radio" name="importacaoTipo" id="importacaoCliente" value="C" checked>
+                        Atendimento Cliente
+                    </label>
+                    </div>
+                <div class="col-3">
+                    <label style="font-size: 0.8rem;">
+                        <input type="radio" name="importacaoTipo" id="importacaoManutencao" value="M">
+                        Manutenção de Rede
+                    </label>
+                </div>
+            </div>
+          
+
+            <div class="row pl-3 mt-3">
+                <div class="col-2">Contrato:</div>
+                <div class="col-3">Projeto:</div>
+            </div>
+            <div class="row pl-3">
+                <div class="col-2">
+                    <select id="iContrato"></select>
+                </div>
+                <div class="col-3 pl-3">
+                    <div class="row">
+                        <div class="col">
+                            <select id="iProjeto" disabled></select>
+                        </div>
+                        <div>
+                            <button class="btn btn-info ml-2" onclick="CarregaCampos()">Carregar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-4">
+                <table class="table" id="tabela">
+                    <thead style="background-color : #357ca5" class="text-white">
+                        <tr>
+                            <th class="pr-1 pt-1 pb-1 font-weight-normal">Campo Aniel</th>
+                            <th class="pr-1 pt-1 pb-1 font-weight-normal">Campo Planilha</th>
+                            <th class="pr-1 pt-1 pb-1 font-weight-normal">Importar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <a href="#" onclick="BotaoCancelar('@Url.Action("Index", "Configuracao")');" class="float-cancel">
+                <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                    <i class="fas fa-times fa-2x"></i>
+                </div>
+            </a>
+
+            <a href="#" class="float-save" onclick="return ValidaSubmit();">
+                <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                    <i class="fas fa-save fa-2x"></i>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+

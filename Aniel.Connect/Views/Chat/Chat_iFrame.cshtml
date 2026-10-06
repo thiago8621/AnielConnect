@@ -1,0 +1,323 @@
+﻿ <!--Card Message Chat-->
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section Styles{
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        .menu {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            -webkit-transition: all 0.4s ease;
+            -moz-transition: all 0.4s ease;
+            -o-transition: all 0.4s ease;
+            transition: all 0.4s ease;
+        }
+
+        .fontawesome-i2svg-active fontawesome-i2svg-complete{
+            overflow: hidden;
+        }
+
+        .light-menu {
+            width: 100%;
+            height: 75px;
+            position: fixed;
+            -webkit-transition: all 0.4s ease;
+            -moz-transition: all 0.4s ease;
+            -o-transition: all 0.4s ease;
+            transition: all 0.4s ease;
+        }
+
+        #menu-center {
+            width: 980px;
+            height: 75px;
+            margin: 0 auto;
+        }
+
+            #menu-center ul {
+                margin: 0 0 0 0;
+            }
+
+                #menu-center ul li a {
+                    padding: 32px 40px;
+                }
+
+                #menu-center ul li {
+                    list-style: none;
+                    margin: 0 0 0 -4px;
+                    display: inline;
+                }
+
+                    .active, #menu-center ul li a:hover {
+                        color: #fff;
+                        text-decoration: none;
+                        line-height: 50px;
+                        background-color: rgba(0, 0, 0, 0.12);
+                        padding: 32px 40px;
+                    }
+
+        a {
+            color: black;
+            text-decoration: none;
+            line-height: 72px;
+        }
+
+
+        
+                mark {
+                    background: yellow;
+                }
+
+                    mark.current {
+                        background: orange;
+                    }
+
+                .header {
+                    /*            padding: 10px;
+                    width: 100%;
+                    background: #eee;*/
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                }
+
+                .conteudoMensagem {
+                    height: 80%;
+                    top: 50px; /* altura que vai parar antes do topo */
+                    position: sticky;
+                    overflow-x: hidden;
+                    /*margin-top: 35px;*/
+                }
+
+                input[type="search"] {
+                    /*border-radius: 5px;*/
+                    border-width: thin;
+                    font-size: smaller;
+                    width: 25%;
+                    margin-left: auto;
+                    border-top-style: hidden;
+                    border-right-style: hidden;
+                    border-left-style: hidden;
+                }
+
+                #busca {
+                    background-color: transparent;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 35px;
+                }
+
+                #botao {
+                    border-width: thin;
+                    border-radius: 5px;
+                }
+
+                body {
+                    color: #000;
+                }
+    </style>
+}
+@section scripts{
+    <!--TyneMCE-->
+    <script src="https://cdn.tiny.cloud/1/5cd306b14gcnqz5xzm9ekr2ekz3far2tsel7sfe91nytmkt8/tinymce/5/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/jquery.mark.min.js"></script>
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+
+<script>
+
+        @if (ViewBag.bloqueiaMensagem == true) //bloqueia o envio de mensagem
+        {
+            <text>
+            parent.document.getElementById("naoPossuiPermissaoEscrever").style.display = 'block';
+            parent.document.getElementById("possuiPermissaoEscrever").style.display = 'none';
+            </text>
+        }
+        else
+        {
+            <text>
+            parent.document.getElementById("naoPossuiPermissaoEscrever").style.display = 'none';
+            parent.document.getElementById("possuiPermissaoEscrever").style.display = 'block';
+            </text>
+        }
+
+
+        $(document).ready(function () {
+            $(document).on("scroll", onScroll);
+
+            //smoothscroll
+            $('a[href^="#"]').on('click', function (e) {
+        e.preventDefault();
+                $(document).off("scroll");
+
+                $('a').each(function () {
+                    $(this).removeClass('active');
+        })
+                $(this).addClass('active');
+
+                    var target = this.hash,
+                        menu = target;
+                $target = $(target);
+                $('html, body').stop().animate({
+                        'scrollTop': $target.offset().top + 2
+                }, 500, 'swing', function () {
+                        window.location.hash = target;
+                    $(document).on("scroll", onScroll);
+                    });
+                });
+        });
+
+        function onScroll(event) {
+                var scrollPos = $(document).scrollTop();
+            $('#menu-center a').each(function () {
+                    var currLink = $(this);
+                    var refElement = $(currLink.attr("href"));
+                    if (refElement.position().top <= scrollPos && refElement.position().top + refElement.height() > scrollPos) {
+                    $('#menu-center ul li a').removeClass("active");
+                        currLink.addClass("active");
+                    }
+                    else {
+                        currLink.removeClass("active");
+                    }
+                });
+            }
+
+        $(function () {
+
+            var $input = $("input[type='search']"),
+                $clearBtn = $("button[data-search='clear']"),
+                $prevBtn = $("button[data-search='prev']"),
+                $nextBtn = $("button[data-search='next']"),
+                $content = $(".conteudoMensagem"),
+                $results,
+                currentClass = "current",
+                offsetTop = 50,
+                currentIndex = 0;
+
+            /**
+             * Saltar para o elemento correspondente ao currentIndex
+             */
+            function jumpTo() {
+                if ($results.length) {
+                    var position,
+                        $current = $results.eq(currentIndex);
+                    $results.removeClass(currentClass);
+                    if ($current.length) {
+                        $current.addClass(currentClass);
+                        position = $current.offset().top - offsetTop;
+                        $current[0].scrollIntoView({ behavior: 'smooth' });
+                        /*window.scrollTo(0, position);*/
+                    }
+                }
+            }
+
+            /**
+             * Procurar a palavra-chave inserida no
+             * contexto especificado na entrada
+             */
+            $input.on("input", function () {
+                var searchVal = this.value;
+                $content.unmark({
+                    done: function () {
+                        $content.mark(searchVal, {
+                            separateWordSearch: true,
+                            done: function () {
+                                $results = $content.find("mark");
+                                currentIndex = 0;
+                                jumpTo();
+                            }
+                        });
+                    }
+                });
+            });
+
+            /**
+             * Limpar a pesquisa
+             */
+            $clearBtn.on("click", function () {
+                $content.unmark();
+                $input.val("").focus();
+            });
+
+            /**
+             * Salto para a pesquisa seguinte e anterior
+             */
+            $nextBtn.add($prevBtn).on("click", function () {
+                if ($results.length) {
+                    currentIndex += $(this).is($prevBtn) ? -1 : 1;
+                    if (currentIndex < 0) {
+                        currentIndex = $results.length - 1;
+                    }
+                    if (currentIndex > $results.length - 1) {
+                        currentIndex = 0;
+                    }
+                    jumpTo();
+                }
+            });
+        });
+
+
+        async function messageArquivos(id,arquivos){
+            if (arquivos.length > 0) {
+
+                let filter_state = {};
+                for (arq of arquivos) {
+                    filter_state[arq.id] = {
+                        label: "",
+                        getDisplay: () => { return arq.name },
+                        removable: false,
+                        onclick: () => {
+                            window.open(arq.url);
+                        }
+                    }
+                }
+
+                await TagFilter(id, filter_state);
+            }
+
+            $("#" + id).addClass("mt-2");
+            $("#" + id).addClass("ml-2");
+            $("#" + id).addClass("mb-1");
+        }
+
+        async function downloadImagem(num_os, id_mensagem, name, fileExtension) {
+            $.ajax({
+                url: `@CONSTANTES.URLPortal/api/ChatApi/DownloadAnexo?numOs=${num_os}&id_mensagem=${id_mensagem}`,
+                type: 'GET'
+            }).done(function (data) {
+            var url = `@{@CONSTANTES.URLPortal}/Arquivos-Chat/${name}.${fileExtension}`;
+            window.open(url, '_blank');
+        });
+        }
+
+</script>
+}
+
+
+
+    <input type="search" placeholder="Buscar palavra-chave na conversa..." autocomplete="off" size="40" maxlength="50">
+    <button data-search="next" style=" border-width: thin; border-radius: 5px;">&darr;</button>
+    <button data-search="prev" style=" border-width: thin; border-radius: 5px;">&uarr;</button>
+    <button data-search="clear" style=" border-width: thin; border-radius: 5px;">✖</button>
+
+    <div id="messages" class="pr-4 pl-4 conteudoMensagem"></div>
+
+
+@*<div class="banner">
+        <div class="bg">
+            <div id="messages" class="container"></div>
+        </div>
+    </div>*@
+
+

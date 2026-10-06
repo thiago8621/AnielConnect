@@ -1,0 +1,359 @@
+﻿@model Aniel.Connect.Models.FuncionarioCadastroModel
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+
+<script>
+     let oDatatableEquipeVenda = null;
+
+    AddSelect("iEquipeVendas", "@CONSTANTES.URLPortal/api/EquipeVendasApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdEquipeVenda", "@RsBase.SELECIONE", false);
+
+    var handleDataTableEquipeVenda = function () {
+        "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.equipevendas));
+
+        var nome_lista = "EquipeVenda";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        oDatatableEquipeVenda = $("#datatableEquipeVenda").length && $("#datatableEquipeVenda").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            paging: false,
+            drawCallback: () => {
+                handleExcluir();
+            },
+            order: [],
+            columns: [
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirEquipeVenda" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__EquipeVenda" name="' + nome_lista + '[' + meta.row + '].EquipeVenda" type="hidden" value="' + TrataNulo(row.EquipeVenda) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(row.Id) + '">';
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: "@RsCadastros.DESCRICAO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Nome" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                        return data;
+                    }
+                }
+
+            ]
+        });
+
+        function handleExcluir() {
+            $(".btnExcluirEquipeVenda").unbind('click');
+            $(".btnExcluirEquipeVenda").click(function (e) {
+                e.preventDefault();
+
+                var idExcluir = $(this).attr("excluir");
+
+                var trLinkButton = $(this).parents('tr');
+
+                if (idExcluir === "0") {
+                    oDatatableEquipeVenda.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EquipeVendaApi/Excluir?value=")' + idExcluir;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableSupervisor.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        handleExcluir();
+
+        $("#btnAdicionarEquipeVenda").unbind('click');
+        $("#btnAdicionarEquipeVenda").on('click', function () {
+
+            var erro = false;
+
+            if (ValidaObrigatoriosPorClasse("obrigatorioEquipeVenda", erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            for (var i = 0; i < oDatatableEquipeVenda.rows().data().length; i++) {
+
+                if (oDatatableEquipeVenda.rows().data()[i].EquipeVenda == $("#iEquipeVendas").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.SUPERVISOR)", "warning");
+                    erro = true;
+                    i = oDatatableEquipeVenda.rows().data().length;
+                }
+            }
+            if (erro) {
+                return;
+            }
+
+            oDatatableEquipeVenda.row.add({
+                Id: 0,
+                //EquipeVenda: $("#iEquipeVenda option:selected").val(),
+                Descricao: $("#iEquipeVendas option:selected").text()
+            }).draw(false);
+
+            handleExcluir();
+
+            $("#iEquipeVendas").val("").trigger('change');
+        });
+    },
+        TableManageButtonsEquipeVenda = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableEquipeVenda();
+                }
+            }
+        }();
+
+    TableManageButtonsEquipeVenda.init();
+
+</script>
+
+
+    <script type="text/javascript">
+        let idFuncionario;
+
+        @if (Model.Id_Supervisor.HasValue){
+            <text>
+            $('#iSupervisores').val(@Model.Id_Supervisor);
+            </text>
+        }
+
+
+        @if (Request.QueryString["Sucesso"] == "S")
+        {
+
+        <text>
+
+            $(document).ready(async function () {
+
+                try {
+                    @if (@Model.Id == 0) {
+                        <text>
+                        @*var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=' + parseInt($("#spnIdFuncionario").val());*@
+                     let idFuncionario = @Request["Id_Funcionario"];
+                        var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=' +  idFuncionario ;
+                            </text>
+                        }
+                        else {
+                             <text>
+                                var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=@Model.Id';
+                            </text>
+                        }
+
+
+                    await $.ajax({
+                        url: url,
+                        type: "GET",
+                        dataType: "json"
+                    })
+                        .done(function (data) {
+                            if (data.mensagens[0] != undefined) {
+                                Notificar("@RsBase.ATENCAO_", data.mensagens[0].mensagem, "info");
+                            }
+                        });
+
+                    parent.dial.dialog('close');
+                    Notificar("@RsBase.SALVAR", "Cadastrado com sucesso", "info");
+
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+    </text>
+
+    }
+        async function GetIdFuncionario() {
+            var link = "@(CONSTANTES.URLPortal + "/api/Funcionarioapi/FindByNumFre")" + "?NumFre="; /*+ $("#iNomeVendedor").val();*/
+            await $.getJSON(link, function (data) {
+                if (data != null) {
+                    if (data.objeto != undefined) {
+                        idFuncionario = data.objeto.id;
+                        $("#idFuncionario").val(idFuncionario);
+
+                    }
+                }
+
+            });
+        }
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+     /*       GetIdFuncionario();*/
+            clicked = true;
+            erro = false;
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+            parent.dial.dialog('close');
+
+        }
+
+    </script>
+}
+
+@using (Html.BeginForm("Cadastro", "Funcionario", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.Num_Fre)
+    @Html.HiddenFor(m => m.Id_Supervisor, new { @id = "idSupervisor" })
+    @Html.AntiForgeryToken()
+
+    <div class="row">
+        <div class="card" style="border:none;">
+
+            <div id="accordion">
+                <div class="">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iMeta">@RsCadastros.NOME :</label>
+                                        @Html.DisplayFor(model => model.Nome)
+                                        @Html.HiddenFor(model => model.Nome)                     
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iMeta">@RsCadastros.PERFIL :</label>
+                                        @Html.DisplayFor(model => model.Tipo)
+                                        @Html.HiddenFor(model => model.Tipo)
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iMeta">@RsCadastros.META_INDIVIDUAL_PERIODO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Meta, new SelectList(ViewBag.Meta, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMeta", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Meta, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iFaixa">@RsCadastros.TABELA_COMISSIONAMENTO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Comissionamento, new SelectList(ViewBag.Comissionamento, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFaixa", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Comissionamento, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iFaixa">@RsCadastros.FAIXA_COMISSIONAMENTO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Faixa, new SelectList(ViewBag.Faixa_Comissionamento, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFaixa", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Faixa, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            @if (Model.TipoEnum != 2)
+                            {
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iSupervisores">@RsCadastros.SUPERVISOR :</label>
+                                            @Html.DropDownListFor(model => model.Id_Supervisor, ViewBag.Supervisores as SelectList, RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisores", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Supervisor, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iEquipeVendas">@RsCadastros.EQUIPE_VENDAS :</label>
+                                        @Html.DropDownListFor(model => model.equipevendas, new SelectList(ViewBag.EquipeVenda, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEquipeVendas", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.IdEquipeVenda, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right mt-3">
+                                <input type="button" id="btnAdicionarEquipeVenda" class="btn btn-success" value="Adicionar" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--Sessão Equipe Venda-->
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div>
+                                <div class="card-header title-card" id="heading_6">
+                                    <h3 class="mb-1">
+                                        <a role="button">
+                                            <span class="text-bold-card">Equipe de Venda Vinculado</span>
+                                        </a>
+                                    </h3>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-hover nowrap" id="datatableEquipeVenda" style="width:100%"></table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-sm-12" style="padding-bottom: 48px;">
+                            <div class="text-center">
+                                <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+                                <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iPesquisar">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+
+    </div>
+
+}

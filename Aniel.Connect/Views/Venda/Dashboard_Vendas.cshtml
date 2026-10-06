@@ -1,0 +1,450 @@
+﻿@model  Aniel.Connect.Models.Acompanhamento_Venda_MapaModel
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.DASHBOARD_VENDEDOR;
+    ViewBag.Sessao = RsCadastros.VENDEDOR;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <link href="~/Content/map.css" rel="stylesheet" />
+    <style>
+        .dot {
+            height: 35px;
+            width: 35px;
+            background-color: #ddd;
+            border-radius: 50%;
+            display: inline-block;
+            border-color: #333;
+            border-bottom-style: solid;
+            border-width: unset;
+            padding-top: 9px;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+
+    $(document).ready(function () {
+
+        AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioApi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+    });
+
+
+
+        function ExibeMapa(equipe) {
+
+            var url = "@Url.Action("Mapa_Equipes", "Venda")" + "?Equipe=" + equipe + "&Pagina=Acompanhamento";
+
+            window.location = url;
+            return false;
+        }
+
+        function dataAtualFormatada() {
+            var data = new Date(),
+                dia = data.getDate().toString(),
+                diaF = (dia.length == 1) ? '0' + dia : dia,
+                mes = (data.getMonth() + 1).toString(), //+1 pois no getMonth Janeiro começa com zero.
+                mesF = (mes.length == 1) ? '0' + mes : mes,
+                anoF = data.getFullYear();
+            return diaF + "/" + mesF + "/" + anoF;
+        }
+
+        var oDatatable;
+
+
+        @*function escolherData(event,id_vendedor) {
+
+            event.stopPropagation();
+
+            Swal.fire({
+                title: "Escolha a Data de Exibição:",
+                html: '<center><input class="form-control datepicker" id="dataMapa"></center>',
+                type: "warning",
+                customClass: 'swal2-overflow',
+                onOpen: function () {
+                    $("#dataMapa").mask("00/00/0000");
+                    $('#dataMapa').datepicker({
+                        format: 'dd/mm/yyyy',
+                        language: 'pt-BR',
+                        todayHighlight: 'true',
+                        autoclose: true,
+                        minDate: 0,
+                    });
+                }
+            })
+            .then(function (result) {
+
+                if (result.value) {
+
+                    if (!$("#dataMapa").val()) {
+
+                        Notificar("@RsBase.ATENCAO_", "Escolha uma data para exibição", "warning")
+                    }
+                    else {
+                        window.location.href =  "@Url.Action("Comercial", "Mapa")?Id_Vendedor=" + id_vendedor + "&Data=" + $("#dataMapa").val();
+                    }
+                }
+            });
+
+
+        }*@
+
+         function escolherData(event, id_vendedor) {
+
+            event.stopPropagation();
+
+            var url = "@Url.Action("Comercial", "Mapa")?Id_Vendedor=" + id_vendedor + "&Data=" + dataAtualFormatada();
+            window.location.href = url;
+
+        }
+        Venda = 1;
+
+        function visualizarVendas(event, id_vendedor) {
+
+            event.stopPropagation();
+
+            var url = "@Url.Action("Index", "Venda")?vendedor=" + id_vendedor + "&dataVenda=" + Venda + "&dataBusca=" + dataAtualFormatada();
+            window.location.href = url;
+
+
+        }
+
+
+        @*function MostrarPlanosProdutos(IdFuncionario) {
+
+            ShowDialog(true, true, 'Extrato do vendedor', "@Url.Action("Dashboard_Vendas_Itens", "Venda")" + "?IdFuncionario=" + IdFuncionario, 'divPlanosProdutos', 620, 450, 'iframePlanosProdutos', function () {
+                try {
+                    setTimeout(function () {
+                        oDatatable.draw();
+                    }, 500);
+
+
+                }
+                catch {
+                    setTimeout(function () {
+                        oDatatable.draw();
+                    }, 500);
+                }
+            });
+
+        }
+
+            "use strict";*@
+
+             oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                 dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                 columnDefs: [
+                     {
+                         targets: 0,
+                         searchable: false,
+                         orderable: false,
+                         width: '1%',
+                         className: 'dt-body-center',
+                         render: function (data, type, full, meta) {
+                             return "";
+                         }
+                     }
+                 ],
+                 select: {
+                     style: 'multi'
+                 },
+                 order: [[1, 'asc']],
+                 serverSide: true,
+                 scrollResize: true,
+                 searching: true,
+                 ordering: true,
+                 paging: true,
+                 deferRender: true,
+                 scrollY: '63vh',
+                 scroller: {
+                     loadingIndicator: true,
+                     rowHeight: 40,
+                     boundaryScale: 0.5,
+                     displayBuffer: 3
+                 },
+                 stateSave: true,
+                 scrollX: true,
+                 fixedHeader: true,
+                 initComplete: dataTableInitComplete,
+                 lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                 ajax: {
+                     url: baseUrl + '/api/Vendaapi/Dashboard_Vendas',
+                     type: 'POST',
+                     data: function (data) {
+
+                        // window.localStorage.setItem(
+
+                        //    JSON.stringify(
+                        //        $('.filtro').toArray().map(p => ({
+                        //            id: $(p).attr('id'),
+                        //            value: $(p).val(),
+                        //            checked: $(p).prop('checked')
+                        //        }))
+                        //    )
+                        //);
+                         data.Supervisor = $('#iSupervisor').val();
+
+                     },
+                     error: function (e) {
+                         console.log(e);
+                     },
+                     dataSrc: function (d) {
+                         return d.data;
+                     }
+                 },
+                 infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                     var str = "@RsCadastros.INFODATATABLE";
+                     if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                     str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                     $("#dtLegend").html(str);
+
+                     return "";
+                 },
+                 pageLength: 10,
+                 language: traducaoDataTableSimples,
+                 buttons: buttonsDataTable,
+                 columns: [
+                     {
+                         data: "id",
+                         title: "@RsCadastros.VISUALIZAR_ROTA",
+                         render: function (data, type, row, meta) {
+                             if (type === 'display') {
+                                 data = "<div class='d-flex'>" +
+                                            "<a class='align-horizontal' onclick='escolherData(event," + row.id + ");'>" +
+                                                "<i class='fas fa-map-marker-alt' style='font-size:1rem'></i>" +
+                                            "</a>" +
+                                        "</div>";
+                             }
+                             return data;
+                         }
+                     },
+                     {
+                         data: "id",
+                         title: "@RsCadastros.VISUALIZAR_VENDA",
+                         render: function (data, type, row, meta) {
+                             if (type === 'display') {
+                                 data = "<div class='d-flex'>" +
+                                            "<a class='align-horizontal' onclick='visualizarVendas(event," + row.id + ");'>" +
+                                                "<i class='fas fa-search-dollar' style='font-size:1rem'></i>" +
+                                            "</a>" +
+                                        "</div>";
+                             }
+                             return data;
+                         }
+                     },
+
+                     { data: "nome", title: "@RsCadastros.VENDEDOR" },
+                     { data: "supervisor", title: "@RsCadastros.SUPERVISOR" },
+
+                     @*{ data: "localizacao", title: "@RsCadastros.LOCALIZACAO" },*@
+
+                     { data: "meta", title: "@RsCadastros.META_MENSAL" },
+                     { data: "meta_Dia", title: "@RsCadastros.META_DIARIA" },
+                     { data: "vendas_Mes", title: "@RsCadastros.VENDAS_MES" },
+                     { data: "vendas_Mes", title: "@RsCadastros.VENDA_REALIZADA" },
+                      { data: "vendas_Dia", title: "@RsCadastros.VENDA_REALIZADAS_DIA" },
+                     { data: "vendas_Hab_Mes", title: "@RsCadastros.VENDA_HABILITDAS" },
+                     { data: "vendas_Hab_Dia", title: "@RsCadastros.VENDA_HABILITADAS_DIA" },
+                     { data: "vendas_Can_Dia", title: "@RsCadastros.VENDAS_CANCELADAS_MES" },
+                     { data: "porVenda_Mes", title: "@RsCadastros.PORCETAGEM_VENDAS" },
+                     { data: "porVenda_Dia", title: "@RsCadastros.PORCETAGEM_VENDAS_DIA" },
+                     { data: "pontuacao_Mensal", title: "@RsCadastros.PONTUACAO_MENSAL" },
+                     { data: "pontuacao_Diaria", title: "@RsCadastros.PONTUACAO_DIARIA" }
+                 ]
+             });
+
+         $('#txtSearch').val(oDatatable.search());
+         $('#txtSearch').keyup(function () {
+             oDatatable.search($(this).val()).draw();
+         });
+
+        $("#iLimparFiltro").on('click', function () {
+
+            $("#iSupervisor").val("").trigger("change");
+            $("#txtSearch").val("")
+            oDatatable.search($("#txtSearch").val()).draw()
+        })
+
+        $('#datatable tbody').on('click', 'tr', function () {
+
+            if (oDatatable.row(this).data() != null) {
+
+                var _id = oDatatable.row(this).data().id;
+                MostrarPlanosProdutos(_id);
+            }
+
+        });
+
+    $("#iPesquisar").on("click", function () {
+
+
+
+                if (ValidaCamposObrigatorios(false)) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                    return false;
+                }
+
+                     $("#modal-filter").modal('hide');
+                     rows_selected = [];
+                     oDatatable.search($('#txtSearch').val()).draw();
+
+                    return true;
+
+
+             });
+
+
+
+    </script>
+}
+
+
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-briefcase"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" style="font-size:12px">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item" style="margin-top:-18px">
+                        <span>@ViewBag.Title </span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<div class="row ml-3 mt-2" style="font-size: 11px">
+                    *Vendas Mês ou Vendas Dias igual a "-" significa que o vendedor não possui uma faixa de comissão definida
+                </div>*@
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.VENDEDOR" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <div class="form-group col-sm-push-1 pl-2">
+                    <i class="fas fa-exclamation-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda das colunas"
+                    data-content="<div style='font-size: 10px'>
+                    <span class='p-3'> • Coluna Visualizar Venda = Atalho para Painel de Vendas filtrando as vendas abertas na data pelo vendedor;</span><br />
+                    <span class='p-3'> • O vendedor precisa ter uma faixa de comissionamento vinculada para que as Meta Mensal e Meta Diária tenham valor a ser exibido;</span><br />
+                    <span class='p-3'> • As colunas Vendas Realizadas no mês e no dia e as Vendas Habilitadas no mês correspondem a vendas que já estão aprovadas;</span><br />
+                    <span class='p-3'> • A coluna Vendas Habilitadas Mês exibe a quantidade de vendas cujos itens (planos e produtos) vinculados estão todos no status habilitado;</span><br />
+                    <span class='p-3'> • A coluna Meta Diária considera apenas dias úteis e excluí feriados nacionais;</span><br />
+                    <span class='p-3'> • O % de vendas mês é obtido pela quantidade de vendas realizadas mês em relação a meta mensal;</span><br />
+                    <span class='p-3'> • O % de vendas dia é obtido pela quantidade de vendas realizadas no dia em relação a meta diária;</span><br />
+                    <span class='p-3'> • Para as colunas Pontuação Mês e Pontuação Dia é necessário que o vendedor possua uma faixa de comissionamento vinculada, e que a empresa mantenha o cadastro da faixa atualizado com pontuação para todos os planos e produtos disponíveis no sistema, assim os valores estarão mais reais.</span><br />
+                    </div>"></i>
+                </div>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+    <div class="modal" id="modal-filter">
+        <div class="modal-dialog" style="max-width:60%">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsCadastros.FILTRO_ACOMPANHAMENTO_VENDEDORES</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row">
+
+                        <div class="col-sm-12" style="align-content:center;">
+
+                            <div class="row mt-1">
+
+                                <div class="col-sm">
+                                    <div class="form-group">
+                                        <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                                        @Html.DropDownList("Supervisor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iSupervisor", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+
+
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+<div id="divPlanosProdutos" style="display:none"></div>
+<div id="divFuncionario" style="display:none"></div>

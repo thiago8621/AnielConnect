@@ -1,0 +1,734 @@
+﻿@model Aniel.Connect.Models.Modelo_PainelAtendimentoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_MODELOS_VIZUALICACAO_PAINEL_ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script>
+        var clicked = false;
+
+        function limparSelect2(id) {
+            if ($(`#${id}`).data('select2')) {
+                $(`#${id}`).select2('destroy');
+            }
+
+            $(`#${id}`).empty();
+        }
+
+        function handleAdicionar() {
+            $(".btnAdicionarColuna").unbind('click');
+            $(".btnAdicionarColuna").click(function (e) {
+                e.preventDefault();
+
+                var Coluna = $(this).attr("adicionar");
+                var Descricao = $(this).attr("descricao");
+
+                var trLinkButton = $(this).parents('tr');
+
+                oDatatableColunas.row.add({
+                    Descricao: Descricao,
+                    Coluna: Coluna,
+                    Id: 0
+                }).draw(false);
+                handleExcluirColuna();
+
+                oDatatableColunasAdicionar.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROADICIONADO", "info");
+
+            });
+        }
+
+        function handleExcluirColuna() {
+                $(".btnExcluirColuna").unbind('click');
+                $(".btnExcluirColuna").click(function (e) {
+                    e.preventDefault();
+
+                    var idColuna = $(this).attr("excluir");
+                    var Coluna = $(this).attr("coluna");
+                    var Descricao = $(this).attr("descricao");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idColuna === "0") {
+                        oDatatableColunas.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        oDatatableColunasAdicionar.row.add({
+                            Descricao: Descricao,
+                            Coluna: Coluna
+                        }).draw(false);
+                        handleAdicionar();
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_PainelAtendimentoApi/ExcluirGridColuna?value=")' + idColuna;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableColunas.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+                                    oDatatableColunasAdicionar.row.add({
+                                        Descricao: Descricao,
+                                        Coluna: Coluna
+                                    }).draw(false);
+                                    handleAdicionar()
+
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+        $('#iTipoFiltro').change(function () {
+            var val = $('#iTipoFiltro').val();
+
+            if (val) {
+                $('#iFiltro').attr("multiple", "multiple");
+                $('#iFiltro').prop('disabled', false);
+            }
+            else {
+                $('#iFiltro').prop('disabled', true);
+                $('#iFiltro').removeAttr("multiple");
+                limparSelect2('iFiltro');
+            }
+
+            switch (val) {
+                case "0":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    break;
+                case "1":
+                    limparSelect2("iFiltro");
+                    $('#iFiltro')
+
+                    var SLAs = @(Html.GetArrayEnum<Status_SLA_Atendimento>());
+                    let valores_sla = @(Json.Encode(Enum.GetValues(typeof (Status_SLA_Atendimento)).Cast<Status_SLA_Atendimento>()));
+                    $.each(SLAs, function (key, value) {
+                        $('#iFiltro')
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_sla[key])
+                                .text(value));
+                    });
+                    $('#iFiltro').select2();
+                    break;
+                case "2": {
+                    limparSelect2("iFiltro");
+                    var prioridades = @(Html.GetArrayEnum<Prioridade_Atendimento>());
+                    let valores_prioridade =@(Json.Encode(Enum.GetValues(typeof (Prioridade_Atendimento)).Cast<Prioridade_Atendimento>()));
+                    $.each(prioridades, function (key, value) {
+                        $('#iFiltro')
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_prioridade[key])
+                                .text(value));
+                    });
+
+                    $('#iFiltro').select2();
+                    break;
+                }
+                case "3":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    break;
+                case "4":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    //setor
+                    break;
+                case "5":
+
+                    limparSelect2("iFiltro");
+                    let status = @(Html.GetArrayEnum<Status_Atendimento>());
+                    let valores_status = @(Json.Encode(Enum.GetValues(typeof (Status_Atendimento)).Cast<Status_Atendimento>()));
+                    $.each(status, function (key, value) {
+                        $('#iFiltro')
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_status[key])
+                                .text(value));
+                    });
+                    $('#iFiltro').select2();
+                    break;
+
+                case "6":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    break;
+                case "7":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    break;
+                case "8":
+                    AddSelect("iFiltro", "@CONSTANTES.URLPortal/api/Origemapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                    break;
+            }
+        })
+
+        var handleDataTableFiltro = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Filtros));
+
+            var nome_lista = "Filtros";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatableFiltros").length && $("#datatableFiltros").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                paging: false,
+                order: [],
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Filtro" name="' + nome_lista + '[' + meta.row + '].Filtro" type="hidden" value="' + TrataNulo(row.Filtro) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Valor" name="' + nome_lista + '[' + meta.row + '].Valor" type="hidden" value="' + TrataNulo(row.Valor) + '">';
+                        }
+                    },
+                    {
+                        data: "Filtro_Descricao",
+                        title: "Tipo de Filtro",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Filtro_Descricao" name="' + nome_lista + '[' + meta.row + '].Filtro_Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Descricao",
+                        title: "Descricao",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idFiltro = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idFiltro === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_PainelAtendimentoApi/ExcluirGridFiltro?value=")' + idFiltro;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+            handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+
+                if (ValidaObrigatoriosPorClasse("obrigatorioFiltro", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+                if ($("#iFiltro").val().length === 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                let lista_filtros = $("#iFiltro").select2('data');
+
+                for (const filtro of lista_filtros) {
+                    for (var i = 0; i < oDatatable.rows().data().length; i++) {
+                        if (oDatatable.rows().data()[i].Valor == filtro.id && oDatatable.rows().data()[i].Filtro == $("#iTipoFiltro option:selected").val()) {
+                            Notificar("@RsBase.ATENCAO_", `Um ou mais valores para o filtro ${$("#iTipoFiltro option:selected").text()} já foi adicionado a lista abaixo, para o modelo.Favor verificar os valores.`, "warning");
+                            erro = true;
+                            i = oDatatable.rows().data().length;
+                        }
+                    }
+                }
+
+                if (erro) {
+                    return;
+                }
+
+                for (const filtro of lista_filtros) {
+
+                    oDatatable.row.add({
+                        Id: 0,
+                        Valor: filtro.id,
+                        Descricao: filtro.text,
+                        Filtro: $("#iTipoFiltro option:selected").val(),
+                        Filtro_Descricao: $("#iTipoFiltro option:selected").text()
+                    }).draw(false);
+
+                    handleExcluir();
+                }
+
+                $("#iFiltro").val("").trigger('change');
+                $("#iTipoFiltro").val("").trigger('change');
+            });
+
+
+        },
+            TableManageButtonsFiltro = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableFiltro();
+                    }
+                }
+            }();
+
+        TableManageButtonsFiltro.init();
+        var oDatatableColunasAdicionar
+
+        var handleDataTableColunasAdicionar = function () {
+            "use strict";
+
+            var array = @(Html.GetArrayEnum<Coluna_PainelAtendimentoEnum>());
+            var enum_values = @(Json.Encode(Enum.GetValues(typeof (Coluna_PainelAtendimentoEnum)).Cast<Coluna_PainelAtendimentoEnum>()));@*@Html.Raw(Json.Encode(Model.Filtros))*@;
+            array = array.map((p, i) => ({ Descricao: p, Coluna: enum_values[i] }));
+            var array_adicionadas = @Html.Raw(Json.Encode(Model.Colunas));
+
+            array = array.filter(p => array_adicionadas.map(y => y.Coluna).filter(y => y == p.Coluna).length == 0);
+
+            oDatatableColunasAdicionar = $("#datatableColunasAdicionar").length && $("#datatableColunasAdicionar").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                order: [],
+                paging: false,
+                columns: [
+                    {
+                        data: "Descricao",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = '<a href="#" class="btnAdicionarColuna p-3" descricao="' + data + '" id="btnAdicionarColuna_' + meta.row + '" adicionar="' + row.Coluna + '"><i class="fas fa-plus-circle" style="font-size:16px;;padding-right:2px;"></i></a>' + data ;
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+
+
+
+
+            handleAdicionar();
+
+        },
+            TableManageColunasAdicionar = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableColunasAdicionar();
+                    }
+                }
+            }();
+
+        TableManageColunasAdicionar.init();
+
+        var oDatatableColunas;
+
+        var handleDataTableColunas = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Colunas));
+
+            var nome_lista = "Colunas";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatableColunas = $("#datatableColunas").length && $("#datatableColunas").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                paging: false,
+                order:[],
+                columns: [
+                    {
+                        data: "Id",
+                        orderable:false,
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirColuna" descricao="' + row.Descricao + '" coluna="' + row.Coluna + '" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Coluna" name="' + nome_lista + '[' + meta.row + '].Coluna" type="hidden" value="' + TrataNulo(row.Coluna) + '">';
+
+                        }
+                    },
+                    {
+                        data: "Descricao",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+
+            handleExcluirColuna();
+
+
+
+        },
+            TableManageButtonsColunas = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableColunas();
+                    }
+                }
+            }();
+
+        TableManageButtonsColunas.init();
+
+
+
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            erro = false;
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+
+            @if(!ViewBag.AdmistradorModelos) {
+                <text>
+                    if ($('#iVisibilidade').val() == "1") {
+                        Notificar("@RsBase.ATENCAO_", "@Html.Raw(RsCadastros.USUARIO_NAO_PODE_CADASTRAR_MODELO_PUBLICO)", "warning");
+                        erro = true;
+                    }
+                </text>
+            }
+
+
+            if (oDatatableColunas.data().toArray().length < 2) {
+                Notificar("@RsBase.ATENCAO_", "@Html.Raw(RsCadastros.MODELO_PANIEL_MINIMO_COLUNAS)", "warning");
+                erro = true;
+            }
+            if (oDatatableColunas.data().toArray().map(p => p.Coluna).filter(p => p == $('#iColuna_Ordenar').val()).length == 0) {
+                Notificar("@RsBase.ATENCAO_", "A coluna de ordenação deve ser adicionada nas colunas de visualização do painel", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+            return true;
+        }
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Modelo_PainelAtendimento", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Atendimento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ATENDIMENTO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Modelo_PainelAtendimento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAR_MODELOS_VIZUALICACAO_PAINEL_ATENDIMENTO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                        @*<span style="font-size:11px" id="dtLegend"></span>*@
+                    </div>
+                </div>
+
+                <!--Nav Tab-->
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="sobre-tab" data-toggle="tab" href="#iSobre" role="tab" aria-controls="sobre" aria-selected="true"><i class="fas fa-clipboard"></i> Sobre</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="filtros-tab" data-toggle="tab" href="#iFiltros" role="tab" aria-controls="filtros" aria-selected="false"><i class="fas fa-filter"></i> Filtros</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="colunas-tab" data-toggle="tab" href="#iColunas" role="tab" aria-controls="colunas" aria-selected="false"><i class="fas fa-columns"></i> Colunas</a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane active" id="iSobre">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                        <span class="text-bold-card">Sobre</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-7">
+                                            <div class="form-group">
+                                                <label for="iDescricao" class="mr-3">@RsFinanceiro.DESCRICAO:</label>
+                                                @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control obrigatorio", @id = "iDescricao", @autocomplete = "off", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-3 pt-3">
+                                                <div class="form-group">
+                                                    <label for="iSaldo_Caixa" class="mr-3">@RsFinanceiro.STATUS:</label>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    @*<div class="row mt-2">
+                                            <div class="col-sm-7">
+                                                <div class="form-group ">
+                                                    <label for="iPadrao">Padrão:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Padrao, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPadrao" })
+                                                </div>
+                                            </div>
+                                        </div>*@
+
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-7">
+                                            <div class="form-group">
+                                                <label>@RsCadastros.VISIBILIDADE:</label>
+                                                @Html.EnumDropDownListFor(m => m.Visibilidade, RsBase.SELECIONE, new { @class = "form-control", @id = "iVisibilidade" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iFiltros">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="card div-card-accord">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">@RsCadastros.ADICIONAR_FILTRO</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+
+
+                                        <div class="form-group">
+                                            <label for="iTipoFiltro">@RsCadastros.SELECIONE_TIPO_FILTRO</label>
+                                            @Html.EnumDropDownListFor(m => m.TipoFiltro, RsBase.SELECIONE, new { @class = "form-control ", id = "iTipoFiltro" })
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="iFiltro">@RsCadastros.SELECIONE_VALORES_FILTRO</label>
+                                            <select id="iFiltro" disabled class="form-control ">
+                                            </select>
+                                        </div>
+
+                                        <div class="text-right mt-3">
+                                            <input type="button" id="btnAdicionar" class="mt-2 btn btn-success" value="Adicionar" />
+                                        </div>
+
+
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-sm-12">
+                                <div class="card div-card-accord">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">@RsCadastros.LISTA_FILTROS</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+
+                                        <table class="table table-hover nowrap" id="datatableFiltros" style="width:100%"></table>
+
+                                    </div>
+
+
+                                </div>
+
+                            </div>
+
+
+
+                        </div>
+
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iColunas">
+
+
+
+                        
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">@RsCadastros.COLUNAS_DISPONIVEIS</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+
+                                        <table class="table table-hover nowrap" id="datatableColunasAdicionar" style="width:100%"></table>
+
+                                    </div>
+
+
+                                </div>
+
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">@RsCadastros.COLUNAS_ADICIONADAS</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+
+                                        <table class="table table-hover nowrap" id="datatableColunas" style="width:100%"></table>
+
+                                        <div class="row mt-2">
+                                            <div class="col-sm-7">
+                                                <div class="form-group ">
+                                                    <label for="iColuna_Ordenar">@RsCadastros.ORDENAR_POR:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Coluna_Ordenar, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iColuna_Ordenar" })
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Categoria_Atendimento")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+}

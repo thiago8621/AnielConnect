@@ -1,0 +1,438 @@
+﻿@model  Aniel.Connect.Models.T5.Modelo_Elemento_RedeListaModels
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_MODELO_ELEMENTO_REDE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        var rows_selected = [];
+        let oDatatable
+
+        var Url = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_Elemento_RedeApi/AlterarStatus")';
+
+         function AlterarStatusObj(Status) {
+        $.ajax({
+            url: Url,
+            type: `POST`,
+            dataType: `json`,
+            data: {
+                ids: rows_selected,
+                status: Status
+            }
+
+        })
+            .done(function (data) {
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                    rows_selected = [];
+                    oDatatable.draw(false);
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+
+            });
+    }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            //if ($("#datatable").length != null && $("#datatable").length < 1) {
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: `<'row'<'col-sm-4'l><'col-sm-8'p>> Bfrti`,
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: `${baseUrl}/api/Modelo_Elemento_RedeApiController/GetAll`,
+                    type: 'POST',
+                    data: function (data) {
+
+                        let status = $("#iStatusFiltro").val();
+
+                        if (status == '1')
+                            data.Status = true;
+                        else if (status == '0')
+                            data.status = false;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO do Modelo de Elemento de Rede " },
+                   // { data: "fabricante", title: "@RsCadastros.FABRICANTE" },
+                    { data: "status", title: "@RsCadastros.SITUACAO"}
+                  @*{ data: "bairro", title: "@RsCadastros.BAIRRO"},
+                    { data: "cabo", title: "@RsCadastros.CABO"},
+                    {data: "capacidade", title: "@RsCadastros.CAPACIDADE"},
+                    { data: "cep", title: "@RsCadastros.CEP"},
+                    { data: "cidade", title: "@RsCadastros.CIDADE"},
+                    { data: "endereco", title: "@RsCadastros.ENDERECO"},
+
+                    { data: "idOLT", title: "@RsCadastros.OLT"},
+                    { data: "idPON", title: "@RsCadastros.PON"},
+                    { data: "idPOP", title: "@RsCadastros.POP"},
+                    { data: "idSlot", title: "@RsCadastros.SLOT"},
+                    { data: "latitude", title: "@RsCadastros.LATITUDE"},
+                    { data: "longitude", title: "@RsCadastros.LONGITUDE"},
+                    { data: "metragem", title: "@RsCadastros.META"},
+                    { data: "modelo", title: "@RsCadastros.MODELO"},
+                    { data: "observacao", title: "@RsCadastros.OBSERVACAO"},
+                    { data: "poste", title: "@RsCadastros.POSTE"},*@
+
+
+                    ]
+                });
+
+           $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+               rows_selected = [];
+               oDatatable.search($(this).val()).draw();
+            });
+
+
+            $('#iLimparFiltro').on('click', function () {
+
+                $('#txtSearch').val('');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+                oDatatable.draw(false);
+
+
+            });
+
+           $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Ativo
+               AlterarStatusObj(1);
+               oDatatable.draw(false);
+            });
+
+
+             // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                }
+                else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("Cadastro", "Modelo_Elemento_Rede", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+        }();
+
+        function Exibircadastro_campo(id)
+        {
+            //pegar o id do checkbox
+            id = 1;
+            //pmodal, presizable, ptitle, purl,
+            ShowDialog(true, true, '@RsCadastros.CADASTRO', '@Url.Action("CadastroCampo","Modelo_Elemento_Rede")'/* + `?Id = ${id}`*/, 'divCadastroCampo', 960, 540, 'iframeCadastro',
+                    function () {
+                        try {
+
+                            setTimeout(function () {
+                                rows_selected = [];
+
+                            }, 500);
+
+                        }
+                        catch {
+                            setTimeout(function () {
+                                rows_selected = [];
+
+                            }, 500);
+                        }
+                    }
+            );
+
+
+            ShowPageLoading();
+
+        }
+
+        TableManageButtons.init();
+
+        $("#iPesquisar").on("click", function () {
+
+            $("#modal-filter").modal('hide');
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+
+            return true;
+        });
+
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+
+                <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Modelo_Elemento_Rede")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+
+
+
+                    <a class="dropdown-item" id="btnInativar" onclick="return false;">@RsBase.INATIVAR</a>
+                    <a class="dropdown-item" id="btnAtivar" onclick="return false;">@RsBase.ATIVAR</a>
+                    <a class="dropdown-item" onclick=" return Exibircadastro_campo(1); return false;">Cadastrar Novo Campo</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+<div id="divCadastroCampo"></div>
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="iStatusFiltro" class="mr-3" style="font-size: 12px"><b>@RsCadastros.STATUS: </b></label><br>
+                    <select id="iStatusFiltro" class="form-control">
+                        <option value="">@RsBase.TODOS</option>
+                        <option value="0">@RsCadastros.INATIVO</option>
+                        <option value="1">@RsCadastros.ATIVO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal"> Limpar Campo</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar"> Pesquisar</button>
+                </div>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

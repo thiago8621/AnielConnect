@@ -1,0 +1,323 @@
+﻿@model Aniel.Connect.Models.ConsultaClienteAtendimento_DataTableRequest
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion,"~/bundles/jsDataTable")
+
+    <script>
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        ValidaPeriodo("iDtInicialFiltro", "iDtFinalFiltro", "@String.Format(RsBase.PERIODO_INVALIDO)");
+
+        function FiltrarDataTable() {
+            oDatatable.draw();
+            return true;
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            //Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+           
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {                            
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Vendaapi/BuscaFiltroConsultaAtdVend',
+                    type: 'POST',
+                    data: function (data) {
+                        data.Dt_Inicial_Filtro = $("#iDtInicialFiltro").val();
+                        data.Dt_Final_Filtro = $("#iDtFinalFiltro").val();
+                        data.Id_Tipo_Atendimento = $("#iTipoAtendimento").val();
+                        data.Status = $("#iStatusAtendimento").val();
+                        data.Id_Cliente = @Model.Id_Cliente;
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                  
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },                   
+
+                    { data: "id", title: "@RsCadastros.NUMERO_ATENDIMENTO", orderable: true },
+                    { data: "venda", title: "@RsCadastros.NUM_VENDA", orderable: true },
+                    { data: "responsavel", title: "@RsCadastros.RESPONSAVEL", orderable: true },
+                    { data: "tipo_Atendimento", title: "@RsCadastros.TIPOATENDIMENTO", orderable: false },                  
+                    { data: "status", title: "@RsCadastros.STATUS", orderable: true },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATA_HORA_ABERTURA", orderable: true },
+               
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Aqui
+            $("#btnFiltro").on("click", function () {
+
+                //if (rows_selected.length == 0) {
+                //    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                //    return;
+                //}
+
+
+                //AlterarStatusObj(1);
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+     
+        TableManageButtons.init();
+
+    </script>
+}
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+            <div class="card-header title-card" id="heading_1">
+                <h5 class="mb-0">
+                    <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                        <span class="text-bold-card">@RsCadastros.LISTA_ATENDIMENTO_VENDA</span>
+                    </a>
+                </h5>
+            </div>
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iNome">@RsCadastros.PERIODO:</label>
+                        </div>
+                    </div>
+
+                    @*<div class="col-sm-6 text-right">
+                <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.ASSUNTO" autocomplete="off">
+                <i class="la la-search la-2x" style="color: #999"></i>
+            </div>*@
+
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.DE:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Inicial_Filtro, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDtInicialFiltro", @required = true })
+
+                    </div>
+
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.PARA:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Final_Filtro, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDtFinalFiltro", @required = true })
+
+                    </div>
+
+                    @*<div class="col-sm-2">
+                <div class="form-group">
+                    <label for="iTipoAtendimento" class="mr-3">@RsCadastros.TIPO_ATEDIMENTO:</label>
+                </div>
+
+                @Html.DropDownListFor(m => m.Id_Tipo_Atendimento, new SelectList(ViewBag.Tipos_Atendimento, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoAtendimento", @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Id_Tipo_Atendimento, "", new { @class = "text-danger" })
+
+            </div>*@
+
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.STATUS_ATEDIMENTO:</label>
+                        </div>
+
+                        @Html.EnumDropDownListFor(m => m.Status, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Status, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="col-sm-3">
+                        <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.N_ATENDIMENTO" autocomplete="off">
+
+                    </div>
+
+                    <div class="col-sm-2 text-right mt-4 pb-2 pr-5">
+                        <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                    </div>
+
+                </div>
+
+                <!--.Filtros-->
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+                
+
+
+            </div>
+        </div>
+    </div>
+</div>

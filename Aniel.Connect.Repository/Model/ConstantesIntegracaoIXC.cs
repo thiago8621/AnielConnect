@@ -1,0 +1,126 @@
+﻿using System;
+
+namespace Aniel.Connect.Repository.Model
+{
+    public class ConstantesIntegracaoIXC
+    {
+        public string clienteCRM;
+
+        public string autenticacaoLogin { get; set; }
+        public string senhaMD5 { get; set; }
+        public string idFilial { get; set; }
+        public string tipoConexaoMapa { get; set; }
+
+        public string tipo { get; set; }
+        public string assinatura_digital { get; set; }
+        public string integracao_assinatura_digital { get; set; }
+        public string liberacao_bloqueio_manual { get; set; }
+        public string isentar_contrato { get; set; }
+        public string status { get; set; }
+        public string status_internet { get; set; }
+        public string status_velocidade { get; set; }
+        public string tipo_produtos_plano { get; set; }
+        public string motivo_inclusao { get; set; }
+        public string id_tipo_documento { get; set; }
+        public string id_carteira_cobranca { get; set; }
+        public string cc_previsao { get; set; }
+        public string tipo_cobranca { get; set; }
+        public string renovacao_automatica { get; set; }
+        public string gerar_finan_assin_digital_contrato { get; set; }
+        public string base_geracao_tipo_doc { get; set; }
+        public string id_tipo_doc_ativ { get; set; }
+        public string taxa_instalacao { get; set; }
+        public string fidelidade { get; set; }
+        public string desconto_fidelidade { get; set; }
+        public string bloqueio_automatico { get; set; }
+        public string aviso_atraso { get; set; }
+        public string desbloqueio_confianca { get; set; }
+        public string desbloqueio_confianca_ativo { get; set; }
+        public string restricao_auto_desbloqueio { get; set; }
+        public string obs { get; set; }
+        public string liberacao_suspensao_parcial { get; set; }
+        public string utilizando_auto_libera_susp_parc { get; set; }
+        public string restricao_auto_libera_susp_parcial { get; set; }
+        public string contrato_suspenso { get; set; }
+        public string obs_contrato { get; set; }
+        public string imp_realizado { get; set; }
+        public string imp_carteira { get; set; }
+        public string imp_importacao { get; set; }
+        public string imp_treinamento { get; set; }
+        public string imp_rede { get; set; }
+        public string imp_bkp { get; set; }
+        public string imp_status { get; set; }
+        public DateTime? data_retomada_contrato { get; set; }
+        public string endereco_padrao_cliente { get; set; }
+        public string tipo_localidade { get; set; }
+        public string document_photo { get; set; }
+        public string selfie_photo { get; set; }
+        public string FranquiaAtingida { get; set; }
+        public string TipoAcesso { get; set; }
+        public string AutenticacaoMac { get; set; }
+        public string AutenticacaoWPS { get; set; }
+        public string ClienteTemSenha { get; set; }
+        public string TipoVinculoPlano { get; set; }
+        public string ServiceTagVLan { get; set; }
+        public string MTU { get; set; }
+        public string RelacionarMacLog { get; set; }
+        public string AutoPreencherMac { get; set; }
+        public string RelacionarIPV6Login { get; set; }
+        public string FixarIPV6 { get; set; }
+        public string AutoPreencherIPV6 { get; set; }
+        public string FrameRelacionarIPV6Login { get; set; }
+        public string FramedFixarIPV6 { get; set; }
+        public string FramedAutopreencherIPV6 { get; set; }
+        public string RelacionarIPLogin { get; set; }
+        public string FixarIP { get; set; }
+        public string AutoPreencherIP { get; set; }
+        public string Online { get; set; }
+        public string Ativo { get; set; }
+        public string LoginSimultaneo { get; set; }
+        public string TipoAtendimento { get; set; }
+        public string OrigemEndereco { get; set; }
+        public string OrigemEnderecoEstrutura { get; set; }
+        public string Pioridade { get; set; }
+        public string MelhorHorarioReserva { get; set; }
+        public string IdTicketOrigem { get; set; }
+        public string InteracaoPendente { get; set; }
+        public string SuStatus { get; set; }
+        public string StatusAtendimento { get; set; }
+        public string FinalizarAtendimento { get; set; }
+        public string OrigemCadastro { get; set; }
+        public string AtualizarCliente { get; set; }
+        public string AtualizarLogin { get; set; }
+        public string AutenticacaoPorMac { get; set; }
+        public string ClienteAtivo { get; set; }
+        public string FiltraFilial { get; set; }
+        public string ContribuinteICMS { get; set; }
+        public string Idx { get; set; }
+        public string ConvertClienteForn { get; set; }
+        public string AtualizarGalaxPay { get; set; }
+        public string Moradia { get; set; }
+        public string TipoLocalidadeCliente { get; set; }
+        public string UfCobranca { get; set; }
+        public string AcessoAutomaticoCentral { get; set; }
+        public string AlterarSenhaPrimeiroAcesso { get; set; }
+        public string SenhaHotsiteMD5 { get; set; }
+        public string HotsiteAcesso { get; set; }
+        public string IdConcorrente { get; set; }
+        public string IdPerfil { get; set; }
+        public string CadastradoViaViabilidade { get; set; }
+        public string StatusProspeccao { get; set; }
+        public string PipeIdOrganizacao { get; set; }
+        public string ParticipaCobranca { get; set; }
+        public string ParticipaPreCobranca { get; set; }
+        public string CobrancaEnviaEmail { get; set; }
+        public string CobrancaEnviaSMS { get; set; }
+        public string TipoPessoaTitular { get; set; }
+        public string OrgaoPublico { get; set; }
+        public string ISS { get; set; }
+        public string PISRetem { get; set; }
+        public string CofinsRetem { get; set; }
+        public string CSLLRetem { get; set; }
+        public string IRRFRetem { get; set; }
+        public string DescontoIRRF { get; set; }
+        public string DescontaISS { get; set; }
+    }
+}

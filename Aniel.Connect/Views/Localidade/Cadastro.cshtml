@@ -1,0 +1,544 @@
+﻿@model Aniel.Connect.Models.Localidade_CadastroModel
+
+@using Aniel.Connect.Core.Helpers;
+@using Aniel.Connect.Models.T5;
+
+@{
+
+    ViewBag.Title = RsCadastros.CADASTRO_LOCALIDADE;
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+}
+
+@section scripts
+{
+
+
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script src="https://maps.googleapis.com/maps/api/js?key=@CONSTANTES.TokenGoogleAPI&callback=initMap&libraries=places,geometry"
+            async defer></script>
+
+
+
+    @if (Model.Id == null || Model.IdCadastro == null || Model.Id == String.Empty)
+    {
+        <text>
+            <script>
+                $("#iCodigo").val("");
+                $("#iStatus").val(true);
+                $("#divStatus").hide();
+
+                $(document).ready(async () => {
+                    await AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdGrupoArea", "@RsBase.SELECIONE", false);
+                    await AddSelect("iArea", "@CONSTANTES.URLPortal/api/Areaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdGrupoArea", "@Model.IdArea", "@RsBase.SELECIONE", false);
+                    await AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdContrato", "@RsBase.SELECIONE", false);
+                    await AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdContrato", "@Model.IdProjeto", "@RsBase.SELECIONE", false);
+
+                    await AddSelect("iContrato_Infra", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdContrato_Infra", "@RsBase.SELECIONE", false);
+                    await AddSelect("iProjeto_Infra", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdContrato_Infra", "@Model.IdProjeto_Infra", "@RsBase.SELECIONE", false);
+
+                    $("#iLongitude").mask('99Z.99999999', {
+                        translation: {
+                            'Z': {
+                                pattern: /[0-9]/,
+                                optional: true
+                            }
+                        }
+                    });
+                    $("#iLatitude").mask('99Z.99999999', {
+                        translation: {
+                            'Z': {
+                                pattern: /[0-9]/,
+                                optional: true
+                            }
+                        }
+                    });
+                });
+
+            </script>
+        </text>
+
+        Model.IdCadastro = null;
+    }
+    else
+    {
+<script>
+            $("#iCodigo").addClass("readonly");
+            $("#divStatus").show();
+            $("#iDescricao").addClass("readonly");
+            $(".readonly").attr("tabindex", "-1");
+
+            $(document).ready(async () => {
+                if ("@AcessoHelper.TemAcesso(_areas, "241")" == "True") {
+                    await AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdGrupoArea", "@RsBase.SELECIONE", false);
+                    await AddSelect("iArea", "@CONSTANTES.URLPortal/api/Areaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdGrupoArea", "@Model.IdArea", "@RsBase.SELECIONE", false);
+                } else {
+                    await AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdGrupoArea", "@RsBase.SELECIONE", true);
+                    await AddSelect("iArea", "@CONSTANTES.URLPortal/api/Areaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdGrupoArea", "@Model.IdArea", "@RsBase.SELECIONE", true);
+                }
+                await AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdContrato", "@RsBase.SELECIONE", false);
+                await AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Html.Raw(Model.IdContrato)", "@Html.Raw(Model.IdProjeto)", "@RsBase.SELECIONE", false);
+                await AddSelect("iContrato_Infra", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdContrato_Infra", "@RsBase.SELECIONE", false);
+                await AddSelect("iProjeto_Infra", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Html.Raw(Model.IdContrato_Infra)", "@Html.Raw(Model.IdProjeto_Infra)", "@RsBase.SELECIONE", false);
+                $("#iLongitude").mask('99Z.99999999', {
+                    translation: {
+                        'Z': {
+                            pattern: /^-?\d{1,3}\.\d{7}$/,
+                            optional: true
+                        }
+                    }
+                });
+                $("#iLatitude").mask('99Z.99999999', {
+                    translation: {
+                        'Z': {
+                            pattern: /^-?\d{1,3}\.\d{7}$/,
+                            optional: true
+                        }
+                    }
+                });
+            });
+
+</script>
+        Model.IdCadastro = Convert.ToString(Model.Id);
+    }
+
+
+<script>
+
+
+    let marcadorAutoComplete;
+    let autocomplete
+    function setAutoComplete() {
+
+        if (!autocomplete) {
+
+            let elementPesquisa = document.getElementById("iPesquisaMap");
+            autocomplete = new google.maps.places.Autocomplete(elementPesquisa);
+        }
+    }
+    async function PesquisaMapa() {
+        try {
+
+            let pesquisa = $("#iPesquisaMap").val();
+            var service = new google.maps.places.PlacesService(map);
+
+            var request = {
+                query: pesquisa,
+                fields: ['name', 'geometry'],
+            };
+
+            service.findPlaceFromQuery(request, function (results, status) {
+
+
+                if (marcadorAutoComplete) {
+                    marcadorAutoComplete.setMap(null);
+                    $('#iConfirmarLocalizacao').hide();
+                }
+
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                    if (results.length > 0) {
+
+                        let latlng = {
+                            lat: results[0].geometry.location.lat(),
+                            lng: results[0].geometry.location.lng()
+                        };
+
+                        marcadorAutoComplete = new google.maps.Marker({
+                            position: latlng,
+                            map: map,
+                            draggable: true,
+                            title: "Resultado da Busca"
+                        });
+
+                        marcadorAutoComplete.addListener('dragend', handleDragEnd);
+                        $('#iConfirmarLocalizacao').show();
+
+
+                        map.setCenter(results[0].geometry.location);
+                    }
+                }
+            });
+
+        }
+        catch (e) { console.log(e) }
+    }
+
+    function showPosition(position) {
+        let latlng = { lat: position.coords.latitude, lng: position.coords.longitude };
+        map.setCenter(latlng);
+    }
+
+    function getLocation() {
+        if ($('#iLatitude').val() && $('#iLongitude').val())
+        {
+            let latlng = { lat: Number($('#iLatitude').val()), lng: Number($('#iLongitude').val()) };
+            map.setCenter(latlng);
+            marcadorAutoComplete = new google.maps.Marker({
+                position: latlng,
+                map: map,
+                draggable: true,
+                title: "Resultado da Busca"
+            });
+
+            marcadorAutoComplete.addListener('dragend', handleDragEnd);
+        }
+        else {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition);
+            } else {
+                Notificar("@RsBase.ATENCAO_", "Geolocation is not supported by this browser", "warning");
+            }
+        }
+    }
+
+    function handleDragEnd(event) {
+        $('#iConfirmarLocalizacao').show();
+    }
+
+    $('#iConfirmarLocalizacao').click(function () {
+        $('#iConfirmarLocalizacao').hide();
+        $('#iLatitude').val(marcadorAutoComplete.position.lat())
+        $('#iLongitude').val(marcadorAutoComplete.position.lng())
+        $('#modal-filter').modal('hide');
+    });
+
+    let iniciando = true;
+    async function initMap() {
+        /*Hide transit and poi*/
+        var myStyles = [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            },
+            {
+                featureType: "transit",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            }
+        ];
+
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: -22.8690004, lng: -43.4790957 },
+            zoom: 15,
+            styles: myStyles,
+            disableDefaultUI: false,
+        });
+
+        if (iniciando) {
+            getLocation();
+            iniciando = false;
+        }
+
+
+
+    }
+
+    $("#iContrato").on("change", function () {
+        var idContrato = $("#iContrato").val();
+        AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, idContrato, null, "@RsBase.SELECIONE", false);
+    });
+
+    $("#iContrato_Infra").on("change", function () {
+        var idContrato_Infra = $("#iContrato_Infra").val();
+        AddSelect("iProjeto_Infra", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, idContrato_Infra, null, "@RsBase.SELECIONE", false);
+    });
+
+    $("#iGrupoArea").on("change", function () {
+        var idGrupoArea = $("#iGrupoArea").val();
+        AddSelect("iArea", "@CONSTANTES.URLPortal/api/Areaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, idGrupoArea, null, "@RsBase.SELECIONE", false);
+    });
+
+    $("#iDescricao").on("input", function () {
+        var valor = $(this).val();
+        if (valor.includes("/") || valor.includes("\\")) {
+            $("#iVerificadorCaractere").show();
+        } else {
+            $("#iVerificadorCaractere").hide();
+        }
+    });
+
+    var clicked = false;
+    function ValidaSubmit()
+    {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        var erro = false;
+
+        if ($('#iDescricao').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "Informe a Descrição", "warning");
+            erro = true;
+        }
+        if ($('#iCodigo').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "Informe o Código", "warning");
+            erro = true;
+        }
+        if ($('#iArea').val() == null) {
+            Notificar("@RsBase.ATENCAO_", "Selecione a Área", "warning");
+            erro = true;
+        }
+        if ($('#iGrupoArea').val() == null) {
+            Notificar("@RsBase.ATENCAO_", "Selecione o Grupo Área", "warning");
+            erro = true;
+        }
+        if ($("#iDescricao").val().includes("/") || $("#iDescricao").val().includes("\\")) {
+            Notificar("@RsBase.ATENCAO_", "A descrição não pode conter os caracteres '/' ou '\\'", "warning");
+            erro = true;
+        }
+        @*if ($('#iContrato').val() == null) {
+            Notificar("@RsBase.ATENCAO_", "Selecione o Contrato", "warning");
+            erro = true;
+        }
+        if ($('#iProjeto').val() == null) {
+            Notificar("@RsBase.ATENCAO_", "Selecione o Projeto", "warning");
+            erro = true;
+        }*@
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+        ShowPageLoading();
+        $('#form').submit();
+
+    }
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Localidade", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @*@Html.HiddenFor(model => model.Id)*@
+    @Html.HiddenFor(model => model.IdCadastro, new { @id = "idCadastro" })
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-map-marker-alt"></i> @ViewBag.Title
+                        </h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Localidade")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_LOCALIDADE</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                    </div>
+                </div>
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <span class="text-bold-card pt-0">@ViewBag.Title</span>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+                                <div class="form-group col-sm-2">
+                                    <label for="iCodigo" class="mr-3">@RsCadastros.CODIGO:<span class="text-danger">* </span></label><br>
+                                    @Html.TextBoxFor(model => model.Codigo, new { @maxlength = 9, @class = "form-control", @id = "iCodigo" })
+                                    @Html.ValidationMessageFor(model => model.Codigo, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="form-group col-sm-4">
+                                    <label for="iDescricao" class="mr-3">@RsCadastros.DESCRICAO_LOCALIDADE:<span class="text-danger">* </span></label><br>
+                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao" })
+                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                    
+                                    <div id="iVerificadorCaractere" style="display:none;" class="mt-2">
+                                        <span id="iCaractere" class="text-danger">Os caracteres "/" ou "\" não são permitidos</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2" id="divStatus" style="display:none">
+                                    <div class="form-group">
+                                        <label for="iStatus">@RsCadastros.STATUS:</label><br />
+                                        @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = RsBase.ATIVAR, @data_off = RsBase.INATIVAR, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iPadrao">@RsCadastros.PADRAO:</label><br />
+                                        @Html.CheckBoxFor(m => m.Padrao, new { @class = "form-control", @id = "iPadrao", @name = " iPadrao", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:<span class="text-danger">* </span></label><br />
+                                        <select id="iGrupoArea" name="IdGrupoArea">
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iArea">@RsCadastros.AREA:<span class="text-danger">* </span></label><br />
+                                        <select id="iArea" name="IdArea">
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iContrato">@RsCadastros.CONTRATO:</label><br />
+                                        <select id="iContrato" name="IdContrato">
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iProjeto">@RsCadastros.PROJETO:</label><br />
+                                        <select id="iProjeto" name="IdProjeto">
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iContrato_Infra">@RsCadastros.CONTRATO_INFRA:</label><br />
+                                        <select id="iContrato_Infra" name="IdContrato_Infra">
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iProjeto_Infra">@RsCadastros.PROJETO_INFRA:</label><br />
+                                        <select id="iProjeto_Infra" name="IdProjeto_Infra">
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="form-group col-sm-2">
+                                    <label for="iPontoRoteamento">@RsCadastros.PONTO_ROTEAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.PontoRoteamento, new { @maxlength = 100, @class = "form-control", @id = "iPontoRoteamento" })
+                                    @Html.ValidationMessageFor(model => model.PontoRoteamento, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iLatitude">@RsCadastros.LATITUDE: </label>
+                                        @Html.TextBoxFor(model => model.Latidude, new { @class = "form-control", @id = "iLatitude" })
+                                        @Html.ValidationMessageFor(model => model.Latidude, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iLongitude">@RsCadastros.LONGITUDE:</label>
+                                        @Html.TextBoxFor(model => model.Longitude, new { @class = "form-control", @id = "iLongitude" })
+                                        @Html.ValidationMessageFor(model => model.Longitude, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <button type="button" class="btn btn-default btn-add mt-3" data-toggle="modal" data-target="#modal-mapa" title="@RsCadastros.MAPA"><i class="fas fa-map-marker-alt" style="color: #999"></i></button>
+                                </div>
+
+                            </div>
+
+
+
+
+
+
+
+
+                        </div>
+                    </div>
+
+
+                    <!--Button Float-->
+                    <a href="@Url.Action("Index", "Localidade")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+                        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                            <i class="fas fa-times fa-2x"></i>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="ValidaSubmit();" class="float-save" id="btnGravar">
+                        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                            <i class="fas fa-save fa-2x"></i>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal" id="modal-mapa">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 align="center" class="modal-title text-muted">@RsCadastros.BUSCAR_GEOLOCALIZACAO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group row">
+                    <strong class="ml-4">Endereço:</strong>
+                    <div class="col-sm-10">
+                        <input type="text" value="" class="form-control ml-2 mr-1" id="iPesquisaMap" autocomplete="off">
+                    </div>
+                    <a href="#" onclick="PesquisaMapa();"><i class="la la-search la-2x" style="color: #999"></i></a>
+                </div>
+                <div class="form-group row justify-content-center" style="display:none" id="iConfirmarLocalizacao">
+                    <button class="btn" href="#">Clique para confirmar Localização</button>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+</div>

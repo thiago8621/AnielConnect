@@ -1,0 +1,475 @@
+﻿@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_CHECKLIST;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@{
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+}
+@section Styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+@section Scripts
+{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+<script>
+    let rows_selected = [];
+    let oDatatable = null;
+    var handleDataTableButtons = function () {
+        "use strict";
+
+        //"Blfrtip"
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+            columnDefs: [
+                {
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                }
+            ],
+            select: {
+                style: 'multi'
+            },
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            scroller: {
+                loadingIndicator: true,
+                rowHeight: 40,
+                boundaryScale: 0.5,
+                displayBuffer: 3
+            },
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + "/api/ChecklistApi/GetAll",
+                type: 'POST',
+                data: function (data) {
+
+                    const tipo = $("#iFiltroTipo").val();
+                    const codct = $("#iFiltroCodct").val();
+                    const status = $("#iFiltroStatus").val();
+                    const checklistporNatureza = $("#iFiltroChecklistporNatureza").val();
+                    const obrigarImprodutivo = $("#iFiltroObrigarImprodutivo").val();
+                    const preencherInicioAtividade = $("#iFiltroPreencherInicioAtividade").val();
+
+                    if (tipo) {
+                        data.Tipo = tipo;
+                    }
+
+                    if (codct) {
+                        data.Contrato = codct;
+                    }
+
+                    if (status) {
+                        data.Ativo = Number(status);
+                    }
+
+                    if (checklistporNatureza) {
+                        data.CheckListporNatureza = Number(checklistporNatureza);
+                    }
+
+                    if (obrigarImprodutivo) {
+                        data.ObrigarImprodutivo = Number(obrigarImprodutivo);
+                    }
+
+                    if (preencherInicioAtividade) {
+                        data.PreencherInicioAtividade = Number(preencherInicioAtividade);
+                    }
+                },
+                error: function (e) {
+                    console.log(e);
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                var str = "@RsCadastros.INFODATATABLE";
+                if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                str = str.replace("{0}", iStart).replace("{1}", iTotal).replace("{2}", iTotal);
+                $("#dtLegend").html(str);
+
+                return "";
+            },
+            rowCallback: function(row, data, dataIndex){
+                 // Get row ID
+                 var rowId = data.id;
+
+                 // If row ID is in the list of selected row IDs
+                 if($.inArray(rowId, rows_selected) !== -1){
+                    $(row).find('input[type="checkbox"]').prop('checked', true);
+                    $(row).addClass('selected');
+                 }
+            },
+            pageLength: 10,
+            language: traducaoDataTableSimples,
+            buttons: buttonsDataTable,
+            columns: [
+                { title: "<input name='select_all' value='1' type='checkbox'>" },
+                { data: "codigo", title: "@RsCadastros.CODIGO" },
+                { data: "descricao", title: "@RsCadastros.DESCRICAO" },
+                { data: "tipo", title: "@RsCadastros.TIPO" },
+                { data: "contrato", title: "@RsCadastros.CONTRATO" },
+                { data: "obrigarImprodutivo", title: "@RsCadastros.IMPRODUTIVO?" },
+                { data: "preencherInicioAtividade", title: "@RsCadastros.PREENCHER_INICIO_ATIVIDADE" },
+                { data: "checklistNatureza", title: "@RsCadastros.CHECKLIST_POR_NATUREZA" },
+                { data: "status", title: "@RsCadastros.STATUS" }
+            ]
+        });
+
+        $('#txtSearch').val(oDatatable.search());
+        $('#txtSearch').keyup(function () {
+            rows_selected.length = 0;
+            oDatatable.search($(this).val()).draw();
+        });
+
+        $("#iPesquisar").on("click", function () {
+            $("#modal-filter").modal('hide');
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("#iLimparFiltros").on("click", function () {
+            $("#iFiltroTipo").val("");
+            $("#iFiltroCodct").val(null).trigger("change");
+            $("#iFiltroStatus").val("");
+            $("#iFiltroChecklistporNatureza").val("");
+            $("#iFiltroObrigarImprodutivo").val("");
+            $("#iFiltroPreencherInicioAtividade").val("");
+
+            $("#txtSearch").val("");
+
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("#iLimparFiltrosModal").on("click", function () {
+            $("#iFiltroTipo").val("");
+            $("#iFiltroCodct").val(null).trigger("change");
+            $("#iFiltroStatus").val("");
+            $("#iFiltroChecklistporNatureza").val("");
+            $("#iFiltroObrigarImprodutivo").val("");
+            $("#iFiltroPreencherInicioAtividade").val("");
+        });
+
+        // Handle click on checkbox
+        $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+            var $row = $(this).closest('tr');
+
+            // Get row data
+            var rowId = oDatatable.row($row).data().codigo;
+
+            var index = $.inArray(rowId, rows_selected);
+
+            // If checkbox is checked and row ID is not in list of selected row IDs
+            if (this.checked && index === -1) {
+                rows_selected.push(rowId);
+
+                // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+            } else if (!this.checked && index !== -1) {
+                rows_selected.splice(index, 1);
+            }
+
+            if (this.checked) {
+                $row.addClass('selected');
+            } else {
+                $row.removeClass('selected');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        $('#datatable tbody').on('click', 'tr', function () {
+
+            if (oDatatable.row(this).data() != null) {
+
+                var _id = oDatatable.row(this).data().codigo;
+
+                var url = '@Url.Action("Cadastro", "Checklist", new { id = "__id__" })';
+                window.location.href = url.replace('__id__', _id);
+                ShowPageLoading();
+            }
+
+        });
+
+        // Handle click on table cells with checkboxes
+        $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+            $(this).parent().find('input[type="checkbox"]').trigger('click');
+        });
+
+        // Handle click on "Select all" control
+        $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+            if (this.checked) {
+                $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+            } else {
+                $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        // Handle table draw event
+        oDatatable.on('draw', function () {
+            // Update state of "Select all" control
+            updateDataTableSelectAllCtrl(oDatatable);
+
+        });
+
+    },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+    TableManageButtons.init();
+
+    $(document).ready(function () {
+        AddSelect("iFiltroCodct", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+    });
+
+    //funcao de alterar status de um objeto
+
+    async function AlterarStatusObj(Status) {
+        const url = baseUrl + "/api/ChecklistApi/AlterarStatus";
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+        await $.ajax({
+            url: url,
+            type: `POST`,
+            dataType: `json`,
+            data: {
+                Ids: rows_selected,
+                Status: Status
+            }
+        })
+        .done(function (data) {
+            if (data.ok) {
+                Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                
+                rows_selected = [];
+                oDatatable.draw(false);
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Erro ao alterar o status do checklist", "warning");
+            }
+        });
+    }
+
+    $("#btnInativar").on("click", async () => {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return false;
+        }
+
+        //Alterando para Inativo
+        await AlterarStatusObj(0);
+    });
+
+    $("#btnAtivar").on("click", async () => {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return false;
+        }
+
+        //Alterando para Ativo
+        await AlterarStatusObj(1);
+    });
+
+</script>
+
+}
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+
+        <div class="col-auto mr-auto pl-0">
+            <h4 class="title-page"><i class="fas fa-cog"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mb-20">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Checklist")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                    <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+<div id="divTable">
+
+    <table id="datatable" class="table table-hover nowrap" style="width:100%">
+    </table>
+
+</div>
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="container">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroStatus">@RsCadastros.STATUS</label>
+                                <select id="iFiltroStatus" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                    <option value="1">@RsCadastros.ATIVO</option>
+                                    <option value="0">@RsCadastros.INATIVO</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroChecklistporNatureza">@RsCadastros.CHECKLIST_POR_NATUREZA</label>
+                                <select id="iFiltroChecklistporNatureza" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                    <option value="1">@RsBase.SIM</option>
+                                    <option value="0">@RsBase.NAO</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroCodct">@RsCadastros.CONTRATO</label>
+                                <select id="iFiltroCodct" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroTipo">@RsCadastros.TIPO</label>
+                                <select id="iFiltroTipo" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                    <option value="0">@RsCadastros.SERVICO</option>
+                                    <option value="1">@RsCadastros.COMERCIAL</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroObrigarImprodutivo">Obrigar @RsCadastros.IMPRODUTIVO</label>
+                                <select id="iFiltroObrigarImprodutivo" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                    <option value="1">@RsBase.SIM</option>
+                                    <option value="0">@RsBase.NAO</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iFiltroPreencherInicioAtividade">@RsCadastros.PREENCHER_INICIO_ATIVIDADE</label>
+                                <select id="iFiltroPreencherInicioAtividade" class="form-control">
+                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                    <option value="1">@RsBase.SIM</option>
+                                    <option value="0">@RsBase.NAO</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row text-center">
+                        <div class="form-group col-sm-12" style="padding: 15px;">
+                            <div class="text-center">
+                                <button id="iLimparFiltrosModal" type="button" class="btn btn-danger">Limpar Filtros</button>
+                                <button id="iPesquisar" type="button" class="btn btn-success" onclick="">@RsCadastros.PESQUISAR</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

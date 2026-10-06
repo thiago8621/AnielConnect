@@ -1,0 +1,326 @@
+﻿@model Aniel.Connect.Models.ListaContatosViewModel
+
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = "AlterarEndereco";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+    <script>
+
+        let oDatatable
+        if (oDatatable != null) {
+            oDatatable.destroy();
+            $("#datatable").empty();
+            oDatatable = null;
+        }
+
+        $(document).ready(function(){
+            $(`#iTipo_Contato_Cliente`).trigger('change');
+        })
+
+
+        $(`#iTipo_Contato_Cliente`).change(function () {
+
+            if ($(this).val() == "1") {
+                $(`#iTelefone`).addClass("phone");
+                $(`#iTelefone`).removeClass("cellphone");
+                $(`#iTelefone`).removeClass("readonly");
+            }
+            else if ($(this).val() == "2") {
+                $(`#iTelefone`).addClass("cellphone");
+                $(`#iTelefone`).removeClass("phone");
+                $(`#iTelefone`).removeClass("readonly");
+
+            }
+            else if ($(this).val() == "") {
+                $(`#iTelefone`).addClass("readonly");
+                $(`#iTelefone`).removeClass("phone");
+            }
+
+            $("#iTelefone").val("")
+
+            $(".phone").mask("(00) 0000-0000");
+            //CELLPHONE
+            $(".cellphone").mask("(00) 00000-0000");
+
+        });
+
+        function AdicionarContato() {
+
+            let erro = false;
+            if (!$('#iTelefone').val() && !$("#iEmail").val()) {
+                Notificar("@RsBase.ATENCAO_", "É obrigatório o preenchimento do telefone ou email.", "warning");
+                erro = true;
+            }
+
+            if ($('#iTipo_Contato_Cliente').val()) {
+
+                if (!$('#iTelefone').val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TELEFONE)", "warning");
+                    erro = true;
+                }
+
+                if (erro == false) {
+                    if ($(`#iTipo_Contato_Cliente`).val() == "1") {
+                        if ($('#iTelefone').val().length < 14) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TELEFONE)", "warning");
+                            erro = true;
+                        }
+                    }
+                    else if ($(`#iTipo_Contato_Cliente`).val() == "2") {
+                        if ($('#iTelefone').val().length < 15) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TELEFONE)", "warning");
+                            erro = true;
+                        }
+                    }
+                }
+            }
+
+            if (!validaEmail($("#iEmail").val())) {
+
+                Notificar("E-mail Inválido", "Informe dados válidos", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                return false;
+            }
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteapi/AdicionarContato")';
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    Id: $("#iEditarContato").val(),
+                    IdCliente: "@Request.QueryString["Id_Cliente"]",
+                    Usuario: "@User.Identity.GetUserId()",
+                    Email: $("#iEmail").val(),
+                    Telefone: $("#iTelefone").val(),
+                    Nome: $("#iNome").val(),
+                    TipoContato: $("#iTipo_Contato_Cliente").val()
+                }
+            })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        oDatatable.draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROADICIONADO", "info");
+                        $("#iEmail").val("");
+                        $("#iTelefone").val("");
+                        $("#iNome").val("");
+                        $("#iTipo_Contato_Cliente").val("")
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                })
+                .fail(function () {
+
+                })
+                .always(function () {
+                    $("#btnAdd").val("Adicionar");
+                    $("#iEditarContato").val("");
+                });
+        }
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("excluir");//[0].id.replace("btnExcluir_", "");
+
+                var trLinkButton = $(this).parents('tr');
+
+                if (idArquivo === "0") {
+                    oDatatable.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteapi/ExcluirContato?id=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        function handleEditar() {
+            $(".btnEditarContato").unbind('click');
+            $(".btnEditarContato").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("editar");
+                var trLinkButton = $(this).parents('tr');
+                let dados = oDatatable.row(trLinkButton).data()
+                $("#iEmail").val(dados.email);
+                $("#iTelefone").val(dados.telefone);
+                $("#iNome").val(dados.nome);
+                $("#iTipo_Contato_Cliente").val(dados.tipoValue);
+                $("#iEditarContato").val(dados.id);
+                $("#btnAdd").val("editar");
+             });
+        }
+
+        let nome_lista = "contatos";
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "frti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: {
+                    style: 'single'
+                },
+                order: [[0, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: false,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '50vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 10,
+                    boundaryScale: 0.2,
+                    displayBuffer: 100
+                },
+                scrollX: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/clienteapi/GetAllListaContato',
+                    type: 'POST',
+                    data: function (data) {
+                        data.idCliente = "@Request.QueryString["Id_Cliente"]";
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function(row, data, dataIndex){
+
+                },
+                drawCallback: function () {
+                    handleExcluir();
+                    handleEditar();
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+
+                            var retorno = '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir=' + row.id + '><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            retorno += '<a href="#iTipo_Contato_Cliente"  class="btnEditarContato" id="btnEditarContato' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            return retorno;
+                        }
+                    },
+                    { data: "tipo", title: "@RsCadastros.TIPO", ordering: false },
+                    { data: "telefone", title: "@RsCadastros.TELEFONE", ordering: false },
+                    { data: "nome", title: "@RsCadastros.NOME", ordering: false },
+                    { data: "email", title: "@RsCadastros.EMAIL", ordering: false }
+                ]
+        });
+    </script>
+}
+
+<div class="container" style="padding: 25px;">
+
+    <div class="row mb-3">
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iTipo_Contato_Cliente" class="">@RsCadastros.TIPO:</label>
+                @Html.EnumDropDownListFor(model => model.Tipo_Contato_Cliente, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipo_Contato_Cliente", @required = true, @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="iContato" class="">@RsCadastros.TELEFONE:</label>
+                @Html.TextBoxFor(model => model.Telefone, new { @class = "form-control", @id = "iTelefone", @required = true, @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iNome" autocomplete="off" class="">@RsCadastros.NOME:</label>
+                @Html.TextBoxFor(model => model.Nome, new { @class = "form-control", @id = "iNome", @required = true, @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="iContato" class="">@RsCadastros.EMAIL:</label>
+                @Html.TextBoxFor(model => model.Email, new { @class = "form-control", @id = "iEmail", @required = true, @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="col-sm-2 text-right mt-3 pb-2 pr-5">
+            <input type="button" class="btn btn-success" style="font-size:0.8rem" value="Adicionar" id="btnAdd" onclick="AdicionarContato()" />
+            <input type="hidden" id="iEditarContato">
+        </div>
+
+    </div>
+
+    <span class="text-bold-card">@RsCadastros.LISTA_CONTATOS</span>
+    
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>

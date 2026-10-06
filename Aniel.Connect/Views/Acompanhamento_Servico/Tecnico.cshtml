@@ -1,0 +1,743 @@
+﻿@model Aniel.Connect.Models.TecnicoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+@using Aniel.Connect.Models.T5
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.DESCONTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    var temAcesso188 = AcessoHelper.TemAcesso(_areas, "188");
+    var temAcesso199 = AcessoHelper.TemAcesso(_areas, "199");
+    var temAcesso139 = AcessoHelper.TemAcesso(_areas, "139");
+}
+
+@section styles
+{
+    <style>
+        .float-cancel {
+            bottom: inherit;
+            top: 44vh;
+        }
+
+        .float-save {
+            bottom: inherit;
+            top: 50vh;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+        $('#iModalElementos').on('show.bs.modal', function (event) {
+
+            $(this).find('input:text').val('');
+            $(this).find('input:checkbox').bootstrapToggle('off');
+            $(this).find('select').val('').trigger('change');
+
+        })
+
+
+        //document.body.scrollTop > 20 || document.documentElement.scrollTop
+        let terminouCarregarCampos = false;
+        function NotificarCloseTab() {
+
+            $('form').on('change paste, input, select, textarea', function () {
+                try {
+                    if (TemAlteracao()) {
+                        parent.ModalPergunta = true;
+                        parent.parent.document.getElementsByClassName('menu_tab active')[0].children[1].setAttribute("onclick", `AvisoSalvarAntesDeFechar(${parent.parent.getActivePageId()},"iTecnicoFrame");`);
+                    }
+
+                } catch { }
+            });
+
+        }
+
+        function RemoverNotificacaoCloseTab() {
+            try {
+                parent.ModalPergunta = true;
+                parent.parent.document.getElementsByClassName('menu_tab active')[0].children[1].setAttribute("onclick", `closeTab(this);`);
+            } catch { }
+        }
+
+
+        let HandleCaixa = function () {
+            $('#iNovaCaixa').on('select2:select select2:unselecting', async function (e) {
+
+              let Caixa = e.params.data
+              if (Caixa) {
+                  await AddSelect("iNovaPorta", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPorta", @CONSTANTES.PaginacaoRegistros, null, Caixa.id, null, "@RsBase.SELECIONE", false);
+              }
+              else {
+                  await AddSelect("iNovaPorta", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPorta", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+              }
+          });
+        };
+
+
+    $("#btnAlteraCaixa").on("click", function () {
+
+        var novaCaixa = $("#iNovaCaixa").val();
+        var novaPorta = $("#iNovaPorta option:selected").text();
+        var codct = "@Html.Raw(Model.CodCt)";
+        var projeto = "@Html.Raw(Model.Projeto)";
+        var num_obra = "@Html.Raw(Model.Id)";
+        var num_doc = @Html.Raw(Model.Num_Doc);
+
+
+        AlterarCaixaObj(codct, projeto, num_obra, num_doc, novaPorta, novaCaixa);
+
+    });
+
+    function AlterarCaixaObj(codct, projeto, num_obra, num_doc, novaPorta, novaCaixa) {
+
+     var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Painel_ServicosApi/AlterarCaixa")';
+
+     $.ajax({
+         url: link,
+         type: 'POST',
+         dataType: 'json',
+         data: {
+             codct: codct,
+             projeto: projeto,
+             num_obra: num_obra,
+             num_doc: num_doc,
+             porta: novaPorta,
+             caixa: novaCaixa,
+         }
+     })
+         .done(function (data) {
+
+             if (data.ok) {
+                 $('#iModalElementos').modal('hide');
+                 Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                 ShowPageLoading();
+                 window.location.reload();
+             }
+             else {
+                 Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+             }
+         });
+    }
+
+    $(document).ready(async function () {
+
+        await AddSelect("iNovaCaixa", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixaAt", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleCaixa);
+        await AddSelect("iNovaPorta", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPorta", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+
+
+
+            @if (ViewBag.Redirecionar == "fecharAba")
+            {
+                <text>
+                parent.parent.closeCurrentTab();
+                </text>
+            }
+
+            @if (String.IsNullOrEmpty(ViewBag.Redirecionar) == false)
+            {
+                <text>
+                RemoverNotificacaoCloseTab();
+                let urlRedirecionamento = '@ViewBag.Redirecionar';
+                parent.window.location = urlRedirecionamento;
+                ShowPageLoading();
+                return false;
+                </text>
+            }
+
+            if (@Json.Encode(ViewBag.AtualizarStatus)) {
+                parent.refreshStatus();
+                parent.refreshDadosGerais();
+            }
+
+             @if (!temAcesso199)
+              {
+                <text>
+                await AddSelectCriterios('iMatricula_Id', '@CONSTANTES.URLPortal/api/EquipeApi/GetComboCriterios', @CONSTANTES.PaginacaoRegistros, "@Model.Cod_Tipo_Serv", "@Model.Cod_Escritorio", "@Model.Cod_Area", "@Html.Raw(Model.LocalidadeStr)", "@Model.Matricula_Id", '@RsBase.SELECIONE', true);
+                </text>
+              }
+             else if (temAcesso188)
+              {
+                <text>
+            await AddSelect('iMatricula_Id', '@CONSTANTES.URLPortal/api/EquipeApi/GetComboNumFre', @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Matricula_Id", '@RsBase.SELECIONE', true);
+                </text>
+              }
+
+            terminouCarregarCampos = true;
+
+            setTimeout(NotificarCloseTab, 1000);
+        });
+
+    $("#iMatricula_Id").on("change", function () {
+
+        if ("@Model.Exige_Pagamento_Instalacao" == "@Resources.RsBase.SIM") {
+                Notificar("@RsBase.ATENCAO_", "Não é possível agendar este serviço, pois o cliente ainda não realizou o pagamento da instalação", "warning");
+                return false;
+            }
+            if ($("#iMatricula_Id").val() == null) {
+                document.getElementById('AlterarCampo').innerHTML = 'Definir ' + '@RsCadastros.RESPONSAVEL';
+            }
+            else if (document.getElementById('AlterarCampo')) {
+              document.getElementById('AlterarCampo').innerHTML =  '@RsCadastros.TROCAR_RESPONSAVEL_OS';
+            }
+    });
+
+
+        @*
+            Verifica se houve alteração nos dados do técnico. Essa função é chamada da Index do Acompanhamento de Serviço na função
+            AvisoSemSalvar(link) para determinar se é necessário exibir uma mensagem para avisar que há alterações não salvas
+            que podem ser perdidas ao sair sem gravar.
+        *@
+        function TemAlteracao()
+        {
+            if (terminouCarregarCampos == false)
+            {
+                return false;
+            }
+
+            const dadosServico = [
+                { nome: "@RsCadastros.MATRICULA_NOME_RESPONSAVEL", model: @Html.Raw(Json.Encode(Model.Matricula_Id)), view: nullToEmpty($("#iMatricula_Id").val()) },
+                { nome: "@RsCadastros.ULTMO_OBSERVACAO_TECNICO", model: @Html.Raw(Json.Encode(Model.Observacao_Tecnico)), view: nullToEmpty($("#iObservacao_Tecnico").val()) },
+            ];
+
+            for (const dados of dadosServico) {
+                if (typeof dados.comparador === "function") {
+                    if (!dados.comparador(dados.model, dados.view)) {
+                        return true;
+                    }
+                }
+                else if (dados.model != dados.view) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function nullToEmpty(valor) {
+            if (valor == null)
+                return "";
+
+            return valor;
+        }
+
+        async function AddSelectCriterios(controle, url, paginacaoRegistros,Tipo_serv,Grupo_Area,Area,Cod_Localidade,id, placeholder, disabled = true, afterSelect, usuario, cod_area) {
+
+            var deferred = new $.Deferred();
+
+            $("#" + controle).html('').select2({ data: [] });
+            $("#" + controle).select2({
+                ajax: {
+                    url: url,
+                    type: 'post',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            Tipo_serv:Tipo_serv,
+                            Grupo_Area:Grupo_Area,
+                            Area:Area,
+                            Cod_Localidade:Cod_Localidade,
+                            q: params.term || '',
+                            page_limit: paginacaoRegistros,
+                            page: params.page || 1,
+                            soativos: true,
+                            id_usuario: usuario,
+                            cod_area: cod_area,
+                            NumObra: "@Html.Raw(Model.Id)",
+                            CodCt: "@Html.Raw(Model.CodCt)",
+                            Projeto: "@Html.Raw(Model.Projeto)",
+                            NumDoc: "@Html.Raw(Model.Num_Doc)"
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        return {
+                            results: data.results,
+                            pagination: {
+                                more: (params.page * paginacaoRegistros) < data.total_count
+                            }
+                        };
+                    },
+                    results: function (data, page) {
+                        var more = (page * paginacaoRegistros) < data.total_count; // whether or not there are more results available
+
+                        // notice we return the value of more so Select2 knows if more results can be loaded
+                        return { results: data.items, more: more };
+                    },
+                    cache: true
+                },
+                dropdownAutoWidth: true,
+                minimumInputLength: 0,
+                allowClear: true,
+                placeholder: placeholder,
+                templateResult: function (data) { // Inclui ícones para os optgroup
+                    if (data.id_Grupo)
+                        //return $(`<span><i class="fas fa-users"></i> ${data.id_Grupo} - ${data.text}</span>`)
+                        return `${data.id_Grupo} - ${data.text}`;
+                    else
+                        return data.text;
+                },
+                escapeMarkup: function (m) { return m; },
+                width: '100%'
+            });
+
+            var controleSelect = $("#" + controle);
+
+            if (id) {
+                $.ajax({
+                    type: 'post',
+                    dataType: 'json',
+                    url: url,
+                    data: {
+                        Tipo_serv:Tipo_serv,
+                        Grupo_Area: Grupo_Area,
+                        NumObra: "@Html.Raw(Model.Id)",
+                        CodCt: "@Html.Raw(Model.CodCt)",
+                        Projeto: "@Html.Raw(Model.Projeto)",
+                        NumDoc: "@Html.Raw(Model.Num_Doc)",
+                        Area: Area,
+                        id:id,
+                        Cod_Localidade:Cod_Localidade,
+                        soativos: true,
+                        id_usuario: usuario,
+                        cod_area: cod_area
+                    }
+            }).then(function (data) {
+
+                    if (data.results.length > 0) {
+
+                        data = data.results[0];
+
+                        // create the option and append to Select2
+                        var option = new Option(data.text, data.id, true, true);
+                        controleSelect.append(option).trigger('change');
+
+                        if (typeof afterSelect !== 'undefined' && afterSelect !== null) {
+                            afterSelect();
+                        }
+
+                        // manually trigger the `select2:select` event
+                        controleSelect.trigger({
+                            type: 'select2:select',
+                            params: {
+                                data: data
+                            }
+                        });
+
+                        if (disabled)
+                            DisableSelect(controle);
+                    }
+
+                    deferred.resolve();
+
+                }).always(function () {
+                    if (typeof afterSelect !== 'undefined' && afterSelect !== null) {
+                        afterSelect();
+                    }
+                    if (disabled)
+                        DisableSelect(controle);
+                });
+            }
+            else { //Caso não informado Id
+                if (typeof afterSelect !== 'undefined' && afterSelect !== null) {
+                    afterSelect();
+                }
+                if (disabled)
+                    DisableSelect(controle);
+                deferred.resolve();
+            }
+
+            return deferred.promise();
+    }
+
+
+
+
+        @if (!String.IsNullOrEmpty(Model.Matricula)) {
+            <text>
+            var fotoAjaxUrl = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_Servicoapi/FotoAjax")' + '?num_fre=@Model.Matricula';
+            $.ajax({
+                url: fotoAjaxUrl,
+                type: "GET",
+                dataType: "json"
+            })
+                .done(function (data) {
+                    $("#iFotoLoading").hide();
+                    if (data.objeto) {
+                        $("#idImg").html('<img id="iFoto" src="data:image/jpeg;base64,' + data.objeto + '" class="img-fluid rounded-circle" style="width: 80%;" alt="@RsCadastros.FUNCIONARIO" />');
+                    }
+                    else {
+                        $("#idImg").html('<i id="iFoto" class="fas fa-user-circle" src="" style="font-size: 100px;"></i>');
+                    }
+                });
+            </text>
+
+        }
+        else
+        {
+            <text>
+            $("#iFotoLoading").hide();
+            $("#idImg").html('<i id="iFoto" class="fas fa-user-circle" src="" style="font-size: 100px;"></i>');
+            </text>
+        }
+    var clicked = false;
+    $("#iMatricula_Id").trigger('change');
+        async function ValidaSubmit(redirecionamento) {
+
+        // Verifica se o responsável possui o status ausente
+        var equipe = $("#iMatricula_Id").val();
+
+        let retorno_status = await $.ajax({
+            url: '@String.Concat(CONSTANTES.URLPortal, "/api/EquipeApi/GetStatusEquipe")' + "?equipe=" + equipe,
+            type: "GET",
+            dataType: "json"
+        });
+
+        var status_equipe = retorno_status.objeto;
+
+        if (status_equipe == 1) {
+
+            var result = await Swal.fire({
+                title: 'A Equipe que está sendo atribuída nesta OS se encontra Ausente, Deseja continuar?',
+                showCancelButton: true,
+                cancelButtonText: 'Não',
+                confirmButtonText: 'Sim',
+                type: 'question',
+                allowOutsideClick: false
+            });
+
+            if (!result.value)
+                return false;
+
+        };
+
+        if ("@Model.Matricula" != equipe)
+        {
+            let retornoAgendamento = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/EquipeApi/GetEquipeAgendamento")',
+                type: "POST",
+                dataType: "json",
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                },
+                data: {
+                    Numero_Os: "@Html.Raw(Model.Id)",
+                    CodCt: "@Html.Raw(Model.CodCt)",
+                    Projeto: "@Html.Raw(Model.Projeto)",
+                    Numero_Doc: "@Html.Raw(Model.Num_Doc)",
+                    Equipe: equipe,
+                    Usuario: "@User.Identity.GetUserId()"
+                }
+            });
+
+            if (!retornoAgendamento.ok) {
+
+
+            @if (!AcessoHelper.TemAcesso(_areas, "188"))
+            {
+                <text>
+                    var result = await Swal.fire({
+                        title: retornoAgendamento.mensagem,
+                        confirmButtonText: 'OK',
+                        type: 'warning',
+                        allowOutsideClick: false
+                    });
+
+                    return false;
+                </text>
+            }
+
+            else
+            {
+                <text>
+                    var result = await Swal.fire({
+                        title: retornoAgendamento.mensagem,
+                        showCancelButton: true,
+                        cancelButtonText: 'Não',
+                        confirmButtonText: 'Sim',
+                        type: 'warning',
+                        allowOutsideClick: false
+                    });
+
+                    if (!result.value) {
+                        return false;
+                    }
+
+
+                </text>
+            }
+
+        }
+        }
+
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        erro = false;
+
+            if (redirecionamento) {
+                $('#iRedirecionamento').val(redirecionamento);
+            }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+
+
+        }
+        $("#iAlteraCP_FTTH").on("click", function () { $("#iModalElementos").modal("toggle");});
+
+</script>
+}
+
+
+@using (Html.BeginForm("Tecnico", "Acompanhamento_Servico", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(model => model.Id, new { @id = "iNum_Obra" })
+    @Html.HiddenFor(model => model.CodCt)
+    @Html.HiddenFor(model => model.Projeto)
+    @Html.HiddenFor(model => model.Num_Doc)
+    @Html.HiddenFor(model => model.Redirecionamento, new { id = "iRedirecionamento" })
+
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+
+            <div id="accordion">
+                <div class="card div-card-accord">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+
+                        <div class="card-body">
+
+                            <div class="row">
+                                <div class="col-sm-2" id="idImg" style="padding-left: 54px;padding-top: 19px;">
+
+                                    <text>
+                                        @*<i id="iFoto" class="fas fa-user-circle" src="" style="font-size: 100px;">*@
+                                        <img id="iFotoLoading" src="~/Images/loading-spinner-grey.gif" class="" style="margin-left:50px" />
+                                        @*</i>*@
+                                    </text>
+
+                                    @*<img id="iFoto" src="" class="rounded-circle img-fluid" alt="@RsCadastros.FUNCIONARIO" />*@
+
+                                </div>
+
+
+
+                                <div class="col-sm-4">
+                                    <label for="iMatricula_Nome"><strong>@RsCadastros.MATRICULA_NOME_RESPONSAVEL: </strong></label>
+                                    <div class="form-group">
+                                        @Html.DropDownListFor(model => model.Matricula_Id, new SelectList(new List<ObjBusca<Int64?>>()), RsBase.SELECIONE, new { @id = "iMatricula_Id", @class = "form-control", @style = "width: 100%" })
+                                    </div>
+
+                                    @if (Model.Status_Execucao == Aniel.T5.Model.enumerado.StatusExecucaoAniel.Aberta_Aguard_Agendamento ||
+                                                 Model.Status_Execucao == Aniel.T5.Model.enumerado.StatusExecucaoAniel.Aberta_Aguard_Atendimento ||
+                                                 Model.Status_Execucao == Aniel.T5.Model.enumerado.StatusExecucaoAniel.Atendimento_Paralizado ||
+                                                 Model.Status_Execucao == Aniel.T5.Model.enumerado.StatusExecucaoAniel.Aberta_Aguard_Responsavel
+                                             )
+                                    {
+                                        if (temAcesso188 || !temAcesso199)
+                                        {
+
+                                            <a id="AlterarCampo" style="color:#fff;" onclick="$('#iMatricula_Id').val(null).trigger('change');EnableSelect('iMatricula_Id')" class="mt-1 btn btn-primary"><i class="mr-2 icofont-refresh"></i>@RsCadastros.TROCAR_RESPONSAVEL_OS</a>
+
+                                        }
+                                        else
+                                        {
+                                            <a id="AlterarCampo" style="color:#fff;" onclick="parent.Swal.fire({icon: 'error',title: 'Oops...',text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'});" class="mt-1 btn btn-primary"><i class="mr-2 icofont-refresh"></i>@RsCadastros.TROCAR_RESPONSAVEL_OS</a>
+                                        }
+                                    }
+                                </div>
+
+
+                                <div class="col-sm-4">
+
+                                    <div class="form-group">
+                                        <label for="iMatricula_Aux"><strong>@RsCadastros.MATRICULA_AUX: </strong></label>
+                                        @Html.DisplayFor(model => model.Matricula_Aux, new { @id = "iMatricula_Aux" })
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="iTelefone"><strong>@RsCadastros.TELEFONE: </strong></label>
+                                        @Html.DisplayFor(model => model.Telefone, new { @id = "iTelefone" })
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="iEmail"><strong>@RsCadastros.EMAIL: </strong></label>
+                                        @Html.DisplayFor(model => model.Email, new { @id = "iEmail" })
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="iCentro_Custo"><strong>@RsFinanceiro.CENTROCUSTO: </strong></label>
+                                        @Html.DisplayFor(model => model.Centro_Custo, new { @id = "iCentro_Custo" })
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="iSupervisor"><strong>@RsCadastros.SUPERVISOR: </strong></label>
+                                        @Html.DisplayFor(model => model.Supervisor, new { @id = "iSupervisor" })
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div id="accordion">
+                <div class="card div-card-accord">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+
+                        <div class="card-body">
+
+                            <div class="row">
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iTipo_Baixa"><strong>@RsCadastros.TIPO_BAIXA: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Tipo_Baixa, new { @id = "iTipo_Baixa" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iData_Hora_Encerramento"><strong>@RsCadastros.DATA_HORA_ENCERRAMENTO: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Data_Hora_Encerramento, new { @id = "iData_Hora_Encerramento" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iCod_Desc_Encerramento"><strong>@RsCadastros.COD_DESC_ENCERRAMENTO: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Cod_Desc_Encerramento, new { @id = "iCod_Desc_Encerramento" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iQualidade_Servico"><strong>@RsCadastros.QUALIDADE_SERVICO: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Qualidade_Servico, new { @id = "iQualidade_Servico" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iSinal_RX"><strong>@RsCadastros.SINAL_RX: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Sinal_RX, new { @id = "iSinal_RX" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iSinal_TX"><strong>@RsCadastros.SINAL_TX: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Sinal_TX, new { @id = "iSinal_TX" })
+                                    </div>
+                                </div>
+
+                                <div class="ml col-sm-3" style="margin-left:8.25%">
+                                    <div class="form-group">
+                                        <label for="iCusto_Servico"><strong>@RsCadastros.CUSTO_SERVICO: </strong></label><br />
+                                        @Html.DisplayFor(model => model.Custo_Servico, new { @id = "iCusto_Servico" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iCaixa_ftth"><strong>@RsCadastros.CAIXA_FTTH: </strong></label><br />
+                                        @Html.DisplayFor(model => model.CaixaFTTH, new { @id = "iCaixa_ftth" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iPorta_ftth"><strong>@RsCadastros.PORTA_FTTH: </strong></label><br />
+                                        @Html.DisplayFor(model => model.PortaFTTH, new { @id = "iPorta_ftth" })
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="text-right" style="margin-right:190px">
+                                <button type="button" class="btn btn-primary" id="iAlteraCP_FTTH" data-toggle="modal" data-target="#modal-medal">@RsCadastros.ALTERAR_CAIXA_PORTA_RESERVADAS</button>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iObservacao_Tecnico"><strong>@RsCadastros.ULTMO_OBSERVACAO_TECNICO:</strong></label>
+                                        @Html.TextAreaFor(m => m.Observacao_Tecnico, new { @class = "form-control", @id = "iObservacao_Tecnico", @rows = "5" })
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="modal" id="iModalElementos">
+        <div class="modal-dialog modal-sm mt-3 text-left">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h4>Nova Caixa e Porta de Elemento de Rede</h4>
+                    <button type="button" class="iAlteraCP_FTTH" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iNovaCaixa">  @RsCadastros.CAIXA_FTTH</label>
+                                    @Html.DropDownListFor(m => m.NovaCaixa, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iNovaCaixa", @autocomplete = "off" })
+                                    
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iNovaPorta">@RsCadastros.PORTA_FTTH:</label>
+                                    @Html.DropDownListFor(m => m.NovaPorta, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iNovaPorta" })                                    
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group col-sm-12" style="padding: 10px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" data-dismiss="modal">@RsBase.CANCELAR</button>
+                            <button type="button" class="btn btn-success" id="btnAlteraCaixa">@RsBase.SALVAR</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+}

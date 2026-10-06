@@ -1,0 +1,178 @@
+﻿@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script type="text/javascript">
+
+        let oDatatable;
+        let colunasDatatable =
+            [
+                { data: "id", title: "Titulo do CheckList", className: "text-center" },
+                {
+                    render: function (data, type, row, meta) {
+                        let retorno = "";
+
+                        retorno = '<a onclick="ShowPageLoading()" href="@Url.Action("VisualizarChecklist", new { Venda = ViewBag.IdVenda })" class="mr-3"><i class="fas fa-eye" style="font-size:16px;padding-right:2px;"></i></a>';
+                        return retorno;
+                    }
+                },
+                {
+                    render: function (data, type, row, meta) {
+                        if (parent.$('#iStatus').val() !== '4') {
+                            return '<a href="#" class="btnExcluir mr-3" id="btnExcluir_' + meta.row + '" excluir="' + row.id + '"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>';
+                        } else {
+                            return '<a href="#" class="btnExcluir mr-3" id="btnExcluir_' + meta.row + '" excluir="' + row.id + '"><i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;color:#5F5F5F;"></i></a>';
+                        }
+                    }
+                },
+                { data: "titulo", title: "Titulo do CheckList", className: "text-center" },
+                { data: "tipo", title: "Tipo do CheckList", className: "text-center" },
+                { data: "perguntas", title: "Perguntas", className: "text-center" },
+                { data: "respondidas", title: "Respondidas", className: "text-center" },
+                { data: "usuarioCriacao", title: "Usuário Criação", className: "text-center" },
+                { data: "dataHoraCriacao", title: "Data/Hora Criação", className: "text-center" },
+                //{ data: "usuarioUltimaAlteracao", title: "Usuário Última Alteração", className: "text-center" },
+                //{ data: "dataHoraUltimaAlteracao", title: "Data/Hora Última Alteração", className: "text-center" },
+
+            ];
+
+        oDatatable = $("#datatable").DataTable({
+            dom: "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            columnDefs:
+            [{
+                "targets": [0],
+                "visible": false,
+                "searchable": false
+             }],
+            serverSide: true,
+            drawCallback: function () { ExcluirChecklist() },
+            searching: true,
+            ordering: false,
+            paging: false,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: `${baseUrl}/api/ChecklistApi/GetChecklistVenda?IdVenda=@ViewBag.IdVenda`,
+                type: 'GET',
+                error: function (e) {
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            pageLength: 5,
+            order: [],
+            language: traducaoDataTableSimples,
+            columns: colunasDatatable
+        });
+
+        function ExcluirChecklist() {
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                var id = $(this).attr("excluir");
+                var trLinkButton = $(this).parents('tr');
+                if (id == 0) {
+                    return;
+                }
+
+                if (parent.$('#iStatus').val() === '4') {
+                    Notificar("@RsBase.ATENCAO_", 'Não é possível excluir checklist de uma venda cancelada', "warning");
+                    return;
+                }
+
+                @if (AcessoHelper.TemAcesso(_areas, "194"))
+                {
+                    <text>
+                    ShowPageLoading();
+                    Swal.fire({
+                        text: "Tem certeza de que deseja excluir este checklist?",
+                        showCancelButton: true,
+                        confirmButtonColor: '#357ca5',
+                        cancelButtonColor: '#d33',
+                        confirmButtonText: 'Excluir',
+                        cancelButtonText: 'Cancelar',
+                        target: "#iChecklist"
+                    }).then(async (okay) => {
+                        if (okay.value)
+                        {
+                            $.ajax({
+                                method: "POST",
+                                url: baseUrl + '/api/ChecklistApi/ExcluirChecklistVenda?id=' + id,
+                            })
+                                .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+
+                        }
+
+                        HidePageLoading();
+
+                    })
+                    </text>
+                 }
+                else
+                {
+                    <text>
+                    parent.Swal.fire({
+                        icon: 'error',
+                        title: 'Oops...',
+                        text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                    });
+                    </text>
+                }
+            });
+    }
+    ExcluirChecklist();
+
+
+</script>
+}
+
+<div style="padding: 10px; min-height: 500px;" id="divChecklist">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+            <div colspan="2" class="font-weight-bold mt-3"><h4>Listagem de Checklist para a Venda</h4></div>
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+            </table>
+
+        </div>
+    </div>
+</div>

@@ -1,0 +1,633 @@
+﻿@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = "Agenda Vendedor/Supervisor";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section Styles{
+    <style>
+        .modal-content {
+            width: 800px; /* Full width */
+            /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+        }
+
+        p {
+            margin-bottom: 0;
+        }
+    </style>
+}
+
+
+@section scripts
+{
+    <script>
+        var hojeCount = 0, atrasoCount = 0, futuroCount = 0;
+        var baixaCount = 0, mediaCount = 0, altaCount = 0;
+
+
+        $('#modal-cadastro').on('shown.bs.modal', function (e) {
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+        });
+
+        $(".hora").mask('00:00', { reverse: true });
+
+        @if (ViewBag.Tipo_Usuario == 2) {
+            <text>
+            AddSelect("iVendedorSelecionado", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            </text>
+        }
+        else
+        {
+            <text>
+            AddSelect("iVendedorSelecionado", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, "@ViewBag.IdFuncionario", "@RsBase.SELECIONE", true);
+            </text>
+        }
+
+        function abrirCadastro()
+        {
+            $('#modal-cadastro').modal('show');
+            $('#idCadastro').val('');
+        }
+
+
+        function GerarAgenda() {
+
+            ShowPageLoading();
+            $("#iCards").show();
+            $("#iSelecione").hide();
+
+            $("#colunaTarefaDia").empty();
+            $("#colunaTarefaFuturo").empty();
+            $("#colunaTarefaAtraso").empty();
+
+            $('#iQntFuturo').html(`Futuras: ${futuroCount}`)
+            $('#iQntAtraso').html(`Atraso: ${atrasoCount}`)
+            $('#iQntDia').html(`Dia: ${hojeCount}`)
+
+            $('#iBaixa').html(`Baixas: ${baixaCount}`)
+            $('#iMedia').html(`Médias: ${mediaCount}`)
+            $('#iAlta').html(`Altas: ${altaCount}`)
+
+            $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/TarefasVendedorApi/GetByUsuario?usuario=" + "@User.Identity.GetUserId()" + "&buscaVendedor=" + $('#txtSearch').val(),
+                success: function (itens) {
+                    itens.map(function (item) {
+                        if (!DataMaiorHoje(item.data) && !DataMenorHoje(item.data)) {
+                            adicionarCardDia(item)
+                            hojeCount++;
+                        }
+                        else if (DataMenorHoje(item.data)) {
+                            adicionarCardAtraso(item)
+                            atrasoCount++;
+                        }
+                        else {
+                            adicionarCardFuturo(item)
+                            futuroCount++;
+                        }
+
+                        if (item.prioridade == 1) {
+                            baixaCount++;
+                        } else if (item.prioridade == 2) {
+                            mediaCount++;
+                        } else {
+                            altaCount++;
+                        }
+                    });
+
+                    $('#iQntFuturo').html(`Futuras: ${futuroCount}`)
+                    $('#iQntAtraso').html(`Atraso: ${atrasoCount}`)
+                    $('#iQntDia').html(`Dia: ${hojeCount}`)
+
+                    $('#iBaixa').html(`Baixas: ${baixaCount}`)
+                    $('#iMedia').html(`Médias: ${mediaCount}`)
+                    $('#iAlta').html(`Altas: ${altaCount}`)
+
+                    HidePageLoading();
+                }
+            });
+
+        }
+
+        GerarAgenda();
+        $('#txtSearch').keyup(function () {
+            GerarAgenda();
+        });
+
+
+        function adicionarCardDia(objTarefa) {
+            $("#colunaTarefaDia").append(`
+                <div class="card mb-2" id="tarefa-${objTarefa.id}">
+                    <div class="card-header bg-success"></div>
+
+                    <div class="card-body">
+                        <i class="fas fa-calendar"></i>
+                        <p>Tarefa: ${objTarefa.tarefa}</p>
+                        <p>Assunto: ${objTarefa.assunto}</p>
+                        <p>Horário: ${objTarefa.horaInicio} ás ${objTarefa.horaFim}</p>
+                        <p>Data: ${objTarefa.data}</p>
+                        <p>Local: ${objTarefa.local}</p>
+                        <p style="cursor : pointer" >Obs: <i class="fa fa-envelope" onclick="abreObservacao('${objTarefa.observacao}')"></i></p>
+                        <p>Responsável: ${objTarefa.responsavel}</p>
+                    </div>
+
+                    <div class="card-footer text-center">
+                        <div class="row">
+                            <button class="ml-4 btn btn-outline-success" onclick="marcarTarefaFeita(${objTarefa.id})"><i class="fas fa-check"></i></button>
+                            <button class="ml-2 btn btn-outline-secondary" onclick="editarTarefa(${objTarefa.id})"><i class="fa fa-pencil-alt"></i></button>
+                            <button class="ml-2 btn btn-outline-danger" onclick="excluirTarefa(${objTarefa.id})"><i class="fa fa-window-close"></i></button>
+                        </div>
+                    </div>
+                </div>`)
+        }
+
+        function adicionarCardFuturo(objTarefa) {
+            $("#colunaTarefaFuturo").append(`
+                <div class="card mb-2" id="tarefa-${objTarefa.id}">
+                    <div class="card-header bg-warning"></div>
+
+                    <div class="card-body">
+                        <i class="fas fa-calendar"></i>
+                        <p>Tarefa: ${objTarefa.tarefa}</p>
+                        <p>Assunto: ${objTarefa.assunto}</p>
+                        <p>Horário: ${objTarefa.horaInicio} ás ${objTarefa.horaFim}</p>
+                        <p>Data: ${objTarefa.data}</p>
+                        <p>Local: ${objTarefa.local}</p>
+                        <p style="cursor : pointer" >Obs: <i class="fa fa-envelope" onclick="abreObservacao('${objTarefa.observacao}')"></i></p>
+                        <p>Responsável: ${objTarefa.responsavel}</p>
+                    </div>
+
+                    <div class="card-footer text-center">
+                        <div class="row">
+                            <button class="ml-4 btn btn-outline-success" onclick="marcarTarefaFeita(${objTarefa.id})"><i class="fas fa-check"></i></button>
+                            <button class="ml-2 btn btn-outline-secondary" onclick="editarTarefa(${objTarefa.id})"><i class="fa fa-pencil-alt"></i></button>
+                            <button class="ml-2 btn btn-outline-danger" onclick="excluirTarefa(${objTarefa.id})"><i class="fa fa-window-close"></i></button>
+                        </div>
+                    </div>
+                </div>`)
+        }
+
+        function adicionarCardAtraso(objTarefa) {
+            $("#colunaTarefaAtraso").append(`
+                <div class="card mb-2" id="tarefa-${objTarefa.id}">
+                    <div class="card-header bg-danger"></div>
+
+                    <div class="card-body">
+                        <i class="fas fa-calendar"></i>
+                        <p>Tarefa: ${objTarefa.tarefa}</p>
+                        <p>Assunto: ${objTarefa.assunto}</p>
+                        <p>Horário: ${objTarefa.horaInicio} ás ${objTarefa.horaFim}</p>
+                        <p>Data: ${objTarefa.data}</p>
+                        <p>Local: ${objTarefa.local}</p>
+                        <p style="cursor : pointer" >Obs: <i class="fa fa-envelope" onclick="abreObservacao('${objTarefa.observacao}')"></i></p>
+                        <p>Responsável: ${objTarefa.responsavel}</p>
+                    </div>
+
+                    <div class="card-footer text-center">
+                        <div class="row">
+                            <button class="ml-4 btn btn-outline-success" onclick="marcarTarefaFeita(${objTarefa.id})"><i class="fas fa-check"></i></button>
+                            <button class="ml-2 btn btn-outline-secondary" onclick="editarTarefa(${objTarefa.id})"><i class="fa fa-pencil-alt"></i></button>
+                            <button class="ml-2 btn btn-outline-danger" onclick="excluirTarefa(${objTarefa.id})"><i class="fa fa-window-close"></i></button>
+                        </div>
+                    </div>
+                </div>`)
+        }
+
+        function marcarTarefaFeita(idTarefa) {
+
+            $.ajax({
+                type: "POST",
+                url: `@CONSTANTES.URLPortal/api/TarefasVendedorApi/FinalizarTarefa?idTarefa=${idTarefa}`,
+                success: function (itens) {
+                    $(`#tarefa-${idTarefa}`).remove();
+                     Notificar("@RsBase.ATENCAO_", "Tarefa concluída", "success");
+                }
+            })
+        }
+
+        function excluirTarefa(idTarefa) {
+
+            $.ajax({
+                type: "POST",
+                url: `@CONSTANTES.URLPortal/api/TarefasVendedorApi/ExcluirTarefa?idTarefa=${idTarefa}`,
+                success: function (itens) {
+                    $(`#tarefa-${idTarefa}`).remove();
+                     Notificar("@RsBase.ATENCAO_", "Tarefa excluída", "warning");
+                }
+            })
+        }
+
+        function editarTarefa(idTarefa) {
+
+            $("#listaEmail").empty()
+            emails = []
+
+            $.ajax({
+                type: "POST",
+                url: `@CONSTANTES.URLPortal/api/TarefasVendedorApi/GetDetalhes?idTarefa=${idTarefa}`,
+                success: function (response) {
+                    console.log(response)
+
+                    response.emails.map(function (email) {
+                        AdicionarEmailDetalhes(email)
+                    })
+
+                    AddSelect("iTipoTarefa", "@CONSTANTES.URLPortal/api/TipoTarefaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, `${response.tipoTarefa}`, "@RsBase.SELECIONE", false);
+                    AddSelect("iVenda", "@CONSTANTES.URLPortal/api/Vendaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, `${response.venda}`, "@RsBase.SELECIONE", false);
+
+                    $("#iAssunto").val(response.assunto)
+                    $("#iDataInicio").val(response.dataInicio)
+                    $("#iDataFim").val(response.dataFim)
+                    $("#iHoraInicio").val(response.horaInicio)
+                    $("#iHoraFim").val(response.horaFim)
+                    $("#iLocal").val(response.local)
+                    $("#iObservacao").val(response.observacao)
+                    $("#idCadastro").val(response.id)
+
+                    $('#modal-cadastro').modal('show')
+                }
+            })
+        }
+
+        function abreObservacao(observacao) {
+            Swal.fire({
+                title: 'Observação',
+                html: `</br><textarea style="resize:none" readonly class="form-control">${observacao}</textarea></br>`,
+                showCancelButton: false
+            })
+        }
+
+    </script>
+
+    @*Cadastro*@
+    <script>
+        AddSelect("iTipoTarefa", "@CONSTANTES.URLPortal/api/TipoTarefaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iVenda", "@CONSTANTES.URLPortal/api/Vendaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        var emails = [];
+
+        $("#iAdicionar").change(function () {
+
+            if ($('#iAdicionar').is(':checked')) {
+                $('#iEmail').prop("disabled", false);
+                $('#btnAdd').on("click", AdicionarEmail);
+            } else {
+                $('#iEmail').prop("disabled", true);
+                $('#btnAdd').on("click", null);
+            }
+        });
+
+        function AdicionarEmail() {
+
+            var email = document.getElementById("iEmail");
+
+            if (!email.validity.valid || email.value == "") {
+                Notificar("@RsBase.ATENCAO_", "Insira um email válido", "warning");
+                return false;
+            }
+            else {
+
+                $("#listaEmail").append("<li class='list-group-item' >" + email.value + "</li>")
+                emails.push(email.value);
+                email.value = "";
+            }
+        }
+
+        function AdicionarEmailDetalhes(email) {
+
+            $("#listaEmail").append("<li class='list-group-item' >" + email + "</li>")
+            emails.push(email);
+        }
+
+        function enviar() {
+
+            ShowPageLoading()
+
+            $.ajax({
+                type: "POST",
+                url: "@CONSTANTES.URLPortal/api/TarefasVendedorApi/Gravar",
+                dataType: "json",
+                contentType: "application/json; charset=utf-8",
+                data: JSON.stringify({
+                    id: $("#idCadastro").val(),
+                    prioridade: $("input[name='prioridade']:checked").val(),
+                    emails: emails,
+                    tipoTarefa: $("#iTipoTarefa").val(),
+                    venda: $("#iVenda").val(),
+                    vendedor: $("#iVendedorSelecionado").val(),
+                    responsavel: "@User.Identity.Name",
+                    assunto: $("#iAssunto").val(),
+                    dataInicio: $("#iDataInicio").val(),
+                    dataFim: $("#iDataFim").val(),
+                    horaInicio: $("#iHoraInicio").val(),
+                    horaFim: $("#iHoraFim").val(),
+                    local: $("#iLocal").val(),
+                    observacao: $("#iObservacao").val(),
+                    repetir: $('#iRepetir').is(':checked')
+                }),
+                success: function (response) {
+
+
+
+                    if (response.ok && response.idObjeto.novoCadastro) {
+                        $("#listaEmail").empty()
+
+                        if (!DataMaiorHoje($("#iDataFim").val()) && !DataMenorHoje($("#iDataFim").val())) {
+                            adicionarCardDia(response.idObjeto)
+                            hojeCount++;
+                        }
+                        else if (DataMenorHoje($("#iDataFim").val())) {
+                            adicionarCardAtraso(response.idObjeto)
+                            atrasoCount++;
+                        }
+                        else {
+                            adicionarCardFuturo(response.idObjeto)
+                            futuroCount++;
+                        }
+
+                        if (response.prioridade == 1) {
+                            baixaCount++;
+                        } else if (response.prioridade == 2) {
+                            mediaCount++;
+                        } else {
+                            altaCount++;
+                        }
+
+                        $('#iQntFuturo').html(`Futuras: ${futuroCount}`)
+                        $('#iQntAtraso').html(`Atraso: ${atrasoCount}`)
+                        $('#iQntDia').html(`Dia: ${hojeCount}`)
+
+                        $('#iBaixa').html(`Baixas: ${baixaCount}`)
+                        $('#iMedia').html(`Médias: ${mediaCount}`)
+                        $('#iAlta').html(`Altas: ${altaCount}`)
+                        Notificar("@RsBase.ATENCAO_", "Tarefa cadastrada", "success");
+                        emails = [];
+                        $('#modal-cadastro').modal('hide');
+                        $('.cadastro').val('').trigger('change');
+
+                        @if (ViewBag.Tipo_Usuario == 2)
+                        {
+                        <text>
+                            AddSelect("iVendedorSelecionado", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                        </text>
+                        }
+                    }
+                    else if (response.ok == false)
+                        {
+                            Notificar("@RsBase.ATENCAO_", response.mensagem, "warning");
+                        }
+
+
+
+                }
+            });
+
+            HidePageLoading();
+        }
+
+        $('#modal-cadastro').on('hidden.bs.modal', function (e) {
+            $('.cadastro').val('').trigger('change');
+        })
+
+        function cancelar() {
+            $('.cadastro').val('').trigger('change');
+            $('#modal-cadastro').modal('hide')
+        }
+
+    </script>
+
+}
+
+<div class="row">
+
+    <div class="col-6">
+        <h4 class="title-page">
+            <i class="fas fa-calendar"></i>
+            @ViewBag.Title
+        </h4>
+
+        <nav aria-label="breadcrumb" class="mt-25">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <span>@ViewBag.Title</span>
+                </li>
+            </ol>
+        </nav>
+
+        <span style="font-size:11px" id="dtLegend"></span>
+
+    </div>
+    <div class="col-auto mb-3">
+        <div class="row title-page">
+
+            @if (ViewBag.TipoUsuario == 2)
+            {
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.VENDEDOR" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+            }
+
+            <a class="btn btn-success btn-add mt-3" title="@RsBase.INCLUIR" onclick="abrirCadastro()"><i class="la la-plus" style="color: #fff"></i></a>
+
+            <button class="btn btn-default btn-add mt-3" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+            <a class="btn mt-3" href="@Url.Action("Relatorio", "TarefasVendedor")"><i class="fas fa-list"></i> Relatório de Tarefas</a>
+
+        </div>
+    </div>
+</div>
+
+<div class="text-center" id="iSelecione">
+    <span>Selecione um vendedor</span>
+</div>
+
+<div id="iCards" style="display:none">
+    <div class="row border m-2">
+        <div class="col">
+            <div class="d-flex justify-content-center">
+                <div class="bg-info border-bottom-0 border-secondary text-white p-1">Tarefas</div>
+            </div>
+            <div class="d-flex flex-row border-top border-secondary">
+                <div class="col-3" id="iQntDia">Dia 3</div>
+                <div class="col-3" id="iQntAtraso">Atraso: 2</div>
+                <div class="col-3" id="iQntFuturo">Futuras : 2</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="d-flex justify-content-center">
+                <div class="bg-info border-bottom-0 border-secondary text-white p-1">Nível de Prioridades</div>
+            </div>
+            <div class="d-flex flex-row-reverse border-top border-secondary">
+                <div class="col-3" id="iAlta">Altas: 3</div>
+                <div class="col-3" id="iMedia">Médias: 2</div>
+                <div class="col-3" id="iBaixa">Baixas : 2</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row ml-2 pt-2 pb-2">
+        <div class="col-md-3" style="background-color: #D3D3D3" id="">
+            <div class="d-flex justify-content-center">
+                Tarefas do Dia
+            </div>
+
+
+            <div id="colunaTarefaDia">
+
+            </div>
+        </div>
+
+        <div id="" class="col-md-3 ml-3" style="background-color: #D3D3D3">
+
+            <div class="d-flex justify-content-center">
+                Tarefas em Atraso
+            </div>
+
+
+            <div id="colunaTarefaAtraso">
+
+            </div>
+        </div>
+
+        <div id="" class="col-md-3 ml-3" style="background-color: #D3D3D3">
+
+            <div class="d-flex justify-content-center">
+                Tarefas Futuras
+            </div>
+
+            <div id="colunaTarefaFuturo">
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-cadastro">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">Cadastro de Tarefa</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row pl-2">
+                        <div class="col-6 form-group">
+
+                            <input type="number" style="display:none" id="idCadastro" />
+
+                            <div class="form-group">
+                                <label for="iModeloPainel">Tarefa:</label>
+                                <select class="form-control cadastro w-50" id="iTipoTarefa" autocomplete="off">
+                                    <option value="">@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="iModeloPainel">Vendedor/Supervisor:</label>
+                                <select class="form-control" id="iVendedorSelecionado" autocomplete="off">
+                                    <option value="">@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="iModeloPainel" class="mt-2">Vincular a Venda:</label>
+                                <select class="form-control cadastro" id="iVenda" autocomplete="off">
+                                    <option value="">@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+
+                            <label for="iModeloPainel" class="mt-2">Assunto:</label>
+                            <input type="text" class="form-control cadastro" id="iAssunto" placeholder="Pauta para evento" />
+
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <label for="iModeloPainel">Data Início:</label>
+                                    <br />
+                                    <input class="form-control cadastro obrigatorio datepicker-period mb-1"
+                                           id="iDataInicio"
+                                           type="text"
+                                           data-enddate="01/01/2050"
+                                           data-startdate="01/01/2020"
+                                           autocomplete="off"
+                                           placeholder="00/00/0000" />
+                                    <br />
+                                    <label for="iModeloPainel mt-2">Horário Início:</label>
+                                    <br />
+                                    <input class="form-control hora cadastro obrigatorio w-50 mb-1"
+                                           id="iHoraInicio"
+                                           type="text"
+                                           autocomplete="off"
+                                           placeholder="00:00" />
+                                </div>
+
+                                <div class="col-auto">
+                                    <label for="iModeloPainel">Data Fim:</label>
+                                    <br />
+                                    <input class="form-control cadastro obrigatorio datepicker-period mb-1"
+                                           id="iDataFim"
+                                           type="text"
+                                           data-enddate="01/01/2050"
+                                           data-startdate="01/01/2020"
+                                           autocomplete="off"
+                                           placeholder="00/00/0000" />
+                                    <br />
+                                    <label for="iModeloPainel mt-2">Horário Fim:</label>
+                                    <br />
+                                    <input class="form-control hora cadastro obrigatorio w-50 mb-1"
+                                           id="iHoraFim"
+                                           type="text"
+                                           autocomplete="off"
+                                           placeholder="00:00" /><i class="fa-solid fa-alarm-clock"></i>
+                                </div>
+                            </div>
+
+                            <label for="iModeloPainel" class="mt-2">Local:</label>
+                            <input type="text" id="iLocal" class="form-control cadastro" placeholder="Rio de Janeiro" />
+
+                            <label for="iModeloPainel" class="mt-2">Observações:</label>
+                            <textarea id="iObservacao" class="form-control cadastro" style="resize: none"></textarea>
+
+                            <label for="iModeloPainel" class="mt-2">Repetir em dias úteis:</label><br />
+                            <input type="checkbox" id="iRepetir" data-toggle="toggle" data-on="Sim" data-off="Não">
+
+                        </div>
+                        <div class="col-6 form-group">
+                            <label for="iModeloPainel" class="mt-2">Deseja adicionar participantes:</label><br />
+                            <input type="checkbox" id="iAdicionar" data-toggle="toggle" data-on="Sim" data-off="Não"><br />
+
+                            <label for="iModeloPainel" class="mt-2">Informe e-mail:</label><br />
+                            <div class="row pl-3">
+                                <input type="email" class="form-control cadastro w-50" id="iEmail" disabled /><button id="btnAdd" class="btn btn-secondary btn-add ml-2"><i class="la la-plus" style="color: #fff"></i></button>
+                            </div>
+                            <ul id="listaEmail" class="list-group mt-2 w-75" style="resize: none; height: 250px; background-color: #b8b8b8; overflow-y: scroll;"></ul>
+
+                            <label for="iModeloPainel" class="mt-2">Prioridade da tarefa:</label><br />
+                            <div class="row pl-3 pt-2">
+                                <input class="" type="radio" id="alta" name="prioridade" value="3" checked>
+                                <label for="alta">Alta</label>
+                                <input class="ml-3" type="radio" id="media" name="prioridade" value="2">
+                                <label for="media">Média</label>
+                                <input class="ml-3" type="radio" id="baixa" name="prioridade" value="1">
+                                <label for="baixa">Baixa</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row ml-5 mb-2 pt-3">
+                        <button class=" ml-5 btn btn-success" onclick="enviar()">Salvar</button>
+                        <button class=" ml-2 btn btn-danger" onclick="cancelar()">Cancelar</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

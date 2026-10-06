@@ -1,0 +1,583 @@
+﻿@model Aniel.Connect.Repository.Model.EnderecoClienteViewModel
+@using Aniel.Connect.Model.enumerado
+
+<script>
+
+    var abertura_boolean;
+    var abertura_boolean_localidade;
+    var cep_on_focus;
+
+            const handleArea = function () {
+            $("#iArea").unbind("select2:select select2:unselecting");
+            $("#iArea").on("select2:select select2:unselecting", function (e) {
+                const areaSelecionada = e.params.data;
+
+                if (areaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $("#iGrupoArea").val(), String(areaSelecionada.id), null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+            });
+        };
+
+        const handleGrupo = function () {
+            $("#iGrupoArea").unbind("select2:select select2:unselecting");
+            $("#iGrupoArea").on("select2:select select2:unselecting", function (e) {
+                const grupoSelecionado = e.params.data;
+
+                if (grupoSelecionado) {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoSelecionado.id), null, "@RsBase.SELECIONE", false, handleArea);
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+                else {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, handleArea);
+                }
+            });
+        };
+
+
+    var EnderecoLogradouroSelecionado = null;
+    $('#iBuscaEndereco' + "@Model.Tipo").change(function () {
+                
+        let endereco = Number($("#iBuscaEndereco" + "@Model.Tipo").val());
+        let name = `Endereco ${"@Model.Tipo"}`;
+
+        switch (endereco) {
+            default:
+                $(`[name="${name} .divEnderecoVazio"]`).hide();
+                $(`[name="${name} .divEnderecoLogradouro"]`).hide();
+                $(`[name="${name} .divCondominioPredio"]`).hide();
+                break;
+
+            case 1:
+                $(`#iCondominioPredio`).hide();
+                $(`[name="${name} .divEnderecoLogradouro"]`).show();
+                $(`[name="${name} .divCondominioPredio"]`).hide();
+                $(`[name="${name} .divEnderecoVazio"]`).show();
+                $("#iId_Condominio_Predio"+ "@Model.Tipo").val(null).trigger('change');
+                break;
+
+            case 2:
+                $(`#iCondominioPredio`).show();
+                $(`[name="${name} .divEnderecoLogradouro"]`).hide();
+                $(`[name="${name} .divCondominioPredio"]`).show();
+                $(`[name="${name} .divEnderecoVazio"]`).show();
+                $("#iId_Endereco_Logradouro"+ "@Model.Tipo").val(null).trigger('change');
+
+                break;
+        }
+
+        AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cod_Escritorio", "@RsBase.SELECIONE", false, handleGrupo);
+        AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cod_Area", "@RsBase.SELECIONE", true, handleArea);
+        AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cod_Localidade", "@RsBase.SELECIONE", true);
+
+    });
+
+    $(document).off("click", ".lupa-click").on("click", ".lupa-click", function () {
+        let cep = $(".select2-search__field").val().replace(/\D/g, '');
+
+        if (cep.length !== 8) {
+            Notificar("@RsBase.ATENCAO_", "Digite um CEP válido com 8 dígitos para buscar.", "warning");
+            return false;
+        }
+
+        $.getJSON("https://viacep.com.br/ws/" + cep + "/json/", function (data) {
+            if (!data.erro) {
+                const fonecadoViaCep = {
+                    cidade: data.localidade,
+                    id_Cidade: "",
+                    bairro: data.bairro,
+                    uf: data.uf,
+                    pais: "Brasil",
+                    id_Pais: 1,
+                    cep: data.cep,
+                    descricao: data.logradouro,
+                    tipo_Endereco_Logradouro: ""
+                };
+
+            } else {
+                Notificar("@RsBase.ATENCAO_", "CEP não encontrado.", "warning");
+            }
+        });
+    });
+
+    $(document).ready(async function () {
+         var tipoEndereco = "@Model.Tipo";
+        @if (Model.Busca_Endereco == Busca_Endereco.Endereco_Logradouro) {<text> $("#iBuscaEndereco" + tipoEndereco).val(1)</text>};
+        @if (Model.Busca_Endereco == Busca_Endereco.Condominio_Predio) {<text> $("#iBuscaEndereco" + tipoEndereco).val(2)</text>};
+        await AddSelect("iId_Endereco_Logradouro" + tipoEndereco, "@CONSTANTES.URLPortal/api/EnderecoLogradouroapi/GetComboEndereco", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Endereco_Logradouro", "@RsBase.SELECIONE", false, x = function () {
+            $("#iId_Endereco_Logradouro" + tipoEndereco).on('select2:select select2:unselecting', function (e) {
+                EnderecoLogradouroSelecionado = e.params.data;
+                $("#iCidade" + tipoEndereco).html(EnderecoLogradouroSelecionado.cidade);
+                $("#iBairro" + tipoEndereco).html(EnderecoLogradouroSelecionado.bairro);
+                $("#iUF" + tipoEndereco).html(EnderecoLogradouroSelecionado.uf);
+                $("#iPais" + tipoEndereco).html(EnderecoLogradouroSelecionado.pais);
+                $("#iCEP" + tipoEndereco).html(EnderecoLogradouroSelecionado.cep);
+                $("#iLogradouro" + tipoEndereco).html(EnderecoLogradouroSelecionado.descricao);
+                $("#iTipo" + tipoEndereco).html(EnderecoLogradouroSelecionado.tipo_Endereco_Logradouro);
+                $("#iTipo_Imovel" + tipoEndereco).html(EnderecoLogradouroSelecionado.tipo_Endereco_Logradouro);
+
+            });
+        });
+
+        await AddSelect("iId_Condominio_Predio" + tipoEndereco, "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboEndereco", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Condominio_Predio", "@RsBase.SELECIONE", false, x = function () {
+            $("#iId_Condominio_Predio" + tipoEndereco).on('select2:select select2:unselecting', function (e) {
+                CondominioPredioSelecionado = e.params.data;
+                $("#iCidade" + tipoEndereco).html(CondominioPredioSelecionado.cidade);
+                $("#iBairro" + tipoEndereco).html(CondominioPredioSelecionado.bairro);
+                $("#iUF" + tipoEndereco).html(CondominioPredioSelecionado.uf);
+                $("#iPais" + tipoEndereco).html(CondominioPredioSelecionado.pais);
+                $("#iCEP" + tipoEndereco).html(CondominioPredioSelecionado.cep);
+                $("#iLogradouro" + tipoEndereco).html(CondominioPredioSelecionado.endereco_Logradouro);
+                $("#iTipo" + tipoEndereco).html(CondominioPredioSelecionado.tipo_Endereco_Logradouro);
+                $("#iCondominioPredio" + tipoEndereco).html(CondominioPredioSelecionado.descricao);
+                $("#iTipo_Imovel" + tipoEndereco).html(CondominioPredioSelecionado.descricao);
+
+            });
+        });
+
+        var tipoEndereco = "@Model.Tipo";
+        var objLista = "Endereco" + tipoEndereco;
+
+        //somenteNumeros("iCEP" + tipoEndereco);
+        somenteNumeros("iNumero" + tipoEndereco);
+
+        //if (!$('#iUF' + tipoEndereco).val())
+        //    $('#iCidade').trigger('change');
+
+        //if (!$('#iCidade' + tipoEndereco).val())
+        //    $('#iBairro').trigger('change');
+
+
+        var id_cidade_inicial = @( Model.Id_Cidade ?? 0 );
+        var id_bairro_inicial = @( Model.Id_Bairro ?? 0 );
+        var id_uf = "@( Model.UF )";
+
+        $("#iPais" + tipoEndereco).attr('name', objLista + '.Id_Pais');
+        $("#iTipo_Imovel" + tipoEndereco).attr('name', objLista + '.Id_Tipo_Imovel');
+        $("#iId_Endereco" + tipoEndereco).attr('name', objLista + '.Id_Endereco');
+        $("#iCEP" + tipoEndereco).attr('name', objLista + '.CEP');
+        $("#iLogradouro" + tipoEndereco).attr('name', objLista + '.Logradouro');
+        $("#iNumero" + tipoEndereco).attr('name', objLista + '.Numero');
+        $("#iDesc_Bairro" + tipoEndereco).attr('name', objLista + '.Bairro');
+        $("#iDesc_Cidade" + tipoEndereco).attr('name', objLista + '.Cidade');
+        $("#iComplemento" + tipoEndereco).attr('name', objLista + '.Complemento');
+        $("#iLatitude" + tipoEndereco).attr('name', objLista + '.Latitude');
+        $("#iLongitude" + tipoEndereco).attr('name', objLista + '.Longitude');
+        $("#iReferencia" + tipoEndereco).attr('name', objLista + '.Ponto_Referencia');
+
+        $("#iUF" + tipoEndereco).attr('name', objLista + '.UF');
+        $("#iCidade" + tipoEndereco).attr('name', objLista + '.Id_Cidade');
+        $("#iBairro" + tipoEndereco).attr('name', objLista + '.Bairro');
+
+        $("#iUF" + tipoEndereco).val(id_uf);
+
+        $("#iGrupoArea" + tipoEndereco).attr('name', objLista + '.Cod_Escritorio');
+        $("#iArea" + tipoEndereco).attr('name', objLista + '.Cod_Area');
+        $("#iLocalidade" + tipoEndereco).attr('name', objLista + '.Cod_Localidade');
+        $("#iDescLocalidade" ).attr('name', objLista + '.Localidade');
+
+        if ($("#iUF" + tipoEndereco).val())
+        {
+            var enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + $("#iUF" + tipoEndereco + " option:selected").text();
+
+            $('#iCidade' + tipoEndereco).empty();
+            $('#iBairro' + tipoEndereco).empty();
+
+            $.getJSON(enderecoApiCidade, function (data) {
+                $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+                    $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+
+                if (id_cidade_inicial) {
+
+                    $("#iCidade" + tipoEndereco).val(id_cidade_inicial);
+
+                    var enderecoApiBairro = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + id_cidade_inicial;
+
+                   @* $.getJSON(enderecoApiBairro, function (data) {
+                        $('#iBairro' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));*@
+
+                    //$('#iBairro').attr(input[type = 'text']);
+
+                    $.each(data, function (key, value) {
+
+                        $('#iBairro').attr('value', value.id).text(value.descricao);
+
+                    @*$('#iBairro' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));*@
+                    });
+
+                       @* $("#iBairro" + tipoEndereco).val(id_bairro_inicial);*@
+                } else {
+                    var tipoEnderecoTmp = "@Model.Tipo";
+                    var cidadeTmp = @Html.Raw(@Json.Encode(Model.Cidade));
+                    $(`#iCidade${tipoEnderecoTmp} option:selected`).text(cidadeTmp);
+
+                    $(`#iDesc_Cidade${tipoEnderecoTmp}`).text(cidadeTmp);
+                    $(`#iDesc_Cidade${tipoEnderecoTmp}`).val(cidadeTmp);
+                }
+            });
+        }
+
+        if ($("#iGrupoArea" + tipoEndereco).val())
+        {
+
+                $("#iGrupoArea" + tipoEndereco).trigger('change');
+
+        }
+        $("#iBuscaEndereco" + tipoEndereco).trigger('change');
+    });
+
+    function GetEndereco(tipoEndereco) {
+         var endereco = "";
+         @if (ViewBag.Utiliza_Cadastro_Endereco != null && !ViewBag.Utiliza_Cadastro_Endereco)
+         {   <text>
+            if ($("#iLogradouro" + tipoEndereco).val())
+            endereco += " " + $("#iLogradouro" + tipoEndereco).val();
+        else {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOGRADOURO)", "warning");
+                return false;
+            }
+
+            if ($("#iNumero" + tipoEndereco).val())
+            endereco += " " + $("#iNumero" + tipoEndereco).val();
+
+            if ($("#iBairro"+ tipoEndereco).val())
+            endereco += " " + $("#iBairro" + tipoEndereco).val();
+
+           @* if ($("#iBairro" + tipoEndereco).val())
+            endereco += " " + $("#iBairro" + tipoEndereco + " option:selected").text();*@
+            if ($("#iCidade" + tipoEndereco).val())
+            endereco += " " + $("#iCidade" + tipoEndereco + " option:selected").text();
+            if ($("#iUF" + tipoEndereco).val())
+            endereco += " " + $("#iUF" + tipoEndereco + " option:selected").text();
+
+        return endereco;
+        </text>
+         }
+         else {
+             <text>
+
+            if ($("#iLogradouro" + tipoEndereco).html())
+                endereco += " " + $("#iLogradouro" + tipoEndereco).html();
+            else {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOGRADOURO)", "warning");
+                return false;
+            }
+
+            if ($("#iNumero" + tipoEndereco).html())
+                endereco += " " + $("#iNumero" + tipoEndereco).html();
+
+            if ($("#iBairroText"+ tipoEndereco).html())
+                endereco += " " + $("#iBairro" + tipoEndereco).html();
+
+            if ($("#iCidadeText" + tipoEndereco).html())
+                endereco += " " + $("#iCidadeText" + tipoEndereco).text();
+            if ($("#iUFText" + tipoEndereco).html())
+                endereco += " " + $("#iUFText" + tipoEndereco).text();
+
+            return endereco;
+        </text>
+    }
+          }
+
+     $("#iNumero" + "@Model.Tipo").focusout(function () {
+
+            /**/
+         var link = 'https://maps.googleapis.com/maps/api/geocode/json?key=@CONSTANTES.TokenGoogleAPI&address=';
+
+         if ($('#iLogradouro' + '@Model.Tipo').val() || $('#iLogradouro' + '@Model.Tipo').html())  {
+            link = link.concat(GetEndereco("@Model.Tipo"));
+            /**/
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json'
+            })
+                .done(function (data) {
+                    $("#iLatitude" + "@Model.Tipo").val(data.results[0].geometry.location.lat);
+                    $("#iLongitude" + "@Model.Tipo").val(data.results[0].geometry.location.lng);
+                })
+                .fail(function (e) {
+                    Notificar("@RsBase.ATENCAO_", e, "warning");
+                })
+                .always(function () {
+
+                });
+        }
+
+    });
+
+    $('#iUF' + "@Model.Tipo").change(function () {
+
+        var tipoEndereco = "@Model.Tipo";
+        var estado = $('#iUF' + tipoEndereco + ' option:selected').text();
+        var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+        $('#iCidade' + tipoEndereco).empty();
+        $('#iBairro' + tipoEndereco).empty();
+
+        $.getJSON(enderecoApi, function (data) {
+            $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+            $.each(data, function (key, value) {
+                $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));
+            })
+
+        });
+    });
+
+
+
+    $('#iCidade' + "@Model.Tipo").change(function () {
+
+        var tipoEndereco = "@Model.Tipo";
+        var cidade = $('#iCidade' + tipoEndereco +' option:selected').val();
+        var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + cidade;
+
+        $('#iDesc_Cidade' + tipoEndereco).val($('#iCidade' + tipoEndereco + ' option:selected').text());
+
+        //$("#iBairro" + tipoEndereco).val("");
+        $("#iBairro" + tipoEndereco).empty();
+
+        $.getJSON(enderecoApi, function (data) {
+            $('#iBairro' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+            $.each(data, function (key, value) {
+                $('#iBairro' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));
+            })
+        });
+
+    });
+
+    $('#iBairro' + "@Model.Tipo").change(function () {
+        var tipoEndereco = "@Model.Tipo";
+
+        $('#iDesc_Bairro' + tipoEndereco).val($('#iBairro' + tipoEndereco + ' option:selected').text());
+    });
+
+    $("#iCEP" + "@Model.Tipo").focus(function(){
+        cep_on_focus = $("#iCEP" + "@Model.Tipo").val();
+    });
+
+
+
+    $("#iCEP" + "@Model.Tipo").focusout(function () {
+
+        if ($("#iCEP" + "@Model.Tipo").val() != cep_on_focus) {
+            $('#iReferencia' + "@Model.Tipo").val("");
+            $('#iUF' + "@Model.Tipo").val("");
+            $('#iCidade' + "@Model.Tipo").val("");
+            $('#iBairro' + "@Model.Tipo").val("");
+            //$('#iTipo_Imovel' + "@Model.Tipo").val("");
+            //$('#iPais' + "@Model.Tipo").val("");
+            $('#iComplemento' + "@Model.Tipo").val("");
+            $('#iBairro' + "@Model.Tipo").val("");
+            $('#iLatitude' + "@Model.Tipo").val("");
+            $('#iLongitude' + "@Model.Tipo").val("");
+            $('#iNumero' + "@Model.Tipo").val("");
+            $('#iLogradouro' + "@Model.Tipo").val("");
+            $('#iLongitude' + "@Model.Tipo").val("");
+            $('#iLongitude' + "@Model.Tipo").val("");
+        }
+
+        var tipoEndereco = "@Model.Tipo";
+        var cepcliente = $("#iCEP" + "@Model.Tipo").val();
+
+        var link = "https://viacep.com.br/ws/";
+        link = link.concat(cepcliente);
+        link = link.concat("/json/");
+
+        try {
+            parent.App.startPageLoading();
+        }
+        catch (ex) { console.log(ex); }
+
+        $.ajax({
+            url: link,
+            type: 'GET',
+            dataType: 'json'
+
+        })
+            .done(function (data) {
+                $("#iLogradouro" + tipoEndereco).val(data.logradouro);
+                $("#iUF" + tipoEndereco).val(data.uf);
+                var cidade = data.localidade;
+                var bairro = data.bairro;
+
+                var estado = $('#iUF' + tipoEndereco + ' option:selected').text();
+                var enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $('#iCidade' + tipoEndereco).empty();
+                $('#iBairro' + tipoEndereco).empty();
+
+                $.getJSON(enderecoApiCidade, function (data) {
+                    $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data, function (key, value) {
+                        $('#iCidade' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    if (cidade) {
+
+                        $('#iCidade' + tipoEndereco).val($('option:contains("' + cidade.toUpperCase() + '")').val());
+
+                        var enderecoApiBairro = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + $('#iCidade' + tipoEndereco).val();
+
+                        $.getJSON(enderecoApiBairro, function (data) {
+                            $('#iBairro' + tipoEndereco).append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                            $.each(data, function (key, value) {
+                                $('#iBairro' + tipoEndereco).append($('<option></option>').attr('value', value.id).text(value.descricao));
+                            });
+
+                            $("#iBairro" + tipoEndereco + " option:contains('" + bairro.toUpperCase() + "')").attr("selected", true);
+
+                            $('#iDesc_Bairro' + tipoEndereco).val($('#iBairro' + tipoEndereco + ' option:selected').text());
+                            $('#iDesc_Cidade' + tipoEndereco).val($('#iCidade' + tipoEndereco + ' option:selected').text());
+                        });
+                    }
+                });
+
+                $("#iNumero" + "@Model.Tipo").focus();
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) { console.log(ex); }
+
+            });
+
+    });
+
+
+    function ExibeMapa(tipoEndereco) {
+
+        if (($("#iLogradouro" + tipoEndereco).val() == "" || $("#iCEP" + tipoEndereco).val() == "") &&
+            ($("#iLogradouro" + tipoEndereco).html() == "" || $("#iCEP" + tipoEndereco).html() == "")){
+
+
+            Notificar("@RsBase.ATENCAO_", " Campos CEP e Logradouro são obrigatórios. Por Favor Preencher!", "warning");
+            return false;
+        }
+
+        var endereco = GetEndereco(tipoEndereco);
+
+
+        ShowDialog(true, true, 'Mapa', '@Url.Action("Endereco", "Mapa")' + '?Endereco=' + endereco, 'mapa', 800, 500, 'iframeMapa' + tipoEndereco);
+        return false;
+    }
+
+
+     $('#iGrupoArea' + "@Model.Tipo").change(function () {
+
+
+            var grupo_area = $('#iGrupoArea'+ '@Model.Tipo' +' option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea' + "@Model.Tipo").empty();
+            $('#iLocalidade' + "@Model.Tipo").empty();
+
+            $.ajax({
+            url: enderecoApi,
+            type: 'GET',
+            dataType: 'json'
+
+        })
+                .done(function (data) {
+
+
+                    $('#iArea' + "@Model.Tipo").append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                        $('#iArea' + "@Model.Tipo").append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+                    if ($('#iArea' + "@Model.Tipo").val()) {
+                        $('#iArea' + "@Model.Tipo").trigger('change');
+                    }
+
+                    $('#iLocalidade' + "@Model.Tipo").empty();
+
+                    var grupo_area = $('#iGrupoArea'+ '@Model.Tipo' +' option:selected').val();
+                    var area = $('#iArea' + '@Model.Tipo' + ' option:selected').val();
+
+
+                    if (!abertura_boolean) {
+                        $('#iArea' + "@Model.Tipo").val('@Model.Cod_Area');
+                        abertura_boolean = true;
+                        $('#iArea' + "@Model.Tipo").trigger('change');
+                    }
+
+
+
+                    //var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + @Model.Cod_Area;
+                    @*$.getJSON(enderecoApi, function (data) {
+                        //$('#iLocalidade' + "@Model.Tipo").append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                        $.each(data.objeto, function (key, value) {
+                            $('#iLocalidade' + "@Model.Tipo").append($('<option></option>').attr('value', value.value).text(value.label));
+                        });
+                         @if (Model.Id != 0)
+                            {
+                            <text>
+                                $('#iLocalidade' + "@Model.Tipo").val('@Model.Cod_Localidade');
+                            </text>
+                            }
+                     });*@
+                })
+                .fail(function () {
+                    console.log("error");
+                })
+                .always(function () {
+                    try {
+                        parent.App.stopPageLoading();
+                    }
+                    catch (ex) { console.log(ex); }
+
+                });
+
+
+        });
+
+        $('#iArea' + "@Model.Tipo").change(async function () {
+
+            $('#iLocalidade' + "@Model.Tipo").empty();
+
+            var grupo_area = $('#iGrupoArea'+ '@Model.Tipo' +' option:selected').val();
+            var area = $('#iArea'+ '@Model.Tipo' +' option:selected').val();
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+            await $.getJSON(enderecoApi, function (data) {
+                $('#iLocalidade' + "@Model.Tipo").append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+                    $('#iLocalidade' + "@Model.Tipo").append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+            });
+
+            $('#iLocalidade' + "@Model.Tipo").trigger('change');
+
+            if (!abertura_boolean_localidade)
+            {
+                $('#iLocalidade' + "@Model.Tipo").val('@Model.Cod_Localidade');
+                abertura_boolean_localidade = true
+                $('#iLocalidade' + "@Model.Tipo").trigger('change');
+            }
+
+        });
+
+
+    $('#iLocalidade' + "@Model.Tipo").change(function () {
+
+
+        $('#iDescLocalidade').val('');
+        $('#iDescLocalidade').val($('#iLocalidade' + '@Model.Tipo' +' option:selected').text());
+
+        //$('#iDescLocalidade').val();
+        //$('#iDescLocalidade').val(null);
+    });
+
+    reloadData("@(CONSTANTES.URLPortal + "/api/Tipo_ImovelAnielapi/busca")", "idTipo_Imovel", "iTipo_Imovel");
+</script>

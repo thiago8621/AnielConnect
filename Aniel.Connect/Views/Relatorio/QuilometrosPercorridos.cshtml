@@ -1,0 +1,471 @@
+﻿@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_QUILOMETRAGEM_PERCORRIDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script>
+
+        $('#modal-filter').on('shown.bs.modal', function (event) {
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+        });
+
+        var oDatatable = null;
+
+        var HandleGrupoArea = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+
+                GrupoSelecionado  = e.params.data
+                if (GrupoSelecionado) {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(GrupoSelecionado.id), null, "@RsBase.SELECIONE", false, HandleArea);
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+                else {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+                }
+
+            });
+        };
+
+        var HandleArea = function () {
+            $('#iArea').on('select2:select select2:unselecting', function (e) {
+
+                AreaSelecionada = e.params.data
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id) , null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+        let HandleGrupo = function () {
+            $('#iEncerramento').on('select2:select select2:unselecting', function (e) {
+
+                Encerramento = e.params.data
+                if (Encerramento) {
+                    $('#iEncerramentoCodCt').val(Encerramento.codCt);
+                }
+                else {
+                    $('#iEncerramentoCodCt').val(null);
+                }
+            });
+        };
+
+        let HandleSupervisor = function () {
+            $('#iSupervisor').on('select2:select select2:unselecting', function (e) {
+                let alturaSelect2 = $("#iSupervisor + .select2-container .select2-selection__rendered").height();
+                $("#iRowMultipleSupervisor").height(alturaSelect2 + 30);
+
+            });
+        };
+
+        function carregaSelect2() {
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleGrupoArea);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+            AddSelect("iNaturezaProducao", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iEquipe", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleSupervisor);
+            AddSelect("iMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        $('#iEstadosBrasil').change(function () {
+            var estado = $('#iEstadosBrasil option:selected').val();
+            AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, estado, null, "@RsBase.SELECIONE", false);
+        });
+
+        var filter_state = {
+            periodo: {
+                label: "@RsFinanceiro.PERIODO", getDisplay: () => {
+                    return Boolean($('#iDataInicio').val()) ? $('#iDataInicio').val() : ""
+                },
+                removable: false, onclick: () => { $('#modal-filter').modal('show') }
+            },
+            equipe: {
+                label: "@RsCadastros.TECNICO",
+                getDisplay: () => { return Boolean($('#iEquipe').val()) ? $('#iEquipe option:selected').text() : "" },
+                onclick: () => {
+                    $('#iEquipe').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            supervisor: {
+                label: "@RsCadastros.SUPERVISOR",
+                getDisplay: () => { return Boolean($('#iSupervisor').val()) ? $('#iSupervisor option:selected').text() : "" },
+                onclick: () => {
+                    $('#iSupervisor').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            encerramento: {
+                label: "@RsCadastros.TAG_ENCERRAMENTO",
+                getDisplay: () => { return Boolean($('#iEncerramento').val()) ? $('#iEncerramento option:selected').text() : "" },
+                onclick: () => {
+                    $('#iEncerramento').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            categoriaCliente : {
+                label: "@RsCadastros.CATEGORIA_CLIENTE",
+                getDisplay: () => { return Boolean($('#iCategoriaCliente').val()) ? $('#iCategoriaCliente option:selected').text() : "" },
+                onclick: () => {
+                    $('#iCategoriaCliente').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            tipo_servico : {
+                label: "@RsCadastros.CATEGORIA_CLIENTE",
+                getDisplay: () => { return Boolean($('#iTipoServico').val()) ? $('#iTipoServico option:selected').text() : "" },
+                onclick: () => {
+                    $('#iTipoServico').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            plano_produto : {
+                label: "@RsCadastros.PLANO_PRODUTO",
+                getDisplay: () => { return Boolean($('#iPlanoProduto').val()) ? $('#iPlanoProduto option:selected').text() : "" },
+                onclick: () => {
+                    $('#iPlanoProduto').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            uf : {
+                label: "@RsCadastros.UF",
+                getDisplay: () => { return Boolean($('#iEstadosBrasil').val()) ? $('#iEstadosBrasil option:selected').text() : "" },
+                onclick: () => {
+                    $('#iEstadosBrasil').val('').trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            cidade : {
+                label: "@RsCadastros.CIDADE",
+                getDisplay: () => { return Boolean($('#iCidade').val()) ? $('#iCidade option:selected').text() : "" },
+                onclick: () => {
+                    $('#iCidade').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            statusSLA : {
+                label: "@RsCadastros.STATUS_SLA",
+                getDisplay: () => { return Boolean($('#iSLA').val()) ? $('#iSLA option:selected').text() : "" },
+                onclick: () => {
+                    $('#iSLA').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            }
+
+        }
+
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+
+
+
+            carregaSelect2()
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        })
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show')
+            carregaSelect2()
+        })
+
+        "use strict";
+
+        var handleDataTableButtons = function () {
+
+                oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                    dom: "Bfrti",
+                    select: {
+                        style: 'multi'
+                    },
+                    serverSide: true,
+                    searching: true,
+                    ordering: false,
+                    paging: false,
+                    deferRender: true,
+                    scrollResize: true,
+                    scrollY: '66vh',
+                    stateSave: true,
+                    scrollX: true,
+                    fixedHeader: true,
+                    initComplete: dataTableInitComplete,
+                    drawCallback: () => {
+
+                        TagFilter("FiltrosUtilizados", filter_state, "Filtrado por:");
+                        ResizeTable('divTable');
+                    },
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/Painel_RoteirizacaoApi/RelatorioKm',
+                        type: 'POST',
+                        async: true,
+                        data: function (data) {
+                            data.Data = $('#iDataInicio').val();
+                            data.Equipe = $('#iEquipe').val();
+                            data.Supervisor = $('#iSupervisor').val();
+                            data.Monitor = $('#iMonitor').val();
+
+                            data.ApenasTecnicosComOs = $('#iApenasTecnicoComOs').is(":checked");
+                            data.Natureza = $('#iNaturezaProducao').val();
+                            data.GrupoArea = $('#iGrupoArea').val();
+                            data.Area = $('#iArea').val();
+                        },
+                        error: function (e) {
+                            HidePageLoading();
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+                            HidePageLoading();
+                            return d.data;
+                        }
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                        var str = "@RsCadastros.INFODATATABLE";
+                        if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                        str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                        $("#dtLegend").html(str);
+
+                        return "";
+                    },
+                    pageLength: 5,
+                    order: [],
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTableRelatorio({
+                        title: "@Html.Raw(ViewBag.Title)",
+                        pageSize: "A3"
+                    }),
+                    columns: [
+                        { data: "matricula", className: "text-center", title: "@RsCadastros.MATRICULA", orderable: false },
+                        { data: "nome", className: "text-center", title: "@RsCadastros.NOME", orderable: false },
+                        { data: "supervisor", className: "text-center", title: "@RsCadastros.SUPERVISOR", orderable: false },
+                        { data: "distanciaPlanejada", className: "text-center", title: "Rota Planejada", orderable: false },
+                        { data: "distanciaRealizada", className: "text-center", title: "Rota Realizada", orderable: false },
+                        { data: "quantidade_OS", className: "text-center", title: "Qtd. de Serviços", orderable: false },
+                        { data: "perfilAgendamento", className: "text-center", title: "@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO", orderable: false }
+                        
+
+                    ]
+                });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+                // Handle table draw event
+                oDatatable.on('draw', function () {
+                    // Update state of "Select all" control
+                    rows_selected = [];
+                });
+            },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        function oDatatableFunction() {
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            if ($('#iDataInicio').val() && $('#iDataFim').val()) {
+
+                const momentInicio = moment($('#iDataInicio').val(),"DD/MM/YYYY")
+                const momentFinal = moment($('#iDataFim').val(), "DD/MM/YYYY")
+
+                if ((momentFinal.diff(momentInicio, 'days') + 1) > 30) {
+                    Notificar("@RsBase.ATENCAO_", "Periodo deve atender limite de 30 dias", "warning");
+                    return false
+                }
+            }
+
+            if (oDatatable == null) {
+                TableManageButtons.init();
+            }
+            else {
+                oDatatable.draw()
+            }
+
+            $('#modal-filter').modal('hide')
+
+
+        }
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="far fa-clock"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                </div>
+                <div class="text-right">
+                    <div class="form-group col-sm-push-1 pl-2">
+                        <a href="#" data-toggle="popover" data-html="true" title="Ajuda"
+                           data-content="Coluna Km Percorrido calcula a distância entre a latitude e longitude do local aonde o técnico estava quando pressionou início deslocamento (pela última vez) até a latitude e longitude correspondente ao endereço do serviço."><i style="color: #2092EC" class="fas fa-question-circle fa-2x"></i></a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 form-inline"></div>
+        <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+    </div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group border_radius">
+                    <div class="row">
+                        <div class="col form-inline text-center mt-1" style="display:block">
+                            <input class="form-control datepicker obrigatorio mb-1"
+                                   id="iDataInicio"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="00/00/0000" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iEquipe">@RsCadastros.TECNICO:</label>
+                                <select class="form-control" id="iEquipe"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                                <select class="form-control" id="iGrupoArea"></select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iArea">@RsCadastros.AREA:</label>
+                                <select class="form-control" id="iArea"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iNaturezaProducao">@RsCadastros.NATUREZA_PRODUCAO:</label>
+                                <select class="form-control" id="iNaturezaProducao"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="iApenasTecnicoComOs" data-toggle="toggle" data-on="Sim" data-off="Não">
+                                    Apenas Técnicos com OS
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iMonitor">@RsCadastros.MONITOR:</label>
+                                <select class="form-control" id="iMonitor"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="iRowMultipleSupervisor">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                                <select class="form-control" name="Id_Supervisor[]" id="iSupervisor" multiple="multiple" style="width:100% !important"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>               
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction(); $('#modal-filter').modal('hide'); ShowPageLoading()" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

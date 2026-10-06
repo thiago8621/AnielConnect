@@ -1,0 +1,245 @@
+﻿@model Aniel.Connect.Models.Painel_ServicosListaFiltroModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LOG_ALTERACAOOS;
+    ViewBag.Sessao = RsCadastros.LOG_ALTERACAOOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion,"~/Content/cssDataTable")
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion,"~/bundles/jsDataTable")
+
+    <script>
+
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Painel_ServicosApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Painel_ServicosApi/GetAllLogAlteracaoOS',
+                    type: 'POST',
+                    data: function (data) {
+                        data.CodCt = '@Html.Raw(Request.Params["codCt"])';
+                        data.Projeto = '@Html.Raw(Request.Params["projeto"])';
+                        data.Numero_Obra = '@Html.Raw(Request.Params["num_Obra"])';
+                        data.Num_Doc = '@Html.Raw(Request.Params["num_Doc"])';
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    //Devem ter o mesmo nome que foi declarado no Painel_ServicosApiController, no entanto , inicial minúscula
+                    //Num_Obra = Convert.ToString(reader["NUM_OBRA"]),
+                    //Usuario = Convert.ToString(reader["USUARIO"]),
+                    //{ title: "<input name='select_all' value='1' type='checkbox'>" },
+                    {
+                        data: "num_Obra",
+                        title: "@RsCadastros.NUMERO_ORDEM_SERVICO",
+                        orderable: false
+                    },
+                    {
+                        data: "usuario",
+                        title: "@RsCadastros.USUARIO_ACAO",
+                        orderable: false
+                    },
+                    {
+                        data: "dia",
+                        title: "@RsCadastros.DATA_ACAO",
+                        orderable: false
+                    },
+                    {
+                        data: "hora",
+                        title: "@RsCadastros.HORARIO_ACAO",
+                        orderable: false
+                    },
+                    {
+                        data: "tipo",
+                        title: "@RsCadastros.TIPO_ALTERACAO",
+                        orderable: false
+                    },
+                    {
+                        data: "valor_Ant",
+                        title: "@RsCadastros.VALOR_ANT",
+                        orderable: false
+                    },
+                    {
+                        data: "valor_Atual",
+                        title: "@RsCadastros.VALOR_ATUAL",
+                        orderable: false
+                    },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+            $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Painel_ServicosApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            });
+
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                rows_selected = [];
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    </script>
+}
+
+
+
+
+<div class="table-responsive">
+    <table class="table table-hover display nowrap" id="datatable" style="width:100%">
+        <thead class="tb-head">
+        </thead>
+    </table>
+</div>
+

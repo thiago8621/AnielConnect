@@ -1,0 +1,402 @@
+﻿@model Aniel.Connect.Models.FeriadoCadastroModel
+@using Aniel.Connect.ControllersWebApi.T5;
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_FERIADO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+
+@section scripts
+{
+    @if (Model.Id == 0)
+    {
+        <text>
+            <script>
+                $("#iStatus").prop("checked", true).change();;
+            </script>
+        </text>
+    }
+
+    <script>
+
+        $(document).ready(function () {
+            $("#iAbrangencia").trigger('change');
+            $('#iTipo').trigger('change');
+            $('#iUF').trigger("change");
+        });
+
+        var cidade_banco = true; // Exibe a cidade que veio do banco
+
+        $('#iUF').change(function () {
+
+            var estado = $('#iUF option:selected').text();
+
+            if (estado != "@RsBase.SELECIONE") {
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $('#iCidade').empty();
+                $('#iCidade').append($('<option></option>').attr('value', "").text("@RsBase.SELECIONE"));
+
+                $.getJSON(enderecoApi, function (data) {
+
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    cidade_banco ? $("#iCidade").val(@Model.Id_Cidade) : $("#iCidade").val("")
+
+                    cidade_banco = false;
+                });
+            }
+            else {
+                $('#iCidade').empty();
+                $('#iCidade').append($('<option></option>').attr('value', "").text("@RsBase.SELECIONE"));
+            }
+        });
+
+        $("#iAbrangencia").change(function () {
+
+            var _abrangencia = $(this).val();
+
+            if (_abrangencia == "" || _abrangencia == 0) {
+
+                $("#divPais").hide();
+                $("#divCidade").hide();
+                $("#divUF").hide();
+            }
+            else if (_abrangencia == 1) {
+
+                $("#divPais").show();
+                $("#divCidade").hide();
+                $("#divUF").hide();
+            }
+            else {
+
+                $("#divPais").show();
+            }
+
+            $("#iPais").trigger("change");
+        });
+
+        $("#iPais").change(function () {
+
+            var _abrangencia = $("#iAbrangencia").val();
+            var _pais = $("#iPais").val();
+
+            if (_pais == 1) {
+
+                if (_abrangencia == 2) {
+
+                    $("#divCidade").show();
+                    $("#divUF").show();
+                }
+                else if (_abrangencia == 3) {
+
+                    $("#divCidade").hide();
+                    $("#divUF").show();
+                }
+            }
+            else {
+
+                $("#divCidade").hide();
+                $("#divUF").hide();
+            }
+
+        });
+
+        $("#iTipo").change(function () {
+            const tipo = $("#iTipo").val();
+
+            if (tipo) {
+                if (tipo === "1") {
+                    if ($("#iData").val()) {
+                        const currDate = new Date();
+                        const data = $("#iData").val().split("/");
+                        const dataVariavel = data[0] + "/" + data[1] + "/" + currDate.getFullYear();
+
+                        $("#iDataVariavel").val(dataVariavel).trigger("change");
+                        $("#iData").val("");
+                    }
+
+                    $("#divDataVariavel").show();
+                    $("#divData").hide();
+                }
+                else {
+                    if ($("#iDataVariavel").val()) {
+                        const dataVariavel = $("#iDataVariavel").val().split("/")
+                        const data = dataVariavel[0] + "/" + dataVariavel[1];
+
+                        $("#iData").val(data).trigger("change");
+                        $("#iDataVariavel").val("");
+                    }
+
+                    $("#divData").show();
+                    $("#divDataVariavel").hide();
+                }
+            }
+            else {
+                $("#divData").show();
+                $("#divDataVariavel").hide();
+            }
+        })
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            var _tipo = $("#iTipo").val();
+            var _abrangencia = $("#iAbrangencia").val();
+
+            var erro = false;
+
+            if (!_tipo) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO)", "warning");
+                erro = true;
+            }
+            else {
+                if (_tipo === "0") {
+                    if ($("#iData").val() === "") {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DATA)", "warning");
+                        erro = true;
+                    }
+                }
+                else {
+                    if ($("#iDataVariavel").val() === "") {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DATA)", "warning");
+                        erro = true;
+                    }
+                }
+            }
+
+            if (!$("#iDescricao").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DESCRICAO)", "warning");
+                erro = true;
+            }
+            else if ($("#iDescricao").val().length > 40) {
+
+                Notificar("@RsBase.ATENCAO_", "@RsCadastros.DESCRICAO_40_CARACTERES", "warning");
+                erro = true;
+            }
+
+            @*else if(isNaN(Date.parse(_data))) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.DATA_INVALIDA", "warning");
+                erro = true;
+            }*@
+
+            if (!$("#iAbrangencia").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ABRANGENCIA)", "warning");
+                erro = true;
+            }
+
+            if (_abrangencia) {
+                switch (_abrangencia) {
+
+                    case "0":
+
+                        $("#iPais").val("");
+                        $("#iUF").val("");
+                        $("#iCidade").val("");
+                        break;
+
+                    case "1":
+
+                        $("#iUF").val("");
+                        $("#iCidade").val("");
+
+                        if ($("#iPais").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PAIS)", "warning");
+                            erro = true;
+                        }
+                        break;
+
+                    case "2":
+
+                        if ($("#iPais").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PAIS)", "warning");
+                            erro = true;
+                        }
+                        else if ($("#iUF").val() == "" && $("#iCidade").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning");
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CIDADE)", "warning");
+
+                            erro = true;
+                        }
+                        else if ($("#iUF").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning");
+                            erro = true;
+                        }
+                        else if ($("#iCidade").val() == "") {
+
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CIDADE)", "warning");
+                            erro = true;
+                        }
+                        break;
+
+                    case "3":
+
+                        $("#iCidade").val("");
+
+                        if ($("#iPais").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PAIS)", "warning");
+                            erro = true;
+                        }
+                        else if ($("#iUF").val() == "") {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning");
+                            erro = true;
+                        }
+                        break;
+                }
+            }
+
+            if (erro) {
+                clicked = false;
+            }
+            else {
+                ShowPageLoading();
+                $('#form').submit();
+            }
+        }
+
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Feriado", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @*@Html.HiddenFor(model => model.Id)*@
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-umbrella-beach"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Feriado")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_FERIADO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                        <span style="font-size:11px" id="dtLegend"></span>
+                    </div>
+
+                </div>
+
+
+                <div class="card div-card-accord">
+
+                    <div class="card-body">
+                        <div class="row p-2">
+
+                            <div class="col-sm-3">
+                                <div class="form-group">
+                                    <label for="iDescricao" class="mr-3">@RsCadastros.DESCRICAO:</label>
+                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @required = true })
+                                    @*@Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })*@
+                                </div>
+                            </div>
+                            <div class="col-sm-2 mr-auto">
+                                <label for="iData" class="mr-3">@RsCadastros.DATA:</label>
+                                <div class="form-group">
+                                    @Html.HiddenFor(m => m.Ano, new { id = "iAno" })
+
+                                    <div id="divData">
+                                        @Html.TextBoxFor(model => model.Data, new { @tabindex = "7", @class = "form-control datepicker-feriado", @id = "iData", @autocomplete = "off" })
+                                    </div>
+
+                                    <div id="divDataVariavel">
+                                        @Html.TextBoxFor(model => model.DataVariavel, new { @tabindex = "7", @class = "form-control datepicker", @id = "iDataVariavel", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-2 text-right">
+                                <div class="form-group">
+                                    <label for="iStatus" style="padding-right: 37px;" class="mr-3">@RsCadastros.STATUS:</label><br>
+                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2 mb-2 pl-1">
+
+                            <div class="col-sm-3">
+                                <div class="form-group">
+                                    <label for="iCodigo" class="mr-3">@RsCadastros.TIPO:</label>
+                                    @Html.EnumDropDownListFor(m => m.Tipo, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipo", @autocomplete = "off" })
+                                    @*@Html.ValidationMessageFor(model => model.Tipo, "", new { @class = "text-danger" })*@
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2" id="divAbrangencia">
+                                <div class="form-group">
+                                    <label for="iAbrangencia">@RsCadastros.ABRANGENCIA:</label>
+                                    @Html.EnumDropDownListFor(m => m.Abrangencia, RsBase.SELECIONE, new { @class = "form-control", @id = "iAbrangencia", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div id="divPais" class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iPais">@RsCadastros.PAIS:</label>
+                                    @Html.DropDownListFor(m => m.Pais, new SelectList(ViewBag.Paises, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPais" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2" id="divUF" style="display: none">
+                                <div class="form-group">
+                                    <label for="iUF">@RsCadastros.UF:</label>
+                                    @Html.EnumDropDownListFor(m => m.UF, RsBase.SELECIONE, new { @class = "form-control", @id = "iUF", @autocomplete = "off" })
+                                    @*@Html.ValidationMessageFor(model => model.UF, "", new { @class = "text-danger" })*@
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2" id="divCidade" style="display:none">
+                                <div class="form-group">
+                                    <label for="iCidade">@RsCadastros.CIDADE:</label>
+                                    @Html.DropDownListFor(m => m.Id_Cidade, new SelectList(ViewBag.ComboTmp, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade", @autocomplete = "off" })
+                                    @*@Html.ValidationMessageFor(model => model.Id_Cidade, "", new { @class = "text-danger" })*@
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Feriado")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick=" return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+}

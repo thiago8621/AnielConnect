@@ -1,0 +1,456 @@
+﻿@model Aniel.Connect.Models.ParametrosConsultaCreditoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.PARAMETROS_CONSULTA_CREDITO; ;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+<style>
+    .operador {
+        width: 30%;
+        z-index: 999999;
+        overflow: hidden;
+    }
+
+    .select2 select2-container select2-container--default select2-container--above {
+        width: 90% !important;
+    }
+
+    .container-group {
+        display: flex;
+    }
+
+    #iValorDataUltimaPendencia_dp {
+        margin-top: -20px !important;
+    }
+</style>
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script>
+
+    let oDatatableCriterio = null;
+
+     let handleDataTableCriterio = function () {
+     "use strict";
+
+       let array = @Html.Raw(Json.Encode(Model.CriteriosLista));
+       let nome_lista = "CriteriosLista";//Nome_utilizado para enganar o razor
+
+     //"Blfrtip"
+         oDatatableCriterio = $("#datatableCriterio").length && $("#datatableCriterio").DataTable({
+             dom: "Bfrti",
+             language: traducaoDataTableSimples,
+             data: array,
+             paging: false,
+             drawCallback: () => {
+                 handleExcluir();
+             },
+             order: [],
+             columns: [
+                 {
+                     data: "Id",
+                     orderable: false,
+                     render: function (data, type, row, meta) {
+                         return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                             ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+
+                             ' <input id="' + nome_lista + '_' + meta.row + '__Criterio" name="' + nome_lista + '[' + meta.row + '].Criterio" type="hidden" value="' + TrataNulo(row.Criterio) + '">';                              
+                     }
+                 },
+                 {
+                     data: "Criterio",
+                     orderable: false,
+                     title: "Critério",
+                     render: function (data, type, row, meta) {
+                         if (type === 'display') {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Criterio" name="' + nome_lista + '[' + meta.row + '].Criterio" type="hidden" value="' + TrataNulo(data) + '">'
+                                         + ' <input id="' + nome_lista + '_' + meta.row + '__TipoCriterio" name="' + nome_lista + '[' + meta.row + '].TipoCriterio" type="hidden" value="' + TrataNulo(row.TipoCriterio) + '">';
+                         }
+                         return data;
+                     },
+                     width: 380
+                 },
+                 {
+                     data: "Operador",
+                     orderable: false,
+                     title: "Operador",
+                     render: function (data, type, row, meta) {
+                         if (type === 'display') {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Operador" name="' + nome_lista + '[' + meta.row + '].Operador" type="hidden" value="' + TrataNulo(data) + '">'
+                                         + ' <input id="' + nome_lista + '_' + meta.row + '__TipoOperador" name="' + nome_lista + '[' + meta.row + '].TipoOperador" type="hidden" value="' + TrataNulo(row.TipoOperador) + '">';
+                         }
+                         return data;
+                     },
+                     width: 380
+                 },
+                 {
+                     data: "Valor",
+                     orderable: false,
+                     title: "Valor",
+                     render: function (data, type, row, meta) {
+                         if (type === 'display') {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Valor" name="' + nome_lista + '[' + meta.row + '].Valor" type="hidden" value="' + TrataNulo(data) + '">';
+                         }
+                         return data;
+                     },
+                     width: 380
+                 },
+                 {
+                     data: "Pontos",
+                     orderable: false,
+                     title: "Pontos",
+                     render: function (data, type, row, meta) {
+                         if (type === 'display') {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Pontos" name="' + nome_lista + '[' + meta.row + '].Pontos" type="hidden" value="' + TrataNulo(data) + '">';
+                         }
+                         return data;
+                     },
+                     width: 380
+                 },
+                 {
+                     data: "Eliminatorio",
+                     orderable: false,
+                     title: "Eliminatório",
+                     render: function (data, type, row, meta) {
+                         if (type === 'display') {
+                             let value = Boolean(TrataNulo(data));
+                             let texto = value ? "Sim" : "Não";
+                             data = texto + ' <input id="' + nome_lista + '_' + meta.row + '__Eliminatorio" name="' + nome_lista + '[' + meta.row + '].Eliminatorio" type="hidden" value="' + value + '">';
+
+                         }
+                         return data;
+                     },
+                     width: 380
+                 }
+             ]
+         });
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                let idFiltro = `${$(this).attr("excluir")}`;
+
+                let trLinkButton = $(this).parents('tr');
+
+                if (idFiltro === "0") {
+                    oDatatableCriterio.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    let link = '@String.Concat(CONSTANTES.URLPortal, "/api/ParametrosConsultaCreditoapi/ExcluirCriterios?value=")' + idFiltro;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatableCriterio.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        handleExcluir();
+
+        $("#btnAdicionar").on('click', function () {
+             oDatatableCriterio.row.add({
+                 Id: 0,
+                 Criterio: $("#iCriterio option:selected").text(),
+                 TipoCriterio: $("#iCriterio").val(),
+                 Operador: $("#iOperador option:selected").text(),
+                 TipoOperador: $("#iOperador").val(),
+                 Valor: $("#iValor").val(),
+                 Pontos: $("#iPontos").val(),
+                 Eliminatorio: $("#iEliminatorio").is(":checked")
+             }).draw(false);
+
+             handleExcluir();
+
+         });
+     };
+
+     TableManageButtonsCriterio = function () {
+         "use strict";
+         return {
+             init: function () {
+                 handleDataTableCriterio();
+             }
+         }
+     }();
+
+    TableManageButtonsCriterio.init();
+
+
+
+    let clicked = false;
+    function ValidaSubmit() {  
+        let parametrosAprovacaoCredito = [];
+        let error = false;
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+        //lógica de inclusão de validação de parametros para aprovação
+        $(".utilizaFaixaCriterio").each(function (position, element) {
+            
+            parametrosAprovacaoCredito.push($(element).prop("checked"));
+        });
+
+        ShowPageLoading();
+
+        let nenhumparametroAprovacao = parametrosAprovacaoCredito.every(p => p === false);
+
+        if (nenhumparametroAprovacao) {
+            error = true;
+        }
+
+        if (!error) {
+            $('#form').submit();
+        
+        }
+
+        else {
+            Notificar("@RsBase.ATENCAO_","Nenhum parâmetro de aprovação foi assinalado ","warning")        
+        }
+
+        stopPageLoading();
+        return;
+    }
+
+    $("#iCriterio").on("change", function (event) {
+        let value = Number(event.currentTarget.value);
+        let message = "";
+
+        switch (value)
+        {            
+            case 1: message = "";
+                break;
+
+            case 2: message = "@RsCadastros.DIA";
+                break;
+
+            case 3: message = "Reais";
+                break;
+
+            default: break;
+        }
+
+        $("#iValor").prop("placeholder", message);
+
+    });
+
+</script>
+}
+    
+@using (Html.BeginForm("Cadastro", "ParametrosConsultaCredito", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{ 
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-code"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>                    
+                    
+                <div class="col-sm-12 mt-5">                
+                    <label for="" class="mr-3"><b>Parâmetros de Limite de Aprovação</b></label><br><br />                    
+                </div>
+                
+                <div class="row">
+                    <div class="col-12 form-group container-group ">
+                        <div class="col-1">
+                            <div class="form-group mb-1">
+                                @Html.CheckBoxFor(model => model.UtilizaFaixaCriterio1, new { @class = "form-control utilizaFaixaCriterio", @id = "iUtilizaFaixaCriterio1", @name = "iUtilizaFaixaCriterio1" })
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label><b>1ª Condição - Se o total de pontos for MAIOR ou IGUAL que</b></label>
+                        </div>
+                        <div class="col-2">
+                            @Html.TextBoxFor(model => model.PontosPrimeiraFaixaCriterio, new { @maxlength = "10", @class = "form-control col-sm-6 input-lg", @id = "iValorFaixaCriterio1", @autocomplete = "off" })
+
+                        </div>
+                        <div class="col-1">
+                            <label for=""><b>então</b></label>
+                        </div>
+                        <div class="col-3 form-group">
+                            @Html.EnumDropDownListFor(model => model.TipoAprovacaoFaixa1, RsBase.SELECIONE, new { @class = "form-control", id = "iAprovacaoFaixaCriterio1", autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 form-group container-group ">
+                        <div class="col-1">
+                            <div class="form-group mb-1">
+                                @Html.CheckBoxFor(model => model.UtilizaFaixaCriterio2, new { @class = "form-control utilizaFaixaCriterio", @id = "iUtilizaFaixaCriterio2", @name = "iUtilizaFaixaCriterio2" })
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label><b>2ª Condição - Se o total de pontos for MAIOR ou IGUAL que</b></label>
+                        </div>
+                        <div class="col-2">
+                            @Html.TextBoxFor(model => model.PontosSegundaFaixaCriterio, new { @maxlength = "10", @class = "form-control col-sm-6 input-lg", @id = "iValorFaixaCriterio2", @autocomplete = "off" })
+
+                        </div>
+                        <div class="col-1">
+                            <label for=""><b>então</b></label>
+                        </div>
+                        <div class="col-3 form-group">
+                            @Html.EnumDropDownListFor(model => model.TipoAprovacaoFaixa2, RsBase.SELECIONE, new { @class = "form-control", id = "iAprovacaoFaixaCriterio2", autocomplete = "off" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 form-group container-group ">
+                        <div class="col-1">
+                            <div class="form-group mb-1">
+                                @Html.CheckBoxFor(model => model.UtilizaFaixaCriterio3, new { @class = "form-control utilizaFaixaCriterio", @id = "iUtilizaFaixaCriterio3", @name = "iUtilizaFaixaCriterio3" })
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label><b>3ª Condição - Se o total de pontos for MAIOR ou IGUAL que</b></label>
+                        </div>
+                        <div class="col-2">
+                            @Html.TextBoxFor(model => model.PontosTerceiraFaixaCriterio, new { @maxlength = "10", @class = "form-control col-sm-6 input-lg", @id = "iValorFaixaCriterio3", @autocomplete = "off" })
+
+                        </div>
+                        <div class="col-1">
+                            <label for=""><b>então</b></label>
+                        </div>
+                        <div class="col-3 form-group">
+                            @Html.EnumDropDownListFor(model => model.TipoAprovacaoFaixa3, RsBase.SELECIONE, new { @class = "form-control", id = "iAprovacaoFaixaCriterio3", autocomplete = "off" })
+
+                        </div>
+                    </div>
+                </div>
+                
+            </div>            
+        </div>        
+    </div>        
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="cardbody">
+                @*Datatable*@
+                <div class="row" id="divCriterios">
+                    <div class="col-sm-12 mt-5">
+                        <label for="iCriterios" class="mr-3"><b>Selecione e Defina seus Critérios</b></label><br><br />
+                    </div>
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12 form-group container-group ">
+                                <div class="col-2">
+                                    <label for="iCriterio"><b>Critério</b></label>
+                                    <div class="form-group">
+
+                                        @Html.EnumDropDownListFor(model => model.Criterios, RsBase.SELECIONE, new { @class = "form-control", id = "iCriterio", autocomplete = "off" })
+
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <label for="iOperador"><b>Operador</b></label>
+                                    <div class="form-group">
+                                        @Html.EnumDropDownListFor(model => model.Operador, RsBase.SELECIONE, new { @class = "form-control", id = "iOperador", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <label><b>Valor</b></label>
+                                    @Html.TextBoxFor(model => model.Valor, new { @maxlength = "10", @class = "form-control col-sm-6 input-sm", @type="number", @id = "iValor", @autocomplete = "off" })                                        
+                                </div>
+                                <div class="col-2">
+                                    <div>
+                                        <label><b>Pontos</b></label>
+                                        @Html.TextBoxFor(model => model.Pontos, new { @maxlength = "10", @class = "form-control", @id = "iPontos", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <label><b>Eliminatório?</b></label>
+                                    <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" 
+                                       title="Parâmetro Eliminatório?" 
+                                       data-content=' Caso o critério não seja atendido será automaticamente assumido o status "Reprovado" '></i>
+                                    <div>
+                                        @Html.CheckBoxFor(model => model.Eliminatorio, new { @class = "form-control", @id = "iEliminatorio", @name = "iEliminatorio", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <input type="button" id="btnAdicionar" class="btn btn-success" value="Adicionar">
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="card div-card-accord mt-5">
+                                    <div class="card-header title-card" id="heading_6">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">Lista de Critérios</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+
+                                        <table class="table table-hover nowrap" id="datatableCriterio" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "Configuracao")" class="float-cancel">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+   
+}

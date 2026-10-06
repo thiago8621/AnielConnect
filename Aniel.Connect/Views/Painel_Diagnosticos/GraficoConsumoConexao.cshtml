@@ -1,0 +1,393 @@
+﻿@model Aniel.Connect.Models.GraficoConsumoPeriodo_Request
+
+@{
+    ViewBag.Title = RsCadastros.GRAFICO_CONSUMO_CONEXAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <style>
+        /*Download*/
+        /* ALTERADO A PEDIDO DA SEA
+            .vis-graph-groupDownload {
+            fill: #57b96d !important;
+            fill-opacity: 1 !important;
+            stroke-width: 2px !important;            
+            stroke: #57b96d !important;
+        }*/
+
+        .vis-graph-groupDownload {
+            fill: #eb4034 !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #7d231d !important;
+        }
+
+        /*Upload*/
+        .vis-graph-groupUpload {
+            fill: #1e90ff !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #11518f !important;
+        }
+    </style>
+}
+
+@section scripts {
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+    <script>
+        let model = @Html.Raw(Json.Encode(Model));
+        let objeto;
+        var array = [];
+        let graph2d;
+
+        function formatarAxisYGrafico() {
+            const medida = octetsToKbMbGb(Math.max(...array.map(function (item) { return item.y })));
+
+            document.querySelectorAll('.vis-y-axis').forEach(function (e) {
+                var valor = e.firstChild.data;
+                e.firstChild.replaceData(0, 10, valor + medida);
+            })
+            //document.querySelectorAll('.vis-y-axis')[0].firstChild.data
+        }
+
+        function octetsToKbMbGb(valor) {
+            const medidaKb = Math.max(...array.map(function (item) { return item.y }));
+            const medidaMb = medidaKb / 1000;
+            const medidaGb = medidaMb / 1000;
+
+            if (medidaMb > 1024) {
+                return (valor / 1000 / 1000) + "Gb";
+            }
+
+            if (medidaKb > 1024) {
+                return (valor / 1000) + "Mb";
+            }
+
+            return valor + "Kb";
+        }
+
+        $(document).ready(async function () {
+            moment.updateLocale('pt-br', {
+                months : [
+                    "Janeiro", "Feveveiro", "Março", "Abril", "Maio", "Junho", "Julho",
+                    "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                ]
+            });
+            await carregarDados();
+            console.log(objeto);
+            $('#iPeriodoConsumo').trigger('change');
+        });
+
+
+        $('#iPeriodoConsumo').change(function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == "3") {
+                $('#divPeriodo').show();
+                $('#iDataInicial').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+                $('#iDataFinal').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+            }
+            else {
+                $('#divPeriodo').hide()
+                $('#iDataInicial').val('');
+                $('#iDataFinal').val('');
+            }
+        });
+
+        async function carregarDados() {
+            ShowPageLoading();
+            $('#divDadosConsumo').hide();
+
+            array = [];
+
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/Relatorio_Conexaoapi/GetGraficoConsumoPeriodo",
+                type: "POST",
+                data:{
+                    periodo_Consumo: model.Periodo_Consumo,
+                    id_Login_Radius: model.Id_Login_Radius,
+                    data_Inicial: model.Data_Inicial,
+                    data_Inicial_String: model.Data_Inicial_String,
+                    data_Fim: model.Data_Fim,
+                    data_Fim_String: model.Data_Fim_String
+                }
+                })
+                .done(function (data) {
+                    //Sempre vai desenhar o gráfico
+                    //Caso haja erro na API ela retorna um objeto default com dados para preencher 
+                    objeto = data.objeto;
+                    if (graph2d === undefined || graph2d === null) {
+                        desenharGrafico();
+                    }
+                    else {                        
+                        graph2d.destroy();
+                        desenharGrafico();
+                    }
+                    preencherDadosConsumo(data.objeto);
+                    
+                    if (!data.ok) {
+                        HidePageLoading();
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "info")
+                    }
+                    else if (data.ok && objeto.listaConsumoPeriodo.length <= 0) {
+                        Notificar("@RsBase.ATENCAO_", "Não existem registros de consumo para a data selecionada.", "info");
+                    }
+                })
+        }
+
+        function preencherDadosConsumo(value) {
+            $("#iDownloadAtual").text(value.download_Atual);
+            $("#iDownloadMedio").text(value.download_Medio);
+            $("#iDownloadMaximo").text(value.download_Maximo);
+
+            $("#iUploadAtual").text(value.upload_Atual);
+            $("#iUploadMedio").text(value.upload_Medio);
+            $("#iUploadMaximo").text(value.upload_Maximo);
+
+            $('#divDadosConsumo').show();
+        }
+
+        $('#iPesquisar').click(function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == undefined || periodo === null || (periodo == "3" && (!$('#iDataInicial').val() || !$('#iDataFinal').val()))) {
+                Notificar("@RsBase.ATENCAO_", "É necessário selecionar um período de consumo", "info");
+                return false;
+            }
+
+            if (periodo != "3") {
+                model.Data_Inicial_String = null;
+                model.Data_Fim_String = moment().format('DD/MM/YYYY HH:mm:ss');
+            }
+            else {
+                model.Data_Inicial_String = $('#iDataInicial').val();
+                model.Data_Fim_String = $('#iDataFinal').val();
+            }
+
+            model.Periodo_Consumo = periodo;
+
+            carregarDados();
+        });
+
+        function desenharGrafico() {
+            let hora_start = objeto.dataHora_Inicio != undefined && objeto.dataHora_Inicio != null && objeto.dataHora_Inicio.length > 0 ? objeto.dataHora_Inicio : "";
+            let hora_end = objeto.dataHora_Fim != undefined && objeto.dataHora_Fim != null && objeto.dataHora_Fim.length > 0 ? objeto.dataHora_Fim : "";
+            hora_end = moment(hora_end).add(60, 'minutes');
+
+            if (objeto.listaConsumoPeriodo.length > 0) {
+                var firstIndex = true;
+                objeto.listaConsumoPeriodo.forEach(function (consumoPeriodo, i) {
+                    if (firstIndex) {
+                        array.push({ x: hora_start, y: 0, group: 'upload' })
+                        array.push({ x: moment(consumoPeriodo.dataHoraConsumoFormatada).add(-1, 'minutes'), y: 0, group: 'upload' });
+                        firstIndex = false;
+                    }
+                    array.push({ x: consumoPeriodo.dataHoraConsumoFormatada, y: (consumoPeriodo.download / 1000), group: 'download' });
+                    array.push({ x: consumoPeriodo.dataHoraConsumoFormatada, y: (consumoPeriodo.upload / 1000), group: 'upload' });
+                });
+            }
+            else {
+                array.push({ x: "0", y: 0, group: 'download' })
+                array.push({x: "0", y: 0, group: 'upload'})
+            }
+
+            var container = document.getElementById('iGrafico');
+            var items = [
+                {x: '2014-06-11', y: 10},
+                {x: '2014-06-12', y: 25},
+                {x: '2014-06-13', y: 30},
+                {x: '2014-06-14', y: 10},
+                {x: '2014-06-15', y: 15},
+                {x: '2014-06-16', y: 30}
+            ];
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                pt_BR: {
+                      current: 'current',
+                      time: 'time',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt_BR',
+                drawPoints: false,
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        range: { min: 0 },
+                        title: { text: "@Html.Raw(RsCadastros.BITS_SEGUNDO)" },
+                        format: function(value){return octetsToKbMbGb(value)}
+                    }
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                autoResize: true,
+                min: hora_start,
+                max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 18000000,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'download',
+                content: 'Download',
+                options: {
+                    //ESTILO ALTERADO A PEDIDO DA SEA
+                    /*style:'bar',
+                    barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right*/
+
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                className: 'vis-graph-groupDownload',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });
+
+            groups.add({
+                id: 'upload',
+                content: 'Upload',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                className: 'vis-graph-groupUpload',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });
+
+            graph2d = new vis.Graph2d(container, array, groups, options);
+
+            graph2d.fit();
+            graph2d.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+    </script>
+}
+
+<div class="row" style="width:100%">
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iDescLoginRadius">@RsCadastros.LOGIN:</label>
+            @Html.TextBoxFor(model => model.Desc_Login_Radius, new { @class = "form-control", @id = "iDescLoginRadius", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iPeriodoConsumo">@RsCadastros.PERIODO_CONSUMO:</label>
+            @Html.EnumDropDownListFor(m => m.Periodo_Consumo, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPeriodoConsumo", @autocomplete = "off" })
+        </div>
+    </div>
+
+    <div id="divPeriodo" class="col-sm-6">
+        <div class="form-group form-inline" style="height:100%; vertical-align:middle;">
+
+            <label for="iDataInicial">@RsCadastros.PERIODO:</label>
+            @Html.TextBoxFor(model => model.Data_Inicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataInicial", @autocomplete = "off" })
+
+            <span>@RsBase.A</span>
+
+            @Html.TextBoxFor(model => model.Data_Fim, new { @tabindex = "2", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataFinal", @autocomplete = "off" })
+        </div>
+    </div>
+
+    <div class="form-group" style="padding-top: 15px; padding-bottom: 15px;">
+        <div class="text-center">
+            <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+        </div>
+    </div>
+</div>
+
+
+<div class="row" style="width:100%">
+    <div class="col-sm-10">
+        <div class="form-group">
+            <div id="iGrafico"></div>
+        </div>
+    </div>
+
+    <div id="divDadosConsumo" class="col-sm-2">
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadAtual">@RsCadastros.DOWNLOAD_ATUAL: </label>
+                <div style="font-weight:bold" id="iDownloadAtual">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadMedio">@RsCadastros.DOWNLOAD_MEDIO: </label>
+                <div style="font-weight:bold" id="iDownloadMedio">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadMaximo">@RsCadastros.DOWNLOAD_MAXIMO: </label>
+                <div style="font-weight:bold" id="iDownloadMaximo">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <hr style="text-align:left; width:100%" />
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadAtual">@RsCadastros.UPLOAD_ATUAL: </label>
+                <div style="font-weight:bold" id="iUploadAtual">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadMedio">@RsCadastros.UPLOAD_MEDIO: </label>
+                <div style="font-weight:bold" id="iUploadMedio">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadMaximo">@RsCadastros.UPLOAD_MAXIMO: </label>
+                <div style="font-weight:bold" id="iUploadMaximo">0Kb</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+
+
+
+<!--<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+</table>-->
+
+<head>
+    <title>@ViewBag.Title</title>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.1/moment-with-locales.min.js"></script>
+    <!--<script type="text/javascript" src="~/Scripts/vis-timeline-graph2d.min.js"></script>
+    <script type="text/javascript" src="~/Scripts/moment-with-locales.min.js"></script>-->
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>

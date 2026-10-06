@@ -1,0 +1,1382 @@
+﻿@model Aniel.Connect.Models.T5.Elemento_Rede_PortaListModel
+
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers;
+@using Aniel.Connect.Models.T5;
+@using Aniel.Connect.Model.enumerado;
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_PORTA_REDE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+    /**  @@param {number} tipo_Requisicao 1:AdicionarReserva, 2: AdicionarConexãoGeosite, 3: Remover_Conexao 4: Update_Reserva*/
+    function getUrlRequisicoesGeosite(tipo_Requisicao) {
+        const url = "@CONSTANTES.URLPortal";
+        switch (tipo_Requisicao) {
+            case 1:
+                //AdicionarReserva
+                return `${url}/api/Elemento_Rede_PortaApi/Ligacao_ReservaPorta_Geosite`;
+                break;
+            case 2:
+                //Adicionar Conexão Cliente
+                return `${url}/api/Elemento_Rede_PortaApi/Ligacao_AdicionarConexao_Geosite`;
+                break;
+            case 3:
+                //Remover Conexão Cliente
+                return `${url}/api/Elemento_Rede_PortaApi/Ligacao_RemoverConexao_Geosite`;
+                break;
+            case 4:
+                //Update da Reserva de Porta
+                return `${url}/api/Elemento_Rede_PortaApi/Ligacao_UpdateReserva_Geosite`;
+                break;
+        }
+    }
+         /**@@param porta
+          *@@param integracoes*/
+    async function Handle_Update_Reserva(porta, integracoes) {
+        let array = integracoes;
+
+
+        array.forEach(async param => {
+            let integracaoDesc = `${param.integracaoDesc}`.toUpperCase();
+            let statusOperation = await ajaxHandle_Update_Reserva(porta, integracaoDesc);
+
+            if (statusOperation) {
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Atualização de Reserva na porta: ${porta} na integracao: ${integracaoDesc}`, "info");
+
+            }
+            else {
+                Notificar("@RsBase.ERRO", `Erro ao atualizar reserva na porta: ${porta} na integração:${integracaoDesc}`, "warning");
+            }
+
+        });
+    }
+       async function ajaxHandle_Update_Reserva(porta, tipoIntegracao) {
+
+            let execucao = false,
+                message = "";
+            let url = "";
+        switch (tipoIntegracao) {
+
+            case "@IntegracaoExterna.GEOSITE":
+                url = getUrlRequisicoesGeosite(4);
+                break;
+
+            case "@IntegracaoExterna.SAPERX":
+                //url += "api/Elemento_Rede_PortaApi/Ligacao_Porta_Geosite";
+                break;
+
+        }
+        await $.ajax({
+            url: url,
+            type: "POST",
+            dataType: 'json',
+            data: { "porta": porta, cliente_PlanoProduto: $("#iplano_produtoReservar option:selected").val() }
+        }).done(function (data) { execucao = data.ok; message = data.mensagem });
+        //await $.post({ url: url, data: { porta: porta } }).done(function (data) { execucao = data.ok});
+            if (execucao) {
+                return { execucao: execucao };
+            }
+            else {
+                return { execucao: execucao, message: message };
+            }
+    }
+      /**@@param porta
+      *@@param integracoes*/
+    async function Handle_Reserva(porta, integracoes) {
+        let array = integracoes;
+
+
+        array.forEach(async param => {
+            let integracaoDesc = `${param.integracaoDesc}`.toUpperCase();
+            let statusOperation = await ajaxHandle_Reserva(porta, integracaoDesc);
+
+            if (statusOperation.execucao) {
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Porta reservada também na integracao: ${integracaoDesc}`, "info");
+
+            }
+            else {
+                Notificar("@RsBase.ERRO", `Erro ao vincular porta na integração:${integracaoDesc}\r\n Motivo:${statusOperation.message}`, "warning");
+            }
+
+        });
+    }
+
+     /** @@param porta
+     *  @@param integracoes */
+    async function ajaxHandle_Reserva(porta, tipoIntegracao) {
+
+        let execucao = false,
+            message = "";
+        let url = "";
+        switch (tipoIntegracao) {
+
+            case "@IntegracaoExterna.GEOSITE":
+                url = getUrlRequisicoesGeosite(1);
+                break;
+
+            case "@IntegracaoExterna.SAPERX":
+                //url += "api/Elemento_Rede_PortaApi/Ligacao_Porta_Geosite";
+                break;
+
+        }
+        await $.ajax({
+            url: url,
+            type: "POST",
+            dataType: 'json',
+            data: { "porta": porta, cliente_PlanoProduto: $("#iplano_produtoReservar option:selected").val() }
+        }).done(function (data) { execucao = data.ok; message = data.mensagem });
+        //await $.post({ url: url, data: { porta: porta } }).done(function (data) { execucao = data.ok});
+        if (execucao) {
+            return { execucao: execucao };
+        }
+        else {
+            return { execucao: execucao, message: message };
+        }
+    }
+
+      /**@@param porta
+      *@@param integracoes*/
+    async function Handle_RetirarReserva(porta, integracoes,cliente) {
+        let array = integracoes;
+
+
+        array.forEach(async param => {
+            let integracaoDesc = `${param.integracaoDesc}`.toUpperCase();
+            let statusOperation = await ajaxHandle_RetirarReserva(porta, integracaoDesc,cliente);
+
+            if (statusOperation) {
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Reserva removida também na integracao: ${integracaoDesc}`, "info");
+
+            }
+            else {
+                Notificar("@RsBase.ERRO", `Erro ao remover reserva na porta: ${porta} na integração:${integracaoDesc}`, "warning");
+            }
+
+        });
+    }
+
+     /** @@param porta
+     *  @@param tipoIntegracao */
+    async function ajaxHandle_RetirarReserva(porta, tipoIntegracao, cliente) {
+
+        let execucao = false,
+            message = "";
+        let url = "";
+        switch (tipoIntegracao) {
+
+            case "@IntegracaoExterna.GEOSITE":
+                url = getUrlRequisicoesGeosite(3);
+                break;
+
+            case "@IntegracaoExterna.SAPERX":
+                //url += "api/Elemento_Rede_PortaApi/Ligacao_Porta_Geosite";
+                break;
+
+        }
+        await $.ajax({
+            url: url,
+            type: "POST",
+            dataType: 'json',
+            data: { "portas": porta, cliente_PlanoProduto: cliente }
+        }).done(function (data) { execucao = data.ok; message = data.mensagem });
+        //await $.post({ url: url, data: { porta: porta } }).done(function (data) { execucao = data.ok});
+        if (execucao) {
+            return { execucao: execucao };
+        }
+        else {
+            return { execucao: execucao, message: message };
+        }
+
+    }
+          /**@@param porta
+          *@@param integracoes*/
+    async function Handle_AtribuirPorta(porta, integracoes) {
+        let array = integracoes;
+
+
+        array.forEach(async param => {
+            let integracaoDesc = `${param.integracaoDesc}`.toUpperCase();
+            let statusOperation = await ajaxHandle_AtribuirPorta(porta, integracaoDesc);
+
+            if (statusOperation) {
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Porta atribuída também na integracao: ${integracaoDesc}`, "info");
+
+            }
+            else {
+                Notificar("@RsBase.ERRO", `Erro ao atribuir cliente à porta: ${porta} na integração:${integracaoDesc}`, "warning");
+            }
+
+        });
+    }
+
+    /** @@param porta
+     *  @@param tipoIntegracao */
+    async function ajaxHandle_AtribuirPorta(porta, tipoIntegracao) {
+
+        let execucao = false,
+            message = "";
+        let url = "";
+        switch (tipoIntegracao) {
+
+            case "@IntegracaoExterna.GEOSITE":
+                url = getUrlRequisicoesGeosite(2);
+                break;
+
+            case "@IntegracaoExterna.SAPERX":
+                //url += "api/Elemento_Rede_PortaApi/Ligacao_Porta_Geosite";
+                break;
+
+        }
+        await $.ajax({
+            url: url,
+            type: "POST",
+            dataType: 'json',
+            data: { "porta": porta, "cliente_PlanoProduto": $("#iplano_produtoAtribuir option:selected").val() }
+        }).done(function (data) { execucao = data.ok; message = data.mensagem });
+        //await $.post({ url: url, data: { porta: porta } }).done(function (data) { execucao = data.ok});
+        if (execucao) {
+            return { execucao: execucao };
+        }
+        else {
+            return { execucao: execucao, message: message };
+        }
+    }
+       async function Handle_Need() {
+        let needIntegration = false,
+            array = [];
+
+        await $.get({
+            url: "@CONSTANTES.URLPortal/api/Configuracoes_Geraisapi/FindById?Id=1"
+        })
+            .done(data => {
+                needIntegration = data?.objeto?.utilizar_Integracao_Externa;
+                array = data?.objeto?.integracoes;
+            });
+
+        return { usaIntegracao: needIntegration, listaIntegracao: array };
+        }
+
+    async function validateCaixaIntegracao(porta) {
+        let integrado = false;
+        await $.post({
+            url: "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/ValidatePorta",
+            type: 'POST',
+            dataType: 'json',
+            data: { '': JSON.stringify(porta) }
+        })
+            .done(function (data) {
+
+                integrado = data;
+            });
+        return integrado;
+    }
+
+    var rows_selected = [];
+
+    async function get_enum() {
+        const situacoes = @Html.Raw(Html.GetArrayEnum<Sinapse.Model.enumerados.Situacao_Porta>());
+        $.each(situacoes, function (key, value) {
+            $("#iSituacao").append($("<option></option>").attr('value', key).text(value));
+        })
+        }
+
+        $(document).ready(async () => {
+            await get_enum();
+
+        })
+
+        $('#modal-filter').on('shown.bs.modal', function () {
+            $(`#iSituacao`).select2();
+        })
+
+        $('#iSituacao').on('select2:select select2:unselecting', function (e) {
+            let alturaSelect2 = $(".select2-selection--multiple").height();
+            $("#iRowSituacao").height(alturaSelect2 + 30);
+        });
+
+    var HandleClienteReservar = function () {
+
+        $('#iClienteReservar').on('select2:select select2:unselecting', async function (e) {
+
+            let ClienteSelecionado = e.params.data;
+            if (ClienteSelecionado != undefined) {
+                AddSelect("iplano_produtoReservar", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoReservar",@CONSTANTES.PaginacaoRegistros, null, ClienteSelecionado.id, null, "@RsBase.SELECIONE", false, HandleClienteReservar);
+            }
+            else {
+                AddSelect("iplano_produtoReservar", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoReservar",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleClienteReservar);
+            }
+        });
+    }
+
+    var HandleClienteAtribuir = function () {
+        $('#iClienteAtribuir').on('select2:select select2:unselecting', async function (e) {
+
+            let ClienteSelecionado = e.params.data;
+            if (ClienteSelecionado != undefined) {
+                AddSelect("iplano_produtoAtribuir", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoHabilitado",@CONSTANTES.PaginacaoRegistros, null, ClienteSelecionado.id, null, "@RsBase.SELECIONE", false, HandleClienteAtribuir);
+            }
+            else {
+                AddSelect("iplano_produtoAtribuir", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoHabilitado",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleClienteAtribuir);
+            }
+        });
+    }
+
+        AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+        AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+        AddSelect("iPop", "@CONSTANTES.URLPortal/api/POPapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+        AddSelect("iOlt", "@CONSTANTES.URLPortal/api/OLTApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+
+        //AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        AddSelect("iClienteReservar", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleClienteReservar);
+        AddSelect("iplano_produtoReservar", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoReservar",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        AddSelect("iClienteAtribuir", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleClienteAtribuir);
+
+        AddSelect("iplano_produtoAtribuir", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProdutoHabilitado",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        AddSelect("iUf", "@CONSTANTES.URLPortal/api/Modelo_PainelVendaApi/GetComboUF/",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iCaixaAtend", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetCombo/",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iTipoElemento", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+
+        $(".limparFiltro").on("click", function () {
+            $("#iProjeto").val(null).trigger("change");
+            $("#iContrato").val(null).trigger("change");
+            $("#iPop").val(null).trigger("change");
+            $("#iOlt").val(null).trigger("change");
+            $("#iCliente").val(null).trigger("change");
+            $("#iplano_produto").val(null).trigger("change");
+            $("#iSituacao").val(null).trigger("change");
+            $("#iCaixaAtend").val(null).trigger("change");
+            $("#iBairro").val(null).trigger("change");
+            $("#iCidade").val(null).trigger("change");
+            $("#iUf").val(null).trigger("change");
+        });
+
+
+        $('#iUf').change(function () {
+            var estado =null;
+            estado = $('#iUf option:selected').text();
+            var estadoapi = `@CONSTANTES.URLPortal/api/enderecoapi/GetCidades?UF=${estado}`;
+
+            $("#iCidade").empty();
+            $("#iBairro").empty();
+                if (estado == null || estado == "") {
+                    return;
+                }
+                $.getJSON(estadoapi, function (data) {
+
+                    $("#iCidade").prepend($('<option></option>').attr('value', null).text(null));
+                    $.each(data, function (key, value) {
+                        $("#iCidade").append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    });
+                });
+            });
+
+            $('#iCidade').change(function () {
+
+                var cidade = $('#iCidade option:selected').val();
+
+                var enderecoApi = `@CONSTANTES.URLPortal/api/enderecoapi/getbairros?Id_Cidade=${cidade}`;
+
+                    $("#iBairro").val("");
+                    $("#iBairro").empty();
+
+                    if (cidade == null || cidade == "") {
+                        return;
+                }
+                $("#iBairro").prepend($('<option></option>').attr('value', null).text(null));
+
+                    $.getJSON(enderecoApi, function (data) {
+                        $.each(data, function (key, value) {
+                            $('#iBairro').prepend($('<option></option>').attr('value', value.id).text(value.descricao));
+                        })
+                });
+                });
+
+    var reservaApi = "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/Reserva_Porta";
+    var reativarApi = "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/Ativar_Porta";
+    var atribuirApi = "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/Atribuir_Porta";
+
+    //#region ações_reserva
+    /**@@param cliente   @@param cliente_plano   @@param porta
+     * @@returns {boolean}
+     */
+     @* Id do Cliente | Id Cliente_PlanoProduto | Id_Porta *@
+    async function registrar_porta(cliente,cliente_plano,porta) {
+
+
+        const portaLivre = await ConsultaPlanoPortaLivre(cliente_plano);
+        if (portaLivre == false) {
+            var result = await Swal.fire({
+                title: 'O plano do cliente já possui porta vinculada, Deseja continuar?',
+                showCancelButton: true,
+                cancelButtonText: 'Não',
+                confirmButtonText: 'Sim',
+                type: 'question',
+                allowOutsideClick: false
+            });
+
+            if (!result.value) {
+                return false;
+            }
+        }
+        let ok = false;
+        $("#divProgress").show();
+        await $.post(reservaApi, {
+            cod_Cliente: cliente,
+            cliente_PlanoProduto: cliente_plano,
+            id_Porta: porta
+        }).done(function (data) {
+            if (data.ok)
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ok", "info");
+            else
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+
+             $("#divProgress").hide();
+            ok = data.ok;
+
+        }).fail(function (data) {
+             $("#divProgress").hide();
+            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+        });
+        return ok;
+    };
+
+    async function atribuir_porta(cliente,cliente_plano,porta) {
+
+
+        const portaLivre = await ConsultaPlanoPortaLivre(cliente_plano);
+        if (portaLivre == false) {
+            var result = await Swal.fire({
+                title: 'O plano do cliente já possui porta vinculada, Deseja continuar?',
+                showCancelButton: true,
+                cancelButtonText: 'Não',
+                confirmButtonText: 'Sim',
+                type: 'question',
+                allowOutsideClick: false
+            });
+
+            if (!result.value) {
+                return false;
+            }
+        }
+
+        let ok = false;
+
+        $("#divProgress").show();
+        await $.post(atribuirApi, {
+            cod_Cliente: cliente,
+            cliente_PlanoProduto: cliente_plano,
+            id_Porta: porta
+        }).done(function (data) {
+            if (data.ok)
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ok", "info");
+            else
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+
+            HidePageLoading()
+            ok = data.ok;
+
+        }).fail(function (data) {
+            HidePageLoading()
+            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+        });
+        return ok;
+    };
+
+    async function ConsultaPlanoPortaLivre(cliente_plano) {
+
+        const ConsultaPortaLivreApi = "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/ConsultaPlanoPortaLivre";
+        const resultado = await $.ajax({
+            url: ConsultaPortaLivreApi,
+            type: `POST`,
+            dataType: `json`,
+            beforeSend: function () {
+                $("#divProgress").show();
+
+            },
+            complete: function () {
+                 $("#divProgress").hide();
+            },
+            data: {
+                cod_Cliente: null,
+                cliente_PlanoProduto: cliente_plano,
+                id_Porta: null
+            }
+
+        });
+
+
+        if (!resultado.ok) {
+            Notificar("@RsBase.ATENCAO_", resultado.mensagem, "warning");
+            return false;
+        }
+        else {
+            return resultado.idObjeto
+        }
+
+    }
+
+    async function remover_login(portas) {
+        try {
+            const response = await fetch(reativarApi, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    reset: true,
+                    Ids_Porta: portas
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                return;
+            }
+
+            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+            rows_selected = [];
+            oDatatable.draw(false);
+
+        } catch (err) {
+            Notificar("@RsBase.ATENCAO_", err.message, "warning");
+        }
+    }
+    //#endregion
+
+        var oDatatable = null;
+
+    var _url = '@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_Rede_PortaApi/AlterarStatus")';
+       function AlterarStatusObj(Status) {
+        $.ajax({
+            url: _url,
+            type: `POST`,
+            dataType: `json`,
+            data: {
+                ids: rows_selected,
+                status: Status
+            }
+
+        })
+            .done(function (data) {
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                    rows_selected = [];
+                    oDatatable.draw(false);
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+
+            });
+    }
+
+        var handleDataTableButtons = async function () {
+            "use strict";
+             oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                 dom: `<'row'<'col-sm-4'l><'col-sm-8'p>> Bfrti`,
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                stateSave: false,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: `${baseUrl}/api/Elemento_Rede_PortaApi/GetAll`,
+                    type: 'POST',
+                    data: function (data) {
+                        let busca_caixa = param_url(window.location.href.toString(), "caixa"),
+                            caixa = $("#iCaixaAtend option:selected").val();
+
+                        if (busca_caixa !== "erro") { caixa = busca_caixa; }
+
+                        let cidade = $("#iCidade option:selected").text(),
+                            bairro = $("#iBairro option:selected").text(),
+                            Uf = $("#iUf option:selected").text(),
+                            olt = $("#iOlt").val(),
+                            pop = $("#iPop").val(),
+                            projeto = $("#iProjeto").val(),
+                            status = $("#iSituacao").val(),
+                            contrato = $("#iContrato").val(),
+                            j = $("#iplano_produto").val(),
+                            k = $("#iCliente").val(),
+                            tipo = $("#iTipoElemento").val();
+
+                        data.caixa = caixa;
+                        //data.porta     = c;
+                        data.status = status;
+                        data.contrato = contrato;
+                        data.projeto = projeto;
+                        //data.login     = g;
+                        data.olt = olt;
+                        data.pop = pop;
+                        if (cidade != "Selecione") {
+                            data.bairro = bairro;
+                            data.cidade = cidade;
+                        }
+                        data.uf = Uf;
+                        data.idTipoElemento = tipo;
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    },
+                    beforeSend: function () {
+                        $("#divProgress").show();
+                    },
+                    complete: function () {
+                        $("#divProgress").hide();
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+
+                    { data: "caixa", title: "@RsCadastros.CAIXA" },
+                    { data: "porta", title: "Num. @RsCadastros.PORTA"},
+                    {
+                        data: "status",
+                        title: "@RsCadastros.SITUACAO",
+                        render: function (data, type, row, meta) {
+                            let Data = "";
+                            if (data == 'Disponível' || data == 'Ocupado') {
+                                Data = `<p class='@RsCadastros.SITUACAO' style="font-size: 14px; color:${data == 'Disponível' ? 'green' : 'red'}" >${data}</p>`;
+                            }
+                            else {
+                                Data = `<p class='@RsCadastros.SITUACAO' style="font-size: 14px; color:black" >${data}</p>`;
+                            }
+                            return Data;
+                        }
+                    },
+                    { data: "login", title: "@RsCadastros.LOGIN" },
+                    { data: "contrato", title: "@RsCadastros.CONTRATO "},
+                    { data: "projeto", title: "@RsCadastros.PROJETO "},
+                    { data: "pop", title: "@RsCadastros.POP "},
+                    { data: "olt", title: "@RsCadastros.OLT "},
+                    { data: "cidade", title: "@RsCadastros.CIDADE "},
+                    { data: "bairro", title: "@RsCadastros.BAIRRO "}
+
+                ]
+            });
+
+            $("#btnOcupado").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(5);
+            });
+
+
+            $("#iGravarReservar").on("click",async function () {
+                 if (rows_selected.length == 0|| rows_selected.length > 1) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                let porta = rows_selected[0];
+                const registroResult = await registrar_porta($("#iClienteReservar option:selected").val(), $("#iplano_produtoReservar option:selected").val(), porta);
+                if (registroResult) {
+                    //let geositeClass = new IntegracaoExternaHandlerJSApi();
+                    let config = await Handle_Need();
+                    if (config.usaIntegracao) {
+
+                        let ok = await validateCaixaIntegracao(porta);
+
+                        if (ok) {
+                            let result = await Swal.fire({
+                                title: 'Esta porta apresenta vínculo com as integrações disponíveis.Deseja atualizar também na integração? ',
+                                showCancelButton: true,
+                                cancelButtonText: 'Não',
+                                confirmButtonText: 'Sim',
+                                type: 'question',
+                                allowOutsideClick: false
+                            });
+
+                            if (!result.value) {
+                                Notificar("@RsBase.ATENCAO_", "Registro não integrado de forma voluntária.", "info");
+                                return false;
+                            }
+
+                            await Handle_Reserva(porta, config.listaIntegracao);
+                        }
+                    }
+
+
+                }
+
+                oDatatable.draw(false);
+
+                //AlterarStatusObj(4);
+            });
+
+
+            $("#iGravarAtribuir").on("click",async function () {
+                 if (rows_selected.length == 0|| rows_selected.length > 1) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                let porta = rows_selected[0];
+                const resultAtribuirPorta = await atribuir_porta($("#iClienteAtribuir option:selected").val(), $("#iplano_produtoAtribuir option:selected").val(), porta);
+                if (resultAtribuirPorta) {
+                    //let geositeClass = new IntegracaoExternaHandlerJSApi();
+                    let obj = Handle_Need();
+                    if (obj.usaIntegracao) {
+                        let ok = await validateCaixaIntegracao(porta);
+
+                        if (ok) {
+                               let result = await Swal.fire({
+                                title: 'Esta porta apresenta vínculo com as integrações disponíveis.Deseja atualizar também na integração? ',
+                                showCancelButton: true,
+                                cancelButtonText: 'Não',
+                                confirmButtonText: 'Sim',
+                                type: 'question',
+                                allowOutsideClick: false
+                            });
+
+                            if (!result.value) {
+                                Notificar("@RsBase.ATENCAO_", "Registro não integrado de forma voluntária.", "info");
+                                return false;
+                            }
+
+
+                            await Handle_AtribuirPorta(porta, obj.listaIntegracao);
+                        }
+                    }
+                }
+
+
+                oDatatable.draw(false);
+
+                //AlterarStatusObj(4);
+            });
+
+            $("#btnConstruir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(3);
+            });
+
+             $("#btnPrevisto").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(2);
+             });
+
+                $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+                });
+
+            async function getClientePortaReservada(portas) {
+                try {
+                    let response = await $.ajax({
+                        url: `@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetClientePortaReservada`,
+                        type: "POST",
+                        contentType: "application/json",
+                        data: JSON.stringify(portas)
+                    });
+                    return response.objeto;
+                } catch (error) {
+                    console.error("Erro ao buscar clientes das portas:", error);
+                    return [];
+                }
+            }
+
+            $("#iLimparReserva").on("click", async function () {
+
+                let portas = rows_selected,
+                cpp = await getClientePortaReservada(portas);
+
+                $("#divProgress").show();
+                let porta = rows_selected[0];
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                     $("#divProgress").hide();
+                    return;
+                }
+                AlterarStatusObj(1);
+
+                 let obj = await Handle_Need();
+                if (obj.usaIntegracao) {
+                    let ok = await validateCaixaIntegracao(porta);
+
+                    if (ok) {
+                           let result = await Swal.fire({
+                                title: 'Esta porta apresenta vínculo com as integrações disponíveis. Deseja atualizar também na integração? ',
+                                showCancelButton: true,
+                                cancelButtonText: 'Não',
+                                confirmButtonText: 'Sim',
+                                type: 'question',
+                                allowOutsideClick: false
+                           });
+
+                            if (!result.value) {
+                                Notificar("@RsBase.ATENCAO_", "Registro não integrado de forma voluntária.", "info");
+                                $("#divProgress").hide();
+                        }
+
+
+
+                        await Handle_RetirarReserva(porta, obj.listaIntegracao, cpp);
+                    }
+
+                }
+
+                remover_login(portas);
+
+                oDatatable.draw(false);
+                });
+
+                $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+                $("iUf").text("");
+                $("#modal-filter").modal('hide');
+
+                return true;
+            });
+
+            $('#iLimparFiltros').on('click', function () {
+
+                $('#txtSearch').val('');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+            $("#iLimparFiltroModalCliente").click(function () {
+              $("#iplano_produto").val("");
+                $("#iCliente").val("");
+                $("#modal-ClientePlanoProd").modal('hide');
+            })
+
+
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+        }
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+    $("#iplano_produto").on("select2:selected select2:selecting", function (e) {
+        var Plano_produto = e.params.args.data;
+        console.log(Plano_produto.tipo);
+    });
+
+    TableManageButtons.init();
+
+
+
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-cogs"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+
+
+
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+
+
+
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off" style="width:200px;">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                @*<a class="btn btn-success btn-add" href="@Url.Action("", "")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>*@
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                   
+                    @*  <a class="dropdown-item" id="btnConstruir" onclick="" href="#">Definir Como Construido</a>*@
+                    <a class="dropdown-item" id="btnReservaPorta" data-toggle="modal" data-target="#modal-Reservar">Reservar Porta</a>
+                    @*<a class="dropdown-item" id="btnPrevisto" onclick="" href="#">Tornar Previsto</a>*@
+                    <a class="dropdown-item" id="btnInativar" onclick="" href="#">Tornar Indisponível</a>
+                    <a class="dropdown-item" id="btnAtribuirClientePorta" data-toggle="modal" data-target="#modal-Atribuir" href="#">Atribuir Cliente a Porta</a>
+                    <a class="dropdown-item" id="iLimparReserva" onclick="" href="#">Tornar Disponível</a>
+
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal" id="modal-Reservar">
+    <div class="modal-dialog modal-dialog-centered modal-xs">
+        <div class="modal-content">
+            <div class="modal-header">
+
+                <h4 class="modal-title text-muted">Reservar </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12" sytle="align-content:center">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iCliente">@RsCadastros.CLIENTE</label>
+                                    @Html.DropDownList("iClienteReservar", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iClienteReservar", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iplano_produto">@RsCadastros.PLANO_PRODUTO</label>
+                                    @Html.DropDownList("iplano_produtoReservar", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iplano_produtoReservar", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-sm-12" style="padding: 10px;">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-success" id="iGravarReservar">Gravar</button>
+                                <button type="button" class="btn btn-danger limparFiltro" id="iLimparFiltroModalCliente">Limpar</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-Atribuir">
+    <div class="modal-dialog modal-dialog-centered modal-xs">
+        <div class="modal-content">
+            <div class="modal-header">
+
+                <h4 class="modal-title text-muted">Atribuir Porta </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12" sytle="align-content:center">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iCliente">@RsCadastros.CLIENTE</label>
+                                    @Html.DropDownList("iClienteAtribuir", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iClienteAtribuir", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iplano_produto">@RsCadastros.PLANO_PRODUTO</label>
+                                    @Html.DropDownList("iplano_produtoAtribuir", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iplano_produtoAtribuir", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-sm-12" style="padding: 10px;">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-success" id="iGravarAtribuir">Gravar</button>
+                                <button type="button" class="btn btn-danger limparFiltro" id="iLimparFiltroModalCliente">Limpar</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12" style="align-content:center;">
+                        <div class="row" style="align-content:center;">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iContrato">@RsCadastros.CONTRATO</label>
+                                    @Html.DropDownList("iContrato", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { Id = "iContrato", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iProjeto">@RsCadastros.PROJETO</label>
+                                    @Html.DropDownList("iProjeto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { Id = "iProjeto", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iPop">@RsCadastros.POP</label>
+                                    @Html.DropDownList("iPop", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { Id = "iPop", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iOlt">@RsCadastros.OLT</label>
+                                    @Html.DropDownList("iOlt", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { Id = "iOlt", @class = "form-control", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iUf">@RsCadastros.UF</label>
+                                    @Html.DropDownList("iUf", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ", @id = "iUf", @autocomplete = "off" })
+                                    @*<select name="iUf" class="form-control " id="iUf">
+                                            <option value="" selected></option>
+                                            <option value="AC">Acre</option>
+                                            <option value="AL">Alagoas</option>
+                                            <option value="AP">Amapá</option>
+                                            <option value="AM">Amazonas</option>
+                                            <option value="BA">Bahia</option>
+                                            <option value="CE">Ceará</option>
+                                            <option value="DF">Distrito Federal</option>
+                                            <option value="ES">Espírito Santo</option>
+                                            <option value="GO">Goiás</option>
+                                            <option value="MA">Maranhão</option>
+                                            <option value="MT">Mato Grosso</option>
+                                            <option value="MS">Mato Grosso do Sul</option>
+                                            <option value="MG">Minas Gerais</option>
+                                            <option value="PA">Pará</option>
+                                            <option value="PB">Paraíba</option>
+                                            <option value="PR">Paraná</option>
+                                            <option value="PE">Pernambuco</option>
+                                            <option value="PI">Piauí</option>
+                                            <option value="RJ">Rio de Janeiro</option>
+                                            <option value="RN">Rio Grande do Norte</option>
+                                            <option value="RS">Rio Grande do Sul</option>
+                                            <option value="RO">Rondônia</option>
+                                            <option value="RR">Roraima</option>
+                                            <option value="SC">Santa Catarina</option>
+                                            <option value="SP">São Paulo</option>
+                                            <option value="SE">Sergipe</option>
+                                            <option value="TO">Tocantins</option>
+                                        </select>*@
+                                </div>
+                            </div>
+
+                            <div class="col-sm-5">
+                                <div class="form-group">
+                                    <label for="iCidade">@RsCadastros.CIDADE</label>
+                                    @Html.DropDownList("iCidade", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control inputclass17", @id = "iCidade", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                            <div class="col-sm-5">
+                                <div class="form-group">
+                                    <label for="iBairro">@RsCadastros.BAIRRO</label>
+                                    <select class="form-control" id="iBairro"></select>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iCaixaAtend">@RsCadastros.CAIXA de Atendimento </label>
+                                    @Html.DropDownList("iCaixaAtend", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iCaixaAtend", @class = "form-control", @placeholder = "Todos", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iTipoElemento">@RsCadastros.TIPO</label>
+                                    @Html.DropDownList("iTipoElemento", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iTipoElemento", @class = "form-control", @placeholder = "Todos", @autocomplete = "off" })
+
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                        <div class="row" id="iRowSituacao">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iSituacao">@RsCadastros.SITUACAO</label>
+                                    @Html.DropDownList("iSituacao", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { Id = "iSituacao", @multiple = "multiple", @class = "form-control", @placeholder = "Todos", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-sm-12" style="padding: 10px;">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-danger limparFiltro" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                                <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

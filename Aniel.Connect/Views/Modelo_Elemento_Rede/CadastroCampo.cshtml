@@ -1,0 +1,480 @@
+﻿@model Aniel.Connect.Models.T5.Modelo_Elemento_RedeCampoDinamicoViewModel
+@*@model dynamic*@
+@using Aniel.Connect.Models.T5
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+
+
+@{
+    ViewBag.Opcoes_Campo = new List<Opcoes_CampoDinamicoView>();
+    ViewBag.Title = RsCadastros.CADASTRO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+        let odatatable = null;
+
+        let odatatableoption = null;
+
+    function IdCampo(i) {
+        $("#modal-option").modal('show');
+        $('#iIdCampo').val(i);
+        if (i == 0) { }
+        else {
+            GetOpcoes(i);
+        }
+    }
+
+        function GetOpcoesLocal()
+        {
+            $().attr("gravado")
+        }
+
+        /**Deleta os itens da Listagem do DataTableOption*/
+        function handleDeleteDynOpcoes() {
+            $(".excluiresposta").click(function (e) {
+                $(".excluiresposta").unbind('click');
+
+                var idResposta = $(this).attr('excluir');
+                var TrLink = $(this).parents('tr');
+                e.preventDefault();
+                if (idResposta == 0) {
+                    odatatableoption.row(TrLink).remove().draw(false);
+                }
+                else {
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/exemploapi/removeropcaocampo?value=")'+ idResposta;
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+                    })
+                        .done(function (data) {
+                            if (data.Ok) {
+                                odatatableoption.row(TrLink).remove().draw(false);
+                            }
+                        })
+                        .fail(function () {"@RsBase.ATENCAO_",data.mensagem,"warning" });
+                }
+
+            });
+        }
+
+/** Deleta os Campos dinamicos no DataTable*/
+    function HandleDeleteDynCampos() {
+
+        $('.btnexcluir').on('click', function (e) {
+            $('.btnexcluir').unbind('click');
+
+            var idEx = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+            e.preventDefault();
+
+            if (idEx == "0") {
+                odatatable.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+                /**Link da API do DataTable */
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_Elemento_RedeApi/DeletarCampoDinamico?value=")' + idEx;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            odatatable.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                 })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+        });
+    }
+
+            //Adicionar aos DataTables
+        $("#iAdicionarOption").on("click", function () {
+            odatatableoption.row.add({
+                Id: 0,
+                Resposta: $("#iResposta").val(),
+
+            }).draw(false);
+
+        });
+
+        $("#iAdicionar").on("click", function () {
+            odatatable.row.add({
+                Id:0,
+                Descricao: $("#iDescricao").val(),
+                Tipo: $("#iTipo option:selected").val(),
+                TipoStr: $("#iTipo option:selected").text(),
+                Gravado: false,
+                OpcoesStr:""
+                }).draw(false);
+        });
+
+     async function carregatabela() {
+        var url = "@CONSTANTES.URLPortal/api/Modelo_Elemento_RedeApi/GetCampoDinamico";
+
+        $.ajax({
+            url: url,
+            type: "POST",
+            dataType: "json",
+        })
+            .done(function (data) {
+                let obj = data.objeto.lista;
+                for (i = 0; i < obj.length; i++) {
+                    odatatable.row.add({
+                        Id: obj[i].id,
+                        Descricao: obj[i].descricao,
+                        Tipo: obj[i].tipoStr,
+                        Gravado: obj[i].gravado,
+                    }).draw(false);
+                }
+            })
+            .fail(function () { Notificar("@RsBase.ATENCAO_", data.mensagem, "warning"); });
+
+    }
+
+   /*  carregatabela();*/
+
+    var nome = "Lista";
+        let array =@Html.Raw(Json.Encode(Model.Lista));
+        odatatable = $("#idataTableCampos").length && $("#idataTableCampos").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            drawCallback: function () {
+                HandleDeleteDynCampos();
+            },
+        data: array,
+               /* dataType: 'json',*/
+                order: [],
+                paging: false,
+                columns: [
+
+                    {
+                        data: "Id", title: "", render: function (data, type, row, meta) {
+
+                            return `<input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].Id" type="hidden" value= "${TrataNulo(data)}">`;
+                        }
+                    },
+                    {
+                        data: "Descricao", title: "Nome do Campo", render: function (data, type, row, meta) {
+
+                            return `<p class="fs-1">${data}'</p>
+                                    <input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">`;
+
+                        }
+                    },
+                    {
+                        data: "TipoStr", title: "Tipo", render: function (data, type, row, meta) {
+
+                            return `<p class="fs-1">${data}</p>
+                                    <input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].TipoStr" type="hidden" value="${TrataNulo(row.TipoStr)}">
+                                    <input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].Tipo" type = "hidden" value = "${TrataNulo(row.Tipo)}">`;
+                        }
+                    },
+                    {
+                        data: "Gravado", title: "Gravado?", render: function (data, type, row, meta) {
+                            let Data = "",
+                                OpcoesStr = "";
+                            if (row.Gravado == false) {
+                                Data = `<a href="#" id="btnexcluir_${meta.row}__id" name="[${meta.row}].Id" class="btnexcluir" type="hidden" excluir="${row.Id}">
+                                            <i class="far fa-trash-alt" style="font-size:25px"></i>
+                                        </a>
+                                       <input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].Gravado" type="hidden" value="${TrataNulo(data)}">`;
+
+                                if (row.Tipo == "5" || row.Tipo == "Lista") {
+                                    Lista = `<a href="#" id="btnLista_${meta.row}__id" name="[${meta.row}].Id" valida="${row.Id}" class="Lista" onclick="IdCampo(${meta.row});return false;" type="hidden">
+                                                <i class="fas fa-file-alt" style=" padding-left:2px; font-size:25px;"></i>
+                                             </a>`;
+
+                                    Data += Lista;
+                                }
+                                OpcoesStr = `<input id="List_${meta.row}__id" name="${nome}[${meta.row}].OpcoesStr" type="hidden" value="${TrataNulo(row.OpcoesStr)}">`;
+                                Data += OpcoesStr;
+                            }
+
+                                return Data;
+                            }
+
+                    },
+
+                ]
+        });
+
+    var opcao = "opcoes";
+        let oparray = @Html.Raw(Json.Encode(Model.Opcao));
+    odatatableoption = $("#idatatableoption").length && $("#idatatableoption").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: oparray,
+        drawCallback: function () {
+            handleDeleteDynOpcoes();
+        },
+        order: [],
+        paging: false,
+        columns: [
+
+            {
+                data: "Resposta", Title: "Resposta", render: function (data, type, row, meta) {
+                    Data = `<a href="#" id="excluiresposta_${meta.row}__id"  name="[${meta.row}].Id" class="excluiresposta" excluir="${row.Id}">
+                                <i class="far fa-trash-alt" style="padding-left:2px; size:50px;"></i>
+                            </a>
+                            <span>${data}</span>
+                            <input type="hidden" id="${opcao}__id" name="${opcao}[${meta.row}].Resposta" style="font-size:50px" value="${TrataNulo(data)}">`;
+                    return Data;
+                }
+
+            },
+            {
+                data: "Id_Campo", render: function(data, type, row, meta) {
+                    return $("#iIdCampo").val();
+                }
+                }
+            ],
+        });
+
+        var clicked = false;
+     function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        erro = false;
+
+        if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+    }
+
+        async function GetOpcoes() {
+            var id = $("#iIdCampo").val();
+            var caminho = `@CONSTANTES.URLPortal/api/Modelo_Elemento_RedeApi/GetOpcoesDinamico?Id=${id}`;
+            $.ajax({
+                url: caminho,
+                type: "GET",
+                dataType: "json"
+            })
+                .done(function (data) {
+                    let obj = data.objeto.opcao;
+                    for (i = 0; i < obj.length; i++) {
+                        odatatableoption.row.add({
+                            Id: obj[i].id,
+                            Resposta:obj[i].resposta
+                        }).draw(false);
+                    }
+                    })
+                .fail(function () { Notificar("@RsBase.ATENCAO_", data.mensagem, "warning") });
+        }
+
+        async function GravarOpcoes(id) {
+        /*campoDyn.lista.push(odatatable.data);*/
+            //nome = Lista
+            var valor = parseInt($("#iIdCampo").val())
+            var gravacao = odatatable.data()[valor].Gravado;
+            var opcoesDyn = [];
+
+            if (gravacao == true) {
+                var caminho = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_Elemento_RedeApi/GravarOpcoes")';
+
+                $.each(odatatableoption.data(), function (i, data) {
+
+                    let opcao = {
+                        id: parseInt(data.Id),
+                        id_Campo: valor,
+                        resposta: data.Resposta
+                    }
+                    opcoesDyn.push(opcao);
+
+                });
+                var jason = JSON.stringify(opcoesDyn);
+                //caminho += "?request=" + `${jason}`;
+
+                $.ajax
+                    ({
+                        type: 'POST',
+                        url: caminho,
+                        data: jason,
+                        contentType: 'application/json'
+                    })
+                    .done(function (data) { })
+                    .fail(function (data) { Notificar("@RsBase.ATENCAO_", data.mensagem, "warning"); })
+                    .always({});
+
+            }
+            else
+            {
+
+                $.each(odatatableoption.data(), function (i, data) {
+
+                    let opcao = { id: 0, id_Campo: valor, resposta: data.Resposta }
+                    opcoesDyn.push(opcao);
+
+                });
+                var opcaostr = JSON.stringify(opcoesDyn);
+                odatatable.data()[valor].OpcoesStr = opcaostr;
+                $(`#List_${valor}__id`).val(opcaostr);
+                odatatable.draw(false);
+            }
+
+            $("#modal-option").modal('hide');
+        }
+
+        $("#iCancelar").on("click", function () {
+            odatatableoption.clear().draw(false);
+            $("#modal-option").modal('hide');
+ })
+
+    $("#iopcoes").on("click", function () {
+        GravarOpcoes($("iIdCampo").val())
+    });
+</script>
+}
+
+@using (Html.BeginForm("CadastroCampo", "Modelo_Elemento_Rede", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @Html.HiddenFor(Model => Model.Id);
+    //@Html.HiddenFor(Model => Model.Id, new { @value = "1" });
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+
+            <div id="accordion">
+                <div class="card div-card-accord">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body">
+
+                            <div class="row">
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iDescricao">Descricao</label>
+
+                                        @Html.TextBox("iDescricao", null, new { id = "iDescricao", @class = "form-control", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iTipo"><strong>Tipo</strong></label>
+                                        @Html.EnumDropDownListFor(model => model.Tipo, new { @class = "form-control", id = "iTipo", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <br>
+                                    <button type="button" class="btn btn-success" id="iAdicionar">
+                                        @*<i class="fas fa-map"></i>*@<span>&nbsp;</span>
+                                        <span>Adicionar</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover-nowrap " id="idataTableCampos" style="width:100%"></table>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!--Button Float-->
+        <a href="#" class="float-cancel" onclick="parent.dial.dialog('close');  return false;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="ValidaSubmit()" name="gravar">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+
+    <!--/Main-->
+    <div class="modal" id="modal-option">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted"> Informe as Opções que serão Exibidas na lista</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div style="padding-left:2px">
+                    <div class="card" style="border:none;">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-6">
+
+
+                                    @Html.TextBox("iResposta", null, new { id = "iResposta", @class = "form-control", @autocomplete = "off" })
+                                </div>
+                                <div class="col-sm-2">
+                                    @Html.TextBox("iIdCampo", null, new { id = "iIdCampo", @class = "form-control", @autocomplete = "off", @disabled = "disabled" })
+                                </div>
+                                <div class="col-sm-2">
+                                    <button type="button" class="btn btn-success btn-add" id="iAdicionarOption">
+                                        <i class="la la-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <table class=" table table-hover-nowrap" id="idatatableoption" style="width:100%"></table>
+
+                            <div class="text-center">
+                                <button type="button" class="btn btn-success" id="iopcoes">
+                                    Gravar
+                                </button>
+
+
+                                <button type="button" class="btn btn-danger" id="iCancelar" @*data-dismiss="modal" aria-label="Close"*@>
+                                    @RsBase.CANCELAR
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+}

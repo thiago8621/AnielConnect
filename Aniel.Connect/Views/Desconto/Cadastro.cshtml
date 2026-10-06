@@ -1,0 +1,1983 @@
+﻿@model Aniel.Connect.Models.DescontoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_DESCONTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles
+    {
+    <style>
+        .popover-body {
+            background-color: #357CA5;
+            color: white;
+        }
+    </style>
+    }
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+    function limparSelect2(id) {
+        if ($(`#${id}`).data('select2')) {
+            $(`#${id}`).select2('destroy');
+        }
+
+        $(`#${id}`).empty();
+    }
+
+
+        var HandleTipoDesconto = function () {
+
+            $('#iTipoDesconto').on('select2:select select2:unselecting', function (e) {
+                TipoDescontoSelecionado = e.params.data;
+
+                if (TipoDescontoSelecionado)
+                    $("#iFormatoTipoDesconto").text("Formato: " + TipoDescontoSelecionado.formato);
+                else
+                    $("#iFormatoTipoDesconto").text("");
+            });
+        };
+
+        AddSelect("iTipoDesconto", "@CONSTANTES.URLPortal/api/Tipo_DescontoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Tipo_Desconto", "@RsBase.SELECIONE", false, HandleTipoDesconto);
+
+        AddSelect("iPais", "@CONSTANTES.URLPortal/api/PaisApi/GetComboConnect", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        @*AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+
+        //Money
+        $('.money').mask('000000000000,00', { reverse: true });
+        //Percentage
+        $('.percentage').mask('000,00', { reverse: true });
+
+           //se esta caixa de seleção estiver for marcada pelo usuário o sistema aplicará o
+           //desconto em todas as faturas. Se estiver desmarcado deverá ser informada uma
+           //quantidade de faturas em que o desconto será aplicado
+        $('#iDesconto_Tempo_Indeterminado').change(function () {
+
+            if ($('#iDesconto_Tempo_Indeterminado').is(':checked')) {
+                $('#divRepeticoes').hide();
+                $('#iValor_Unico').bootstrapToggle('on')
+            }
+
+            else {
+                $('#divRepeticoes').show();
+            }
+        });
+
+        $('#iValor_Unico').change(function (e) {
+
+            if (!$('#iValor_Unico').is(':checked') && $('#iDesconto_Tempo_Indeterminado').is(':checked')) {
+                Notificar("@RsBase.ATENCAO_", "Atenção! Para definir múltiplos valores para meses marque como Não o Desconto por Tempo Indeterminado? e defina um tempo de repetição", "warning");
+                $('#iValor_Unico').bootstrapToggle('on');
+            }
+
+            if ($('#iValor_Unico').is(':checked')) {
+                $("#iRadioValorUnico").prop("checked", false);
+                $("#iRadioPercentual").prop("checked", false);
+
+                $('#iDivValor').show();
+                $('#iDivPercentual').show();
+                $('#iDivValores').hide();
+            }
+            else {
+                $('#iDivValor').hide();
+                $('#iDivPercentual').hide();
+                $('#iDivValores').show();
+            }
+        });
+
+    async function mudancaUF()  {
+
+        var estado = $('#iUf' + ' option:selected').val();
+        var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+        AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, estado, null, "@RsBase.SELECIONE", false);
+    };
+
+
+     $('#iUf').change(function () { mudancaUF() });
+
+    function changeCountry() {
+        var countryTxt = $('#iPais').text();
+        var countryVal = $('#iPais').val();
+
+
+        if (countryVal != null) {
+            if (countryTxt.toUpperCase() == "BRASIL") {
+           AddSelect("iUf", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Uf", "@RsBase.TODOS", false);
+            } else {
+                $('#iUf').val(null).trigger('change');
+                $('#iUf').text("").trigger('change');
+                $('#iUf').select2('destroy');
+            };
+            } else {
+            $('#iUf').val(null).trigger('change');
+            $('#iUf').text("").trigger('change');
+            $('#iUf').select2('destroy');
+        };
+    };
+
+    $('#iPais').change(function () { changeCountry() });
+
+
+
+        $('#iPercentual').focusout(function () {
+
+            if ($('#iPercentual').val() > 100 || $('#iPercentual').val() < 1) {
+                $('#iPercentual').val("");
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERCENTUAL_DESCONTO)", "warning");
+                erro = true;
+
+            }
+        })
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Valores));
+
+            var nome_lista = "Valores";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id +'"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id_Meio" name="' + nome_lista + '[' + meta.row + '].Id_Meio" type="hidden" value="' + TrataNulo(row.Id_Meio) + '">';
+                        }
+                    },
+                    {
+                        data: "MesInicial",
+                        title: "@RsCadastros.MES_INICIAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__MesInicial" name="' + nome_lista + '[' + meta.row + '].MesInicial" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "MesFinal",
+                        title: "@RsCadastros.MES_FINAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__MesFinal" name="' + nome_lista + '[' + meta.row + '].MesFinal" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Valor",
+                        title: "@RsCadastros.VALOR",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Valor" name="' + nome_lista + '[' + meta.row + '].Valor" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Percentual",
+                        title: "@RsCadastros.PERCENTUAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Percentual" name="' + nome_lista + '[' + meta.row + '].Percentual" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Descontoapi/ExcluirGridValores?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            $(document).ready(function () {
+
+                $('#iRadioValorMes').trigger('change');
+                if ($('#iRadioValorUnico').is(':checked')) {
+
+                    $('#iPercentual').prop('disabled', true);
+                }
+
+                if ($('#iRadioPercentual').is(':checked')) {
+
+                    $('#iValor').prop('disabled', true);
+                }
+
+                $('#iDesconto_Tempo_Indeterminado').trigger('change');
+                $('#iValor_Unico').trigger('change');
+            });
+
+            if ($('#iRadioValorUnico').prop(('checked', true))){
+
+                $('#iPercentual').prop('disabled', true);
+            }
+
+            $('#iRadioValorUnico').on('click', function () {
+
+                $('#iValor').prop('disabled', false);
+                $('#iPercentual').prop('disabled', true);
+                $('#iPercentual').val("");
+            });
+
+            $('#iRadioPercentual').on('click', function () {
+                $('#iValor').prop('disabled', true);
+                $('#iPercentual').prop('disabled', false);
+                $('#iValor').val("");
+            });
+
+            handleExcluir();
+
+            //Adicionar meio de captação
+
+            var descontoMeioCaptacao = @Html.Raw(Json.Encode(ViewBag.Desconto_Meio_Captacao));
+            $('input[name="RadioOpcaoMes"]').on("change", function () {
+                $("#iAdicionarMes").val(null).trigger("change");
+                if ($(this).val() == "valor") {
+                    //Money
+                    $('#iAdicionarMes').mask('000000000000,00', { reverse: true });
+
+                }
+                else {
+                    $('#iAdicionarMes').mask('000,00', { reverse: true });
+                }
+            })
+            $("#btnAdicionar").on('click', function () {
+                let erro = false;
+                const DescontoMesesSelecionados = (radio) => {
+                    let objeto = {
+                        Id: 0,
+                        MesInicial: $("#iMesInicial").val(),
+                        MesFinal: $("#iMesFinal").val(),
+                        Valor: 0,
+                        Percentual: 0
+                    };
+                    if (radio == "valor") {
+                        objeto.Valor = $("#iAdicionarMes").val();
+                    }
+                    else {
+                        objeto.Percentual = $("#iAdicionarMes").val();
+                    }
+                    return objeto;
+                }
+
+                if(!$("#iMesInicial").val()){
+                    Notificar("@RsBase.ATENCAO_", "valor de mes inicial não foi preenchido", "warning");
+                    erro = true;
+                }
+
+                if(!$("#iMesFinal").val()){
+                    Notificar("@RsBase.ATENCAO_", "valor de mes final não foi preenchido", "warning");
+                    erro = true;
+                }
+
+                if(!$("#iAdicionarMes").val()){
+                    let notificacao = `desconto não foi definido para os meses ${$("#iMesInicial").val()} e ${$("#iMesFinal").val()}.`;
+                    Notificar("@RsBase.ATENCAO_",$('input[name="RadioOpcaoMes"]:checked').val() == "value" ? "Valor de" + notificacao : "Percentual de " + notificacao, "warning");
+                    erro = true;
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add(DescontoMesesSelecionados($('input[name="RadioOpcaoMes"]:checked').val())).draw(false);
+
+                $("#iMeio").val("");
+
+                handleExcluir();
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+    TableManageButtons.init();
+
+    var handleDataTableButtonsRegioes = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Regioes));
+
+        var nome_lista = "Regioes";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+        var oDatatableRegioes = $("#datatableRegioes").length && $("#datatableRegioes").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirRegiao" id="btnExcluir_' + meta.row + '" excluir="' + row.Id +'"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id_Meio" name="' + nome_lista + '[' + meta.row + '].Id_Meio" type="hidden" value="' + TrataNulo(row.Id_Meio) + '">';
+                        }
+                    },
+                    {
+                        data: "Pais_Desc",
+                        title: "@RsCadastros.PAIS",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Pais_Desc" name="' + nome_lista + '[' + meta.row + '].Pais_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Pais" name="' + nome_lista + '[' + meta.row + '].Pais" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Estado_Desc",
+                        title: "@RsCadastros.UF",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Estado_Desc" name="' + nome_lista + '[' + meta.row + '].Estado_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Estado" name="' + nome_lista + '[' + meta.row + '].Estado" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Cidade_Desc",
+                        title: "@RsCadastros.CIDADE",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Cidade_Desc" name="' + nome_lista + '[' + meta.row + '].Cidade_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Cidade" name="' + nome_lista + '[' + meta.row + '].Cidade" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluirRegiao").unbind('click');
+                $(".btnExcluirRegiao").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableRegioes.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Descontoapi/ExcluirGridRegioes?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableRegioes.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            $(document).ready(function () {
+
+                if ($('#iRadioValorUnico').is(':checked')) {
+
+                    $('#iPercentual').prop('disabled', true);
+                }
+
+                if ($('#iRadioPercentual').is(':checked')) {
+
+                    $('#iValor').prop('disabled', true);
+                }
+
+                $('#iDesconto_Tempo_Indeterminado').trigger('change');
+            });
+
+        if ($('#iRadioValorUnico').prop(('checked', true))){
+
+                $('#iPercentual').prop('disabled', true);
+            }
+
+        $('#iRadioValorUnico').on('click', function () {
+
+                $('#iValor').prop('disabled', false);
+                $('#iPercentual').prop('disabled', true);
+                $('#iPercentual').val("");
+            });
+
+            $('#iRadioPercentual').on('click', function () {
+                $('#iValor').prop('disabled', true);
+                $('#iPercentual').prop('disabled', false);
+                $('#iValor').val("");
+            });
+
+            handleExcluir();
+
+            //Adicionar meio de captação
+
+            var descontoMeioCaptacao = @Html.Raw(Json.Encode(ViewBag.Desconto_Meio_Captacao));
+
+            $("#btnAdicionarRegiao").on('click', function () {
+
+                var erro = false;
+
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatableRegioes.row.add({
+                    Cidade_Desc: $("#iCidade option:selected").text(),
+                    Estado_Desc: $("#iUf option:selected").text() ? $("#iUf option:selected").text() : "@RsBase.TODOS",
+                    Pais_Desc: $("#iPais option:selected").text(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iMeio").val("");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtonsRegioes = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsRegioes();
+                    }
+                }
+            }();
+
+    TableManageButtonsRegioes.init();
+
+
+
+
+    var handleDataTableButtonsCondominioPredio = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Condominio_Predios));
+
+            var nome_lista = "Condominio_Predios";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatableCondominios = $("#datatableCondominios").length && $("#datatableCondominios").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirCondominio" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">'
+                        }
+                    },
+                    {
+                        data: "Id_Condominio",
+                        title: "ID Condomínio/Prédio",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Id_Condominio" name="' + nome_lista + '[' + meta.row + '].Id_Condominio" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Condominio_Predios" name="' + nome_lista + '[' + meta.row + '].Condominio_Predios" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Cond_Desc",
+                        title: "Condomínio/Prédio Descrição",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Cond_Desc" name="' + nome_lista + '[' + meta.row + '].Cond_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__Condominio_Predios" name="' + nome_lista + '[' + meta.row + '].Condominio_Predios" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            $(document).ready(function (){
+                AddSelect('iSelectCondominios', "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboDescription", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            });
+
+            function handleExcluir() {
+                $(".btnExcluirCondominio").unbind('click');
+                $(".btnExcluirCondominio").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableCondominios.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Descontoapi/ExcluirGridCondominiosPredios?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableCondominios.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionarCondominio").on('click', function () {
+
+                var erro = false;
+
+                if (erro) {
+                    return false;
+                }
+
+                let valueSelecionado = $("#iSelectCondominios option:selected").text();
+
+                console.log(typeof ($("#iSelectCondominios option:selected").val()));
+
+
+                let valueSeparado = valueSelecionado.split(',');
+
+                oDatatableCondominios.row.add({
+                    Id: 0,
+                    Id_Condominio: $("#iSelectCondominios option:selected").val(),
+                    Cond_Desc: valueSeparado[0]
+                }).draw(false);
+
+                handleExcluir();
+            });
+        },
+            TableManageButtonsCondominios = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsCondominioPredio();
+                    }
+                }
+            }();
+
+    TableManageButtonsCondominios.init();
+
+
+
+    var handleDataTableButtonsCondicoesCombinadas = function () {
+        "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.CondicoesCombinadas));
+
+        var nome_lista = "CondicoesCombinadas";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        var oDatatableCondicoesCombinadas = $("#datatableCondicoesCombinadas").length && $("#datatableCondicoesCombinadas").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            columns: [
+                {
+                    data: "Id",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirCondicoesCombinadas" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Meio" name="' + nome_lista + '[' + meta.row + '].Id_Meio" type="hidden" value="' + TrataNulo(row.Id_Meio) + '">';
+                    }
+                },
+
+                {
+                    data: "TipoCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            return 'Se <select data-indice=' + meta.row + ' class="form-control tipoCondicaoCombinadas" id="' + nome_lista + '_' + meta.row + '__TipoCondicao" name="' + nome_lista + '[' + meta.row + '].TipoCondicao"  value="' + TrataNulo(data) + '"> ' +
+                                `<div class="col-6"><option>@RsBase.SELECIONE</option></div>` +
+                                `<option ${data == "1" ? "selected" : ""} value="1">@RsCadastros.TIPO_CLIENTE</option>` +
+                                `<option ${data == "2" ? "selected" : ""} value="2">@RsCadastros.CATEGORIA_CLIENTE</option>` +
+                                `<option ${data == "3" ? "selected" : ""} value="3">@RsCadastros.MEIO_CAPTACAO</option>` +
+                                `<option ${data == "4" ? "selected" : ""} value="4">@RsCadastros.TIPO</option>` +
+                                `<option ${data == "5" ? "selected" : ""} value="5">@RsCadastros.PLANO_PRODUTO</option>` +
+                                `<option ${data == "6" ? "selected" : ""} value="6">@RsCadastros.VALOR_FINAL_PLANO</option>` +
+                                `<option ${data == "7" ? "selected" : ""} value="7">@RsCadastros.VALOR_FINAL_TOTAL_SER_PAGO</option>` +
+                                `<option ${data == "8" ? "selected" : ""} value="8">@RsCadastros.TIPO_PAGAMENTO</option>` +
+                                `<option ${data == "9" ? "selected" : ""} value="9">@RsCadastros.FORMA_PAGAMENTO</option>` +
+                                `<option ${data == "10" ? "selected" : ""} value="10">@RsCadastros.PERIODO_FIDELIDADE_MESES_</option>` +
+                                `<option ${data == "11" ? "selected" : ""} value="11">@RsCadastros.PAGAMENTO_FAT_SEQ_SEM_ATRASO</option>` +
+                                `<option ${data == "12" ? "selected" : ""} value="12">@RsCadastros.CONDOMINIO_PREDIO</option>` +
+                                '</select>';
+
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "ValorCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            return '<div id="fieldTitleCo">Condição</div> <div id="' + nome_lista + '_' + meta.row + '__ValorCondicaoDiv"><select class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicao" name="' + nome_lista + '[' + meta.row + '].ValorCondicao"  value="' + TrataNulo(data) + '"></select></div>' +
+                                '<div class=""><input  style="display:none" placeholder="valor minimo" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicaoMinimo" name="' + nome_lista + '[' + meta.row + '].ValorCondicaoMinimo"  value="' + TrataNulo(data) + '"> </div>' +
+                                '<div class="valMeses"><input style="display:none" placeholder="valor em meses" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorMeses" name="' + nome_lista + '[' + meta.row + '].ValorMeses"  value="' + TrataNulo(data) + '"></div > '+
+                                '<div class=""><input  style="display:none" placeholder="valor maximo" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicaoMaximo" name="' + nome_lista + '[' + meta.row + '].ValorCondicaoMaximo"  value="' + TrataNulo(row.ValorCondicaoMaximo) + '"></div>';
+
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "ValorCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            return '<div><br></div>' +
+                                `<a tabindex="0" id="VerPopover" class="btn m-0 p-0" role="button" data-toggle="popover" data-html="true" data-placement="top" data-trigger="focus"
+                                    data-content=
+                                   'O sistema levará em consideração faturas pagas em sequencia e sem atraso entre elas.<br>
+                                   Ex. 1: Mês 1 - Paga, Mês 2 - Não Pago e Mês 3 - Pago. <b>Cliente Não receberá</b> o desconto;<br>
+                                   Ex. 2: Mês 1 - Pago, Mês 2 - Pago e Mês 3 - Pago Cliente <b>receberá</b> o desconto.'>
+                                   <i class="fas fa-info-circle ml-2 mt-1" style="color:#486B91;font-size: 1em;"></i>
+                                </a>`;
+
+                        }
+                        return data;
+                    }
+                },
+            ]
+        });
+
+        function handleTipoCondicao() {
+            $('.tipoCondicaoCombinadas').change(function (e) {
+                $('#VerPopover').hide()
+                $(`.valMeses`).hide();
+                let indice = $(this).attr("data-indice");
+                $("#fieldTitleCo").text('Condição');
+                $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).show();
+                $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).hide();
+                $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).hide();
+
+                let valor = $(this).val();
+                $(`#CondicoesCombinadas_${indice}__ValorCondicao`).val("").trigger("change");
+
+                if (valor == "1") {
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).empty();
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 0,
+                        text: '@Html.Raw(RsCadastros.PESSOAFISICA)',
+                    }));
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 1,
+                        text: '@Html.Raw(RsCadastros.PESSOAJURIDICA)',
+                    }));
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"))
+                }
+                if (valor == "3") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Meio_Captacaoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "2") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "5") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                 if (valor == "12") {
+                     AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Descontoapi/GetComboCondominiosVinculados", @CONSTANTES.PaginacaoRegistros, null, @Model.Id, null, "@RsBase.SELECIONE", false);
+                }
+
+               if (valor == "6") {
+                   $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                   $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                   $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+                }
+                if (valor == "7") {
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+                }
+                if (valor == "10") {
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+                }
+
+                if (valor == "11") {
+                    $(function () {
+                        $('[data-toggle="popover"]').popover()
+                    });
+                    $('#VerPopover').show()
+                    $(`.valMeses`).show();
+                    $('#fieldTitleCo').text('Qtd. Mínima de faturas pagas em sequencia:');
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorMeses`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val()
+                }
+
+
+
+                if (valor == "9") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Forma_PagamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "4") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Tecnologia>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Tecnologia)).Cast<Tipo_Tecnologia>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesCombinadas_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2();
+                }
+
+                if (valor == "8") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Forma_Pagamento>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Forma_Pagamento)).Cast<Tipo_Forma_Pagamento>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesCombinadas_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2();
+                }
+            });
+        }
+
+        function AtribuirValorCondicao() {
+            $('#VerPopover').hide()
+            $(`.valMeses`).hide();
+            $("#fieldTitleCo").text('Condição');
+            for (let item of $('.tipoCondicaoCombinadas')) {
+                let indice = $(item).attr("data-indice");
+                let valor = $(item).val();
+                $(`#CondicoesCombinadas_${indice}__ValorCondicao`).val("").trigger("change");
+
+                if (valor == "1") {
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).empty();
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 0,
+                        text: '@Html.Raw(RsCadastros.PESSOAFISICA)',
+                    }));
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 1,
+                        text: '@Html.Raw(RsCadastros.PESSOAJURIDICA)',
+                    }));
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"))
+                }
+                if (valor == "3") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Meio_Captacaoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "2") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "5") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "12") {
+                    AddSelect(`CondicoesCombinadas_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Descontoapi/GetComboCondominiosVinculados", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+
+                if (valor == "6") {
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+                if (valor == "7") {
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+                if (valor == "10") {
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+
+                if (valor == "11") {
+                    let QuantidadeMeses = $(`#CondicoesCombinadas_${indice}__ValorMeses`).val();
+
+                    $(function () {
+                        $('[data-toggle="popover"]').popover()
+                    });
+                    $('#VerPopover').show()
+                    /*$(`.valMeses`).show();*/
+
+                    $('#fieldTitleCo').text('Qtd. Mínima de faturas pagas em sequencia:');
+
+
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).hide();
+
+                    //$(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val(QuantidadeMeses);
+                    //$(`#CondicoesCombinadas_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                    //$(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesCombinadas_${indice}__ValorCondicaoMaximo`).attr("value"));
+                    $(`#CondicoesCombinadas_${indice}__ValorMeses`).val(QuantidadeMeses);
+                }
+
+
+
+                if (valor == "4") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Tecnologia>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Tecnologia)).Cast<Tipo_Tecnologia>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesCombinadas_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2("val", $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                }
+
+                if (valor == "8") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Forma_Pagamento>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Forma_Pagamento)).Cast<Tipo_Forma_Pagamento>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesCombinadas_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2();
+                    $(`#CondicoesCombinadas_${indice}__ValorCondicao`).select2("val", $(`#CondicoesCombinadas_${indice}__ValorCondicao`).attr("value"));
+                }
+            }
+        }
+
+            function handleExcluir() {
+                $(".btnExcluirCondicoesCombinadas").unbind('click');
+                $(".btnExcluirCondicoesCombinadas").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableCondicoesCombinadas.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Descontoapi/ExcluirGridCondicoes?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableCondicoesCombinadas.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+            handleExcluir();
+            handleTipoCondicao();
+            AtribuirValorCondicao();
+            //Adicionar meio de captação
+
+
+
+            var descontoMeioCaptacao = @Html.Raw(Json.Encode(ViewBag.Desconto_Meio_Captacao));
+
+        $("#btnAdicionarCondicoesCombinadas").on('click', function () {
+            $('#VerPopover').hide()
+            var erro = false;
+
+
+            if (erro) {
+                return false;
+            }
+
+            oDatatableCondicoesCombinadas.row.add({
+                ValorCondicao: "",
+                TipoCondicao: "",
+                Id: 0
+            }).draw(false);
+
+            handleTipoCondicao();
+
+            handleExcluir();
+        });
+
+
+        },
+        TableManageButtonsCondicoesCombinadas = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsCondicoesCombinadas();
+                    }
+                }
+            }();
+
+    TableManageButtonsCondicoesCombinadas.init();
+
+        var handleDataTableButtonsCondicoesIndependentes = function () {
+        "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.CondicoesIndependentes));
+
+        var nome_lista = "CondicoesIndependentes";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+            var oDatatableCondicoesIndependentes = $("#datatableCondicoesIndependentes").length && $("#datatableCondicoesIndependentes").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            columns: [
+                {
+                    data: "Id",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirCondicoesIndependentes" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Meio" name="' + nome_lista + '[' + meta.row + '].Id_Meio" type="hidden" value="' + TrataNulo(row.Id_Meio) + '">';
+                    }
+                },
+
+                {
+                    data: "TipoCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+
+
+                            return 'Se <select data-indice=' + meta.row + ' class="form-control tipoCondicaoIndependentes" id="' + nome_lista + '_' + meta.row + '__TipoCondicao" name="' + nome_lista + '[' + meta.row + '].TipoCondicao"  value="' + TrataNulo(data) + '"> ' +
+                                `<option>@RsBase.SELECIONE</option>` +
+                                `<option ${data == "1" ? "selected" : ""} value="1">@RsCadastros.TIPO_CLIENTE</option>` +
+                                `<option ${data == "2" ? "selected" : ""} value="2">@RsCadastros.CATEGORIA_CLIENTE</option>` +
+                                `<option ${data == "3" ? "selected" : ""} value="3">@RsCadastros.MEIO_CAPTACAO</option>` +
+                                `<option ${data == "4" ? "selected" : ""} value="4">@RsCadastros.TIPO</option>` +
+                                `<option ${data == "5" ? "selected" : ""} value="5">@RsCadastros.PLANO_PRODUTO</option>` +
+                                `<option ${data == "6" ? "selected" : ""} value="6">@RsCadastros.VALOR_FINAL_PLANO</option>` +
+                                `<option ${data == "7" ? "selected" : ""} value="7">@RsCadastros.VALOR_FINAL_TOTAL_SER_PAGO</option>` +
+                                `<option ${data == "8" ? "selected" : ""} value="8">@RsCadastros.TIPO_PAGAMENTO</option>` +
+                                `<option ${data == "9" ? "selected" : ""} value="9">@RsCadastros.FORMA_PAGAMENTO</option>` +
+                                `<option ${data == "10" ? "selected" : ""} value="10">@RsCadastros.PERIODO_FIDELIDADE_MESES_</option>` +
+                                `<option ${data == "11" ? "selected" : ""} value="11">@RsCadastros.PAGAMENTO_FAT_SEQ_SEM_ATRASO</option>` +
+                                `<option ${data == "12" ? "selected" : ""} value="12">@RsCadastros.CONDOMINIO_PREDIO</option>` +
+                                '</select>';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "ValorCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            return '<div id="fieldTitle">Condição</div> <div id="' + nome_lista + '_' + meta.row + '__ValorCondicaoDiv"><select class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicao" name="' + nome_lista + '[' + meta.row + '].ValorCondicao"  value="' + TrataNulo(data) + '"></select></div>' +
+                                '<div class=""><input  style="display:none" placeholder="valor minimo" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicaoMinimo" name="' + nome_lista + '[' + meta.row + '].ValorCondicaoMinimo"  value="' + TrataNulo(data) + '"> </div>' +
+                                '<div class="valMesesInd"><input style="display:none" placeholder="valor em meses" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorMeses" name="' + nome_lista + '[' + meta.row + '].ValorMeses"  value="' + TrataNulo(data) + '"></div > ' +
+                                '<div class=""><input  style="display:none" placeholder="valor maximo" type="text" class="form-control" id="' + nome_lista + '_' + meta.row + '__ValorCondicaoMaximo" name="' + nome_lista + '[' + meta.row + '].ValorCondicaoMaximo"  value="' + TrataNulo(row.ValorCondicaoMaximo) + '"></div>';
+
+                            }
+
+
+                        return data;
+                    }
+                },
+                {
+                    data: "ValorCondicao",
+                    orderable: false,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            return '<div><br></div>' +
+                                `<a tabindex="0" id="VerPopoverInd" class="btn m-0 p-0" role="button" data-toggle="popover" data-html="true" data-placement="top" data-trigger="focus"
+                                    data-content=
+                                   'O sistema levará em consideração faturas pagas em sequencia e sem atraso entre elas.<br>
+                                   Ex. 1: Mês 1 - Paga, Mês 2 - Não Pago e Mês 3 - Pago. <b>Cliente Não receberá</b> o desconto;<br>
+                                   Ex. 2: Mês 1 - Pago, Mês 2 - Pago e Mês 3 - Pago Cliente <b>receberá</b> o desconto.'>
+                                   <i class="fas fa-info-circle ml-2 mt-1" style="color:#486B91;font-size: 1em;"></i>
+                                </a>`;
+
+                        }
+                        return data;
+                    }
+                },
+            ]
+            });
+
+        function handleTipoCondicao() {
+            $('.tipoCondicaoIndependentes').change(function (e) {
+                $('#VerPopoverInd').hide()
+                $(`.valMesesInd`).hide();
+                let indice = $(this).attr("data-indice");
+                $("#fieldTitle").text('Condição');
+                $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).show();
+                $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).hide();
+                $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).hide();
+
+                let valor = $(this).val();
+                $(`#CondicoesIndependentes_${indice}__ValorCondicao`).val("").trigger("change");
+
+                if (valor == "1") {
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).empty();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 0,
+                        text: '@Html.Raw(RsCadastros.PESSOAFISICA)',
+                    }));
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 1,
+                        text: '@Html.Raw(RsCadastros.PESSOAJURIDICA)',
+                    }));
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"))
+                }
+                if (valor == "3") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Meio_Captacaoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "2") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "5") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+                if (valor == "6") {
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+                }
+                if (valor == "7") {
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+                }
+                if (valor == "10") {
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+                }
+
+                if (valor == "11") {
+
+                    $(function () { $('[data-toggle="popover"]').popover()});
+                    $('#VerPopoverInd').show();
+                    $(`.valMesesInd`).show();
+                    $('#fieldTitle').text('Qtd. Mínima de faturas pagas em sequencia:');
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorMeses`).show();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).val()
+
+                }
+
+                if (valor == "12") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Descontoapi/GetComboCondominiosVinculados", @CONSTANTES.PaginacaoRegistros, null, @Model.Id, null, "@RsBase.SELECIONE", false);
+                }
+
+
+                if (valor == "9") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Forma_PagamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+
+                if (valor == "4") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Tecnologia>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Tecnologia)).Cast<Tipo_Tecnologia>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesIndependentes_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2();
+                }
+
+                if (valor == "8") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Forma_Pagamento>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Forma_Pagamento)).Cast<Tipo_Forma_Pagamento>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesIndependentes_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2();
+                }
+
+            });
+        }
+
+        function AtribuirValorCondicao() {
+
+            for (let item of $('.tipoCondicaoIndependentes')) {
+                let indice = $(item).attr("data-indice");
+                let valor = $(item).val();
+                $(`#CondicoesIndependentes_${indice}__ValorCondicao`).val("").trigger("change");
+                $("#fieldTitle").text('Condição');
+                if (valor == "1") {
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).empty();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 0,
+                        text: '@Html.Raw(RsCadastros.PESSOAFISICA)',
+                    }));
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).append($('<option>', {
+                        value: 1,
+                        text: '@Html.Raw(RsCadastros.PESSOAJURIDICA)',
+                    }));
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"))
+                }
+                if (valor == "3") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Meio_Captacaoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "2") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "5") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "6") {
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+                if (valor == "7") {
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+                if (valor == "10") {
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).show();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+
+                if (valor == "11") {
+                    let QuantidadeMesesInd = $(`#CondicoesIndependentes_${indice}__ValorMeses`).val();
+
+                    $(function () {
+                    $('[data-toggle="popover"]').popover()});
+                    $('#VerPopover').show();
+                    $('#fieldTitle').text('Qtd. Mínima de faturas pagas em sequencia:');
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoDiv`).hide();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).show();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).hide();
+
+                    $(`#CondicoesIndependentes_${indice}__ValorMeses`).val(QuantidadeMesesInd);
+                    //$(`#CondicoesIndependentes_${indice}__ValorCondicaoMinimo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                    //$(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).val($(`#CondicoesIndependentes_${indice}__ValorCondicaoMaximo`).attr("value"));
+                }
+
+                 if (valor == "12") {
+                          AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Descontoapi/GetComboCondominiosVinculados", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                      }
+
+
+
+                if (valor == "9") {
+                    AddSelect(`CondicoesIndependentes_${indice}__ValorCondicao`, "@CONSTANTES.URLPortal/api/Forma_PagamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"), "@RsBase.SELECIONE", false);
+                }
+                if (valor == "4") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Tecnologia>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Tecnologia)).Cast<Tipo_Tecnologia>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesIndependentes_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2("val", $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                }
+
+                if (valor == "8") {
+                    limparSelect2("iFiltro");
+
+                    var tipos = @(Html.GetArrayEnum<Tipo_Forma_Pagamento>());
+                    let valores_tipos = @(Json.Encode(Enum.GetValues(typeof (Tipo_Forma_Pagamento)).Cast<Tipo_Forma_Pagamento>()));
+                    $.each(tipos, function (key, value) {
+                        $(`#CondicoesIndependentes_${indice}__ValorCondicao`)
+                            .append($(`<option>${value}</option>`)
+                                .attr("value", valores_tipos[key])
+                                .text(value));
+                    });
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2();
+                    $(`#CondicoesIndependentes_${indice}__ValorCondicao`).select2("val", $(`#CondicoesIndependentes_${indice}__ValorCondicao`).attr("value"));
+                }
+            }
+        }
+
+            function handleExcluir() {
+                $(".btnExcluirCondicoesIndependentes").unbind('click');
+                $(".btnExcluirCondicoesIndependentes").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableCondicoesIndependentes.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Descontoapi/ExcluirGridCondicoes?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableCondicoesIndependentes.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            /*Quem Indicou*/
+            $("#idMeio_Captacao").on('click', function () {
+
+                var erro = false;
+
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatableCondicoesCombinadas.row.add({
+                    ValorCondicao: "",
+                    TipoCondicao: "",
+                    Id: 0
+                }).draw(false);
+
+                handleTipoCondicao();
+
+                handleExcluir();
+            });
+
+
+
+
+            handleExcluir();
+            handleTipoCondicao();
+            AtribuirValorCondicao();
+            //Adicionar meio de captação
+
+            var descontoMeioCaptacao = @Html.Raw(Json.Encode(ViewBag.Desconto_Meio_Captacao));
+
+            $("#btnAdicionarCondicoesIndependentes").on('click', function () {
+
+            var erro = false;
+
+
+            if (erro) {
+                return false;
+            }
+
+                oDatatableCondicoesIndependentes.row.add({
+                    ValorCondicao: "",
+                TipoCondicao: "",
+                Id: 0
+            }).draw(false);
+
+            handleTipoCondicao();
+
+            handleExcluir();
+        });
+
+
+        },
+            TableManageButtonsCondicoesIndependentes = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsCondicoesIndependentes();
+                    }
+                }
+            }();
+
+    TableManageButtonsCondicoesIndependentes.init();
+
+
+
+
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            console.log()
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            var erro = false;
+
+            if ($("#iDescricao").val() == "") {
+                 Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DESCRICAO)", "warning");
+                 erro = true;
+            }
+
+             if (!$("#iDesconto_Captacao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DESCONTO_CAPTACAO)", "warning");
+                    erro = true;
+             }
+
+
+           if (!$('#iDesconto_Tempo_Indeterminado').is(':checked')) {
+
+               if (!$("#iRepeticoes").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.REPETICOES_DESCONTO)", "warning");
+                    erro = true;
+                }
+           }
+
+            if ($('#iRadioValorUnico').is(':checked')) {
+
+                if (!$("#iValor").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.VALOR_DESCONTO)", "warning");
+                    erro = true;
+                }
+            }
+
+            if ($('#iRadioPercentual').is(':checked')) {
+
+                var percentual = $("#iPercentual").val()
+
+                $("#iPercentual").val(percentual.replace(".",","))
+
+                if (!$("#iPercentual").val())
+                    erro = true;
+             }
+
+            if ($("#iTipoDesconto").val() == "") {
+                 Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_DESCONTO)", "warning");
+                 erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Desconto", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="sticky-top bg-white">
+                    <div class="row">
+                        <div class="col main-title">
+                            <h4 class="title-page"><i class="fas fa-file-invoice-dollar"></i> @ViewBag.Title</h4>
+                            <nav aria-label="breadcrumb" class="mb-20">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a></li>
+                                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Desconto")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINELDESCONTO</a></li>
+                                    <li class="breadcrumb-item"><span>@ViewBag.Title</span></li>
+                                </ol>
+                            </nav>
+                        </div>
+
+                    </div>
+                    <div class="sticky-top">
+                        <ul class="nav nav-tabs" id="myTab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="dados-gerais-tab" data-toggle="tab" href="#iDadosGerais" role="tab" aria-selected="true">@RsCadastros.DADOSGERAIS</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="regioes-tab" data-toggle="tab" href="#iRegioes" role="tab" aria-selected="false">@RsCadastros.REGIOES</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="regras-tab" data-toggle="tab" href="#iRegras" role="tab" aria-selected="false"> @RsCadastros.REGRAS </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="regras-tab" data-toggle="tab" href="#iCondominios" role="tab" aria-selected="false"> Condomínios/Prédios </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane active" id="iDadosGerais">
+                        <div id="accordion">
+                            <div class="card div-card-accord">
+                                <!--Title-->
+                                <div class="card-header title-card" id="heading-1">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                            <span class="text-bold-card">Dados do @RsCadastros.DESCONTO:</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-sm-6">
+                                                <div class="form-group">
+                                                    <label for="iNome">@RsCadastros.DESCRICAO:</label>
+                                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @placeholder = "Desconto Categoria 1", @autocomplete = "off", @maxlength = "100" })
+                                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+
+
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iDesconto_Captacao">@RsCadastros.DESCONTO_PARA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Desconto_Captacao, RsBase.SELECIONE, new { @class = "form-control", @id = "iDesconto_Captacao", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Desconto_Captacao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2">
+                                                @if (Model.Id != 0)
+                                                {
+                                                    <div class="form-group">
+                                                        <label class="mr-3">@RsFinanceiro.STATUS:</label><br>
+                                                        @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+
+
+                                        <div class="row">
+
+
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iTipoDesconto">@RsCadastros.TIPO_DESCONTO:</label>
+                                                    @Html.DropDownListFor(m => m.Id_Tipo_Desconto, new SelectList("Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoDesconto" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2">
+                                                <div class="form-group mt-3">
+                                                    <span class="" id="iFormatoTipoDesconto"></span>
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+
+
+                                        <div class="row">
+
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label>@RsCadastros.DESCONTO_TEMPO_INDETERMINADO:</label><br>
+                                                    @Html.CheckBoxFor(model => model.Desconto_Tempo_Indeterminado, new { @class = "form-control", @id = "iDesconto_Tempo_Indeterminado", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-3" id="divRepeticoes">
+                                                <div class="form-group">
+                                                    <label for="iRepeticoes">@RsCadastros.REPETICOES_DESCONTO (Meses):</label>
+                                                    @Html.TextBoxFor(model => model.Repeticoes_Desconto, new { @class = "form-control", @type = "number", @id = "iRepeticoes", @autocomplete = "off", @min = 1 })
+                                                    @Html.ValidationMessageFor(model => model.Repeticoes_Desconto, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label>@RsCadastros.VALOR_UNICO:</label> <i class=" ml-2 fas fa-question-circle" style="color: #357CA5" data-toggle="popover" data-placement="top" title="" data-content="
+   Sim = Desconto será um valor único para o tempo de repetição configurado;
+   Não = Desconto poderá ser um valor diferente para o tempo de repetição configurado"></i>
+                                                    <br>
+                                                    @Html.CheckBoxFor(model => model.Valor_Unico, new { @class = "form-control", @id = "iValor_Unico", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-3" id="iDivValor">
+                                                <div class="form-group">
+
+
+                                                    <label for="iRadioValorUnico">@RsCadastros.VALOR_DESCONTO:</label>
+                                                    @Html.RadioButtonFor(m => m.TipoValor, "Valor", new { @id = "iRadioValorUnico" })
+
+
+                                                    @Html.TextBoxFor(model => model.Valor_Desconto, new { @placeholder = "0,00", @class = "form-control money", @id = "iValor", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Valor_Desconto, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-3" id="iDivPercentual">
+
+                                                <div class="form-group">
+                                                    <label for="iRadioPercentual">@RsCadastros.PERCENTUAL_DESCONTO:</label>
+                                                    @Html.RadioButtonFor(m => m.TipoValor, "Percentual", new { id = "iRadioPercentual" })
+
+                                                    @Html.TextBoxFor(m => m.Percentual_Desconto, new { @class = "form-control", @id = "iPercentual", @autocomplete = "off" })
+                                                    @*@Html.ValidationMessageFor(model => model.Percentual_Desconto, "", new { @class = "text-danger" })*@
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-2" id="iDivPercentual">
+
+                                                <div class="form-group">
+                                                    <label for="iRadioPercentual">@RsCadastros.CODIGO_AUXILIAR:</label>
+                                                    @Html.TextBoxFor(m => m.CodigoAuxiliar, new { @class = "form-control", @id = "iPercentual", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                        @*<div class="row">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label>@RsCadastros.AUTOMATICO:</label><br>
+                            @Html.CheckBoxFor(model => model.Automatico, new { @class = "form-control", @id = "iAutomatico", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                        </div>
+                    </div>
+                </div>*@
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row" id="iDivValores">
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-header title-card" id="heading-1">
+                                            <h5 class="mb-0">
+                                                <span class="text-bold-card">Defina os Valores por Meses </span>
+                                                <i class=" ml-2 fas fa-question-circle" data-placement="top" style="color: #357CA5" data-toggle="popover" title="" data-content="
+   Caso esteja ativa a configuração Defina o tempo de Repetição do Desconto(Meses), qualquer mês acima dos meses definidos na configuração serão desconsiderados no momento de faturar. "></i>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-sm-6">
+                                                    <div class="form-group">
+                                                        <label for="iMesInicial">@RsCadastros.MES_INICIAL:</label>
+                                                        <input type="text" class="form-control integer" id="iMesInicial" autocomplete="off">
+                                                    </div>
+                                                </div>                                                
+                                            
+                                                <div class="col-sm-6">
+                                                    <div class="form-group">
+                                                        <label for="iMesFinal">@RsCadastros.MES_FINAL:</label>
+                                                        <input type="text" class="form-control integer" id="iMesFinal" autocomplete="off">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-sm">
+                                                    <div class="form-group">                                                        
+                                                        @Html.RadioButton("RadioOpcaoMes","valor", false, new { @id="iRadioValorMes", @class="form-control" })
+                                                        <div class="text-center">
+                                                            <label for="iRadioValorMes">Valor</label>                                                        
+                                                        </div>
+                                                    </div>                                                    
+                                                </div>
+                                                <div class="col-sm">
+                                                    <div class="form-group">
+                                                        @Html.RadioButton("RadioOpcaoMes", "percentual", false, new { @id = "iRadioPercentualMes", @class = "form-control" })
+                                                        <div class="text-center">
+                                                            <label for="iRadioPercentualMes">Percentual</label>
+                                                        </div>                                                        
+                                                    </div>                                                
+                                                </div>                                                
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-sm-10 ml-4">
+                                                    <div class="form-group">                                                        
+                                                        <div class="text-center">
+                                                            <input type="text" class="form-control" id="iAdicionarMes" autocomplete="off">
+                                                        </div>
+                                                    </div>
+                                                </div>                                                
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-sm-12 text-right mt-3">
+                                                    <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-header title-card" id="heading-1">
+                                            <h5 class="mb-0">
+                                                <span class="text-bold-card">Lista de Valores por Meses Adicionados</span>                                                
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iRegioes">
+                        <div class="row">
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-body">
+
+
+
+                                            <div class="row">
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        <label for="iPais">@RsCadastros.PAIS:</label>
+                                                        @Html.DropDownListFor(m => m.Pais, new SelectList("Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPais", @autocomplete = "off" })
+                                                        @Html.ValidationMessageFor(model => model.Id_Meio, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        <label for="iUf">@RsCadastros.UF:</label>
+                                                        <div class="form-group">
+                                                            @Html.DropDownListFor(m => m.Uf, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUf", @autocomplete = "off" })
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        <label for="iCidade">@RsCadastros.CIDADE:</label>
+                                                        <select id="iCidade" class="form-control">
+                                                            <option selected value="@RsBase.TODOS">@RsBase.TODOS</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-12 text-right mt-3">
+                                                    <input type="button" id="btnAdicionarRegiao" value="Adicionar" class="btn btn-success" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-body">
+
+                                            <table class="table table-hover nowrap" id="datatableRegioes" style="width:100%"></table>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iRegras">
+                        <div id="accordion">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_2">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                                            <span class="text-bold-card">@RsCadastros.CONDICOES_COMBINADAS</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_2" class="collapse show" data-parent="#accordion" aria-labelledby="heading_2">
+                                    <div class="card-body">
+                                        <table class="table table-hover nowrap" id="datatableCondicoesCombinadas" style="width:100%"></table>
+                                        <div class="col-sm-12 text-right mt-3">
+                                            <input type="button" id="btnAdicionarCondicoesCombinadas" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="accordion">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_3">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_3" aria-expanded="true" aria-controls="collapse_3">
+                                            <span class="text-bold-card">@RsCadastros.CONDICOES_INDEPENDENTES</span>
+                                        </a>
+                                    </h5>
+                                </div>
+
+                                <div id="collapse_3" class="collapse show" data-parent="#accordion" aria-labelledby="heading_3">
+                                    <div class="card-body">
+                                        <table class="table table-hover nowrap" id="datatableCondicoesIndependentes" style="width:100%"></table>
+                                        <div class="col-sm-12 text-right mt-3">
+                                            <input type="button" id="btnAdicionarCondicoesIndependentes" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iCondominios">
+                        <div class="row">
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-header title-card" id="heading_2">
+                                            <h5 class="mb-0">
+                                                <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                                                    <span class="text-bold-card">@RsCadastros.ADICIONAR @RsCadastros.CONDOMINIO_PREDIO</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        @Html.DropDownListFor(m => m.CondominiosPredios, new SelectList("Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSelectCondominios", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-12 text-right mt-3">
+                                                    <input type="button" id="btnAdicionarCondominio" value="Adicionar" class="btn btn-success" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="accordion" class="col-sm-6">
+                                <div class="card div-card-accord">
+                                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                        <div class="card-header title-card" id="heading-2">
+                                            <h5 class="mb-0">
+                                                <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                                                    <span class="text-bold-card">@RsCadastros.LISTA de Condomínios/Prédios Adicionadas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableCondominios" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Desconto")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+    </div>
+
+}

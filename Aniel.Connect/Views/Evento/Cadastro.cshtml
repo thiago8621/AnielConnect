@@ -1,0 +1,1066 @@
+﻿@model Aniel.Connect.Models.BotEvento_CadastroModel
+@using Aniel.Connect.Models
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Models.T5
+
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    ViewBag.Title = RsCadastros.CADASTRO_EVENTO;
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    List<Aniel.Connect.Core.ObjComboResult<String>> listaOrdenada = new List<Aniel.Connect.Core.ObjComboResult<String>>();
+
+    foreach (var valor in Enum.GetValues(typeof(Tipo_Bot_Evento_Acoes)))
+    {
+        string descricao = HtmlEnumExtensions.GetEnumDescription(valor);
+        listaOrdenada.Add(new Aniel.Connect.Core.ObjComboResult<string>
+        {
+            Id = Convert.ToInt32(valor).ToString(),
+            Text = descricao
+        });
+    }
+
+    listaOrdenada = listaOrdenada.OrderBy(x => x.Text).ToList();
+
+
+    List<Aniel.Connect.Core.ObjComboResult<String>> listaOrdenadaArmazenamento = new List<Aniel.Connect.Core.ObjComboResult<String>>();
+    foreach (var valorCampo in Enum.GetValues(typeof(EventoArmazenamento)))
+    {
+        string descricao = HtmlEnumExtensions.GetEnumDescription(valorCampo);
+        listaOrdenadaArmazenamento.Add(new Aniel.Connect.Core.ObjComboResult<string>
+        {
+            Id = Convert.ToInt32(valorCampo).ToString(),
+            Text = descricao
+        });
+    }
+
+    listaOrdenadaArmazenamento = listaOrdenadaArmazenamento.OrderBy(x => x.Text).ToList();
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <style>
+        .swal2-popup .swal2-actions {
+            z-index: 0 !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    @if (@Model.Id == 0)
+    {
+        <text>
+            <script>
+                $("#iStatusEvento").prop("checked", true).change();;
+            </script>
+        </text>
+    }
+
+    <script>
+    let carregamento = true;
+        let arrayCamposConsultados = [20, 21, 5, 7, 11, 10, 18];
+    var idAtual = "@Model.Id";
+    let configCombo = [];
+
+    configCombo.push({ Key: "IDIGNORAR", Value: "@Model.Id" });
+
+    $(document).ready(async () => {
+
+
+        $("#iStatusDisparoAutomatico").trigger("change");
+        $("#iAtivarAcao").trigger("change");
+        $("#iAcaoExecutada").trigger("change");
+
+    });
+
+    $("#iStatusDisparoAutomatico").on("change", function () {
+        if ($(this).is(':checked')) {
+
+            $("#divEventoDisparo").show();
+            //recuperar id do evento
+            var idEventoAuto = "@Model.AutoProximoEvento";
+            AddSelect('iEventoDisparo', "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], idEventoAuto, "@RsBase.SELECIONE", false, null, null, null, configCombo);
+        } else {
+            $("#divEventoDisparo").hide();
+            AddSelect('iEventoDisparo', "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], idEventoAuto, "@RsBase.SELECIONE", false, null, null, null, configCombo);
+        }
+    });
+
+    $("#iAcaoExecutada").on("change", function () {
+
+        var acaoSelecionada = Number($("#iAcaoExecutada").val());
+
+        var possuiValores = arrayCamposConsultados.find(id => id === acaoSelecionada);
+
+        if (possuiValores !== undefined) {
+            $("#divArmazenamento").show();
+        }
+        else {
+            $("#divArmazenamento").hide();
+        }
+
+    });
+
+    $("#iAtivarAcao").on("change", function () {
+        if ($(this).is(':checked')) {
+            $("#divAcaoConsultada").show();
+            $("#divCondicaoEvento").show();
+            $("#divAcaoExecutada").show();
+            $("#divSetorAtendimento").show();
+            $(document).ready(async () => {
+                $("#iCondicaoEvento").trigger("change");
+            });
+            $(document).ready(async () => {
+                $("#iAcaoExecutada").trigger("change");
+            });
+        } else {
+            $("#divArmazenamento").hide();
+            $("#divAcaoConsultada").hide();
+            $("#divCondicaoEvento").hide();
+            $("#divPesquisa").hide();
+            $("#divAcaoVerdadeiro").hide();
+            $("#divAcaoFalso").hide();
+            $("#divAcaoExecutada").hide();
+            $("#divSetorAtendimento").hide();
+            AddSelect('iEventoDisparo', "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], null, "@RsBase.SELECIONE", false, null, null, null, configCombo);
+        }
+    });
+
+    $("#iAcaoExecutada").on("change", function () {
+        //Se ação for pequisa de satisfação
+        if ($('#iAcaoExecutada').val() == 8) {
+            $("#divPesquisa").show();
+            $("#divArmazenamento").hide();
+            $("#divSetorAtendimento").hide();
+            var idPesquisa = "@Model.PesquisaSatisfacao";
+            AddSelect("iPesquisa", "@CONSTANTES.URLPortal/api/Pesquisa_SatisfacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, idPesquisa, "@RsBase.SELECIONE", false);
+        }
+        //se ação for transferir atendimento ou cacenlar plano
+        else if (($('#iAcaoExecutada').val() == 17) || ($('#iAcaoExecutada').val() == 4)) {
+            $("#divSetorAtendimento").show();
+            $("#divArmazenamento").hide();
+            $("ModeldivPesquisa").hide();
+            var idSetorAtendimento = "@Model.SetorAtendimento";
+            AddSelect("iSetorAtendimento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, idSetorAtendimento, "@RsBase.SELECIONE", false);
+        }
+        else {
+            $("#divPesquisa").hide();
+            $("#divSetorAtendimento").hide();
+            AddSelect("iPesquisa", "@CONSTANTES.URLPortal/api/Pesquisa_SatisfacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iSetorAtendimento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+    });
+    $("#iCondicaoEvento").on("change", function () {
+        if ($(this).is(':checked')) {
+
+            $("#divAcaoVerdadeiro").show();
+            $("#divAcaoFalso").show();
+
+            var idEventoVerdadeiro = "@Model.EventoVerdadeiro";
+            var idEventoFalso = "@Model.EventoFalso";
+
+
+                AddSelect('iEventoVerdadeiro', "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], idEventoVerdadeiro, "@RsBase.SELECIONE", false, null, null, null, configCombo);
+                AddSelect('iEventoFalso', "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], idEventoFalso, "@RsBase.SELECIONE", false, null, null, null, configCombo);
+
+
+        } else {
+            $("#divAcaoVerdadeiro").hide();
+            $("#divAcaoFalso").hide();
+        }
+    });
+
+    $("#iEvento").on("change", function () {
+        for (let item of $(".ProximoEvento")) {
+            var id = $(item).attr("id");
+            var valor = $(item).attr(`value`);
+            AddSelect(id, "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], valor, "@RsBase.SELECIONE", false);
+        }
+    });
+
+
+    let oDatatable = null; // variavel de manipulacao da tabela de anexos
+    let oDatatableRespostas = null;// variavel de manipulacao da tabela de respostas
+
+            //adicao de novo linha para anexo
+    function addAnexo(nome, extensao, tipo) {
+        oDatatable.row.add({
+            Tipo: tipo,
+            Nome: nome,
+            Extensao: extensao
+        }).draw(false);
+    }
+
+            //adicao de novo linha para resposta
+    function addResposta() {
+        oDatatableRespostas.row.add({
+            IdProximoEvento: "",
+            Descricao: ""
+        }).draw(false);
+
+/*        $("#iEvento").trigger("change");*/
+    }
+
+
+    function handleExcluirAnexo() {
+        $(".btnExcluirAnexo").unbind('click');
+        $(".btnExcluirAnexo").click(function (e) {
+            e.preventDefault();
+
+            var idAnexo = $(this).attr("id_anexo");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idAnexo === "undefined") {
+                oDatatable.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EventoApi/ExcluirAnexo?value=")' + idAnexo;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatable.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+
+    //início
+    var rows_selected = [];
+
+    var handleDataTableButtons = function () {
+        "use strict";
+
+        //"Blfrtip"
+        let arrayAnexos = @Html.Raw(Json.Encode(Model.Anexos));
+        let nomeListaAnexos = "Anexos";
+        let link = '@String.Concat(CONSTANTES.URLPortal, "/Arquivos/BotEvento/")';
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: arrayAnexos,
+            paging: false,
+            order: [],
+            scrollX: true,
+            drawCallback: function () {
+                handleExcluirAnexo();
+            },
+
+            columns: [
+                {
+                    data: "Excluir", title: "",
+                    render: function (data, type, row, meta) {
+                        return '<a class="btnExcluirAnexo" href="#" id_anexo="' + row.Id + '" id="btnExcluir"><i class="fas fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>' +
+                            `
+            <input type="hidden" name="${nomeListaAnexos}[${meta.row}].Id">`;
+                    }
+                },
+                {
+                    data: "Tipo", title: "@RsCadastros.TIPO",
+                    render: function (data, type, row, meta) {
+                        return data + `
+            <input type="hidden" name="${nomeListaAnexos}[${meta.row}].Tipo">`;
+                    }
+                },
+                {
+                    data: "Nome", title: "@RsCadastros.NOME",
+                    render: function (data, type, row, meta) {
+                        return data + `
+            <input type="hidden" name="${nomeListaAnexos}[${meta.row}].Nome">`;
+                    }
+                },
+                {
+                    data: "Extensao", title: "@RsCadastros.EXTENSAO",
+                    render: function (data, type, row, meta) {
+                        if (row.Tipo == 'Url') {
+                            return row.Tipo + `
+            <input type="hidden" name="${nomeListaAnexos}[${meta.row}].Extensao">`;
+                        } else {
+                            return data + `
+            <input type="hidden" name="${nomeListaAnexos}[${meta.row}].Extensao">`;
+                        }
+                    }
+                },
+                {
+                    data: "Exibir", title: "@RsCadastros.EXIBIR",
+                    render: function (data, type, row, meta) {
+                        if (row.Tipo == 'Url') {
+                            return '<a href="' + row.Nome + '" target="_blank"><i class="fas fa-search" style="font-size:16px;padding-right:2px;"></i></a>';
+
+                        } else {
+                            return '<a href="' + link + row.Id + row.Extensao + '" target="_blank"><i class="fas fa-search" style="font-size:16px;padding-right:2px;"></i></a>';
+                        }
+
+                    }
+                },
+                {
+                    data: "Baixar", title: "@RsCadastros.BAIXAR",
+                    render: function (data, type, row, meta) {
+                        if (row.Tipo == 'Url') {
+                            return '';
+                        } else {
+                            return '<a href="' + link + row.Id + row.Extensao + '" download id="download"><i class="fas fa-download" style="font-size:16px;padding-right:2px;"></i></a>';
+                        }
+
+                    }
+                },
+            ]
+
+        });
+
+    },
+    TableManageButtons = function () {
+                    "use strict";
+                    return {
+                        init: function () {
+                            handleDataTableButtons();
+                        }
+                    }
+                }();
+
+            TableManageButtons.init();
+            handleExcluirAnexo();
+
+
+    var handleDataTableButtonsRespostas = function () {
+        "use strict";
+
+        //"Blfrtip"
+        let arrayRespostas = @Html.Raw(Json.Encode(Model.Respostas));
+        let nomeLista = "Respostas";
+        oDatatableRespostas = $("#datatableRespostas").length && $("#datatableRespostas").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: arrayRespostas,
+            destroy: true,
+            drawCallback: function () {
+                handleExcluirResposta();
+                for (let item of $(".ProximoEvento")) {
+
+                    var id = $(item).attr("id");
+                    var valor = $(item).attr("value");
+                    var texto = $(item).val();
+
+                    const shouldLoadData = !carregamento && texto === 'Selecione' && valor === '';
+                    if (shouldLoadData || valor !== '') {
+                        const selectedValue = shouldLoadData ? null : valor;
+                        AddSelect(id, "@CONSTANTES.URLPortal/api/eventoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, @Request.Params["IdBot"], selectedValue, "@RsBase.SELECIONE", false);
+                    }
+                }
+
+                carregamento = false;
+
+            },
+
+            columns: [
+                {
+                    data: "Id", title: "",
+                    render: function (data, type, row, meta) {
+                        return '<a class="btnExcluirResposta" href="#" id_resposta="' + row.Id + '" id="btnExcluirResposta"><i class="fas fa-trash-alt" style="font-size:16px;padding-right:2px;"></i></a>' +
+                            `
+            <input type="hidden" value="${data}" name="${nomeLista}[${meta.row}].Id">`;
+                    }
+                },
+                {
+                    data: "Descricao",
+                    title: `@RsCadastros.RESPOSTA_EVENTO <i class="fas fa-info-circle fa-1x" title="@RsCadastros.INFO_RESPOSTAS"></i>`,
+                    render: function (data, type, row, meta) {
+                        return `
+            <input type="text" name="${nomeLista}[${meta.row}].Descricao" class="form-control obrigatorio" value="${data}">`;
+                    }
+                },
+                {
+                    data: "IdProximoEvento",
+                    title: `@RsCadastros.PROXIMO_EVENTO <i class="fas fa-info-circle fa-1x" title="@RsCadastros.INFO_EV_RESPOSTAS"></i>`,
+                    render: function (data, type, row, meta) {
+                        return `<select id="iProximoEvento${meta.row}" name="${nomeLista}[${meta.row}].IdProximoEvento" class="form-control ProximoEvento obrigatorio" value="${TrataNulo(data)}"><option>Selecione</option></select>`;
+                    }
+                },
+                {
+                    data: "Adicionar", title: "",
+                    render: function (data, type, row, meta) {
+                        return '<a class="btnaddResposta" href="#!" id_anexo="' + row.Id + '" id="btnExcluir" onclick="addResposta()"><i class="fas fa-plus-square" style="font-size:16px;padding-right:2px;"></i></a>';
+                    }
+                },
+
+            ]
+
+        });
+
+    },
+                TableManageButtonsRespostas = function () {
+                    "use strict";
+                    return {
+                        init: function () {
+                            handleDataTableButtonsRespostas();
+                        }
+                    }
+                }();
+
+            TableManageButtonsRespostas.init();
+            handleExcluirResposta(); //substituir linha por metodo de excluir resposta
+
+    function handleExcluirResposta() {
+        $(".btnExcluirResposta").unbind('click');
+        $(".btnExcluirResposta").click(function (e) {
+            e.preventDefault();
+
+            var idResposta = $(this).attr("id_resposta");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idResposta === "undefined") {
+                oDatatableRespostas.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EventoApi/ExcluirResposta?value=")' + idResposta;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableRespostas.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+
+
+            //datatable
+
+            var clicked = false;
+    function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        var erro = false;
+
+        if ($("#iStatusDisparoAutomatico").is(":checked") == true) {
+            if (!$("#iEventoDisparo").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.BOT_EVENTO_AUTOMATICO)", "warning");
+            erro = true;
+          }
+        }
+        if ($("#iCondicaoEvento").is(":checked") == true) {
+            if (!$("#iEventoVerdadeiro").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.RESULTADO_VERDADEIRO_EVENTO)", "warning");
+               erro = true;
+            }
+            if (!$("#iEventoFalso").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.RESULTADO_FALSO_EVENTO)", "warning");
+               erro = true;
+            }
+
+        }
+
+        if ($('#iDescricao').val() == "") {
+            Notificar("@RsBase.ATENCAO_", "Informe a Descrição do Evento!", "warning");
+            erro = true;
+        }
+
+
+        if (ValidaCamposObrigatorios(false)) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+            erro = true;
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+        ShowPageLoading();
+        $('#form').submit();
+    }
+
+
+    function adicionarEvento() {
+
+        var tabela = document.body.querySelector(".tabelaEvento tbody");
+        var clone = document.body.querySelectorAll(".tabelaEvento tr")[1].cloneNode(true);
+        var els = clone.querySelectorAll("input");
+
+        for (let iterator = 0; x < els.length; iterator++) {
+            els[iterator].value = '';
+        }
+
+        tabela.appendChild(clone);
+    }
+
+            let arrayUrl = [];
+    function AdicionaUrl() {
+        var nomeListaAnexos = 'FilesAnexoUrl';
+        var url = $("#iAnexoUrlLink").val();
+
+        try {
+            Testeurl = new URL(url);
+        } catch (_) {
+            Notificar("@RsBase.ATENCAO_", "Adicione uma URL válida!", "warning");
+        }
+
+        if (Testeurl.protocol === "http:" || Testeurl.protocol === "https:") {
+
+            addAnexo(url, '', 'Url');
+            arrayUrl.push(url);
+            $('#modalAnexosLink').modal('hide');
+        } else {
+            Notificar("@RsBase.ATENCAO_", "Adicione uma URL válida!", "warning");
+        }
+
+    }
+
+    function SelecionaArquivo(id, tipoArquivo) {
+
+
+        var files = $('#' + id)[0].files;
+        var fileList = files;
+
+        var numFiles = files.length;
+        var erro = false;
+        var tamanhoSuportado = 5;
+
+        if (tipoArquivo == 'Imagem') {
+            for (var i = 0; i < numFiles; i++) {
+                var tamanhoFiles = files[i].size / 1024 / 1024; // in MB
+                if (tamanhoFiles > tamanhoSuportado) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_ANEXO_IMAGEM)", "warning");
+                    erro = true;
+                    $(".anexarArquivo").val('');
+                } else {
+                    var nomeFiles = files[i].name;
+                    var extensaoArquivo = '.' + nomeFiles.substring(nomeFiles.lastIndexOf('.') + 1);
+                    var extensoesPermitidas = /(.jpeg|.jpg|.gif|.png|.bmp|.tiff)$/i;
+                    if (!extensoesPermitidas.exec(nomeFiles)) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_ANEXO_IMAGEM)", "warning");
+                        erro = true;
+                        $(".anexarArquivo").val('');
+                    } else {
+                        for (var i = 0; i < numFiles; i++) {
+                            addAnexo(nomeFiles, extensaoArquivo, tipoArquivo);
+                            $('#modalAnexosImagem').modal('hide');
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if (tipoArquivo == 'Vídeo') {
+            for (var i = 0; i < numFiles; i++) {
+                var tamanhoFiles = files[i].size / 1024 / 1024; // in MB
+                if (tamanhoFiles > tamanhoSuportado) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_TAMANHO_ARQUIVO)", "warning");
+                    erro = true;
+                    $(".anexarArquivo").val('');
+                } else {
+                    var nomeFiles = files[i].name;
+                    var extensaoArquivo = '.' + nomeFiles.substring(nomeFiles.lastIndexOf('.') + 1);
+                    var extensoesPermitidas = /(.mpeg|.mp4|.quicktime|.webm|.3gpp|.3gpp2|.3gpp-tt|.H261|.H263-1998|.H263-2000|.H264)$/i;
+                    if (!extensoesPermitidas.exec(nomeFiles)) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_ANEXO_VIDEO)", "warning");
+                        erro = true;
+                        $(".anexarArquivo").val('');
+                    } else {
+                        for (var i = 0; i < numFiles; i++) {
+                            addAnexo(nomeFiles, extensaoArquivo, tipoArquivo);
+                            $('#modalAnexosVideo').modal('hide');
+                        }
+                    }
+                }
+            }
+        }
+
+
+        if (tipoArquivo == 'Áudio') {
+
+            for (var i = 0; i < numFiles; i++) {
+                var tamanhoFiles = files[i].size / 1024 / 1024; // in MB
+                if (tamanhoFiles > tamanhoSuportado) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_TAMANHO_ARQUIVO)", "warning");
+                    erro = true;
+                    $(".anexarArquivo").val('');
+                } else {
+                    var nomeFiles = files[i].name;
+                    var extensaoArquivo = '.' + nomeFiles.substring(nomeFiles.lastIndexOf('.') + 1);
+                    var extensoesPermitidas = /(.L24|.mp4|.mpeg|.ogg|.vnd.rn-realaudio|.vnd.wave|.3gpp|.3gpp2|.ac3|.webm|.amr-nb|.amr|.snd|.au)$/i;
+                    if (!extensoesPermitidas.exec(nomeFiles)) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_ANEXO_AUDIO)", "warning");
+                        erro = true;
+                        $(".anexarArquivo").val('');
+                    } else {
+                        for (var i = 0; i < numFiles; i++) {
+                            addAnexo(nomeFiles, extensaoArquivo, tipoArquivo);
+                            $('#modalAnexosAudio').modal('hide');
+                        }
+                    }
+                }
+            }
+        }
+
+        if (tipoArquivo == 'Arquivo') {
+            for (var i = 0; i < numFiles; i++) {
+                var tamanhoFiles = files[i].size / 1024 / 1024; // in MB
+                if (tamanhoFiles > tamanhoSuportado) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_TAMANHO_ARQUIVO)", "warning");
+                    erro = true;
+                    $(".anexarArquivo").val('');
+                } else {
+                    var nomeFiles = files[i].name;
+                    var extensaoArquivo = '.' + nomeFiles.substring(nomeFiles.lastIndexOf('.') + 1);
+                    var extensoesPermitidas = /(.vcard|.pdf|.directory|.calendar|.richtext|.rtf|.x-vcard)$/i;
+                    if (!extensoesPermitidas.exec(nomeFiles)) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.BOT_ANEXO_ARQUIVO)", "warning");
+                        erro = true;
+                        $(".anexarArquivo").val('');
+                    } else {
+                        for (var i = 0; i < numFiles; i++) {
+                            addAnexo(nomeFiles, extensaoArquivo, tipoArquivo);
+                            $('#modalAnexosArquivo').modal('hide');
+                        }
+                    }
+                }
+            }
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        //ShowPageLoading();
+        //$('#form').submit();
+    }
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Evento", FormMethod.Post, htmlAttributes: new { enctype = "multipart/form-data", @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(m => m.Id)
+    @Html.HiddenFor(m => m.IdBot)
+
+    <div style="padding:10px">
+
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-auto mr-auto">
+                        <h4 class="title-page"><i class="fas fa-comment-dots"></i> @ViewBag.Title: @Request.Params["DescricaoBot"]</h4>
+                        <nav aria-label="breadcrumb" class="mt-25">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Bot")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINELBOT</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao_Bot", new { IdBot = Request.Params["IdBot"], DescricaoBot = Request.Params["DescricaoBot"] })" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACAO_BOT</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Html.Raw(Url.Action("Index", "Evento", new { IdBot = Request.Params["IdBot"], DescricaoBot = Request.Params["DescricaoBot"] }))" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.BOT_EVENTO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@RsCadastros.CADASTRO_EVENTO</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+                <div class="card div-card-accord">
+                    <div class="title-card" id="heading-1">
+
+                    </div>
+                    <div class="card-body body-card-accord">
+
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+
+                                    <label for="iDescricao">@RsCadastros.DESCRICAO_EVENTO:</label>
+                                    @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @required = true })
+                                    @Html.ValidationMessageFor(m => m.Descricao, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iStatusEventoInicial">@RsCadastros.STATUS_EVENTO_INICIAL?</label><br />
+                                    @Html.CheckBoxFor(m => m.Inicial, new { @class = "form-control", @id = "iStatusEventoInicial", @name = " iStatusEventoIniial", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iStatusDisparoAutomatico">@RsCadastros.STATUS_EVENTO_DISPARO_AUTOMATICO?</label><br />
+                                    @Html.CheckBoxFor(m => m.Disparo, new { @class = "form-control", @id = "iStatusDisparoAutomatico", @name = " iStatusDisparoAutomatico", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                            <div id="divEventoDisparo" class="divEventoDisparo col-sm-2" style="display: none">
+                                <label for="iEventoDisparo">@RsCadastros.BOT_EVENTO_AUTOMATICO:</label><br />
+                                <select id="iEventoDisparo" name="AutoProximoEvento" class="EventoDisparo">
+                                </select>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iStatusEvento">@RsCadastros.STATUS_EVENTO:</label><br />
+                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatusEvento", @name = " iStatusEvento", @data_toggle = "toggle", @data_on = RsBase.ATIVAR, @data_off = RsBase.INATIVAR, @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iTextoEnviarEvento">@RsCadastros.TEXTO_ENVIAR_EVENTO:</label>
+                                    @Html.TextAreaFor(m => m.TextoEnviado, new { @class = "form-control", @id = "iTextoEnviarEvento", @maxlength = "600", @autocomplete = "off", @required = true })
+                                    @Html.ValidationMessageFor(m => m.TextoEnviado, "", new { @class = "text-danger" })
+                                </div>
+                                @*<div class="form-group divArmazenamento" id="divArmazenamento">
+                                        <label for="iEventoArmazenamento">@RsCadastros.EV_CAMPO</label>
+                                        @Html.EnumDropDownListFor(m => m.EventoArmazenamento, RsBase.SELECIONE, new { @class = "form-control", @name = "iEventoArmazenamento", @id = "iEventoArmazenamento", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.EventoArmazenamento, "", new { @class = "text-danger" })
+                                    </div>*@
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iVariaveisDisponiveisEvento">@RsCadastros.VARIAVEIS_DISPONIVEIS_EVENTO:</label>
+                                    @Html.TextAreaFor(m => m.VariaveisDisponiveis, new { @class = "form-control", @id = "iVariaveisDisponiveisEvento", @autocomplete = "off", @disabled = true })
+                                    @Html.ValidationMessageFor(m => m.VariaveisDisponiveis, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                        </div>
+
+                        @*<div><p></p></div>*@
+                        <div class="row mb-3">
+                            <div class="col-sm-4">
+                                <label for="iImagemEvento">@RsCadastros.INSERIR_ITENS_EVENTO:</label>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!--IMAGEM ANEXAR-->
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for='idAnexoImagem'>
+                                        <div class="btn-link" data-toggle="modal" data-placement="left" data-target="#modalAnexosImagem" title="Imagem" style="text-align-last: center; background-color: #fcf200; border-radius: 10px; margin-left: 10px; width: 66px; height: 66px; display: flex; justify-content: center; align-items: center;">
+                                            <a href="#"><i class="fas fa-image fa-2x"></i></a>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <!--VÍDEO ANEXAR-->
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for='idAnexoVideo'>
+                                        <div class="btn-link" data-toggle="modal" data-placement="left" data-target="#modalAnexosVideo" title="Vídeo" style="text-align-last: center; background-color: #b1e20b; border-radius: 10px; margin-left: 10px; width: 66px; height: 66px; display: flex; justify-content: center; align-items: center;">
+                                            <a href="#"><i class="fas fa-video fa-2x"></i></a>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <!--ÁUDIO ANEXAR-->
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for='idAnexoAudio'>
+                                        <div class="btn-link" data-toggle="modal" data-placement="left" data-target="#modalAnexosAudio" title="Áudio" style="text-align-last: center; background-color: #ffadc9; border-radius: 10px; margin-left: 10px; width: 66px; height: 66px; display: flex; justify-content: center; align-items: center;">
+                                            <a href="#"><i class="fas fa-microphone fa-2x"></i></a>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <!--ARQUIVO ANEXAR-->
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for='idAnexoArquivo'>
+                                        <div class="btn-link" data-toggle="modal" data-placement="left" data-target="#modalAnexosArquivo" title="Arquivo" style="text-align-last: center; background-color: #9ad9ea; border-radius: 10px; margin-left: 10px; width: 66px; height: 66px; display: flex; justify-content: center; align-items: center;">
+                                            <a href="#"><i class="fas fa-file-alt fa-2x"></i></a>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <!--ARQUIVO ANEXAR-->
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for='idAnexoLink'>
+                                        <div class="btn-link" data-toggle="modal" data-placement="left" data-target="#modalAnexosLink" title="Link" style="text-align-last: center; background-color: #7e7e7b; border-radius: 10px; margin-left: 10px; width: 66px; height: 66px; display: flex; justify-content: center; align-items: center;">
+                                            <a href="#"><i class="fas fa-link fa-2x"></i></a>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-1">
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group" style="">
+                                    @Html.CheckBoxFor(model => model.AtivarAcao, new { @checked = "checked", @id = "iAtivarAcao" })
+                                    <label for="iAtivarAcao">@RsCadastros.ATIVAR_ACAO_EVENTO?</label>
+                                    <br />
+                                    <small>@RsCadastros.AVISO_OPCAO_EVENTO</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <hr size="10" width="auto">
+                                    <label for="iItensInseridos"><b>@RsCadastros.ITENS_INSERIDOS_EVENTO:</b></label>
+                                </div>
+                                <div id="divTable">
+                                    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group divAcaoExecutada" id="divAcaoExecutada">
+                                    <label for="iAcaoExecutada">@RsCadastros.ACAO_EXECUTADA_EVENTO</label>
+                                    @Html.DropDownListFor(m => m.AcaoExecutada, new SelectList(listaOrdenada, "Id", "Text", Model.AcaoExecutada), new { @class = "form-control", @name = "iAcaoExecutada", @id = "iAcaoExecutada", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.AcaoExecutada, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="form-group divPesquisa" id="divPesquisa" style="display: none">
+                                    <label for="iPesquisa">@RsCadastros.PESQUISA_SATISFACAO:</label>
+                                    <br />
+                                    <select name="PesquisaSatisfacao" class="PesquisaSatisfacao" id="iPesquisa">
+                                    </select>
+                                </div>
+
+                                <div class="form-group divSetorAtendimento" id="divSetorAtendimento" style="display: none">
+                                    <label for="iSetorAtendimento">@RsCadastros.SETOR:</label>
+                                    <br />
+                                    <select name="SetorAtendimento" class="SetorAtendimento" id="iSetorAtendimento">
+                                    </select>
+                                </div>
+
+                                <div class="form-group divArmazenamento" id="divArmazenamento" style="display: none">
+                                    <label for="iEventoArmazenamento">@RsCadastros.CAMPO_CONSULTADO_EVENTO:</label>
+                                    @Html.DropDownListFor(m => m.EventoArmazenamento, new SelectList(listaOrdenadaArmazenamento, "Id", "Text", Model.EventoArmazenamento), new { @class = "form-control", @name = "iEventoArmazenamento", @id = "iEventoArmazenamento", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.EventoArmazenamento, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="form-group" id="divCondicaoEvento">
+                                    <label for="iCondicaoEvento">@RsCadastros.HABILITAR_CONDICAO_EVENTO:</label><br />
+                                    @Html.CheckBoxFor(m => m.CondicaoEvento, new { @class = "form-control", @id = "iCondicaoEvento", @name = " iCondicaoEvento", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+
+                                <div id="divAcaoVerdadeiro" class="form-group divAcaoVerdadeiro">
+                                    <label for="iEventoVerdadeiro">@RsCadastros.RESULTADO_VERDADEIRO_EVENTO:</label><br />
+                                    <div class="input-group">
+                                        @Html.DropDownListFor(model => model.EventoVerdadeiro, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEventoVerdadeiro" })
+                                        @Html.ValidationMessageFor(model => model.EventoVerdadeiro, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div id="divAcaoFalso" class="form-group divAcaoFalso">
+                                    <label for="iEventoFalso">@RsCadastros.RESULTADO_FALSO_EVENTO:</label><br />
+                                    <select id="iEventoFalso" name="EventoFalso" class="EventoFalso">
+                                    </select>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <hr size="10" width="auto">
+                            <label for="iItensInseridos"><b>@RsCadastros.RESPOSTA_EVENTO:</b></label>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <a class="btnAdicionarEvento" href="#!" id="adicionarEvento" onclick="addResposta()"><i class="fas fa-plus-square" style="font-size:16px; padding-right:2px;"></i></a>
+                                    <div id="divTable">
+                                        <table class="table table-hover nowrap" id="datatableRespostas" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <a href="@Url.Action("Index", "Evento", new { IdBot = Request.Params["IdBot"], DescricaoBot = Request.Params["DescricaoBot"] })" class="float-cancel">
+                <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                    <i class="fas fa-times fa-2x"></i>
+                </div>
+            </a>
+
+            <a href="#" class="float-save" onclick="return ValidaSubmit();">
+                <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                    <i class="fas fa-save fa-2x"></i>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div id="anexo"></div>
+
+    <!-- MODAL ANEXAR IMAGEM -->
+    <div class="modal fade" id="modalAnexosImagem" tabindex="-1" role="dialog" aria-labelledby="modalAnexosImagemLabel" aria-hidden="false">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAnexosImagemLabel">@RsCadastros.BOT_ANEXO_IMAGEM</h5>
+
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="file" id="iAnexoImagem" name="FilesAnexoImagem" class="anexarArquivo" multiple />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" onclick="SelecionaArquivo('iAnexoImagem', 'Imagem')">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL ANEXAR VÍDEOS -->
+    <div class="modal fade" id="modalAnexosVideo" tabindex="-1" role="dialog" aria-labelledby="modalAnexosVideoLabel" aria-hidden="false">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAnexosVideoLabel">@RsCadastros.BOT_ANEXO_VIDEO</h5>
+
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="file" name="FilesAnexoVideo" id="iAnexoVideo" class="anexarArquivo" multiple />
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" onclick="SelecionaArquivo('iAnexoVideo', 'Vídeo')">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL ANEXAR ÁUDIOS -->
+    <div class="modal fade" id="modalAnexosAudio" tabindex="-1" role="dialog" aria-labelledby="modalAnexosAudioLabel" aria-hidden="false">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAnexosAudioLabel">@RsCadastros.BOT_ANEXO_AUDIO</h5>
+
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="file" name="FilesAnexoAudio" id="iAnexoAudio" class="anexarArquivo" multiple />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" onclick="SelecionaArquivo('iAnexoAudio', 'Áudio')">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL ANEXAR ARQUIVO -->
+    <div class="modal fade" id="modalAnexosArquivo" tabindex="-1" role="dialog" aria-labelledby="modalAnexosArquivoLabel" aria-hidden="false">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAnexosArquivoLabel">@RsCadastros.BOT_ANEXO_ARQUIVO</h5>
+
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="file" name="FilesAnexoArquivo" id="iAnexoArquivo" class="anexarArquivo" multiple />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" onclick="SelecionaArquivo('iAnexoArquivo', 'Arquivo')">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODAL LINK -->
+    <div class="modal fade" id="modalAnexosLink" tabindex="-1" role="dialog" aria-labelledby="modalAnexosLink" aria-hidden="false">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalLinkLabel">@RsCadastros.BOT_ANEXO_LINK</h5>
+
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <label for="iAnexoUrlLink">@RsCadastros.URL_SISTEMAS:</label>
+                    <input type="text" id="iAnexoUrlLink" name="FilesAnexoUrl" class="form-control">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" onclick="AdicionaUrl()">Adicionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+}

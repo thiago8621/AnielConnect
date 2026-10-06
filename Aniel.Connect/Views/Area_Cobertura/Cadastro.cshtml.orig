@@ -1,0 +1,396 @@
+﻿@model Aniel.Connect.Models.T5.Area_CoberturaCadastroModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_AREA_COBERTURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+    $(document).ready(function () {
+        AddSelect("iTipo", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboPlanoProdutoAniel", @CONSTANTES.PaginacaoRegistros, null, null,null, "@RsBase.SELECIONE", false);
+
+    });
+
+        var rows_selected = [];
+
+        let odatatable_planoprod = null;
+
+
+
+        function Mapa(id)
+        {
+            var _id = "@Html.Raw(Model.Id)";
+            var url = '@Url.Action("MapaCobertura", "Area_Cobertura",new {id="__id__" })';
+            window.location.href= url.replace('__id__', _id);
+        }
+
+
+        var clicked = false;
+      function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        erro = false;
+
+        if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+        }
+
+
+    function HandleExcluirPlanos() {
+
+        $(".excluiplanoproduto").unbind('click');
+        $(".excluiplanoproduto").click(function (e) {
+            e.preventDefault();
+            var excluir = $(this).attr('excluir');
+            var trLinkButton = $(this).parents('tr');
+
+
+            if (excluir == 0) {
+                odatatable_planoprod.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+            }
+            else {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/DeletePlano?Idplano=")' + excluir;
+
+
+                $.ajax({
+                    url: link,
+                    type: "GET",
+                    dataType: "json",
+
+                })
+                    .done(function (data) {
+                        if (data.ok) {
+                            odatatable_planoprod.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () { })
+                    .always(function () { });
+            }
+        });
+    }
+
+
+
+        let array_planoprodutos = @Html.Raw(Json.Encode(Model.Produtos));
+        var nomePlanoproduto = "Produtos";
+        odatatable_planoprod = $("#datatablePlanoProd").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array_planoprodutos,
+            drawCallback: function () {
+                HandleExcluirPlanos();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                //Primeira Coluna
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta )
+                    {
+                        return '<a href = "#" id="excluiplanoproduto_' + meta.row + '__Id" class="excluiplanoproduto"  excluir="' + row.Id + '">' +
+                               '<i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                               '<input id = "' + nomePlanoproduto + '_' + meta.row + '__Id" name = "' + nomePlanoproduto + '[' + meta.row + '].Id" type = "hidden" value="'+TrataNulo(data) + '">';
+                    }
+                },
+                //Segunda Coluna
+                {
+                    data: "Descricao",
+                    title: "Descricao do Plano/Produto",
+                    render: function (data, type, row, meta)
+                    {
+                        var Data = data + '<input id="' + nomePlanoproduto + '_' + meta.row + '__Descricao" name="' + nomePlanoproduto + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '" >'+
+                                   '</input> ';
+                        return Data;
+                    }
+                },
+                //Terceira Coluna
+                {
+                    data:"Plano_produto",
+                    title:"Cód. Plano/Produto",
+                    render: function (data, type, row, meta)
+                    {
+                        var Data = data + '<input id="' + nomePlanoproduto + '_' + meta.row + '_planoproduto" name="' + nomePlanoproduto + '[' + meta.row +'].Plano_produto" type="hidden" value="'+TrataNulo(data)+'">';
+                        return Data;
+                    }
+                },
+            ]
+        });
+
+
+
+        $("#IAdicionarProduto").click(function () {
+            if (!$("#iProduto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            odatatable_planoprod.row.add({
+                    Id: 0,
+                    Descricao: $("#iProduto option:selected").text(),
+                Plano_produto: $("#iproduto").prop("plano_produto"),
+
+            }).draw(false);
+
+        });
+
+        //function handleExclusao() {
+
+        //    var exclusao = $(".excluiplanoproduto").val();
+        //    var tr = $(".excluiplanoproduto").parents("tr");
+        //    odatatable_planoprod.row.remove({})
+        //}
+
+
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-cogs"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Area_Cobertura")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_AREA_COBERTURA</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+    </div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="cadastro-tab" data-toggle="tab" href="#iTabCadastro" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.CADASTRO</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link " id="planoproduto-tab" data-toggle="tab" href="#iTabPlanoProduto" role="tab" aria-controls="financeiro" aria-selected="false"><i class="fas fa-dollar-sign"></i> @RsCadastros.PLANOS_E_PRODUTOS </a>
+        </li>
+    </ul>
+
+</div>
+<!--./main-->
+@using (Html.BeginForm("Cadastro", "Area_Cobertura", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+<<<<<<< HEAD
+   
+=======
+
+>>>>>>> 5d01f64338eaba4cba966e88301de4a51143bee2
+
+    <div style="padding:10px">
+        @*Criação das Tabs*@
+        <div class="tab-content">
+            @*Tab de Cadastro*@
+            <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iId">@RsCadastros.ID</label>
+                                        @Html.TextBoxFor(model => model.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.DESCRICAO da Área de Cobertura </label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", id = "iDescricao", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+
+                                @*<div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iStatus">@RsCadastros.STATUS</label>
+                                        @Html.EnumDropDownListFor(model => model.Status, RsBase.SELECIONE, new { @class = "form-control", id = "iStatus", autocomplete = "off" })
+                                    </div>
+                                </div>*@
+
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCor">@RsCadastros.COR da Área de Cobertura:</label>
+                                        @Html.TextBoxFor(Model => Model.Cor, new { @type = "color", id = "iCor", @class = "form-control", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Cor, "", new { @class = "text-danger" })
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <button type="button" class="btn btn-primary" onclick="Mapa()">
+                                        <i class="fas fa-map"></i><span>&ensp;</span>
+                                        <span>Desenhar Area</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane " id="iTabPlanoProduto">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.PLANOS_E_PRODUTOS Ofertados</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iProduto">@RsCadastros.PLANO_PRODUTO:</label>
+                                        @Html.DropDownList("iProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iProduto", @class = "form-control", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success btn-add" id="IAdicionarProduto" href="#" title="@RsBase.INCLUIR" onclick=" return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatablePlanoProd" style="width:100%"></table>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+
+
+
+
+}
+@*Button-Float*@
+<a href="@Url.Action("Index", "Area_Cobertura")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data - toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+
+
+
+@*<div class="col-sm-3">
+    <div class="form-group">
+        <label>
+            UF:</ label >
+            <select class="form-control filtro" id="iEstadosBrasil">
+                <option value="" selected> @RsBase.TODOS </ option >
+                <option value="AC"> Acre </option>
+                <option value="AL"> Alagoas </option>
+                <option value="AP"> Amapá </option>
+                <option value="AM"> Amazonas </option>
+                <option value="BA"> Bahia </option>
+                <option value="CE"> Ceará </option>
+                <option value="DF"> Distrito Federal </option>
+                <option value="ES"> Espírito Santo </option>
+                <option value="GO"> Goiás </option>
+                <option value="MA"> Maranhão </option>
+                <option value="MT"> Mato Grosso </option>
+                <option value="MS"> Mato Grosso do Sul </option>
+                <option value="MG"> Minas Gerais </option>
+                <option value="PA"> Pará </option>
+                <option value="PB"> Paraíba </option>
+                <option value="PR"> Paraná </option>
+                <option value="PE"> Pernambuco </option>
+                <option value="PI"> Piauí </option>
+                <option value="RJ"> Rio de Janeiro</option>
+                <option value="RN"> Rio Grande do Norte</option>
+                <option value="RS"> Rio Grande do Sul</option>
+                <option value="RO"> Rondônia </option>
+                <option value="RR"> Roraima </option>
+                <option value="SC"> Santa Catarina</option>
+                <option value="SP"> São Paulo</option>
+                <option value="SE"> Sergipe</option>
+                <option value="TO"> Tocantins </option>
+            </select>
+    </div>*@
+

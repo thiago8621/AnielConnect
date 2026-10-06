@@ -1,0 +1,455 @@
+﻿@model Aniel.Connect.Models.Habilitar_AreaCadastroModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.PONTO_PARTIDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion,"~/bundles/jsDataTableSimples")
+
+    @if (ViewBag.Sucesso == true)
+    {
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+        </script>
+    }
+
+<script>
+
+        $(document).ready(function () {
+
+            if ($("#iGrupoArea").val()) {
+
+                $("#iGrupoArea").trigger('change');
+            }
+        });
+
+        $('#iTodas_Localidades').change(function () {
+
+            if ($('#iTodas_Localidades').is(":checked")) {
+                $('#iLocalidade').empty();
+                $('#iLocalidade').addClass("readonly");
+            }
+            else {
+
+                $('#iLocalidade').removeClass("readonly");
+                $('#iArea').trigger("change");
+            }
+
+        });
+
+
+        $('#iGrupoArea').change(function () {
+
+           var grupo_area = $('#iGrupoArea option:selected').val();
+           var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea').empty();
+            $('#iLocalidade').empty();
+
+            $.ajax({
+                url: enderecoApi,
+            type: 'GET',
+            dataType: 'json'
+
+            })
+            .done(function (data) {
+
+                $('#iArea').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+
+                    $('#iArea').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+                var grupo_area = $('#iGrupoArea option:selected').val();
+                var area = $('#iArea option:selected').val();
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+                $('#iLocalidade').empty();
+
+                $.getJSON(enderecoApi, function (data) {
+                    $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                        $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+                });
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) { console.log(ex); }
+
+            });
+
+        });
+
+
+        $('#iArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var area = $('#iArea option:selected').val();
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+            $('#iLocalidade').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+                $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+                    $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+            });
+
+        });
+
+
+        var ufs = @(Html.GetArrayEnum<UF>());
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Areas));
+
+            var nome_lista = "Areas";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                pageLength: 5000,
+                ordering: false,
+                columns: [
+                    {
+                        data: "Id",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id +'"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Escritorio" name="' + nome_lista + '[' + meta.row + '].Cod_Escritorio" type="hidden" value="' + TrataNulo(row.Cod_Escritorio) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Area" name="' + nome_lista + '[' + meta.row + '].Cod_Area" type="hidden" value="' + TrataNulo(row.Cod_Area) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Localidade" name="' + nome_lista + '[' + meta.row + '].Cod_Localidade" type="hidden" value="' + TrataNulo(row.Cod_Localidade) + '">';
+                        }
+                    },
+                    {
+                        data: "GrupoAreaStr",
+                        orderable: false,
+                        title: "@RsCadastros.GRUPO_AREA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__GrupoAreaStr" name="' + nome_lista + '[' + meta.row + '].GrupoAreaStr" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    },
+                    {
+                        data: "AreaStr",
+                        orderable: false,
+                        title: "@RsCadastros.AREA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__AreaStr" name="' + nome_lista + '[' + meta.row + '].AreaStr" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    },
+                    {
+                        data: "LocalidadeStr",
+                        orderable: false,
+                        title: "@RsCadastros.LOCALIDADE",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                var valor = row.Todas_Localidades == 1 ? "@RsBase.TODAS" : data;
+
+                                data = valor + ' <input id="' + nome_lista + '_' + meta.row + '__LocalidadeStr" name="' + nome_lista + '[' + meta.row + '].LocalidadeStr" type="hidden" value="' + TrataNulo(data) + '">' +
+                                               ' <input id="' + nome_lista + '_' + meta.row + '__Todas_Localidades" name="' + nome_lista + '[' + meta.row + '].Todas_Localidades" type="hidden" value="' + TrataNulo(row.Todas_Localidades) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    },
+                    {
+                        data: "Nivel",
+                        orderable: false,
+                        title: "Nivel",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Nivel" name="' + nome_lista + '[' + meta.row + '].Nivel" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        width: 380
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EquipeLocalidadeapi/ExcluirGridEquipeLocalidade?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+
+            handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+                if (!$("#iTodas_Localidades").is(":checked")) {
+                    $("#iLocalidade").addClass("obrigatorio");
+                }
+                else {
+                    $("#iLocalidade").removeClass("obrigatorio");
+                }
+
+                if (ValidaCamposObrigatorios(false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                if ($("#iTodas_Localidades").is(":checked")) {
+
+                    for (var i = 0; i < oDatatable.rows().data().length; i++) {
+                        if (oDatatable.rows().data()[i].Cod_Escritorio == $("#iGrupoArea").val() &&
+                            oDatatable.rows().data()[i].Cod_Area == $("#iArea").val()) {
+
+                            oDatatable.row(oDatatable.rows().data()[i]).remove().draw(false);
+                        }
+                    }
+
+                }
+
+                for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                    if (oDatatable.rows().data()[i].Cod_Escritorio == $("#iGrupoArea").val() &&
+                        oDatatable.rows().data()[i].Cod_Area == $("#iArea").val() &&
+                        oDatatable.rows().data()[i].Cod_Localidade == $("#iLocalidade").val()) {
+
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.LOCALIDADE)", "warning");
+                        erro = true;
+                        break;
+                    }
+
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add({
+                    Cod_Escritorio: $("#iGrupoArea option:selected").val(),
+                    Cod_Area: $("#iArea option:selected").val(),
+                    Cod_Localidade: ($("#iLocalidade option:selected").val() == undefined ? null : $("#iLocalidade option:selected").val()),
+                    Todas_Localidades: $("#iTodas_Localidades").is(":checked"),
+                    GrupoAreaStr: $("#iGrupoArea option:selected").text(),
+                    AreaStr: $("#iArea option:selected").text(),
+                    LocalidadeStr: $("#iLocalidade option:selected").text(),
+                    Nivel: $("#iNivel option:selected").val(),
+                    Id: 0
+                }).draw(false);
+
+
+                $("#iGrupoArea").val(null);
+                $("#iArea").val(null);
+                $("#iLocalidade").val(null);
+                $("#iTodas_Localidades").prop("checked", false);
+                $('#iTodas_Localidades').trigger("change");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+    var clicked = false;
+    function ValidaSubmit()
+    {
+
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+        ShowPageLoading();
+
+        $('#form').submit();
+    }
+
+
+</script>
+}
+
+
+@using (Html.BeginForm("Adicionar_Area", "Equipe", FormMethod.Post, htmlAttributes: new { enctype = "multipart/form-data", @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.Ids)
+
+    <div class="row">
+
+        <div id="accordion" class="col-sm-6">
+
+            <div class="card div-card-accord" style="box-shadow:none;border:none">
+                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                    <div class="card-body" style="border:none !important">
+
+
+                        <div class="row mt-2">
+
+
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iAno">@RsCadastros.GRUPO_AREA:</label>
+                                    @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(ViewBag.GruposArea, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iGrupoArea" })
+
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2">
+
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iAno">@RsCadastros.AREA:</label>
+                                    @Html.DropDownListFor(model => model.Cod_Area, new SelectList(ViewBag.Areas), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iArea" })
+
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iAno">@RsCadastros.LOCALIDADE:</label>
+                                    @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(ViewBag.Localidades), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidade" })
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iAno">Nível:</label>
+                                    @Html.DropDownListFor(model => model.Nivel, new SelectList(new List<Int16> { 1,2,3 }), new { @class = "form-control", @id = "iNivel" })
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row col-sm-12">
+                            <div class="col-sm-12">
+                                <div class="form-group ml-2">
+                                    @Html.CheckBoxFor(m => m.Todas_Localidades, new { @class = "form-check-input", @id = "iTodas_Localidades", @autocomplete = "off" })
+                                    <label for="iTodas_Localidades">@RsFinanceiro.TODAS_LOCALIDADES</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-12 text-center mt-3">
+                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                        </div>
+
+
+                        <div class="row mt-3">
+                            <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+
+    <!--Button Float-->
+    <div class="form-group col-sm-12" style="padding: 15px;padding-top:0px">
+        <div class="text-center">
+            <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+            <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iPesquisar">Salvar</button>
+        </div>
+    </div>
+
+}

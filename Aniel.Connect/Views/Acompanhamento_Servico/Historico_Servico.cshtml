@@ -1,0 +1,442 @@
+﻿@model Aniel.Connect.Models.Historico_ServicoCadastroModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_SERVICO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <!--Usando link para imprimir a página atual-->
+    <script>
+        var array = @Html.Raw(Json.Encode(Model.Historico_Servico));
+        var nome_lista = "Historico_Servico"//Nome_utilizado para enganar o razor
+
+
+
+        //"Blfrtip"
+        var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            scrollX: true,
+            paging: false,
+            ordering: false,
+            drawCallback: () => {
+                ResizeTable('divTable');
+            },
+            buttons: buttonsDataTableRelatorio({
+                title: "@Html.Raw(ViewBag.Title)",
+                printcolumns:[0,1,2,3,4,5,6,7]
+            }),
+            columns: [
+                {
+                    data: "Usuario",
+                    title: "@RsCadastros.USUARIO"
+                },
+                {
+                    data: "DataHora",
+                    title: "@RsCadastros.DATAHORA",
+                    render: (data, type, full, meta) => {
+
+                        if (full.DataHora_Servidor) {
+                            return ` ${data}
+                                <a tabindex="0" class="btn m-0 p-0" role="button" data-toggle="popover" data-html="true" data-placement="right" data-trigger="focus"
+                                                           data-content='
+
+                                                            <b>Informação Registrada em: ${full.DataHora_Servidor}</b>
+
+                                                            <span class="text-muted">* data registrada no servidor</span>
+                                                        '>
+                                                    <i class="fas fa-info-circle ml-2 mt-1" style="color:#486B91;font-size: 1em;"></i>
+                                </a>`;
+                        }
+
+                        else
+                            return data;
+                    }
+                },
+                {
+                    data: "TipoMudanca",
+                    title: "@RsCadastros.ALTERACAO"
+                },
+                {
+                    data: "Valor_Atual",
+                    title: "Valor Atualizado",
+                    render: (data, type, full, meta) => {
+                        if (full.TipoMudanca == "Fluxo - Criação Aut. Serviço") {
+                            return `<a class="novaOs" data-numObra="${data}" href="#">${data}</a>`;
+                        }
+                        else
+                            return data;
+                    }
+                },
+                {
+                    data: "Valor_Alterado",
+                    title: "@RsCadastros.VALOR_ANT"
+                },
+                {
+                    data: "Latitude",
+                    title: "@RsCadastros.LATITUDE"
+                },
+                {
+                    data: "Longitude",
+                    title: "@RsCadastros.LONGITUDE"
+                },
+                {
+                    data: "Obs_Cobranca_Status",
+                    title: "@RsCadastros.OBSERVACAO",
+                    render: (data, type, full, meta) => {
+
+                            if (full.TipoMudanca == "Baixou OS")
+                            {
+                                return `<div class="observacaoTecnico" data-numobra="${full.NumObra}" style="cursor:pointer"><p class=""><b></b> <i class="fas fa-envelope"></i></p></div>`;
+                            }
+                            else if (full.Valor_Atual == "@RsCadastros.ATENDIMENTO_PARALIZADO")
+                            {
+                                return `<div class="observacaoPausa" data-numobra="${full.NumObra}" data-indexStatus="${full.IndexStatus}" style="cursor:pointer"><p class=""><b></b> <i class="fas fa-envelope"></i></p></div>`;
+                            }
+                            if (full.TipoMudanca.includes("Reagendamento")) {
+                                return `<div class="observacaoMotivoReagenda" data-numobra="${full.NumObra}" data-codmotivoreagendamento="${full.CodMotivoReagendamento}" data-obsmotivoreagendamento="${full.ObsMotivoReagendamento}"style="cursor:pointer"><p class=""><b></b> <i class="fas fa-envelope"></i></p></div>`;
+                            }
+                            else if (!(!data)) {
+
+                                return `<div class="observacao" data-observacao="${data}" style="cursor:pointer"><p class=""><b></b> <i class="fas fa-envelope"></i></p></div>`;
+                            }
+
+                        else {
+                            return '-';
+                        }
+                    }
+
+                }
+
+
+            ]
+        });
+        ResizeTable('divTable');
+        $('.observacaoTecnico').click(function () {
+            const num_obra = $(this).attr("data-numobra");
+            const numdoc = "@Html.Raw(Model.Numero_Doc)";
+            const projeto = "@Html.Raw(Model.Projeto)";
+            const codct = "@Html.Raw(Model.CodCt)";
+
+            const link = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_ServicoApi/GetObservacaoTestePorSeq")' + `?CodCt=${codct}&Projeto=${projeto}&Num_Obra=${num_obra}&Num_Doc=${numdoc}`;
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                }
+            })
+                .done(async function (data) {
+                    if (data.ok) {
+
+                        let ObservacaoTecnico = "";
+                        let result = await parent.Swal.fire({
+                            title: '@Html.Raw(RsCadastros.OBSERVACAO_TECNICO)',
+                            icon: 'info',
+                            html: `<textarea readonly data-numobra=${num_obra} id="iObservacaoTecnico" class="form-control mb-2" rows="5" cols="33" >${data.objeto}</textarea>`,
+                            showCloseButton: true,
+                            confirmButtonText:'Salvar',
+                            preConfirm: () => {
+                                ObservacaoTecnico = parent.$('#iObservacaoTecnico').val();
+                                $.ajax({
+                                    url: '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_ServicoApi/AlterarObservacaoTecnico")',
+                                    type: 'POST',
+                                    data: {
+                                        num_obra: num_obra,
+                                        projeto: projeto,
+                                        num_doc: numdoc,
+                                        codct: codct,
+                                        observacao_teste: ObservacaoTecnico
+                                    },
+                                    dataType: 'json',
+                                    beforeSend: function () {
+                                        ShowPageLoading();
+                                    },
+                                    complete: function () {
+                                        HidePageLoading();
+                                    }
+                                }).done(function (data2) {
+                                    if (data2.ok) {
+                                        //alert('sucesso');
+                                    }
+                                    else {
+                                        Notificar("@RsBase.ATENCAO_", data2.mensagem, "warning");
+                                    }
+                                });
+                            }
+                        });
+
+
+
+
+                        //$('#modal-observacao').modal('show');
+                        //$("#iObservacaoTecnico").val(data.objeto);
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+        });
+
+        $('.novaOs').click(function () {
+			const numdoc = "@Html.Raw(Model.Numero_Doc)";
+            const projeto = "@Html.Raw(Model.Projeto)";
+            const codct = "@Html.Raw(Model.CodCt)";
+            let novoNumObra = $(this).attr("data-numObra");
+            parent.AddAba("@Url.Action("Index", "Acompanhamento_Servico")" + `?CodCt=${codct}&Projeto=${projeto}&Num_Obra=${novoNumObra}&Num_Doc=${numdoc}`);
+
+
+
+
+
+        });
+
+        $('.observacao').click(function () {
+            const observacao = $(this).attr("data-observacao");
+            parent.Swal.fire({
+                title: '@Html.Raw(RsCadastros.OBSERVACAO)',
+                icon: 'info',
+                html: `<textarea readonly id="iObservacao" class="form-control mb-2" rows="5" cols="33" >${observacao}</textarea>`,
+                showCloseButton: true,
+                confirmButtonText: 'Ok'
+            });
+        })
+
+        $('.observacaoMotivoReagenda').click(function () {
+            const codigo = $(this).attr("data-codmotivoreagendamento");
+            const observacao = $(this).attr("data-obsmotivoreagendamento");
+
+            if (observacao != null && observacao != undefined && observacao != "") {
+                parent.Swal.fire({
+                    title: '@Html.Raw(RsCadastros.OBSERVACAO)',
+                    icon: 'info',
+                    html: `<textarea readonly id="iDescricaoMotivo" class="form-control mb-2" rows="5" cols="33" style='resize: none;'>Outros: ${observacao}</textarea>`,
+                    showCloseButton: true,
+                    confirmButtonText: 'Ok'
+                });
+            } else {
+                if (codigo != "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_ServicoApi/GetObjMotivoReagendamento")' + `?cod_motivo=${codigo}`;
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+                        beforeSend: function () {
+                            ShowPageLoading();
+                        },
+                        complete: function () {
+                            HidePageLoading();
+                        }
+                    }).done(function (data) {
+                        if (data.ok) {
+                            var obj = data.objeto;
+
+                            parent.Swal.fire({
+                                title: '@Html.Raw(RsCadastros.OBSERVACAO)',
+                                icon: 'info',
+                                html: `<textarea readonly id="iDescricaoMotivo" class="form-control mb-2" rows="5" cols="33" style='resize: none;'>${obj.descricao}</textarea>`,
+                                showCloseButton: true,
+                                confirmButtonText: 'Ok'
+                            });
+                        }
+                    });
+                } else {
+                    Notificar("@RsBase.ATENCAO_", "Não existe motivo para esse histórico!!", 'warning');
+                }
+            }
+        });
+
+        ResizeTable('divTable');
+        $('.observacaoPausa').click(function () {
+            const num_obra = $(this).attr("data-numobra");
+            const numdoc = "@Html.Raw(Model.Numero_Doc)";
+            const projeto = "@Html.Raw(Model.Projeto)";
+            const codct = "@Html.Raw(Model.CodCt)";
+            const indexStatus = $(this).attr("data-indexStatus");
+
+            const link = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_ServicoApi/GetObservacaoPausa")' + `?CodCt=${codct}&Projeto=${projeto}&Num_Obra=${num_obra}&Num_Doc=${numdoc}&Index=${indexStatus}`;
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                }
+
+            })
+
+
+             .done(async function (data3) {
+                    if (data3.ok) {
+
+                        let ObservacaoPausa = "";
+                        let result = await parent.Swal.fire({
+                            title: '@Html.Raw(RsCadastros.MOTIVO_PARALIZACAO)',
+                            icon: 'info',
+                            html: `<textarea readonly data-numobra=${num_obra} id="iObservacaoPausa" class="form-control mb-2" rows="5" cols="35" >${data3.objeto}</textarea>`,
+                            showCloseButton: true,
+
+                        });
+
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+        });
+
+    </script>
+}
+
+@section styles
+{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+    <style>
+        .dash-card {
+            min-width: 265px !important;
+        }
+
+        .card-title {
+            font-size: x-large;
+        }
+    </style>
+}
+@using (Html.BeginForm("Historico_Servico", "Acompanhamento_Servico", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+
+    @Html.HiddenFor(p => p.CodCt)
+    @Html.HiddenFor(p => p.Projeto)
+    @Html.HiddenFor(p => p.Num_Obra)
+    @Html.HiddenFor(p => p.Numero_Doc)
+
+    <div id="divTitle" class="container-fluid pl-0">
+
+
+        <div class="row justify-content-center">
+            <div class="col-sm-12 col-md-3 col-lg-3 col-xl-2 pl-0">
+                <div class="card shadow dash-card-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="text-left card-title col">
+                                <span>@(Model.TempoRealDeslocamento)h</span>
+                            </div>
+                            <div class="text-right card-title col">
+                                <i class="far fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="text-center dash-title">@RsCadastros.TEMPO_REAL_DESLOCAMENTO</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-12 col-md-3 col-lg-3 col-xl-2 pl-0">
+                <div class="card shadow dash-card-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="text-left card-title col">
+                                <span>@(Model.TempoAtendimento)h</span>
+                            </div>
+                            <div class="text-right card-title col">
+                                <i class="far fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="text-center dash-title">@RsCadastros.TEMPO_ATENDIMENTO</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-sm-12 col-md-3 col-lg-3 col-xl-2 pl-0">
+                <div class="card shadow dash-card-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="text-left card-title col">
+                                <span>@(Model.TempoTotalParalisacoes)h</span>
+                            </div>
+                            <div class="text-right card-title col">
+                                <i class="far fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="text-center dash-title">@RsCadastros.TEMPO_TOTAL_PARALISACOES</div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="col-sm-12 col-md-4 col-lg-4 col-xl-2 pl-0">
+                <div class="card shadow dash-card-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="text-left card-title col">
+                                <span>@(Model.TempoTotalAtendimento)h</span>
+                            </div>
+                            <div class="text-right card-title col">
+                                <i class="far fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="text-center dash-title">@RsCadastros.TEMPO_TOTAL_ATENDIMENTO</div>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+            <div class="col-sm-12 col-md-4 col-lg-4 col-xl-2 pl-0">
+                <div class="card shadow dash-card-2">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="text-left card-title col-9">
+                                <span>R$ @(Model.CustoTotalServico)</span>
+                            </div>
+                            <div class="text-right card-title col">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                        <div class="text-center dash-title">@RsCadastros.CUSTO_TOTAL_SERVICO</div>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+        </div>
+
+    </div>
+    <div class="d-flex flex-row-reverse bd-highlight">
+        <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+        </button>
+
+        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+            <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+        </div>
+    </div>
+    <div id="divTable">
+        <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+    </div>
+}
+
+

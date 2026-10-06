@@ -1,0 +1,1563 @@
+﻿@model  Aniel.Connect.Models.Painel_RoteirizacaoModel
+@using Resources
+@using Microsoft.AspNet.Identity
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_ROTEIRIZACAO;
+    ViewBag.Sessao = RsCadastros.ROTEIRIZACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+    <style>
+        .swal2-overflow {
+            overflow-x: visible;
+            overflow-y: visible;
+        }
+    </style>
+
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        let [rows_selected, rowsSelectedTecnicos] = [[],[]];        
+        let global_iTotal = 0;
+        var [oDatatable, oDatatableEquipe, oDatatableLog] = [null, null, null];        
+
+        $("#iNumeroMaximoServicos").keyup(function () {
+            var NumeroMaximo = $("#iNumeroMaximoServicos").val()
+            if (NumeroMaximo) {
+                if (NumeroMaximo[0] == "0")
+                    $("#iNumeroMaximoServicos").val("");
+            }
+        });
+
+        let HandleNaturezaServico = function () {
+            $('#iNaturezaServico').on('select2:select select2:unselecting', function (e) {
+                let alturaSelect2 = $("#iNaturezaServico + .select2-container .select2-selection__rendered").height();
+                $("#iRowMultipleNatureza").height(alturaSelect2 + 30);
+
+            });
+        };
+
+        function rowsSelectedMessage() {
+            if (rows_selected.length === global_iTotal) {
+                $("#dtLegendRecordsTotal").html("Todos os <strong> " + global_iTotal + " </strong> registros selecionados.");
+            }
+            else {
+                $("#dtLegendRecordsTotal").html(`<a href='#' onclick ='rowsSelectedAddAll()'style='font-size: 14px;' ><strong>${rows_selected.length}</strong> registros selecionados <i class='fas fa-hand-point-right'></i><strong style='font-size: 13px;' > Clique aqui para selecionar todos os ${global_iTotal} registros </strong></a>`);
+            }
+
+            //Confirma a seleção de todos os registros
+            $("#dtLegendRecordsTotal").click(function () {
+                $("#dtLegendRecordsTotal").html("<span style='font-size: 14px;'>Todos os <strong> " + global_iTotal + " </strong> registros selecionados.</span>");
+            });
+        }
+
+        function rowsSelectedAddAll() {
+            oDatatable.page.len(-1);
+
+            $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+            oDatatable.draw();
+        }
+
+
+        function vizualizarMapa() {
+
+            url = "@Url.Action("Mapa_Equipes","Gestao_Equipe")" +  "?Pagina=Rotas";
+            window.location = url;
+            return false;
+
+        }
+
+        function programacaoRoteirizacaoAutomatica() {
+            url = "@Url.Action("Index", "ProgramacaoRoteirizacaoAutomatica")";
+            window.location = url;
+            return false;
+        }
+
+        function SalvarTecnicosRoteirizacao() {
+
+            let link = baseUrl + '/api/Painel_RoteirizacaoApi/SalvarUsuarioTecnicoRoteirizacao';
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    Equipes: rowsSelectedTecnicos,
+                    Usuario: "@User.Identity.GetUserId()"
+                }
+            })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rowsSelectedTecnicos = [];
+                        oDatatableEquipe.draw();
+                        $('#modal-equipe').modal('hide');
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+
+        }
+
+        $('#modal-equipe').on('shown.bs.modal', function () {
+            var table = $('#datatableEquipe').DataTable();
+            table.columns.adjust();
+        });
+
+        function ExibirEquipes() {
+
+            if (oDatatableEquipe == null) {
+                oDatatableEquipe = $("#datatableEquipe").length && $("#datatableEquipe").DataTable({
+                    dom: "frti",
+                    columnDefs: [
+                        {
+                            targets: 0,
+                            searchable: false,
+                            orderable: false,
+                            width: '1%',
+                            className: 'dt-body-center',
+                            render: function (data, type, full, meta) {
+                                return "<input type='checkbox'></input>";
+                            }
+                        },
+                        {
+                            targets: "_all",
+                            width: '1%',
+                        },
+                    ],
+                    order: [[0, 'asc']],
+                    serverSide: true,
+                    deferRender: true,
+                    scrollResize: true,
+                    stateSave: true,
+                    fixedHeader: true,
+                    scrollY: '50vh',
+                    scrollX: true,
+                    initComplete: dataTableInitComplete,
+                    ordering: false,
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/Equipeapi/GetAllSimple',
+                        type: 'POST',
+                        data: function (data) {
+                            data.Filtro = false;
+                            data.Supervisor = $('#iSupervisorFiltroTecnico').val();
+                            data.Monitor = $('#iMonitorFiltroTecnico').val();
+                            data.IdPerfilAgendamentoRoteirizacao = $('#iPerfilAgendamentoFiltroTecnico').val();
+                            data.Departamento = $('#iDepartamentoFiltroTecnico').val();
+                            data.Empresa = $('#iEmpresaFiltroTecnico').val();
+                            data.Filial = $('#iFilialFiltroTecnico').val();
+                            data.TipoPrioridade = $('#iTipo_Prioridade').val();
+                            data.Usuario = "@User.Identity.GetUserId()";
+                        },
+                        error: function (e) {
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+                            return d.data;
+                        }
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                        var str = "@RsCadastros.INFODATATABLE";
+                        if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                        str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+
+                        return "";
+                    },
+                    drawCallback: function () {
+                        rowsSelectedTecnicos = oDatatableEquipe.data().toArray().filter(p => p.configuradoRoteirizacao).map(p => p.equipe);
+                    },
+                    rowCallback: function (row, data, dataIndex) {
+                        if (data.configuradoRoteirizacao)
+                        {
+                            $(row).find('input[type="checkbox"]').prop('checked', true);
+                            $(row).addClass('selected');
+                        }
+                    },
+                    pageLength: 5,
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTable,
+                    columns: [
+                        { title: "<input name='select_all' value='1' type='checkbox'>" },
+                        { data: "equipe", title: "@RsCadastros.CODIGO", ordering: false },
+                        { data: "nome", title: "@RsCadastros.EQUIPE", ordering: false },
+                    ]
+                });
+
+                // Handle click on checkbox
+                $('#datatableEquipe tbody').on('click', 'input[type="checkbox"]', function (e) {
+                    var $row = $(this).closest('tr');
+
+                    // Get row data
+                    var rowId = oDatatableEquipe.row($row).data().equipe;
+
+                    var index = $.inArray(rowId, rowsSelectedTecnicos);
+
+                    // If checkbox is checked and row ID is not in list of selected row IDs
+                    if (this.checked && index === -1) {
+                        rowsSelectedTecnicos.push(rowId);
+
+                        // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                    } else if (!this.checked && index !== -1) {
+                        rowsSelectedTecnicos.splice(index, 1);
+                    }
+
+                    if (this.checked) {
+                        $row.addClass('selected');
+                    } else {
+                        $row.removeClass('selected');
+                    }
+
+                    if ($("input[name='select_all']").prop("checked")) {
+
+                        //Exibe quantidade de linhas selecionadas
+                        rowsSelectedMessage()
+                        $("#dtLegendRecordsTotal").show();
+
+                    } else {
+
+                        //Esconde quantidade de linhas selecionadas
+                        rowsSelectedMessage()
+                        $("#dtLegendRecordsTotal").hide();
+                    }
+
+                    // Prevent click event from propagating to parent
+                    e.stopPropagation();
+                });
+
+                // Handle click on table cells with checkboxes
+                $('#datatableEquipe').on('click', 'tbody td, thead th:first-child', function (e) {
+                    $(this).parent().find('input[type="checkbox"]').trigger('click');
+                });
+
+                // Handle click on "Select all" control
+                $('thead input[name="select_all"]', oDatatableEquipe.table().container()).on('click', function (e) {
+                    if (this.checked) {
+                        $('#datatableEquipe tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+                        //Exibe quantidade de linhas selecionadas
+                        rowsSelectedMessage();
+                        $("#dtLegendRecordsTotal").show();
+
+                    } else {
+                        $('#datatableEquipe tbody input[type="checkbox"]:checked').trigger('click');
+
+                        rowsSelectedMessage();
+                        $("#dtLegendRecordsTotal").hide();
+                    }
+
+                    // Prevent click event from propagating to parent
+                    e.stopPropagation();
+                });
+            }
+            else {
+                oDatatableEquipe.draw();
+                oDatatableEquipe.columns.adjust();
+            }
+        }
+
+        $('#iServ_Agendados').change(function () {
+            if ($("#iServ_Agendados").is(":checked")) {
+                $('#idataAgendados').removeClass("readonly");
+            }
+            else {
+                $('#idataAgendados').addClass("readonly");
+                $("#idataAgendados").val("");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+
+        $("#iServ_SemAgendamento").change(function () {
+            if ($("#iServ_SemAgendamento").is(":checked")) {
+                $('#idataNaoAgendadosIni').removeClass("readonly");
+                $('#idataNaoAgendadosFim').removeClass("readonly");
+            }
+            else {
+                $('#idataNaoAgendadosIni').addClass("readonly");
+                $("#idataNaoAgendadosIni").val("");
+                $('#idataNaoAgendadosFim').addClass("readonly");
+                $("#idataNaoAgendadosFim").val("");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+
+        $('#iServ_SemRoteirizacao').change(function () {
+            if ($("#iServ_SemRoteirizacao").is(":checked")) {
+                $('#idataNaoRoteirizados').removeClass("readonly");
+            }
+            else {
+                $('#idataNaoRoteirizados').addClass("readonly");
+                $("#idataNaoRoteirizados").val("");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+
+        $('#iServ_Paralisados').change(function () {
+            if ($("#iServ_Paralisados").is(":checked")) {
+                $("#idata_ParalisadoIni").removeClass("readonly");
+                $("#idata_ParalisadoFim").removeClass("readonly");
+            }
+            else {
+                $("#idata_ParalisadoIni").val("");
+                $("#idata_ParalisadoFim").val("");
+                $("#idata_ParalisadoIni").addClass("readonly");
+                $("#idata_ParalisadoFim").addClass("readonly");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+        $('#iServ_Nao_Executado').change(function () {
+            if ($("#iServ_Nao_Executado").is(":checked")) {
+                $("#idata_Nao_ExecutadoIni").removeClass("readonly");
+                $("#idata_Nao_ExecutadoFim").removeClass("readonly");
+            }
+            else {
+                $("#idata_Nao_ExecutadoIni").val("");
+                $("#idata_Nao_ExecutadoFim").val("");
+                $("#idata_Nao_ExecutadoIni").addClass("readonly");
+                $("#idata_Nao_ExecutadoFim").addClass("readonly");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+        $('#iServ_Roteirizados').change(function () {
+            if ($("#iServ_Roteirizados").is(":checked")) {
+                $("#iData_RoteirizadosIni").removeClass("readonly");
+                $("#iData_RoteirizadosFim").removeClass("readonly");
+            }
+            else {
+                $("#iData_RoteirizadosIni").val("");
+                $("#iData_RoteirizadosFim").val("");
+                $("#iData_RoteirizadosIni").addClass("readonly");
+                $("#iData_RoteirizadosFim").addClass("readonly");
+            }
+            $(".readonly").attr("tabindex", "-1");
+        });
+        $('#idataAgendados').focusout(ValidaData);
+        $('#idata_ParalisadoIni').focusout(ValidaData);
+        $('#idata_ParalisadoFim').focusout(ValidaData);
+        ValidaPeriodo("idata_ParalisadoIni", "idata_ParalisadoFim", "Período Serviços Paralisados Inválido");
+        $('#idata_Nao_ExecutadoIni').focusout(ValidaData);
+        $('#idata_Nao_ExecutadoFim').focusout(ValidaData);
+        ValidaPeriodo("idata_Nao_ExecutadoIni", "idata_Nao_ExecutadoFim", "Período Serviços não Executados Inválido");
+        $('#iData_RoteirizadosIni').focusout(ValidaData);
+        $('#iData_RoteirizadosFim').focusout(ValidaData);
+        ValidaPeriodo("iData_RoteirizadosIni", "iData_RoteirizadosFim", "Período Serviços Roteirizados Inválido");
+
+        $("#idataAgendados").on("focusout", function () {
+            if (DataMenorHoje($("#idataAgendados").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATA_MENOR_DATAATUAL, RsCadastros.DATA_AGENDAMENTO)", "warning");
+                $("#idataAgendados").val(null);
+            }
+        });
+
+        $("#idata_ParalisadoFim").on("focusout", function () {
+            if (DataMaiorHoje($("#idata_ParalisadoFim").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATA_MAIOR_DATAATUAL, RsCadastros.PERIODO_PARALISADOS)", "warning");
+                $("#idata_ParalisadoFim").val(null);
+            }
+        });
+
+        $("#idata_Nao_ExecutadoFim").on("focusout", function () {
+            if (DataMaiorHoje($("#idata_Nao_ExecutadoFim").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATA_MAIOR_DATAATUAL, RsCadastros.PERIODO_NAO_EXECUTADOS)", "warning");
+                $("#idata_Nao_ExecutadoFim").val(null);
+            }
+        });
+
+        $("#iData_RoteirizadosIni").on("focusout", function () {
+            if (DataMenorHoje($("#iData_RoteirizadosIni").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATA_MENOR_DATAATUAL, RsCadastros.PERIODO_ROTEIRIZADOS)", "warning");
+                $("#iData_RoteirizadosIni").val(null);
+            }
+        });
+
+        var clicked = false;
+        $("#iPesquisar").on("click", function () {
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            var erro = false;
+
+            if ($("#iServ_Agendados").is(":checked")) {
+                if (!$("#idataAgendados").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DATA_AGENDAMENTO)", "warning");
+                    erro = true;
+                }
+            }
+
+            if ($("#iServ_Paralisados").is(":checked") && (!$("#idata_ParalisadoIni").val() || !$("#idata_ParalisadoFim").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO_PARALISADOS)", "warning");
+                erro = true;
+            }
+
+            if ($("#iServ_Nao_Executado").is(":checked") && (!$("#idata_Nao_ExecutadoIni").val() || !$("#idata_Nao_ExecutadoFim").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO_NAO_EXECUTADOS)", "warning");
+                erro = true;
+            }
+
+            if ($("#iServ_Roteirizados").is(":checked") && (!$("#iData_RoteirizadosIni").val() || !$("#iData_RoteirizadosFim").val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO_ROTEIRIZADOS)", "warning");
+                erro = true;
+            }
+
+
+
+            if (!$("#iNumero_Ordem_Servico").val() && !$("#idataAgendados").val() && !$("#iServ_SemRoteirizacao").is(":checked") && !$("#iServ_SemAgendamento").is(":checked") && !$("#iServ_Agendados").is(":checked") && !$("#iServ_Paralisados").is(":checked") &&
+                !$("#iServ_Nao_Executado").is(":checked") && !$("#iServ_Roteirizados").is(":checked")) { //!$("#iCodCt").val() && !$("#iGrupoArea").val() && !$("#idFilial").val() && !$("#idSupervisor").val() && !$("#iMatricula_Id").val() && !$("#iCategoriaCliente").val() && !$("#iNaturezaServico").val() {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.INFORME_FILTRO de data ou numero da ordem de serviço", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            $("#modal-filter").modal('hide');
+            rows_selected = [];
+
+            if (oDatatable) {
+                oDatatable.search($('#txtSearch').val()).draw();
+            }
+            else {
+                TableManageButtons.init();
+            }
+
+            clicked = false;
+
+            return true;
+        });
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+            $("#iNumero_Ordem_Servico").val("");
+            $("#iServ_SemAgendamento").prop("checked", false).change();
+            $("#iServ_Nao_Paralisados").prop("checked", false).change();
+            $("#iServ_SemRoteirizacao").prop("checked", false).change();
+            $("#iServ_Agendados").prop("checked", false).change();
+            $("#idataAgendados").val("");
+
+            $("#iServ_Paralisados").prop("checked", false).change();
+            $("#idata_ParalisadoIni").val("");
+            $("#idata_ParalisadoFim").val("");
+
+            $("#iServ_Nao_Executado").prop("checked", false).change();
+            $("#idata_Nao_ExecutadoIni").val("");
+            $("#idata_Nao_ExecutadoFim").val("");
+
+            $("#iServico_Roteirizados").prop("checked", false).change();
+            $("#iData_RoteirizadosIni").val("");
+            $("#iData_RoteirizadosFim").val("");
+
+            $("#iFilial").val(null).trigger('change');
+            $("#iSupervisor").val(null).trigger('change');
+            $("#iEquipe").val(null).trigger('change');
+
+
+            $("#iCodCt").val(null).trigger('change');
+            $("#iProjeto").val(null).trigger('change');
+            $("#iGrupoArea").val(null).trigger('change');
+            $("#iArea").val(null).trigger('change');
+            $("#iLocalidade").val(null);
+            $("#iCategoriaCliente").val(null).trigger('change');
+            $("#iNaturezaServico").val(null).trigger('change');
+            $("#iTipo_Prioridade").val(null).trigger('change');
+
+            $('#txtSearch').val('');
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("#iRoteirizar,#iSimularRoteirizacao,#iEncaixeRoteirizacao").on("click", function () {
+
+
+            let idElement = $(this).attr("id");
+
+            if (DataMenorHoje($('#idataRoteirizar').val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATA_MAIOR_DATAATUAL, RsCadastros.DATA_A_ROTEIRIZAR)", "warning");
+                Swal.close();
+                return false;
+            }
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                $('input[name="select_all"]').prop('checked', false);
+                return;
+            }
+
+            if ($('#idataRoteirizar').val()) {
+
+                $("#divProgress").show();
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Painel_RoteirizacaoApi/Roteirizar")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        usuario: "@User.Identity.GetUserId()",
+                        objeto: {
+                            ids: rows_selected,
+                            data: $('#idataRoteirizar').val(),
+                            numero_max_atendimento: $('#iNumeroMaximoServicos').val(),
+                            alterar_DataHora_SemAgendamentoAniel: $('#iAlterarAgendamentoDataMaxima').is(':checked'),
+                            simulacao: idElement == "iSimularRoteirizacao" ? true : false,
+                            encaixe: idElement == "iEncaixeRoteirizacao" ? true : false,
+                            equipesConfiguradas: true
+                        }
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Swal.fire(
+                                'Sucesso!',
+                                'Roteirização bem sucedida!',
+                                'success'
+                            );
+
+                            rows_selected = [];
+                            oDatatable.draw();
+                            $('input[name="select_all"]').prop('checked', false);
+                        }
+                        else {
+                            Swal.fire(
+                                '@Html.Raw(RsBase.ATENCAO_)',
+                                data.mensagem,
+                                'warning'
+                            );
+                            rows_selected = [];
+                            oDatatable.draw();
+                            $('input[name="select_all"]').prop('checked', false);
+                        }
+                    }).always(function () {
+
+                        $("#divProgress").hide();
+
+                    });
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DATA_A_ROTEIRIZAR)", "warning");
+            }
+        });
+
+        const HandleEmpresa = function () {
+            $('#iEmpresaFiltroTecnico').on('select2:select select2:unselecting', function (e) {
+                let Empresa = e.params.data
+                if (Empresa) {
+                    AddSelect("iFilialFiltroTecnico", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, Empresa.id, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iFilialFiltroTecnico", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+            });
+        };
+
+        const HandleCodct = function () {
+            $('#iCodCt').unbind('select2:select select2:unselecting');
+            $('#iCodCt').on('select2:select select2:unselecting', function (e) {
+                const ContratoSelecionado = e.params.data;
+
+                if (ContratoSelecionado) {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, ContratoSelecionado.id, null, "@RsBase.SELECIONE", false, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+                else {
+                    AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+            });
+        };
+
+        const HandleGrupoArea = function () {
+            $('#iGrupoArea').unbind('select2:select select2:unselecting');
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+
+                GrupoSelecionado = e.params.data
+                if (GrupoSelecionado) {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(GrupoSelecionado.id), null, "@RsBase.SELECIONE", false, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+
+                else {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+
+            });
+        };
+
+        const HandleArea = function () {
+            $('#iArea').unbind('select2:select select2:unselecting');
+            $('#iArea').on('select2:select select2:unselecting', function (e) {
+                const AreaSelecionada = e.params.data;
+
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id), null, "@RsBase.SELECIONE", false, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+            });
+        };
+
+        $(document).ready(async function () {
+            $("#modal-filter").modal('show');
+
+            await AddSelect("iCategoriaCliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            await AddSelect("iNaturezaServico", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleNaturezaServico);
+            await AddSelect("iEquipe", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            await AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            await AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            await AddSelect("iCodCt", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleCodct, null, null, { UsaPerfilVisualizacaoServico: true });
+            await AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+            await AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleGrupoArea, null, null, { UsaPerfilVisualizacaoServico: true });
+            await AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+            await AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+
+            AddSelect("iSupervisorFiltroTecnico", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iMonitorFiltroTecnico", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboUsuarioMonitorEquipe", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iEmpresaFiltroTecnico", "@CONSTANTES.URLPortal/api/Empresaapi/GetComboEmpresaAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleEmpresa);
+            AddSelect("iFilialFiltroTecnico", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iPerfilAgendamentoFiltroTecnico", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iDepartamentoFiltroTecnico", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetComboAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            ExibirEquipes();
+
+            @if (String.IsNullOrEmpty(Request.Params["Servicos"]) == false)
+            {
+                <text>
+                let servicos = "@Request.Params["Servicos"]";
+                servicos = servicos.replaceAll(",", "\n");
+                $(`#iNumero_Ordem_Servico`).val(servicos)
+                </text>
+            }
+
+
+            var handleDataTableButtons = function () {
+                "use strict";
+
+                //"Blfrtip"
+                oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                    dom: "Bfrti",
+                    columnDefs: [
+                        {
+                            targets: 0,
+                            searchable: false,
+                            orderable: false,
+                            width: '1%',
+                            className: 'dt-body-center',
+                            render: function (data, type, full, meta) {
+                                return "<input type='checkbox'></input>";
+                            }
+                        },
+                        {
+                            targets: "_all",
+                            width: '1%',
+                        },
+                    ],
+                    select: {
+                        style: 'multi'
+                    },
+                    order: [[1, 'asc']],
+                    stateSave: true,
+                    serverSide: true,
+                    searching: true,
+                    ordering: true,
+                    paging: true,
+                    deferRender: true,
+                    scrollResize: true,
+                    scrollY: '54vh',
+                    scroller: {
+                        loadingIndicator: true
+                    },
+                    stateSave: true,
+                    scrollX: true,
+                    fixedHeader: true,
+                    initComplete: dataTableInitComplete,
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/Painel_RoteirizacaoApi/GetAll',
+                        type: 'POST',
+                        data: function (data) {
+                            @*Parametros dos filtros*@
+                            var numero_Ordem_Servico = $("#iNumero_Ordem_Servico").val();
+                            var [servico_agendado, servico_paralisado, servico_Nao_Paralisados, servico_sem_agendamento, servico_sem_roteirizacao, servico_nao_executado,
+                                servico_Roteirizados] = [$("#iServ_Agendados").is(":checked"), $("#iServ_Paralisados").is(":checked"),
+                                                         $("#iServ_Nao_Paralisados").is(":checked"), $("#iServ_SemAgendamento").is(":checked"),
+                                                         $("#iServ_SemRoteirizacao").is(":checked"),$("#iServ_Nao_Executado").is(":checked"), 
+                                                         $("#iServ_Roteirizados").is(":checked")];
+                                    
+                            var [dataAgendados, dataNaoAgendadosIni, dataNaoAgendadosFim, dataNaoRoteirizados] = [$("#idataAgendados").val(), $("#idataNaoAgendadosIni").val(),
+                                $("#idataNaoAgendadosFim").val(), $("#idataNaoRoteirizados").val()];
+                            
+                            var [data_ParalisadoIni, data_ParalisadoFim] = [$("#idata_ParalisadoIni").val(), $("#idata_ParalisadoFim").val()];
+
+                            var [data_Nao_ExecutadoIni, data_Nao_ExecutadoFim] = [$("#idata_Nao_ExecutadoIni").val(), $("#idata_Nao_ExecutadoFim").val()];
+
+                            var [data_RoteirizadosIni, data_RoteirizadosFim] = [$("#iData_RoteirizadosIni").val(), $("#iData_RoteirizadosFim").val()];
+                            
+                            var [idFilial, idSupervisor, Matricula_Id] = [$("#iFilial").val(), $("#iSupervisor").val(), $("#iEquipe").val()];
+
+                            var [GrupoArea, Area, Localidade] = [$("#iGrupoArea option:selected").val(), $("#iArea option:selected").val(),
+                                                                 $("#iLocalidade option:selected").val()];
+
+                            var [CodCt, Projeto, TipoPrioridade] = [$("#iCodCt option:selected").val(), $("#iProjeto option:selected").val(),
+                                                                    $("#iTipo_Prioridade option:selected").val()];
+
+                            const [natureza, categoria] = [$("#iNaturezaServico").val(), $("#iCategoriaCliente option:selected").val()];
+                            
+                            if (Area == undefined)
+                                Area = null;
+
+                            if (Localidade == undefined)
+                                Localidade = null;
+
+                            data.Numero_Ordem_Servico = numero_Ordem_Servico;
+                            data.Servico_Agendado = servico_agendado;
+                            data.Servico_Paralisado = servico_paralisado;
+                            data.Servico_Nao_Paralisado = servico_Nao_Paralisados;
+                            data.Servico_Sem_Agendamento = servico_sem_agendamento;
+                            data.Servico_Sem_Roteirizacao = servico_sem_roteirizacao;
+                            data.Servico_Nao_Executado = servico_nao_executado;
+                            data.Servico_Roteirizados = servico_Roteirizados;
+
+                            data.DataAgendados = dataAgendados;
+                            data.NaoAgendadosIni = dataNaoAgendadosIni;
+                            data.NaoAgendadosFim = dataNaoAgendadosFim;
+                            data.DataNaoRoteirizados = dataNaoRoteirizados;
+                            data.Data_ParalisadoIni = data_ParalisadoIni;
+                            data.Data_ParalisadoFim = data_ParalisadoFim;
+                            data.Data_Nao_ExecutadoIni = data_Nao_ExecutadoIni;
+                            data.Data_Nao_ExecutadoFim = data_Nao_ExecutadoFim;
+                            data.Data_RoteirizadosIni = data_RoteirizadosIni;
+                            data.Data_RoteirizadosFim = data_RoteirizadosFim;
+
+                            data.IdFilial = (idFilial == 0 || idFilial == "0") ? "" : idFilial;
+                            data.IdSupervisor = idSupervisor;
+
+                            data.Matricula_Id = Matricula_Id;
+                            data.GrupoArea = GrupoArea;
+                            data.Area = Area;
+                            data.Localidade = Localidade;
+                            data.CodCt = CodCt;
+                            data.Projeto = Projeto;
+                            data.Id_NaturezaServico = natureza;
+                            data.Id_CategoriaCliente = categoria;
+                            data.TipoPrioridade = TipoPrioridade;
+
+                        },
+                        error: function (e) {
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+                            return d.data;
+                        },
+                        beforeSend: function () {
+                            $("#divProgress").show();
+                        },
+                        complete: function () {
+                            $("#divProgress").hide();
+                        },
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                        global_iTotal = iTotal;
+
+                        var str = "@RsCadastros.INFODATATABLE";
+                        if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                        str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                        $("#dtLegend").html(str);
+
+                        return "";
+                    },
+                    drawCallback: function () {
+
+                        var api = this.api();
+                        var len = api.page.len();
+
+                        if ($("input[name='select_all']").prop('checked') == true) {
+                            rowsSelectedMessage();
+                        }
+
+                        if (len === -1) {
+                            rows_selected = oDatatable.data().toArray().map(p => {
+                                return p.codCt + "|" + p.projeto + "|" + p.num_Obra + "|" + p.num_Doc;
+                            });
+
+                            $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+                        }
+                    },
+                    rowCallback: function(row, data, dataIndex){
+                         // Get row ID
+                        var rowId = data.codCt + "|" + data.projeto + "|" + data.num_Obra + "|" + data.num_Doc;
+
+                         // If row ID is in the list of selected row IDs
+                         if($.inArray(rowId, rows_selected) !== -1){
+                            $(row).find('input[type="checkbox"]').prop('checked', true);
+                            $(row).addClass('selected');
+                         }
+                    },
+                    pageLength: 10,
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTable,
+                    columns: [
+
+                        { title: "<input name='select_all' value='1' type='checkbox'>" },
+                        { data: "num_Obra_Original", title: "@RsCadastros.ORDEM_SERVICO" },
+                        { data: "cnpj", title: "@RsCadastros.CPF" },
+                        { data: "razao_Social", title: "@RsCadastros.CLIENTE" },
+                        { data: "grupo_Area", title: "@RsCadastros.GRUPO_AREA" },
+                        { data: "area", title: "@RsCadastros.AREA" },
+                        { data: "localidade", title: "@RsCadastros.LOCALIDADE" },
+                        { data: "tipo_Servico", title: "@RsCadastros.TIPO_SERVICO" },
+                        { data: "data_Criacao", title: "@RsCadastros.CRIACAO" },
+                        { data: "sla", title: "@RsCadastros.SLA" },
+                        { data: "data_Agendamento", title: "@RsCadastros.DATA_AGENDAMENTO" },
+                        { data: "hora_Agendamento", title: "@RsCadastros.HORARIO_AGENDAMENTO" },
+                        { data: "cliente", title: "@RsCadastros.CLIENTE" },
+                        { data: "categoria_Cliente", title: "@RsCadastros.CATEGORIA_CLIENTE" },
+                        { data: "tipo_Imovel", title: "@RsCadastros.TIPO_IMOVEL" },
+                        { data: "nome_Equipe", title: "@RsCadastros.EQUIPE" },
+                        { data: "status", title: "@RsCadastros.STATUS" },
+                    ]
+                });
+
+                $('#txtSearch').val(oDatatable.search());
+                $('#txtSearch').keyup(function () {
+                    rows_selected = [];
+                    oDatatable.search($(this).val()).draw();
+                });
+
+                $("#btnInativar").on("click", function () {
+
+                    if (rows_selected.length == 0) {
+                        Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                        return;
+                    }
+
+                    //Alterando para Inativo
+                    AlterarStatusObj(0);
+
+                });
+
+                $("#btnAtivar").on("click", function () {
+
+                    if (rows_selected.length == 0) {
+                        Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                        return;
+                    }
+
+                    //Alterando para Inativo
+                    AlterarStatusObj(1);
+                });
+
+
+                $("#btnExcluir").on("click", function () {
+
+                    if (rows_selected.length == 0) {
+                        Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                        return;
+                    }
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Painel_roteirizacaoApi/excluirlista")';
+
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        data: {
+                            ids: rows_selected
+                        }
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                                rows_selected = [];
+                                oDatatable.draw();
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        });
+                });
+
+                // Handle click on checkbox
+                $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                    var $row = $(this).closest('tr');
+
+                    // Get row data
+                    var rowId = oDatatable.row($row).data().codCt + "|" +
+                        oDatatable.row($row).data().projeto + "|" +
+                        oDatatable.row($row).data().num_Obra + "|" +
+                        oDatatable.row($row).data().num_Doc;
+
+                    var index = $.inArray(rowId, rows_selected);
+
+                    // If checkbox is checked and row ID is not in list of selected row IDs
+                    if (this.checked && index === -1) {
+                        rows_selected.push(rowId);
+
+                        // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                    } else if (!this.checked && index !== -1) {
+                        rows_selected.splice(index, 1);
+                    }
+
+                    if (this.checked) {
+                        $row.addClass('selected');
+                    } else {
+                        $row.removeClass('selected');
+                    }
+
+                    if ($("input[name='select_all']").prop("checked")) {
+
+                        //Exibe quantidade de linhas selecionadas
+                        rowsSelectedMessage()
+                        $("#dtLegendRecordsTotal").show();
+
+                    } else {
+
+                        //Esconde quantidade de linhas selecionadas
+                        rowsSelectedMessage()
+                        $("#dtLegendRecordsTotal").hide();
+                    }
+
+                    // Prevent click event from propagating to parent
+                    e.stopPropagation();
+                });
+
+                // Handle click on table cells with checkboxes
+                $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                    $(this).parent().find('input[type="checkbox"]').trigger('click');
+                });
+
+                // Handle click on "Select all" control
+                $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+
+                    //Exibe quantidade de linhas selecionadas
+                    rowsSelectedMessage();
+                    $("#dtLegendRecordsTotal").show();
+
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+
+                    rowsSelectedMessage();
+                    $("#dtLegendRecordsTotal").hide();
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+                // Handle table draw event
+                oDatatable.on('draw', function () {
+                    // Update state of "Select all" control
+                    updateDataTableSelectAllCtrl(oDatatable);
+
+                });
+
+            };
+
+            //Pesquisa Log
+            $("#iPesquisarLog").on("click", function () {
+                erro = false;
+
+                if ($('#iData_Log').val() == "") {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DATA)", "warning");
+                    erro = true;
+                }
+
+                if (!erro) {
+                    oDatatableLog.search("").draw();
+                }
+            });
+
+            //Datatable Log_Roteirizacao
+            var oDatatableLog = $("#datatableLog").length && $("#datatableLog").DataTable({
+                dom: "frti",
+                serverSide: true,
+                searching: true,
+                paging: false,
+                //scroller: {
+                //        loadingIndicator: true,
+                //        rowHeight: 40,
+                //        boundaryScale: 0.5,
+                //        displayBuffer: 3
+                //},
+                deferRender: true,
+                deferLoading: true,
+                autoWidth: false,
+                stateSave: true,
+                fixedHeader: true,
+                scrollY: '22vh',
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Log_RoteirizacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.DataHoraCriacao = $("#iData_Log").val();
+                        data.Usuario = $("#iUsuarioLog option:selected").val();
+                        data.Filtro = true;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                /*pageLength: 5,*/
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                orderable: false,
+                columns: [
+                    { data: "data_Log", title: "@RsCadastros.DATA_LOG", orderable: false },
+                    { data: "usuario", title: "@RsCadastros.USUARIO", orderable: false },
+                    { data: "simulacao", title: "@RsCadastros.SIMULACAO", orderable: false },
+                    {
+                        render: function (data, type, row, meta) {
+                            _id = row.id;
+                            var _url = '@Url.Action("Log_RoteirizacaoItem", "Painel_Roteirizacao")' + "?id=" + _id;
+                            return `<a id='modal-RoteirizacaoItemLog${row.id}' href='#' onclick='parent.AddAba("${_url}","@RsCadastros.DETALHE_LOG_ROTEIRIZACAO")'><i class='icofont-search-document icofont-1dot5x'></i></a>`;
+                        },
+                        orderable: false
+                    }
+                ]
+            });
+
+            //Fim DataTable Log_Roteirizacao
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+        });
+
+
+        $(".popover-dismiss").popover({
+            trigger: "focus"
+        });
+
+</script>
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-map-marker-alt"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    @*<li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                            <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                        </li>*@
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>*@
+        </div>
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.ORDEM_SERVICO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                @*<a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Atividade_Nf")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>*@
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" data-toggle="modal" data-target="#modal-Roteirizacao" title="@RsCadastros.VISUALIZAR_LOG_ROTEIRIZACAO">@RsCadastros.VISUALIZAR_LOG_ROTEIRIZACAO</a>
+                    <a class="dropdown-item" href='#' onclick="ShowPageLoading(); vizualizarMapa(); return true;">@RsCadastros.VISUALIZAR_ROTA</a>
+
+                    @*comentado por projeto desenvolvido parcialmente*@
+                    @*<a class="dropdown-item" href="#" onclick="return ExibirEquipes();" data-toggle="modal" data-target="#modal-equipe" title="@RsCadastros.EXIBIR_EQUIPE">@RsCadastros.EXIBIR_EQUIPE</a>*@
+                    <a class="dropdown-item" href='#' onclick="$('#modal-equipe').modal('show');ExibirEquipes();" title="@RsCadastros.DEFINIR_TECNICOS_PARTICIPANTES">@RsCadastros.DEFINIR_TECNICOS_PARTICIPANTES</a>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="p-3">
+        <div class="row">
+            <div class="col form-inline form-group" style="font-size:14px;">
+                <div class="form-group">
+                    <label for="idataRoteirizar">@RsCadastros.DATA_A_ROTEIRIZAR:</label>
+                    @Html.TextBoxFor(model => model.Data_Roteirizar, new { @tabindex = "1", @class = "form-control col-sm-4  datepicker-today", @data_provide = "datepicker", @id = "idataRoteirizar", @autocomplete = "off" })
+                </div>
+                <div class="form-group">
+                    <label for="idataRoteirizar">Limite Máximo de Atendimentos por Técnico:</label>
+                    @Html.TextBoxFor(model => model.Numero_Maximo_Servicos, new { @tabindex = "1", @class = "form-control col-sm-4 ml-2 mr-2 integer", @id = "iNumeroMaximoServicos", @autocomplete = "off" })
+                </div>
+
+                <button type="button" class="btn btn-success mr-1" id="iRoteirizar"><i class="fas fa-map-marker-alt"></i> @RsCadastros.ROTEIRIZAR</button>
+                <button type="button" class="btn btn-success mr-1" id="iEncaixeRoteirizacao"><i class="fas fa-map-marker-alt"></i> @RsCadastros.ROTEIRIZAR_ENCAIXE</button>
+                <button type="button" class="btn btn-info" id="iSimularRoteirizacao"><i class="fas fa-map-marker-alt"></i> Simular</button>
+
+
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <input type="checkbox" id="iAlterarAgendamentoDataMaxima" checked /> <label for="iAlterarAgendamentoDataMaxima" class="fs-12"> Alterar data e hora dos serviços que não foram agendados pelo Aniel Connect e que ainda não foram vencidos.</label>
+            </div>
+        </div>
+
+    </div>
+    <div class="row justify-content-center p-1">
+        &nbsp;
+        <span id="dtLegendRecordsTotal" class="text-primary" style="font-size: 14px;"></span>
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+
+<div id="divEquipe" style="display:none;"></div>
+
+<!--Modal Filters-->
+<!--Div Pagamentos Estornados-->
+<div class="modal modal-fullscreen fade" id="modal-equipe">
+    <div class="modal-dialog" style="width:100% !important">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"><i class="fas fa-headset"></i> @RsCadastros.DEFINIR_TECNICOS_PARTICIPANTES </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div id="cardEstornado" style="padding:0px;">
+                    <div class="">
+                        <div class="" style="padding-top: 0">
+
+                            <div class="row">
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iEmpresaFiltroTecnico">@RsCadastros.EMPRESA:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEmpresaFiltroTecnico", @autocomplete = "off", @style = "width:100%;" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iFilialFiltroTecnico">@RsCadastros.FILIAL:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFilialFiltroTecnico", @autocomplete = "off", @style = "width:100%;" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iFilialFiltroTecnico">@RsCadastros.DEPARTAMENTO:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iDepartamentoFiltroTecnico", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iSupervisorFiltroTecnico">@RsCadastros.SUPERVISOR:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisorFiltroTecnico", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iMonitorFiltroTecnico">@RsCadastros.MONITOR:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMonitorFiltroTecnico", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-4 mt-2">
+                                    <div class="form-group">
+                                        <label for="iMonitorFiltroTecnico">@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO:</label>
+                                        @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPerfilAgendamentoFiltroTecnico", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!--DataTable Equipe-->
+
+                            <div class="table-responsive mt-5">
+                                <table class="table table-hover nowrap" id="datatableEquipe" style="width:100%">
+                                    <thead class="tb-head">
+
+                                    </thead>
+                                </table>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-success" id="iOkEquipe" onclick="ExibirEquipes();">Filtrar</button>
+                        <button type="button" class="btn btn-success" id="iOkEquipe" onclick="SalvarTecnicosRoteirizacao();">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div class="form-group">
+                                <label for="iNumero_Ordem_Servico">@RsCadastros.NUMERO_ORDEM_SERVICO:</label>
+                                @Html.TextAreaFor(model => model.Numero_Ordem_Servico, new { @class = "form-control", @id = "iNumero_Ordem_Servico", @autocomplete = "off", @rows = "2", @placeholder = "Informe os serviços separados por enter" })
+                            </div>
+                        </div>
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_Nao_Paralisados, new { @class = "form-control checkboxFiltro", @id = "iServ_Nao_Paralisados" })
+                                    <label for="iServ_Nao_Paralisados" class="pl-1">@RsCadastros.NAO_BUSCAR_SERVICO_PARALISADO</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_SemAgendamento, new { @class = "form-control checkboxFiltro", @id = "iServ_SemAgendamento" })                                    
+                                    <label for="iServ_SemAgendamento" class="pl-1">@RsCadastros.SERVICOS_NAO_AGENDADOS</label>
+                                </div>
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_SEM_AGENDAMENTO">
+                                    </i>
+                                    <label for="idataNaoAgendadosIni">@RsCadastros.DATA_CRIACAO:</label>
+                                    @Html.TextBoxFor(model => model.Data_SemAgendamentoIni, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idataNaoAgendadosIni" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(model => model.Data_SemAgendamentoFim, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idataNaoAgendadosFim" })
+                                </div>                                
+                            </div>
+                        </div>
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_SemAgendamento, new { @class = "form-control checkboxFiltro", @id = "iServ_SemRoteirizacao" })
+                                    <label for="iServ_SemRoteirizacao" class="pl-1">@RsCadastros.SERVICOS_NAO_ROTEIRIZACAO</label>
+                                </div>
+
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_SEM_ROTEIRIZACAO">
+                                    </i>
+                                    <label for="idataNaoRoteirizados" class="pr-4">@RsCadastros.DATA_AGENDAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Data_Roteirizar, new { @class = "form-control datepicker readonly", @data_provide = "datepicker", @id = "idataNaoRoteirizados", @style = "margin-left: 44px;" })
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_Agendados, new { @class = "form-control checkboxFiltro", @id = "iServ_Agendados" })
+                                    <label for="iServ_Agendados" class="pl-1">@RsFinanceiro.SERVICOS_AGENDADOS</label>
+                                </div>
+
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_AGENDADOS">
+                                    </i>
+                                    <label for="idataAgendados" class="pr-4">@RsCadastros.DATA_AGENDAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Data_Roteirizar, new { @class = "form-control datepicker readonly", @data_provide = "datepicker", @id = "idataAgendados", @style = "margin-left: 44px;" })
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_Paralisados, new { @class = "form-control checkboxFiltro", @id = "iServ_Paralisados" })
+                                    <label for="iServ_Paralisados" class="pl-1">@RsFinanceiro.SERVICOS_PARALISADOS</label>
+                                </div>
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_PARALISADOS">
+                                    </i>
+                                    <label for="idataAgendados">@RsCadastros.DATA_AGENDAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Data_ParalisadoIni, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idata_ParalisadoIni" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(model => model.Data_ParalisadoFim, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idata_ParalisadoFim" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_Nao_Executados, new { @class = "form-control checkboxFiltro", @id = "iServ_Nao_Executado" })
+                                    <label for="iServ_Nao_Executado" class="pl-1">@RsFinanceiro.SERVICOS_NAO_EXECUTADOS</label>
+                                </div>
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_NAO_EXECUTADOS">
+                                    </i>
+                                    <label for="idataAgendados">@RsCadastros.DATA_AGENDAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Data_Nao_ExecutadoIni, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idata_Nao_ExecutadoIni" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(model => model.Data_Nao_ExecutadoFim, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "idata_Nao_ExecutadoFim" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-12 mt-2">
+                            <div class="row form-inline">
+                                <div class="form-group col-sm-5">
+                                    @Html.CheckBoxFor(p => p.Servico_Roteirizados, new { @class = "form-control checkboxFiltro", @id = "iServ_Roteirizados" })
+                                    <label for="iServ_Roteirizados" class="pl-1">@RsCadastros.SERVICOS_ROTEIRIZADOS</label>
+                                </div>
+                                <div class="form-group col-sm-7">
+                                    <i class="fas fa-info-circle" tabindex="0" style="color: #2092EC" data-placement="top" data-trigger="focus" data-toggle="popover"
+                                       data-content="@RsBase.FILTRO_SERVICOS_ROTEIRIZADOS">
+                                    </i>
+                                    <label for="idataAgendados">@RsCadastros.DATA_AGENDAMENTO:</label>
+                                    @Html.TextBoxFor(model => model.Data_RoteirizadosIni, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "iData_RoteirizadosIni" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(model => model.Data_RoteirizadosFim, new { @class = "form-control col-sm-3 ml-2 mr-2 datepicker readonly", @data_provide = "datepicker", @id = "iData_RoteirizadosFim" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4 mt-2">
+
+                            <div class="form-group">
+                                <label for="iFilial">@RsCadastros.FILIAL:</label>
+                                @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFilial", @autocomplete = "off", @style = "width:100%;" })
+
+                            </div>
+                        </div>
+                        <div class="col-sm-4 mt-2">
+                            <div class="form-group">
+                                <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                                @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisor", @autocomplete = "off", @style = "width:100%;" })
+
+                            </div>
+                        </div>
+                        <div class="col-sm-4 mt-2">
+                            <div class="form-group">
+                                <label for=" iEquipe">@RsCadastros.EQUIPE:</label>
+                                @Html.DropDownListFor(Model => Model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEquipe", @autocomplete = "off", @style = "width:100%;" })
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iCodCt">@RsCadastros.CONTRATO:</label>
+                                <select class="form-control" id="iCodCt"></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iProjeto">@RsCadastros.PROJETO:</label>
+                                <select class="form-control" id="iProjeto"></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iTipo_Prioridade"> @RsCadastros.TIPO_PRIORIDADE</label>
+                                @Html.EnumDropDownListFor(m => m.Tipo_Prioridade, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipo_Prioridade", @autocomplete = "off" })
+                                @Html.ValidationMessageFor(model => model.Tipo_Prioridade, "", new { @class = "text-danger" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iAno">@RsCadastros.GRUPO_AREA:</label>
+                                <select class="form-control" id="iGrupoArea"></select>
+                            </div>
+
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iArea">@RsCadastros.AREA:</label>
+                                @Html.DropDownListFor(model => model.Cod_Area, new SelectList(ViewBag.Areas), RsBase.SELECIONE, new { @class = "form-control", @id = "iArea" })
+
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                                @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(ViewBag.Localidades), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidade" })
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row" id="iRowMultipleNatureza">
+                        <div class="col-sm-4">
+                            <div class="form-group">
+                                <label for="iCategoriaCliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                @Html.DropDownListFor(m => m.Id_Categoria_Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaCliente", @autocomplete = "off", @style = "width:100%;" })
+
+                            </div>
+
+                        </div>
+                        <div class="col-sm-8">
+                            <div class="form-group">
+                                <label for="iNaturezaServico">@RsCadastros.NATUREZA_SERVICO:</label>
+                                <select class="form-control" name="Id_Natureza_Servico[]" id="iNaturezaServico" multiple="multiple" style="width:100% !important">
+                                    <option value="">@RsBase.SELECIONE</option>
+                                </select>
+                                @*@Html.DropDownListFor(m => m.Id_Natureza_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iNaturezaServico", @multiple = "multiple", @autocomplete = "off", @style = "width:100%;" })*@
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group row justify-content-center" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                </div>
+            </div>
+
+        </div>
+
+    </div><!-- /.modal-content -->
+</div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+<!--Modal Log de Roteiizacao-->
+<div class="modal" id="modal-Roteirizacao">
+    <div class="modal-dialog" style="width:80% !important">
+        <div class="modal-content" style="height:400px;">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"><i class="fas fa-headset"></i> @RsCadastros.VISUALIZAR_LOG_ROTEIRIZACAO </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="height:400px;">
+                <div class="row">
+
+                    <div class="col-sm-4">
+                        <div class="form-group">
+                            <label for="iData_Logs">@RsCadastros.DATA:</label><br />
+                            @Html.TextBoxFor(model => model.Data_Nao_ExecutadoIni, new { @class = "form-control datepicker", @data_provide = "datepicker", @id = "iData_Log" })
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="form-group">
+                            <label for="iAno">@RsCadastros.USUARIO:</label><br />
+                            @Html.DropDownListFor(model => model.Usuario, new SelectList(ViewBag.Usuarios, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUsuarioLog" })
+                        </div>
+                    </div>
+                    <div class="col-sm-4 mt-3">
+                        <button class="btn btn-success" id="iPesquisarLog">Pesquisar</button>
+                    </div>
+
+                </div>
+
+
+                <div id="cardEstornado" style="padding:0px;">
+                    <div class="">
+                        <div class="" style="padding-top: 0">
+
+                            <!--DataTableLog-->
+
+                            <div class="table-responsive">
+                                <table class="table table-hover display nowrap" id="datatableLog" style="width:100%">
+                                    <thead class="tb-head">
+
+                                    </thead>
+                                </table>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+<!--Modal RoteirizacaoLog-->
+<div class="modal" id="modal-RoteirizacaoItemLog">
+
+</div><!-- /.modal-->

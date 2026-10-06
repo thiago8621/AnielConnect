@@ -1,0 +1,461 @@
+﻿@model Aniel.Connect.Models.ConsultaVendaHistorico_DataTableRequest
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_VENDA;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        ValidaPeriodo("iDtInicialFiltro", "iDtFinalFiltro", "@String.Format(RsBase.PERIODO_INVALIDO)");
+
+    function FiltrarDataTable() {
+        const dataInicialStr = $("#iDtInicialFiltro").val();
+        const dataFinalStr = $("#iDtFinalFiltro").val();
+
+        const dataIncialArr = dataInicialStr.split('/');
+        const dataFinalArr = dataFinalStr.split('/');
+
+        const dataInicial = new Date(dataIncialArr[2], dataIncialArr[1], dataIncialArr[0]);
+        const dataFinal = new Date(dataFinalArr[2], dataFinalArr[1], dataFinalArr[0]);
+        const diferencaEmDias = (dataFinal - dataInicial) / (1000 * 60 * 60 * 24);
+
+        if (diferencaEmDias > 365) {
+            Notificar("@RsBase.ATENCAO_", "Por favor, escolha um período de até um ano.");
+            return;
+        } else {
+            if (oDatatable === null) {
+                TableManageButtons.init();
+            } else {
+                oDatatable.draw();
+            }
+        }
+    }
+
+    async function ModalDetalhes(id, tipo) {
+        const retornoAPI = await $.ajax({
+            url: `@String.Concat(CONSTANTES.URLPortal, "/api/VendaApi/DetalhesLOG_HistoricoVenda")`,
+            type: "GET",
+            data: {
+                id: id,
+                tipo: tipo
+            },
+            beforeSend: function () {
+                $("#divProgress").show();
+            },
+            complete: function () {
+                $("#divProgress").hide();
+            }
+        });
+
+        if (retornoAPI.ok) {
+            const obj = retornoAPI.objeto;
+            let html = "";
+
+            if (tipo === "CPP") {
+                var desc = obj.flagPlano ? "Plano Avulso" : "Combo";
+
+                html = `
+                <p><b>${desc}:</b> ${obj.descPlano_Combo}</p>
+                <p><b>Valor Real:</b> ${obj.valor_Real}</p>
+                <p><b>Valor da Instalação Real:</b> ${obj.valor_Instalacao_Real}</p>
+                <p><b>Número de Parcelas Instalação:</b> ${obj.nr_Parcelas_Instalacao}</p>
+                <p><b>Valor Entrada Instalação:</b> ${obj.valor_Entrada_Instalacao}</p>
+                <p><b>Valor da Instalação Final:</b> ${obj.valor_Instalacao_Final}</p>
+                <p><b>Dias Teste Grátis:</b> ${obj.dias_Teste_Gratis}</p>
+                <p><b>Vigência do Contrato - Período de Fidelidade:</b> ${obj.vigencia_Contrato}</p>
+                <p><b>Modelo de Contrato:</b> ${obj.modelo_Contrato}</p>
+                <p><b>Forma de Pagamento:</b> ${obj.descFormaPagtoCliente}</p>
+                <p><b>Endereço de Instalação:</b> ${obj.descEnderecoInstalacao}</p>
+            `;
+            } else {
+                html = `
+                <p><b>Forma de Pagamento:</b> ${obj.descFormaPagto}</p>
+                <p><b>Banco:</b> ${obj.descBanco}</p>
+                <p><b>Agência:</b> ${obj.descAgencia}</p>
+                <p><b>Conta:</b> ${obj.descConta}</p>
+                <p><b>Dia Vencimento:</b> ${obj.dia_Vencimento}</p>
+                <p><b>Forma Envio Fatura:</b> ${obj.formaEnvioFatura}</p>
+                <p><b>Endereço de Cobrança:</b> ${obj.descEnderecoCobranca}</p>
+            `;
+            }
+
+            $("#conteudoModal").html(html);
+            $("#modal-detalhes").modal("show");
+
+        } else {
+            Notificar("@RsBase.ATENCAO_", `${retornoAPI.mensagem}`, "warn");
+        }
+    }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            //Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "";
+                            //return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Vendaapi/HistoricoVendaAlteracao',
+                    type: 'POST',
+                    data: function (data) {
+                        data.DataIni = $("#iDtInicialFiltro").val();
+                        data.DataFim = $("#iDtFinalFiltro").val();
+                        //data.Id_Tipo_Atendimento = $("#iTipoAtendimento").val();
+                        //data.Status = $("#iStatusAtendimento").val();
+                        data.Id = "@Request.QueryString["Id_Venda"]";
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    },
+                    beforeSend: function () {
+                        $("#divProgress").show();
+                    },
+                    complete: function () {
+                        $("#divProgress").hide();
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    //{ title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { title: "" },
+
+                    { data: "usuarioCriacao", title: "Usuário", orderable: true },
+                    { data: "nome_usuario", title: "Nome do Usuário ", orderable: true },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATAHORA", orderable: true },
+                    { data: "campo", title: "@RsCadastros.ACAO", orderable: true },
+                    {
+                        data: "campo_ValorAntes",
+                        title: "@RsCadastros.VALOR_ANT",
+                        orderable: false,
+                        render: function (data) {
+                            if (data.length !== 0) {
+                                return `<span>${data}</span>`;
+                            } else {
+                                return `<span>N/A</span>`;
+                            }
+                        }
+                    },
+                    {
+                        data: "campo_ValorDepois",
+                        title: "@RsCadastros.VALOR_ATUAL",
+                        orderable: false,
+                        render: function (data) {
+                            if (data.length !== 0) {
+                                return `<span>${data}</span>`;
+                            } else {
+                                return `<span>N/A</span>`;
+                            }
+                        }
+                    },
+                    {
+                        data: "id",
+                        title: "@RsCadastros.DETALHES",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            if (row.motivo) {
+                                return `${row.motivo}`;
+                            } else if (row.idFormaPagamentoCliente != null) {
+                                return `<a onclick="ModalDetalhes(${row.idFormaPagamentoCliente}, 'FPC');"><i class="icofont-edit" style="font-size:20px;color: #000"></i></a>`;
+                            }
+                            if (row.idClientePlanoProduto != null) {
+                                return `<a onclick="ModalDetalhes(${row.idClientePlanoProduto}, 'CPP');"><i class="icofont-edit" style="font-size:20px;color: #000"></i></a>`;
+                            } else if (row.idFormaPagamentoCliente != null) {
+                                return `<a onclick="ModalDetalhes(${row.idFormaPagamentoCliente}, 'FPC');"><i class="icofont-edit" style="font-size:20px;color: #000"></i></a>`;
+                            }
+                            return ``;
+                        }
+                    },
+                    @*{
+                        data: "id_Venda_Detalhes",
+                        title: "@RsCadastros.DETALHES",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            if (type === 'display' && data != null) {
+                                return `<a class="linkModalDetalhes" Id_Venda_Detalhes="${data}"></i> <i class="icofont-search-document icofont-1dot5x" style="color: #999"></i></a>`;
+                            }
+
+                            return '';
+                        }
+                    }*@
+                    @* {
+                        data: "tipoOperacao", // tipoOperação não está recebendo os dados de forma correta, é preciso implementá-los
+                                              // corretamente para renderizar esta coluna
+                        title: "@RsCadastros.OBSERVACAO",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            console.log(data);
+                            if (row['campo'] === 'Criou o Atendimento') {
+                                return `<span>Protocolo: </span> <a href='#'>${data}</a>`;
+                            } else {
+                                return data;
+                            }
+                        }
+                    } *@
+                ]
+            });
+
+            console.log(oDatatable);
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#datatable tbody').on('click', '.linkModalDetalhes', async function (e) {
+                var $row = $(this).closest('tr');
+                var IdVendaDetalhes = $(this).attr("Id_Venda_Detalhes");
+                const retornoAPI = await $.ajax({
+                    url: baseUrl + '/api/Vendaapi/LogDetalhesVenda',
+                    type: 'GET',
+                    data: { IdVendaDetalhes: IdVendaDetalhes }
+                });
+
+                e.stopPropagation();
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+</script>
+}
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+            <div class="card-header title-card" id="heading_1">
+                <h5 class="mb-0">
+                    <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                        <span class="text-bold-card">@RsCadastros.HISTORICO_VENDA</span>
+                    </a>
+                </h5>
+            </div>
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iNome">@RsCadastros.PERIODO:</label>
+                        </div>
+                    </div>
+
+                    @*<div class="col-sm-6 text-right">
+                            <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.ASSUNTO" autocomplete="off">
+                            <i class="la la-search la-2x" style="color: #999"></i>
+                        </div>*@
+
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.DE:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Inicial_Filtro, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDtInicialFiltro", @required = true })
+
+                    </div>
+
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.PARA:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Final_Filtro, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDtFinalFiltro", @required = true })
+
+                    </div>
+
+                    @*<div class="col-sm-2">
+                            <div class="form-group">
+                                <label for="iTipoAtendimento" class="mr-3">@RsCadastros.TIPO_ATEDIMENTO:</label>
+                            </div>
+
+                            @Html.DropDownListFor(m => m.Id_Tipo_Atendimento, new SelectList(ViewBag.Tipos_Atendimento, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoAtendimento", @autocomplete = "off" })
+                            @Html.ValidationMessageFor(model => model.Id_Tipo_Atendimento, "", new { @class = "text-danger" })
+
+                        </div>*@
+
+                    @*<div class="col-sm-3">
+                            <div class="form-group">
+                                <label for="iAssunto" class="mr-3">@RsCadastros.STATUS_ATEDIMENTO:</label>
+                            </div>
+
+                            @Html.EnumDropDownListFor(m => m.Status, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento", @autocomplete = "off" })
+                            @Html.ValidationMessageFor(model => model.Status, "", new { @class = "text-danger" })
+                        </div>*@
+                    @*<div class="col-sm-3">
+                            <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.N_ATENDIMENTO" autocomplete="off">
+
+                        </div>*@
+
+                    <div class="col-sm-2 text-right mt-4 pb-2 pr-5">
+                        <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                    </div>
+
+                </div>
+
+                <!--.Filtros-->
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+
+
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" role="dialog" id="modal-detalhes">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><b>Detalhes</b></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="conteudoModal"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

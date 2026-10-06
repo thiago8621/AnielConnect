@@ -1,0 +1,175 @@
+﻿@*@model IEnumerable<Sinapse.Integracao.Ativacao.Models.RelatorioHistoricoConexaoModel>*@
+@model Sinapse.Integracao.Ativacao.Models.RelatorioConexaoModel
+
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_CONEXAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+@section scripts {
+
+    @*@Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        @*var array = @Html.Raw(Json.Encode(Model));*@
+        var request = @Html.Raw(Json.Encode(Model));
+        var oDatatable = null;
+
+        var handleDataTableButtons = function () {
+            "use strict";
+            //"Blfrti"
+            oDatatable = $("#datatableRelatorioConexao").length && $("#datatableRelatorioConexao").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                scrollCollapse: true,
+                scrollY: '400px',
+                paging: true,
+                serverSide: true,
+                deferRender: true,
+                pageLength: 10,
+                language: traducaoDataTableSimples,                
+                //data: array,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Relatorio_Conexaoapi/GetRelatorioByLogin',
+                    type: 'POST',
+                    data: function (data) {
+                        ShowPageLoading();
+                        data.Id_Login_Radius = request.Id_Login_Radius;
+                        data.Login_Radius = request.Login_Radius;
+                        data.Data_Inicial = $('#iDataInicial').val();
+                        data.Data_Fim = $('#iDataFinal').val();
+                    },
+                    error: function (e) {
+                        HidePageLoading();
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        HidePageLoading();
+                        return d.data;
+                    }
+                },
+                columns: [
+                    {
+                        data: "endereco_Ipv4",
+                        title: "@RsCadastros.ENDERECO_IPV4"
+                    },
+                    {
+                        data: "endereco_Ipv6",
+                        title: "@RsCadastros.ENDERECO_IPV6"
+                    },
+                    {
+                        data: "mac",
+                        title: "@RsCadastros.MAC"
+                    },
+                    {
+                        data: "hora_Login",
+                        title: "@RsCadastros.HORA_LOGIN"
+                    },
+                    {
+                        data: "hora_Logout",
+                        title: "@RsCadastros.HORA_LOGOUT"
+                    },
+                    {
+                        data: "tempo_Conectado",
+                        title: "@RsCadastros.TEMPO_CONECTADO"
+                    },
+                    {
+                        data: "upload",
+                        title: "@RsCadastros.UPLOAD"
+                    },
+                    {
+                        data: "download",
+                        title: "@RsCadastros.DOWNLOAD"
+                    },
+                    {
+                        data: "motivo_Desconexao",
+                        title: "@RsCadastros.MOTIVO_DESCONEXAO"
+                    },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {                
+                oDatatable.search($(this).val()).draw();
+            });
+        }
+
+        var TableManageButtons = {
+            init: function () {
+                handleDataTableButtons();
+            }
+        }
+
+        TableManageButtons.init();
+
+         $('#iPesquisar').click(function () {
+            
+            if (!$('#iDataInicial').val() || !$('#iDataFinal').val()) {
+                Notificar("@RsBase.ATENCAO_", "É necessário selecionar um período de consumo", "info");
+                return false;
+            }                        
+
+            if (DataMaior("iDataInicial", "iDataFinal")) {
+                Notificar("@RsBase.ATENCAO_", "@RsCadastros.DATAINICIALMAIOR", "warning");                 
+                return false;
+            }
+
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+    </script>
+}
+
+<div class="row mb-2" style="width:100%">
+    <div class="col-sm-5 form-group" style="text-align:left">
+        <input type="text" class="input-search" style="width:80%" id="txtSearch" placeholder="@RsCadastros.ENDERECO_IPV4 ou @RsCadastros.IPV6" autocomplete="off">
+        <i class="la la-search la-2x" style="color: #999; vertical-align:middle;"></i>
+    </div>
+
+    <div class="col-sm-5 form-group form-inline" style="height:100%; vertical-align:middle;">
+        <label for="iDataInicial">@RsCadastros.PERIODO:</label>
+        @Html.TextBoxFor(model => model.Data_Inicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataInicial", @autocomplete = "off" })
+
+        <span>@RsBase.A</span>
+
+        @Html.TextBoxFor(model => model.Data_Fim, new { @tabindex = "2", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataFinal", @autocomplete = "off" })
+    </div>
+
+    <div class="col-sm-2 form-group">
+        <div class="text-right">
+            <button type="button" class="btn btn-success" id="iPesquisar">@RsBase.FILTRAR</button>
+        </div>
+    </div>
+
+
+</div>
+<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+</table>

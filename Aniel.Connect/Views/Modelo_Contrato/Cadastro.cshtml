@@ -1,0 +1,1697 @@
+﻿@model Aniel.Connect.Models.Modelo_ContratoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Model.enumerado;
+@using Newtonsoft.Json;
+
+@{
+    /**/
+
+    ViewBag.Title = RsCadastros.CADASTRO_MODELO_CONTRATO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    ViewBag.URLArquivo = CONSTANTES.URLPortal + "/Arquivos/Modelo_Contrato/modelo_contrato.docx";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    List<String> Variaveis = Enum.GetNames(typeof(VariaveisModeloContrato)).ToList();
+}
+
+@section styles
+{
+    <style>
+        #listVariaveis, #listVariaveisONU {
+            overflow-y: auto;
+            padding-left: 15px;
+            margin: 0;
+            height: 240px;
+        }
+
+            #listVariaveis li, #listVariaveisONU li {
+                list-style: none
+            }
+
+        .custom-file-input {
+            height: auto
+        }
+    </style>
+}
+
+@section scripts
+{
+    @*@Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")*@
+
+<script>
+        $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy')
+            $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle()
+        })
+
+        AddSelect("iDesconto", "@CONSTANTES.URLPortal/api/Descontoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Desconto", "@RsBase.SELECIONE", false);
+
+        $('#iDisponibilizaTelefonia').change(function () {
+            if ($('#iDisponibilizaTelefonia').is(':checked')) {
+                $('#iDivIntegracaoTelefonia').show();
+                $('#iDivQuantidadeDid').show();
+                $('#iDivDidFormatoCobrar').show();
+                $('#iDivFormatoCobrancaTelefonia').show();
+                $('.span').show();
+            }
+            else {
+                $('#iDivIntegracaoTelefonia').hide();
+                $('#iDivQuantidadeDid').hide();
+                $('#iDivDidFormatoCobrar').hide();
+                $('#iDivFormatoCobrancaTelefonia').hide();
+                $('.span').hide();
+            }
+        });
+
+        $('#iTemCarencia').change(function () {
+            if ($('#iTemCarencia').is(':checked')) {
+                $('#iDivPeriodoCarencia').show();
+                $('#iDivMultaCarencia').show();
+            }
+            else {
+                $('#iDivPeriodoCarencia').hide();
+                $('#iDivMultaCarencia').hide();
+                $("#iPeriodoCarencia").val("");
+                $("#iMultaCarencia").val("");
+            }
+        });
+
+        //Telefonia -- Quantidade
+        $("#iQuantidadeDid").on("change", function () {
+            $("#iDivDidFormatoCobrar").show();
+            $('#iSpanText').show();
+
+            var num = $(this).val() > 0 ? true : false;
+
+            if (!num) {
+                $("#iDivDidFormatoCobrar").hide();
+                $('#iSpanText').hide();
+
+                $("#iDidFormatoCobrar").val(null);
+            }
+        });
+
+        //Arquivo
+        $('#iArquivo').on('change', function () {
+            var myfile = $(this).val();
+            var ext = myfile.split('.').pop();
+
+            if (!ext == "docx" || !ext == "pdf" || !ext == "doc") {
+                Notificar("@RsCadastros.ATENCAO", "Apenas permitido arquivos DOCX, DOC e PDF", "warning");
+                $(this).val("");
+            }
+            else {
+                var arquivo = $(this)[0].files[0];
+                getBase64($("#btnDownloadModelo"), arquivo)
+
+                var fileName = arquivo.name;
+                $(this).next('.custom-file-label').html(fileName);
+            }
+        });
+
+        function getBase64(btnDownload, arquivo) {
+            let reader = new FileReader();
+            reader.onload = function (e) {
+
+                btnDownload.prop('href', e.target.result)
+                btnDownload.prop('download', arquivo.name)
+            }
+
+            reader.readAsDataURL(arquivo)
+        }
+
+        let clicked = false;
+        function ValidaSubmit()
+        {
+            let erro = false;
+
+            if (clicked) {
+                return;
+            }
+
+            clicked = true;
+
+            if (!$("#iDescricao").val()) {
+                Notificar("@RsBase.ATENCAO_", "Informe a descrição", "warning");
+                erro = true;
+            }
+
+            @if (!AcessoHelper.TemAcesso(_areas, "53"))
+            {
+                <text>
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NAO_POSSUI_AREA_ACESSO", "warning");
+                erro = true;
+                </text>
+            }
+
+            const arquivoContrato = $("#iArquivo").val();
+
+            let iArquivo = document.getElementById("iArquivo");
+            for (var i = 0; i < iArquivo.files.length; i++) {
+                var file = iArquivo.files[i];
+                if (file.name.length > 100) {
+                    Notificar("@RsBase.ATENCAO_", 'Não foi possível salvar o arquivo, descrição está maior que 100 caracteres!!', "warning");
+                    erro = true;
+                }
+            }
+
+            if (!arquivoContrato) {
+                if (!$('#nomeArquivoGravado').html()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ARQUIVO)", "warning");
+                    erro = true;
+                }
+            }
+            else {
+                const ext = arquivoContrato.split('.').pop();
+
+                if (!(ext == "docx" || ext == "doc" || ext == "pdf")) {
+                    Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_DOCX", "warning");
+                    erro = true;
+                }
+            }
+
+            if ($("#iTemCarencia").is(':checked')) {
+                if ($('#iPeriodoCarencia').val() == "") {
+                    Notificar("@RsBase.ATENCAO_", 'Informe o período de carência ', "warning");
+                    erro = true;
+                }
+
+                if ($('#iMultaCarencia').val() == "") {
+                    Notificar("@RsBase.ATENCAO_", 'Informe a multa de carência', "warning");
+                    erro = true;
+                }
+            }
+
+            if ($("#iDiasTeste").val() < 0) {
+                Notificar("@RsBase.ATENCAO_", 'O número de dias deve ser maior que zero', "warning");
+                erro = true;
+            }
+
+            if ($("#iPeriodoCarencia").val() < 0) {
+                Notificar("@RsBase.ATENCAO_", 'O número de meses deve ser maior que zero', "warning");
+                erro = true;
+            }
+
+            if ($("#iPercentual_Reajuste").val() < 0) {
+                Notificar("@RsBase.ATENCAO_", 'O percentual deve ser maior que zero', "warning");
+                erro = true;
+            }
+
+            if ($("#iValor_Reajuste").val() < 0) {
+                Notificar("@RsBase.ATENCAO_", 'O valor deve ser maior que zero', "warning");
+                erro = true;
+            }
+
+            if ($("#idesblqueio_conf").is(":checked")) {
+                if ($("#iQuantidadeDiasBloqueio").val() <= 0) {
+                    Notificar("@RsBase.ATENCAO_", 'A quantidade de dias de bloqueio, deve ser maior que zero', "warning");
+                    erro = true;
+                }
+
+                if ($("#iFrequenciaDesbloqueio").val() == "") {
+                    Notificar("@RsBase.ATENCAO_", 'Informe a Frequência permitida para desbloqueio em confiança.', "warning");
+                    erro = true;
+                }
+            }
+
+            if ($("#iBloqueioAutomaticoDebito").is(":checked")) {
+                if ($("#iBloquearNumeroDias").val() <= 0) {
+                    Notificar("@RsBase.ATENCAO_", 'O campo, Bloquear ao atrasar (Nº de dias), deve ser maior que zero', "warning");
+                    erro = true;
+                }
+
+                if ($("#iBloquearAtrasarRenegociadas").val() <= 0) {
+                    Notificar("@RsBase.ATENCAO_", 'O campo, Bloquear ao atrasar renegociadas (Nº de dias), deve ser maior que zero', "warning");
+                    erro = true;
+                }
+
+                if ($("#iMaximoTitulosAberto").val() <= 0) {
+                    Notificar("@RsBase.ATENCAO_", '0 campo, Máximo de títulos em aberto para gerar financeiro, deve ser maior que zero', "warning");
+                    erro = true;
+                }
+            }
+
+            if (!erro) {
+                ShowPageLoading();
+                $('#form').submit();
+                return;
+            }
+
+            clicked = false;
+            return;
+        }
+
+        $(document).ready(function () {
+
+            $("#iContrato_Automatico").prop('checked', true);
+            if ($("#iContrato_Automatico").is(":checked") == true) {
+                $("#IContratoAutomatico").text("Sim")
+            }
+            else {
+                $("#IContratoAutomatico").text("Não")
+            }
+
+            let temReajuste = $("#iTemReajuste").prop("checked");
+            if (temReajuste == true) {
+                $(".divPercentual_Reajuste").show();
+            } else {
+                $(".divPercentual_Reajuste").hide();
+            }
+
+            $("#iPercentual_Reajuste").prop("disabled", "disabled");
+            $("#iValor_Reajuste").prop("disabled", "disabled");
+
+            $(".bloqueiodatas").hide();
+            $("#ifrequenciadesbloqueio").hide();
+            $("#idias_desbloq").hide();
+
+            if ($("#iDiasTeste").val() != null) {
+                $("#diasdeteste").show();
+            } else {
+                $("#diasdeteste").hide();
+            }
+
+            $("#iTesteGratis").trigger('change');
+            $('#iTemCarencia').trigger('change');
+            $('#iDisponibilizaTelefonia').trigger('change');
+            $("#iUtilizaDesconto").trigger('change');
+            $("#idesblqueio_conf").trigger('change');
+            $("#iBloqueioAutomaticoDebito").trigger('change');
+            $("#ImpedirBloqueio_Automatico").trigger('change');
+        });
+
+        $('#ImpedirBloqueio_Automatico').change(function () {
+            if ($("#ImpedirBloqueio_Automatico").is(":checked")) {
+                $('.bloqueiodatas').show();
+                 }
+            else {
+                $('#ImpedirBloqueio_Automaticosegunda').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticoterca').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticoquarta').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticoquinta').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticosexta').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticosabado').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticodomingo').prop('checked', false);
+                $('#ImpedirBloqueio_Automaticoferiado').prop('checked', false);
+                $('.bloqueiodatas').hide();
+            }
+        });
+
+        $("#iUtilizaDesconto").on("change", function () {
+            if ($(this).is(":checked")) {
+                $("#iDivDesconto").removeClass("d-none");
+            }
+            else {
+                $("#iDivDesconto").addClass("d-none");
+                $('#iDesconto').val(null).trigger('change')
+            }
+        });
+
+        $("#idesblqueio_conf").on("change", function () {
+            if ($(this).is(":checked")) {
+                $("#ifrequenciadesbloqueio").show();
+                $("#idias_desbloq").show();
+                $(".oculta-desbloqueio-confianca").show();
+            }
+            else {
+                $("#ifrequenciadesbloqueio").hide();
+                $("#idias_desbloq").hide();
+                $("#iDias_Desbloq").val("");
+                $('#ifrequenciadesbloqueio option[value=""]').prop("selected","selected");
+                $(".oculta-desbloqueio-confianca").hide();
+            }
+        });
+
+        $("#iBloqueioAutomaticoDebito").on("change", function () {
+            if ($(this).is(":checked")) {
+                $(".oculta-bloqueio-automatico").show();
+            }
+            else {
+                $("#iBloquearNumeroDias").val(0);
+                $("#iBloquearAtrasarRenegociadas").val(0);
+                $("#iMaximoTitulosAberto").val(0);
+                $(".oculta-bloqueio-automatico").hide();
+            }
+        });
+
+        $("#iTesteGratis").on("change", function () {
+            if ($(this).is(":checked")) {
+                $("#diasdeteste").show();
+            }
+            else {
+                $("#iDiasTeste").val("");
+                $("#diasdeteste").hide();
+            }
+        });
+
+        $("#iTemReajuste").on("change", function () {
+            if ($(this).is(":checked")) {
+                $(".divPercentual_Reajuste").show();
+            }
+            else {
+                $(".divPercentual_Reajuste").hide();
+                $("#iRadioPercentual").prop("checked", false);
+                $("#iRadioValor").prop("checked", false);
+
+                $("#iPercentual_Reajuste").prop("disabled", true);
+                $("#iValor_Reajuste").prop("disabled", true);
+
+            }
+        });
+
+        $("#iRadioPercentual").on("change", function () {
+            if ($("#iRadioPercentual").prop("checked", true)) {
+                $("#iPercentual_Reajuste").prop("disabled", false);
+                $("#iValor_Reajuste").prop("disabled", true);
+                $("#iValor_Reajuste").val("");
+            }
+        });
+
+        $("#iRadioValor").on("change", function () {
+            if ($("#iRadioValor").prop("checked", true)) {
+                $("#iPercentual_Reajuste").prop("disabled", true);
+                $("#iValor_Reajuste").prop("disabled", false);
+                $("#iPercentual_Reajuste").val("");
+            }
+        });
+
+</script>
+
+    <script>
+        @if (Model.Id == 0) {
+            @:var id = null
+
+        }
+        else
+        {
+            @:var id = @Model.Id
+        }
+
+        adicionaSelect(1)
+
+        var qntBloqueio = 1;
+        var qntCobranca = 1;
+        var qntPreCobranca = 1;
+        var qntNegativacao = 1;
+        var qntRemoverNegativacao = 1;
+
+        function adicionaSelect(id) {
+            AddSelect(`emailBloqueio${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsBloqueio${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoBloqueio${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect(`emailCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect(`emailPreCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsPreCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoPreCobranca${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect(`emailRemoverNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsRemoverNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoRemoverNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect(`emailNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoNegativacao${id}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        function adicionarCamposBloqueio() {
+            qntBloqueio++;
+
+            $("#conteudoBloqueio").append(`
+
+                <div class="row mt-4">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para executar aviso de bloqueio:</label>
+                            <input type="text" class="form-control" id="diasBloqueio${qntBloqueio}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para enviar aviso de bloqueio: </label><br>
+                            <select class="form-control" id="emailBloqueio${qntBloqueio}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para enviar aviso de bloqueio: </label><br>
+                            <select class="form-control" id="smsBloqueio${qntBloqueio}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para enviar aviso de bloqueio: </label><br>
+                            <select class="form-control" id="notificacaoBloqueio${qntBloqueio}"></select>
+                        </div>
+                    </div>
+                </div>
+
+            `);
+
+            AddSelect(`emailBloqueio${qntBloqueio}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsBloqueio${qntBloqueio}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoBloqueio${qntBloqueio}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        }
+
+        function adicionarCamposCobranca() {
+            qntCobranca++;
+
+            $("#conteudoCobranca").append(`
+
+                <div class="row mt-4">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para executar aviso de cobrança:</label>
+                            <input type="text" class="form-control" id="diasCobranca${qntCobranca}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para executar aviso de cobrança: </label><br>
+                            <select class="form-control" id="emailCobranca${qntCobranca}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para executar aviso de cobrança: </label><br>
+                            <select class="form-control" id="smsCobranca${qntCobranca}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para executar aviso de cobrança: </label><br>
+                            <select class="form-control" id="notificacaoCobranca${qntCobranca}"></select>
+                        </div>
+                    </div>
+                </div>
+
+            `);
+
+            AddSelect(`emailCobranca${qntCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsCobranca${qntCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoCobranca${qntCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        }
+
+        function adicionarCamposPre() {
+            qntPreCobranca++;
+
+            $("#conteudoPre").append(`
+
+                <div class="row mt-4">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para enviar antes da cobrança:</label>
+                            <input type="text" class="form-control" id="diasPreCobranca${qntPreCobranca}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para enviar antes da cobrança: </label><br>
+                            <select class="form-control" id="emailPreCobranca${qntPreCobranca}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para enviar antes da cobrança: </label><br>
+                            <select class="form-control" id="smsPreCobranca${qntPreCobranca}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para enviar antes da cobrança: </label><br>
+                            <select class="form-control" id="notificacaoCobranca${qntPreCobranca}"></select>
+                        </div>
+                    </div>
+                </div>
+
+            `);
+
+            AddSelect(`emailPreCobranca${qntPreCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsPreCobranca${qntPreCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoPreCobranca${qntPreCobranca}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        }
+
+        function adicionarCamposNegativacao() {
+            qntNegativacao++;
+
+            $("#conteudoNegativacao").append(`
+
+                <div class="col-10 row">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para avisar a negativação:</label>
+                            <input type="text" class="form-control" id="diasNegativacao${qntNegativacao}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para avisar a negativação:</label><br>
+                            <select class="form-control" id="emailNegativacao${qntNegativacao}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para avisar a negativação:</label><br>
+                            <select class="form-control" id="smsNegativacao${qntNegativacao}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para avisar a negativação:</label><br>
+                            <select class="form-control" id="notificacaoNegativacao${qntNegativacao}"></select>
+                        </div>
+                    </div>
+                </div>
+
+            `);
+
+            AddSelect(`emailNegativacao${qntNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsNegativacao${qntNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoNegativacao${qntNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        function adicionarCamposRemoverNegativacao() {
+            qntRemoverNegativacao++;
+
+            $("#conteudoRemoverNegativacao").append(`
+
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="iDescricao">Dias para retirada negativação:</label>
+                        <input type="text" class="form-control" id="diasRemoverNegativacao${qntRemoverNegativacao}" />
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="iUtilizaDesconto">E-mail para retirada negativação:</label><br>
+                        <select class="form-control" id="emailRemoverNegativacao${qntRemoverNegativacao}"></select>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="iUtilizaDesconto">SMS para retirada negativação:</label><br>
+                        <select class="form-control" id="smsRemoverNegativacao${qntRemoverNegativacao}"></select>
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="iUtilizaDesconto">Notificação para retirada negativação:</label><br>
+                        <select class="form-control" id="notificacaoRemoverNegativacao${qntRemoverNegativacao}"></select>
+                    </div>
+                </div>
+
+            `);
+
+            AddSelect(`emailRemoverNegativacao${qntRemoverNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`smsRemoverNegativacao${qntRemoverNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect(`notificacaoRemoverNegativacao${qntRemoverNegativacao}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        }
+
+        $(document).ready(function () {
+            //adiciona as listas para o submit do form
+            $('#form').on('submit', async function (e) {
+                e.preventDefault();
+
+                var form = document.getElementById("form");
+
+                var data = new FormData(form);
+
+                var bloqueios = [];
+                var cobrancas = [];
+                var cobrancasPre = [];
+                var negativacoes = [];
+                var removerNegativacoes = [];
+
+                for (var i = 1; i <= qntBloqueio; i++) {
+                    bloqueios.push({
+                        dias: $(`#diasBloqueio${i}`).val(),
+                        email: $(`#emailBloqueio${i}`).val(),
+                        sms: $(`#smsBloqueio${i}`).val()
+                    });
+                }
+
+                for (var i = 1; i <= qntCobranca; i++) {
+                    cobrancas.push({
+                        dias: $(`#diasCobranca${i}`).val(),
+                        email: $(`#emailCobranca${i}`).val(),
+                        sms: $(`#smsCobranca${i}`).val()
+                    });
+                }
+
+                for (var i = 1; i <= qntPreCobranca; i++) {
+                    cobrancasPre.push({
+                        dias: $(`#diasPreCobranca${i}`).val(),
+                        email: $(`#emailPreCobranca${i}`).val(),
+                        sms: $(`#smsPreCobranca${i}`).val()
+                    });
+                }
+
+                for (var i = 1; i <= qntNegativacao; i++) {
+                    negativacoes.push({
+                        dias: $(`#diasNegativacao${i}`).val(),
+                        email: $(`#emailNegativacao${i}`).val(),
+                        sms: $(`#smsNegativacao${i}`).val()
+                    });
+                }
+
+                for (var i = 1; i <= qntRemoverNegativacao ; i++) {
+                    removerNegativacoes.push({
+                        dias: $(`#diasRemoverNegativacao${i}`).val(),
+                        email: $(`#emailRemoverNegativacao${i}`).val(),
+                        sms: $(`#smsRemoverNegativacao${i}`).val()
+                    });
+                }
+
+                data.append("bloqueios", JSON.stringify(bloqueios));
+                data.append("cobrancas", JSON.stringify(cobrancas));
+                data.append("cobrancasPre", JSON.stringify(cobrancasPre));
+                data.append("negativacao", JSON.stringify(cobrancasPre));
+                data.append("removerNegativacao", JSON.stringify(cobrancasPre));
+
+                let response = await fetch('@Url.Action("Cadastro", "Modelo_Contrato")', {
+                    method: 'POST',
+                    body: data
+                });
+
+                let url = '@Url.Action("Index","Modelo_Contrato")';
+                window.location.href = url;
+            });
+        });
+
+    </script>
+
+    @if (Model.ListaCobrancasPre != null && Model.ListaCobrancasPre.Count > 0)
+    {
+        <script>
+            $(document).ready(function () {
+                var jsonListaPre = '@Html.Raw(JsonConvert.SerializeObject(Model.ListaCobrancasPre))';
+
+                var objPre = JSON.parse(jsonListaPre);
+                var index = 1;
+
+                objPre.map((item) => {
+                    adicionaItemPre(item, index);
+                    index++;
+                })
+
+            });
+
+            function adicionaItemPre(item,index) {
+                $("#conteudoPre").append(`
+
+                <div class="row mt-4">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para enviar antes da cobrança:</label>
+                            <input type="text" value="${item.QuantidadeDias}" class="form-control" id="diasPreCobranca${index}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdEmail}" id="emailPreCobranca${index}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdSMS}" id="smsPreCobranca${index}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdNotificacao}" id="notificacaoPreCobranca${index}"></select>
+                        </div>
+                    </div>
+                </div>`);
+
+                AddSelect(`emailPreCobranca${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect(`smsPreCobranca${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect(`notificacaoPreCobranca${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+
+        </script>
+    }
+
+    @if (Model.ListaBloqueios != null && Model.ListaBloqueios.Count > 0)
+    {
+        <script>
+            $(document).ready(function () {
+                var jsonListabloq = '@Html.Raw(JsonConvert.SerializeObject(Model.ListaBloqueios))';
+
+                var obj = JSON.parse(jsonListabloq);
+                var index = 1;
+
+                obj.map((item) => {
+                    adicionaBloq(item, index);
+                    index++;
+                })
+
+            });
+
+            let $qntBloqueio = 0;
+            function adicionaBloq(item,index) {
+                $qntBloqueio++;
+
+                $("#conteudoBloqueio").append(`
+
+                    <div class="row mt-4">
+                        <div class="col-sm-3">
+                            <div class="form-group">
+                                <label for="iDescricao">Dias para executar aviso de bloqueio:</label>
+                                <input type="text" class="form-control" id="diasBloqueio${index}" />
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div class="form-group">
+                                <label for="iUtilizaDesconto">E-mail para enviar aviso de bloqueio: </label><br>
+                                <select class="form-control" value="${item.IdEmail}" id="emailBloqueio${index}"></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div class="form-group">
+                                <label for="iUtilizaDesconto">SMS para enviar aviso de bloqueio: </label><br>
+                                <select class="form-control" value="${item.IdSMS}" id="smsBloqueio${index}"></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div class="form-group">
+                                <label for="iUtilizaDesconto">Notificação para enviar aviso de bloqueio: </label><br>
+                                <select class="form-control" value="${item.IdNotificacao}" id="notificacaoBloqueio${index}"></select>
+                            </div>
+                        </div>
+                    </div>`);
+
+                AddSelect(`emailBloqueio${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect(`smsBloqueio${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                AddSelect(`notificacaoBloqueio${index}`, "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+
+        </script>
+    }
+
+    @if (Model.ListaCobrancas != null && Model.ListaCobrancas.Count > 0)
+    {
+        <script>
+            $(document).ready(function () {
+                var jsonLista = '@Html.Raw(JsonConvert.SerializeObject(Model.ListaCobrancas))';
+
+                var objPre = JSON.parse(jsonLista);
+                var index = 1;
+
+                objPre.map((item) => {
+                    adicionaItem(item, index);
+                    index++;
+                })
+
+            });
+
+            function adicionaItem(item,index) {
+                $("#conteudoCobranca").append(`
+
+                <div class="row mt-4">
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iDescricao">Dias para enviar antes da cobrança:</label>
+                            <input type="text" value="${item.QuantidadeDias}" class="form-control" id="diasPreCobranca${index}" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">E-mail para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdEmail}" id="emailPreCobranca${index}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">SMS para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdSMS}" id="smsPreCobranca${index}"></select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3">
+                        <div class="form-group">
+                            <label for="iUtilizaDesconto">Notificação para enviar antes da cobrança: </label><br>
+                            <select class="form-control" value="${item.IdNotificacao}" id="notificacaoCobranca${index}"></select>
+                        </div>
+                    </div>
+                </div>
+
+            `);
+            }
+
+        </script>
+    }
+
+    <script src="~/bin/Scripts/download.js"></script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Modelo_Contrato", FormMethod.Post,htmlAttributes: new { enctype = "multipart/form-data", id = "form", autocomplete = "off" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="sticky-top bg-white">
+                    <div class="row">
+                        <div class="col main-title">
+                            <h4 class="title-page"><i class="fas fa-file-signature"></i> @ViewBag.Title</h4>
+
+                            <nav aria-label="breadcrumb" class="mb-20">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <a href="@Url.Action("Index", "Modelo_Contrato")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTA_CONTRATO</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <span>@ViewBag.Title</span>
+                                    </li>
+
+                                </ol>
+                            </nav>
+
+                            <span style="font-size:11px" id="dtLegend"></span>
+                        </div>
+                    </div>
+
+                    <div class="sticky-top">
+                        <ul class="nav nav-tabs" id="myTab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="dados-gerais-tab" data-toggle="tab" href="#iDadosGerais" role="tab" aria-selected="true"> <i class="fas fa-file-signature"></i>&nbsp; @RsCadastros.DADOS_CONTRATO</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="criacaoDocumento-tab" data-toggle="tab" href="#iCriacaoDocumento" role="tab" aria-selected="false"><i class="fas fa-sitemap"></i> &nbsp; @RsCadastros.CRIACAO_DOCUMENTO</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="financeiro-tab" data-toggle="tab" href="#iFinanceiro" role="tab" aria-selected="false"><i class="fas fa fa-hand-holding-usd"></i>&nbsp; @RsCadastros.FINANCEIRO </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="avisosAlertas-tab" data-toggle="tab" href="#iAvisosAlertas" role="tab" aria-selected="false"><i class="fas fa-envelope-square"></i>&nbsp;  @RsCadastros.AVISOS_ALERTAS </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="negativacao-tab" data-toggle="tab" href="#iNegativacao" role="tab" aria-selected="false"><i class="icofont-close-circled"></i>&nbsp; @RsCadastros.NEGATIVACAO </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="tab-content">
+                    <div role="tabpanel" class="tab-pane active" id="iDadosGerais">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card"> <i class="fas fa-file-signature"></i> @RsCadastros.DADOS_CONTRATO </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+
+                                    <div class="row">
+
+                                        <div class="col-sm-7">
+                                            <div class="form-group">
+                                                <label for="iDescricao"><strong>@RsCadastros.DESCRICAO</strong></label>
+                                                @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-7">
+                                            <div class="form-group">
+                                                <label for="iDescricao"><strong>@RsCadastros.CODIGO_INTEGRACAO</strong></label>
+                                                @Html.TextBoxFor(model => model.CodigoIntegracao, new { @class = "form-control", @id = "iCodigoIntegracao", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4 mt-3">
+                                            <div class="form-group">
+                                                @if (Model.Id != 0)
+                                                {
+                                                    <label for="iStatus">@RsCadastros.STATUS:</label>
+
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                }
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="input-group mb-3">
+                                                <div class="d-none readonly">
+                                                    @Html.CheckBoxFor(m => m.Contrato_Automatico, new { @class = "form-control readonly", @id = "iContrato_Automatico", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                                @*@Html.TextBoxFor(model => model., new { @class = "form-control readonly d-none", @id = "iContrato_Automatico", @autocomplete = "off" })*@
+                                                <label for="icontrato" class="mr-2" style="margin-top: 5px;">
+                                                    <b>@RsCadastros.CONTRATO_AUTOMATICO  </b>
+                                                    <span id="IContratoAutomatico"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <br />
+
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1"><b>@RsConfiguracao.TESTEGRATIS ?</b></label>
+                                                @Html.CheckBoxFor(m => m.TesteGratis, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                            </div>
+                                        </div>
+
+                                        <!--Ativado por opTesteGratisSim-->
+
+                                        <div class="col-sm-3" id="diasdeteste">
+                                            <div class="form-group">
+                                                <label for="iDiasTeste"><b>@RsConfiguracao.DIASTESTE :</b></label>
+                                                @Html.TextBoxFor(m => m.DiasTeste, new { @class = "form-control col-sm-3", @type = "number", @min = "0", @id = "iDiasTeste" })
+                                                @Html.ValidationMessageFor(model => model.DiasTeste, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <br>
+
+                                    <div class="row">
+                                        <div class="col-sm-8">
+                                            <div class="form-group">
+                                                <label for="iTem_Carencia" class="mr-2"><strong>@RsCadastros.TEM_FIDELIDADE_ ? </strong></label>
+                                                @Html.CheckBoxFor(model => model.Tem_Carencia, new { @class = "form-control", @id = "iTemCarencia", @name = "iTem_Carencia", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <br />
+                                    <div class="row" id="iDivPeriodoCarencia">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+
+                                                <label for="iPeriodo_Carencia"><strong>@RsCadastros.PERIODO_FIDELIDADE_MESES_</strong></label>
+                                                @Html.TextBoxFor(model => model.Periodo_Carencia, new { @class = "form-control integer", @id = "iPeriodoCarencia", @autcomplete = "off", @type = "number", @min = "0" })
+                                                @Html.ValidationMessageFor(model => model.Periodo_Carencia, "", new { @class = "text-danger" })
+
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row" id="iDivMultaCarencia">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iMultaCarencia"><strong>@RsCadastros.MULTA_FIDELIDADE_REAIS</strong></label>
+                                                @Html.TextBoxFor(model => model.Multa_Carencia, new { @class = "form-control money", @id = "iMultaCarencia", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Multa_Carencia, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iRenovarCarencia"><strong>@RsCadastros.RENOVAR_FIDELIDADE_AUTOMATCAMENTE</strong></label>
+                                                @Html.EnumDropDownListFor(model => model.Renova_Carencia_Automaticamente, RsBase.SELECIONE, new { @class = "form-control", @id = "iRenovarCarencia", @autocomplete = "off" })
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-5">
+                                            <div class="form-group">
+                                                <label for="iCancelaContratoCarencia" class="mr-2"><strong>Cancelar Contrato automaticamente no final da Fidelidade?</strong></label>
+                                                @Html.CheckBoxFor(model => model.Cancela_Contrato_Automatico_Final_Carencia, new { @class = "form-control", @id = "iCancelaContratoCarencia", @name = "iCancelaContratoCarencia", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTemReajuste">
+                                                    <strong>@RsCadastros.REAJUSTE_CONTRATUAL.Insert(0, "Tem ")?</strong>
+                                                </label>
+                                                @Html.CheckBoxFor(model => model.Tem_Reajuste, new { @class = "form-control", @id = "iTemReajuste", @name = "iTemReajuste", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3 divPercentual_Reajuste">
+                                            <div class="form-gorup">
+                                                <label for="iRadioPercentual"><b>@RsCadastros.PERCENTUAL_REAJUSTE_CONTRATUAL</b></label>
+                                                @Html.RadioButtonFor(model => model.Tipo_Reajuste, "Percentual", new { @id = "iRadioPercentual" })
+                                                @Html.TextBoxFor(model => model.Percentual_Reajuste_Contratual, new { @class = "form-control", @id = "iPercentual_Reajuste", @type = "number", @min = "0" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3 divPercentual_Reajuste">
+                                            <div class="form-gorup">
+                                                <label for="iRadioValor"><b>Valor do Reajuste Contratual</b></label>
+                                                @Html.RadioButtonFor(model => model.Tipo_Reajuste, "Valor", new { @id = "iRadioValor" })
+                                                @Html.TextBoxFor(model => model.Valor_Reajuste_Contratual, new { @class = "form-control money", @id = "iValor_Reajuste", @placeholder = "R$" })
+
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3 divPercentual_Reajuste">
+                                            <div class="form-gorup">
+                                                <label for="iFrequencia_Reajuste"><b>@RsCadastros.REAJUSTE_CONTRATUAL.Insert(0, "Frequencia ")</b></label>
+                                                @Html.EnumDropDownListFor(model => model.Frequencia_Reajuste, RsBase.SELECIONE, new { @class = "form-control", @id = "iFrequencia_Reajuste", @type = "number" })
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-8">
+                                            <div class="form-group">
+
+                                                <label for="iMultaFidelidade"><strong>@RsCadastros.MULTA_FIDELIDADE ?</strong></label>
+                                                @Html.CheckBoxFor(model => model.MultaFidelidade, new { @class = "form-control", @id = "iMultaFidelidade", @name = "iMultaFidelidade", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-8">
+                                            <div class="form-group">
+
+                                                <label for="iTemProRata"><strong>@RsCadastros.TEM_PRO_RATA ?</strong></label>
+                                                @Html.CheckBoxFor(model => model.Tem_Pro_Rata, new { @class = "form-control", @id = "iTemProRata", @name = "iTem_Pro_Rata", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-8">
+                                            <div class="form-group">
+                                                <label for="iObservacaoModeloContrato"><strong>@RsCadastros.OBSERVACAO</strong></label>
+                                                @Html.TextAreaFor(model => model.Observacao_ModeloContrato, new { @class = "form-control", @id = "iObservacaoModeloContrato", @rows = "5", @style = "resize: none;" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iCriacaoDocumento">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card"> <i class="fas fa-sitemap"></i> @RsCadastros.CRIACAO_DOCUMENTO </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-sm-8">
+                                            <label style="font-size: 15px; font-weight: bold "><strong>@RsCadastros.CONFIGURAR_MODELO_CONTRATO_SIGA_PASSOS</strong></label><br />
+
+                                            <span style="font-size:12px;">
+                                                <label>
+                                                    @RsCadastros.CONFIGURAR_MODELO_CONTRATO_PASSO1.Replace("clique aqui e baixe um modelo padrão", "")
+                                                    <a href=@ViewBag.URLArquivo download="Modelo_de_Contrato.docx">clique aqui e baixe um modelo padrão</a>
+                                                </label> <br />
+                                                <label>@RsCadastros.CONFIGURAR_MODELO_CONTRATO_PASSO2</label> <br />
+                                                <label>@RsCadastros.CONFIGURAR_MODELO_CONTRATO_PASSO3</label> <br />
+                                                <label>@RsCadastros.CONFIGURAR_MODELO_CONTRATO_PASSO4</label> <br />
+                                                <label>@RsCadastros.CONFIGURAR_MODELO_CONTRATO_PASSO5</label> <br />
+                                                <label class="text-danger">*Atenção em caso de anexar PDF o sistema não irá substituir as variáveis</label> <br />
+                                            </span>
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label><strong>@RsCadastros.ARQUIVO</strong></label>
+                                                    <div class="input-group">
+                                                        <input type="file" class="custom-file-input" accept=".docx, .pdf, .doc" name="Arquivo" id="iArquivo" />
+                                                        <label for="Arquivo" class="custom-file-label"><i class="fas fa-upload"></i> @RsBase.ESCOLHAUMARQUIVO</label>
+                                                    </div>
+                                                </div>
+
+                                                @if (Model.Id != 0)
+                                                {
+                                                    <text>
+                                                        Modelo cadastrado: <br />
+
+                                                        <a id="btnDownloadModelo"
+                                                           href="@CONSTANTES.URLPortal/Arquivos/Modelo_Contrato/@Model.Id.@Model.Extensao_Arquivo"
+                                                           download="@Model.Arquivo_Doc">
+                                                            <i class="fas fa-download" style="font-size:16px;"></i> <span id="nomeArquivoGravado">@Model.Arquivo_Doc</span>
+                                                        </a>
+                                                    </text>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <label for="listVariaveisONU">Variáveis</label>
+                                            <ul id="listVariaveisONU">
+                                                @foreach (var variavel in Variaveis)
+                                                {
+                                                    <li>@variavel</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iFinanceiro">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card"><i class="fas fa fa-hand-holding-usd"></i> @RsConfiguracao.FINANCEIRO </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="idesbloqueio_conf" class="mb-1">@RsConfiguracao.DESBLOQUEIO_CONFIANCA ?</label><br>
+                                                @Html.CheckBoxFor(m => m.Desbloqueio_Conf, new { @class = "form-control", @id = "idesblqueio_conf", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3 oculta-desbloqueio-confianca">
+                                            <div class="form-group">
+                                                <label for="iQuantidadeDiasBloqueio" class="mb-1">Quantidade de dias para novo Bloqueio</label><br>
+                                                @Html.TextBoxFor(model => model.QuantidadeDiasBloqueio, new { @class = "form-control", @type = "number", @autocomplete = "off", @id = "iQuantidadeDiasBloqueio" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-4 oculta-desbloqueio-confianca">
+                                            <div class="form-group">
+                                                <label for="iFrequenciaDesbloqueio" class="mb-1">Frêquencia permitida para desbloqueio em confiança</label><br>
+                                                @Html.EnumDropDownListFor(m => m.Frequencia_Desbloqueio, RsBase.SELECIONE, new { @class = "form-control", @id = "iFrequenciaDesbloqueio" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iBloqueioAutomaticoDebito" class="mb-1">@RsConfiguracao.BLOQUEIO_AUTOMATICO?</label><br>
+                                                @Html.CheckBoxFor(m => m.BloqueioAutomaticoDebito, new { @class = "form-control", @id = "iBloqueioAutomaticoDebito", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3 oculta-bloqueio-automatico">
+                                            <div class="form-group">
+                                                <label for="iBloquearNumeroDias" class="mb-1">Bloquear ao atrasar (Nº de dias)</label><br>
+                                                @Html.TextBoxFor(model => model.BloquearNumeroDias, new { @class = "form-control", @type = "number", @autocomplete = "off", @id = "iBloquearNumeroDias" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group oculta-bloqueio-automatico">
+                                                <label for="iBloquearAtrasarRenegociadas" class="mb-1">Bloquear ao atrasar renegociadas (Nº de dias) :</label><br>
+                                                @Html.TextBoxFor(model => model.BloquearAtrasarRenegociadas, new { @class = "form-control", @type = "number", @autocomplete = "off", @id = "iBloquearAtrasarRenegociadas" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group oculta-bloqueio-automatico">
+                                                <label for="iMaximoTitulosAberto" class="mb-1">Máximo de faturas em aberto para gerar um novo faturamento :</label><br>
+                                                @Html.TextBoxFor(model => model.MaximoTitulosAberto, new { @class = "form-control", @type = "number", @autocomplete = "off", @id = "iMaximoTitulosAberto" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="ImpedirBloqueio_Automatico">@RsConfiguracao.IMPEDIRBLOQUEIO ?</label><br>
+                                                @Html.CheckBoxFor(m => m.ImpedirBloqueio_Automatico, new { @class = "form-control", @id = "ImpedirBloqueio_Automatico", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-3">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Segunda, new { @id = "ImpedirBloqueio_Automaticosegunda" })
+                                                    <span> @RsConfiguracao.SEGUNDAFEIRA </span><br>
+                                                </div>
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Terca, new { @id = "ImpedirBloqueio_Automaticoterca" })
+                                                    <span> @RsConfiguracao.TERCAFEIRA </span><br>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Quarta, new { @id = "ImpedirBloqueio_Automaticoquarta" })
+                                                    <span> @RsConfiguracao.QUARTAFEIRA </span><br>
+                                                </div>
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Quinta, new { @id = "ImpedirBloqueio_Automaticoquinta" })
+                                                    <span> @RsConfiguracao.QUINTAFEIRA </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Sexta, new { @id = "ImpedirBloqueio_Automaticosexta" })
+                                                    <span> @RsConfiguracao.SEXTAFEIRA </span><br>
+                                                </div>
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Sabado, new { @id = "ImpedirBloqueio_Automaticosabado" })
+                                                    <span> @RsConfiguracao.SABADO </span><br>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Domingo, new { @id = "ImpedirBloqueio_Automaticodomingo" })
+                                                    <span> @RsConfiguracao.DOMINGO </span><br>
+                                                </div>
+                                                <div class="bloqueiodatas">
+                                                    @Html.CheckBoxFor(m => m.ImpedirBloqueio_Feriados, new { @id = "ImpedirBloqueio_Automaticoferiado" })
+                                                    <span> @RsConfiguracao.FERIADOS </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-3">
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">@RsCadastros.DESCONTO.Insert(0, "Utiliza ") ? </label><br>
+                                                @Html.CheckBoxFor(m => m.Utiliza_Desconto, new { @class = "form-control", @id = "iUtilizaDesconto", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-sm-3 d-none" id="iDivDesconto">
+                                            <div class="form-group">
+                                                <label for="iDesconto">Escolha o desconto que será vinculado a este modelo: </label>
+                                                @Html.DropDownListFor(m => m.Desconto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iDesconto", @class = "form-control" })
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iAvisosAlertas">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Geral </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body pt-0">
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iDescricao">Avisar Atraso (nº de dias):</label>
+                                                @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @placeholder = "1,2,7,14,21" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">E-mail para enviar antes da cobrança: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">SMS para enviar antes da cobrança: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">Notificação para enviar antes da cobrança: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-4">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iDescricao">Enviar aviso de renovação de contrato?</label>
+                                                @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">E-mail para aviso de renovação de contrato: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">SMS para aviso de renovação de contrato: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizaDesconto">Notificação para aviso de renovação de contrato: </label><br>
+                                                @Html.DropDownListFor(m => m.IdPlanoValorInstalacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iPlanoValorInstalacao", @class = "form-control" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card div-card-accord mt-2">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Pré Cobrança </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body  pt-0">
+
+                                    <div id="conteudoPre">
+                                        @if (Model.ListaCobrancasPre == null || Model.ListaCobrancasPre.Count == 0)
+                                        {
+                                            <div class="row">
+                                                <div class="col-sm-3">
+                                                    <div class="form-group">
+                                                        <label for="iDescricao">Avisar Atraso (nº de dias):</label>
+                                                        <input type="text" class="form-control" id="diasPre1" />
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-3">
+                                                    <div class="form-group">
+                                                        <label for="iUtilizaDesconto">E-mail para enviar antes da cobrança: </label><br>
+                                                        <select class="form-control" id="emailPreCobranca1"></select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-3">
+                                                    <div class="form-group">
+                                                        <label for="iUtilizaDesconto">SMS para enviar antes da cobrança: </label><br>
+                                                        <select class="form-control" id="smsPreCobranca1"></select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-sm-3">
+                                                    <div class="form-group">
+                                                        <label for="iUtilizaDesconto">Notificação para enviar antes da cobrança: </label><br>
+                                                        <select class="form-control" id="notificacaoPreCobranca1"></select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Anexar boleto no pré cobrança ?</label>
+                                                @Html.CheckBoxFor(m => m.TesteGratis, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-8"></div>
+                                        <div class="col-sm-2 mt-2 text-right">
+                                            <a href="#" onclick="adicionarCamposPre()" class="btn btn-success"><i class="fa fa-plus" aria-hidden="true"></i> Adicionar</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card div-card-accord mt-2">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Cobrança </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body  pt-0">
+
+                                    <div id="conteudoCobranca">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iDescricao">Dias para executar aviso de cobrança:</label>
+                                                    <input type="text" class="form-control" id="diasCobranca1" />
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">E-mail para enviar aviso de cobrança: </label><br>
+                                                    <select class="form-control" id="emailCobranca1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">SMS para enviar aviso de cobrança: </label><br>
+                                                    <select class="form-control" id="smsCobranca1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">Notificação para enviar aviso de cobrança: </label><br>
+                                                    <select class="form-control" id="notificacaoCobranca1"></select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Anexar boletos atualizados ?</label>
+                                                @Html.CheckBoxFor(m => m.TesteGratis, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-8"></div>
+                                        <div class="col-sm-2 mt-2 text-right">
+                                            <a href="#" onclick="adicionarCamposCobranca()" class="btn btn-success"><i class="fa fa-plus" aria-hidden="true"></i> Adicionar</a>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card div-card-accord mt-2">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Bloqueio </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body  pt-0">
+
+                                    <div id="conteudoBloqueio">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iDescricao">Dias para executar aviso de bloqueio:</label>
+                                                    <input type="text" class="form-control" id="diasBloqueio1" />
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">E-mail para enviar aviso de bloqueio: </label><br>
+                                                    <select class="form-control" id="emailBloqueio1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">SMS para enviar aviso de bloqueio: </label><br>
+                                                    <select class="form-control" id="smsBloqueio1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">Notificação para enviar aviso de bloqueio: </label><br>
+                                                    <select class="form-control" id="notificacaoBloqueio1"></select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Anexar boletos atualizados ?</label>
+                                                @Html.CheckBoxFor(m => m.TesteGratis, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-8"></div>
+                                        <div class="col-sm-2 mt-2 text-right">
+                                            <a class="btn btn-success" href="#" onclick="adicionarCamposBloqueio()"><i class="fa fa-plus" aria-hidden="true"></i> Adicionar</a>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div role="tabpanel" class="tab-pane" id="iNegativacao">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Configure para enviar o Cliente para a Negativação </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div id="conteudoNegativacao" class="row">
+                                        <div class="col-10 row">
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iDescricao">Dias para avisar a negativação:</label>
+                                                    <input type="text" class="form-control" id="diasNegativacao1" />
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">E-mail para avisar a negativação:</label><br>
+                                                    <select class="form-control" id="emailNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">SMS para avisar a negativação:</label><br>
+                                                    <select class="form-control" id="smsNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">Notificação para avisar a negativação:</label><br>
+                                                    <select class="form-control" id="notificacaoNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Negativar automaticamente ?</label>
+                                                @Html.CheckBoxFor(m => m.NegativarAutomaticamente, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Dias para executar negativação</label>
+                                                @Html.TextBoxFor(m => m.DiasNegativacao, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="mb-1">Avisar a execução negativação</label>
+                                                @Html.DropDownListFor(m => m.IdAvisoExecucaoNegativacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTesteGratis" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2 mt-3 text-right">
+                                            <a href="#" onclick="adicionarCamposNegativacao()" class="btn btn-success"><i class="fa fa-plus" aria-hidden="true"></i> Adicionar</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card div-card-accord mt-3">
+                            <div class="card-header title-card" id="heading-4">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                        <span class="text-bold-card">Configure para retirar o Cliente para a Negativação </span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-2">
+                                            <label for="iTesteGratis" class="mb-1">Remover automaticamente a negativação</label>
+                                            @Html.CheckBoxFor(m => m.RemoverNegativacaoAutomaticamente, new { @class = "form-control", @id = "iTesteGratis", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                        <div class="col-10 row" id="conteudoRemoverNegativacao">
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iDescricao">Dias para retirada negativação:</label>
+                                                    <input type="text" class="form-control" id="diasRemoverNegativacao1" />
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">E-mail para retirada negativação:</label><br>
+                                                    <select class="form-control" id="emailRemoverNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">SMS para retirada negativação:</label><br>
+                                                    <select class="form-control" id="smsRemoverNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iUtilizaDesconto">Notificação para retirada negativação:</label><br>
+                                                    <select class="form-control" id="notificacaoRemoverNegativacao1"></select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-10"></div>
+                                        <div class="col-2">
+                                            <a href="#" onclick="adicionarCamposRemoverNegativacao()" class="btn btn-success"><i class="fa fa-plus" aria-hidden="true"></i> Adicionar</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Modelo_Contrato")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="ValidaSubmit();" name="gravar">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+}

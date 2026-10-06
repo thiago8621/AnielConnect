@@ -1,0 +1,20 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Aniel.Connect.Repository.Model
+{
+    public class CidadeIXCResponse
+    {
+        public string id { get; set; }
+        public string origem { get; set; }
+        public string nome { get; set; }
+        public string uf { get; set; }
+        public string regiao { get; set; }
+        public string cod_ibge { get; set; }
+        public string cod_siafi { get; set; }
+        public string cod_cidade_nfse_forquilhinha_sc { get; set; }
+    }
+}

@@ -1,0 +1,467 @@
+﻿@model Aniel.Connect.Models.T5.Prod_LancadaListaModel
+@using Resources
+@using Aniel.Connect.Core;
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            //Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        //render: function (data, type, full, meta) {
+                        //    return "<input type='checkbox'></input>";
+                        //}
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: false,
+                deferRender: true,
+                scrollY: '73vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Custos_TarefaApi/Prod_Lancada',
+                    type: 'POST',
+                    data: function (data) {
+                        data.CodCt = "@Html.Raw(Request.Params["CodCt"])";
+                        data.Projeto = "@Html.Raw(Request.Params["Projeto"])";
+                        data.Num_Obra = "@Html.Raw(Request.Params["Num_Obra"])";
+                        data.Num_Doc = "@Html.Raw(Request.Params["Num_Doc"])";
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "codigo", title: "@RsCadastros.CODIGO", orderable: false },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO", orderable: false },
+                    { data: "valor", title: "@RsCadastros.VALOR", orderable: false },
+                    { data: "quant_Catal", title: "@RsCadastros.QTDE_PRODUCAO_PREVISTA", orderable: false },
+                    { data: "quant_Prod", title: "@RsCadastros.QTDE_PRODUCAO_REALIZADA", orderable: false },
+                    { data: "data_Prod", title: "@RsCadastros.DATA", orderable: false },
+                    { data: "nomeEquipe", title: "@RsCadastros.EQUIPE", orderable: false },
+                    {
+                        render: function (data, type, row, meta) {
+                            let retorno = "";
+                            let _chave = row.codCt + '|' + row.projeto + '|' + row.num_Obra + '|' + row.num_Doc + '|' + row.tarefa + '|' + row.unidade_Custo + '|' + row.equipe + '|' + row.tipo_Producao + '|' + row.codigo + '|' + row.cod_Tipo_Serv + '|' + row.cod_Sub_Tipo_Serv;
+
+                            retorno += '<a href="#" class="btnExcluir mr-3" id="btnExcluir_' + meta.row + '" excluir="' + _chave + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+
+                            return retorno;
+                        }
+                    }
+                ],
+                drawCallback: () => {
+                    handleExcluir();
+                }
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+            // Aqui
+            $("#btnFiltro").on("click", function () {
+
+                //if (rows_selected.length == 0) {
+                //    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                //    return;
+                //}
+
+
+                AlterarStatusObj(1);
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+            });
+
+            $("#iCodigo").on("blur", async function () {
+
+                if ($(this).val()) {
+
+                    ShowPageLoading();
+                    await AddSelect("iProducao", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Unidade_Custo", $(this).val(), "@RsBase.SELECIONE", false);
+
+                    if (!$('#iProducao').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@RsCadastros.PRODUCAO_NAO_ENCONTRADA", "warning");
+                        $("#iCodigo").focus();
+                    }
+
+                    HidePageLoading();
+                }
+                else {
+                    AddSelect("iProducao", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Unidade_Custo", null, "@RsBase.SELECIONE", false);
+                }
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+    TableManageButtons.init();
+
+    var handleProducao = function () {
+
+        $('#iProducao').unbind('select2:select select2:unselecting');
+        $('#iProducao').on('select2:select select2:unselecting', function (e) {
+
+            let obj = e.params.data;
+
+            if (obj) {
+                $('#iCodigo').val($(this).val());
+                $("#iQuant_Prod").focus();
+            }
+            else {
+                $('#iCodigo').val(null);
+            }
+
+
+        });
+
+    };
+
+    function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var ids = idArquivo.split("|");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Custos_TarefaApi/Excluir?id=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        data: {
+                            usuario: "@User.Identity.GetUserId()",
+                            objeto: {
+                                codCt: ids[0],
+                                projeto: ids[1],
+                                num_Obra: ids[2],
+                                num_Doc: ids[3],
+                                tarefa: ids[4],
+                                unidade_Custo: ids[5],
+                                equipe: ids[6],
+                                tipo_Producao: ids[7],
+                                codigo: ids[8],
+                                cod_Tipo_Serv: ids[9],
+                                cod_Sub_Tipo_Serv: ids[10],
+                                tipo_Producao: ids[11]
+                            }
+                        },
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                });
+            }
+
+
+    $(document).ready(function () {
+
+        AddSelect("iProducao", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Unidade_Custo", null, "@RsBase.SELECIONE", false, handleProducao);
+
+        if ("@Model.Status_Auditoria" == 1) {
+            $('#iCodigo').attr('readonly', true);
+            DisableSelect("iProducao");
+            $("#iMaterial").prop('iProducao', true);;
+            $('#iQuantidade').attr('readonly', true);
+        }
+
+    });
+
+
+    var clicked = false;
+    async function validaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+            let erro = false
+
+            if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+
+        try {
+            const result = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Custos_TarefaApi/Inserir")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    usuario: "@User.Identity.GetUserId()",
+                    objeto: {
+                        codCt: $('#iCodCt').val(),
+                        projeto: $('#iProjeto').val(),
+                        num_Obra: $('#iNum_Obra').val(),
+                        num_Doc: $('#iNum_Doc').val(),
+                        codigo: $('#iProducao').val(),
+                        quant_Prod: $('#iQuant_Prod').val()
+                    }
+                }
+            });
+
+            if (result.ok) {
+                $('#iCodigo').val(null);
+                $('#iProducao').val(null).trigger("change");
+                $('#iQuant_Prod').val(null);
+
+                oDatatable.row.add(
+                    result.idObjeto
+                ).draw(false);
+
+                handleExcluir();
+
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsCadastros.PRODUCAO_GRAVADA", "info");
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+            }
+
+            $('#iCodigo').focus();
+        }
+        finally {
+            HidePageLoading();
+            clicked = false;
+        }
+
+        return true;
+    }
+
+
+
+
+
+
+
+</script>
+}
+
+@Html.HiddenFor(model => model.CodCt, new { @id = "iCodCt" })
+@Html.HiddenFor(model => model.Projeto, new { @id = "iProjeto" })
+@Html.HiddenFor(model => model.Num_Obra, new { @id = "iNum_Obra" })
+@Html.HiddenFor(model => model.Num_Doc, new { @id = "iNum_Doc" })
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <div class="row mt-2 mb-2 form-group">
+                <div class="col-md-2">
+                    <label for="iCodigo" class="mr-3">@RsCadastros.CODIGO:</label>
+                    @Html.TextBoxFor(model => model.Codigo, new { @class = "form-control obrigatorio", @id = "iCodigo", @autocomplete = "off", })
+                </div>
+                <div class="col-md-4">
+                    <label for="iProducao" class="mr-3">@RsCadastros.PRODUCAO:</label>
+                    @Html.DropDownListFor(model => model.Codigo, new SelectList(new List<ObjBusca<Int64>>()), RsBase.SELECIONE, new { @id = "iProducao", @class = "form-control obrigatorio" })
+                </div>
+                <div class="col-md-1">
+                    <label for="iQuant_Prod" class="mr-3">@RsCadastros.QUANTIDADE:</label>
+                    @Html.TextBoxFor(model => model.Quant_Prod, new { @class = "form-control money obrigatorio", @id = "iQuant_Prod", @autocomplete = "off" })
+                </div>
+                <div class="col-md-1 mt-3">
+                    <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" onclick="return validaSubmit();" />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+            </table>
+        </div>
+    </div>
+</div>

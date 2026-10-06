@@ -1,0 +1,656 @@
+﻿@model  Aniel.Connect.Models.Feriado_DataTableRequest
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_FERIADO;
+    ViewBag.Sessao = RsCadastros.FERIADO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        $(document).ready(function() {
+             //Esconder icones data
+            $("#iDataInicial").next().hide();
+            $("#iDataFinal").next().hide();
+        });
+
+
+        var cidade_banco = true; // Exibe a cidade que veio do banco
+
+        $(".datepicker-feriado").mask("00/00");
+        $('.datepicker-feriado').datepicker({
+            format: 'dd/mm',
+            language: 'pt-BR',
+            todayHighlight: 'true',
+            autoclose: true
+        })
+
+
+
+        $('#iUF').change(function () {
+
+            var estado = $('#iUF option:selected').text();
+
+            if (estado != "@RsBase.SELECIONE") {
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $('#iCidade').empty();
+                $('#iCidade').append($('<option></option>').attr('value', "").text("@RsBase.SELECIONE"));
+
+                $.getJSON(enderecoApi, function (data) {
+
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    cidade_banco ? $("#iCidade").val() : $("#iCidade").val("")
+
+                    cidade_banco = false;
+                });
+            }
+            else {
+                $('#iCidade').empty();
+                $('#iCidade').append($('<option></option>').attr('value', "").text("@RsBase.SELECIONE"));
+            }
+        });
+
+        $("#iAbrangencia").change(function () {
+
+            if ($('#iAbrangencia option:selected').val() == 1)
+            {
+                $('#iUF').prop('disabled', true);
+                $('#iCidade').prop('disabled', true);
+                $('#iPais').prop('disabled', false);
+
+                $('#iUF').val("")
+                $('#iCidade').val("")
+
+            }
+
+            else if ($('#iAbrangencia option:selected').val() == 0)
+            {
+                $('#iPais').prop('disabled', true);
+                $('#iUF').prop('disabled', true);
+                $('#iCidade').prop('disabled', true);
+
+
+                $('#iPais').val("")
+                $('#iUF').val("")
+                $('#iCidade').val("")
+            }
+
+
+            else if ($('#iAbrangencia option:selected').val() == 3)
+            {
+                $('#iPais').prop('disabled', false);
+                $('#iUF').prop('disabled', false);
+                $('#iCidade').prop('disabled', true);
+
+                $('#iCidade').val("")
+            }
+
+            else
+            {
+                $('#iPais').prop('disabled', false);
+                $('#iUF').prop('disabled', false);
+                $('#iCidade').prop('disabled', false);
+
+            }
+
+            var _abrangencia = $(this).val();
+
+            if (_abrangencia == "" || _abrangencia == 0) {
+
+                $("#divPais").hide();
+                $("#divCidade").hide();
+                $("#divUF").hide();
+            }
+            else if (_abrangencia == 1) {
+
+                $("#divPais").show();
+                $("#divCidade").hide();
+                $("#divUF").hide();
+            }
+            else {
+
+                $("#divPais").show();
+            }
+
+            $("#iPais").trigger("change");
+        });
+
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/FeriadoApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            }
+
+            //"Blfrtip"
+
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Feriadoapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                        var tipo_feriado = $("#TipoFiltro").val();
+                        var abrangencia = $('#iAbrangencia').val();
+                        var uf = $('#iUF').val();
+                        var status = $('#iStatus').val();
+                        var dataini = $('#iDataInicial').val();
+                        var datafim = $('#iDataFinal').val();
+
+                        if ($('#iPais').val()) {
+                            var pais = $('#iPais option:selected').text();
+                            data.Pais_Filtro = pais;
+                        }
+
+                        if ($('#iCidade').val()) {
+                            var cidade = $('#iCidade option:selected').text();
+                            data.Cidade_Filtro = cidade;
+                        }
+
+                        data.TipoFiltro = tipo_feriado;
+                        data.AbrangenciaFiltro = abrangencia;
+                        data.UF_Filtro = uf;
+                        data.Status_Filtro = status;
+                        data.Data_Inicial = dataini;
+                        data.Data_Final = datafim;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+
+                    if (iTotal == 0) {
+                        iEnd = 0; iStart = 0;
+                    }
+
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO" },
+                    { data: "data", title: "@RsCadastros.DATA" },
+                    { data: "tipo", title: "@RsCadastros.TIPO" },
+                    { data: "abrangencia", title: "@RsCadastros.ABRANGENCIA" },
+                    { data: "status", title: "@RsCadastros.STATUS" },
+                    { data: "uf", title: "@RsCadastros.UF" },
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "pais", title: "@RsCadastros.PAIS" }
+                ]
+            });
+
+           $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+                $("#TipoFiltro").val("");
+                $('#iAbrangencia').val('');
+                $('#iUF').val('');
+                $('#iPais').val('');
+                $('#iCidade').val('');
+                $('#iStatus').val('0,1');
+                $('#iDataInicial').val('');
+                $('#iDataFinal').val('');
+                $('#txtSearch').val('');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+
+
+
+                if (ValidaCamposObrigatorios(false)) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                    return false;
+                }
+
+
+
+                let dataIni = Date.parseFromLocaleString($('#iDataInicial').val()).getMonth()
+                let dataFim = Date.parseFromLocaleString($('#iDataFinal').val()).getMonth()
+
+
+                if (dataIni > dataFim) {
+
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.DATA_INVALIDA", "warning")
+                    return false
+                } else {
+                     $("#modal-filter").modal('hide');
+                     rows_selected = [];
+                     oDatatable.search($('#txtSearch').val()).draw();
+
+                    return true;
+                }
+
+             });
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+           $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+           $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/FeriadoApi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+            });
+
+             // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("Cadastro", "Feriado", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-umbrella-beach"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                @if (AcessoHelper.TemAcesso(_areas, "38"))
+                {
+                    <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Feriado")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "39"))
+                    {
+                        <a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                        <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" style="color: darkgray"> <i class="fas fa-filter"></i> @RsCadastros.FILTRO_LISTAGEM_FERIADO</h4>
+                <button type="button" class="close" data-dismiss="modal" arial-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row mt-2">
+
+                    <div class="col-sm-4">
+                        <div class="form-group">
+                            <label for="iStatus" class="mr-3" style="font-size: 12px"><b>@RsCadastros.STATUS </b></label><br>
+                            <select id="iStatus" class="form-control">
+                                <option value="0,1">@RsBase.TODOS</option>
+                                <option value="0">@RsCadastros.INATIVO</option>
+                                <option value="1">@RsCadastros.ATIVO</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="row mt-2">
+
+                    <div class="col-sm-4">
+                        <label for="TipoFiltro" style="font-size: 12px"><b> @RsCadastros.TIPO </b></label>
+                        <div class="form-group">
+                            @Html.EnumDropDownListFor(m => m.TipoFiltro, RsBase.SELECIONE, new { @class = "form-control", @id = "TipoFiltro", @autocomplete = "off" })
+                            @Html.ValidationMessageFor(model => model.TipoFiltro, "", new { @class = "text-danger" })
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-2">
+
+                    <div class="col-sm-4">
+                        <label for="iAbrangencia" style="font-size: 12px"><b> @RsCadastros.ABRANGENCIA </b></label>
+                        <div class="form-group">
+                            @Html.EnumDropDownListFor(m => m.AbrangenciaFiltro, RsBase.SELECIONE, new { @class = "form-control", @id = "iAbrangencia", @autocomplete = "off" })
+                            @Html.ValidationMessageFor(model => model.AbrangenciaFiltro, "", new { @class = "text-danger" })
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row mt-2">
+
+                    <div class="col">
+                        <label for="iPais" style="font-size: 12px"><b> @RsCadastros.PAIS </b></label>
+                        <div class="form-group">
+                            @Html.DropDownListFor(m => m.Pais_Filtro, new SelectList(ViewBag.Paises, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPais" })
+                            @Html.ValidationMessageFor(model => model.Pais_Filtro, "", new { @class = "text-danger" })
+
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <label for="iUF" style="font-size: 12px"><b> @RsCadastros.UF </b></label>
+                        <div class="form-group">
+                            @Html.EnumDropDownListFor(m => m.UF_Filtro, RsBase.SELECIONE, new { @class = "form-control", @id = "iUF" })
+                            @Html.ValidationMessageFor(m => m.UF_Filtro, "", new { @class = "text-danger" })
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <label for="iCidade" style="font-size: 12px"><b> @RsCadastros.CIDADE </b></label>
+                        <div class="form-group">
+                            @Html.DropDownListFor(m => m.Cidade_Filtro, new SelectList(ViewBag.ComboTmp, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade" })
+                            @Html.ValidationMessageFor(model => model.Cidade_Filtro, "", new { @class = "text-danger" })
+                        </div>
+                    </div>
+
+                </div>
+
+                <label for="iDataInicial" class="mt-2" style="font-size: 12px"> <strong> @RsCadastros.PERIODO </strong></label>
+
+                <div class="row">
+
+                    <div class="col-3 text-center">
+                        <input type="text" class="form-control col-2 datepicker-feriado text-center pl-0 pr-0 obrigatorio" placeholder="00/00" id="iDataInicial" />
+                    </div>
+                    <div class="">
+                        <span>@RsBase.A</span>
+                    </div>
+                    <div class="col-3 text-center">
+                        <input type="text" class="form-control col-2 datepicker-feriado text-center pr-0 pl-0 obrigatorio" placeholder="00/00" id="iDataFinal" />
+                        <br>
+                    </div>
+
+                </div>
+                <br />
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal"> Limpar Campo</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar"> Pesquisar</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>

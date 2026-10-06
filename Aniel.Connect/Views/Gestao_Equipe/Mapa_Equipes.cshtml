@@ -1,0 +1,1499 @@
+﻿@model  Aniel.Connect.Models.Equipe_MapaItemModel
+@using Resources
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = @Request.Params["pagina"] == "Acompanhamento" ? RsCadastros.ACOMPANHAMENTO_EQUIPE_MAPA : RsCadastros.VISUALIZAR_ROTA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+<script src="~/bin/Scripts/jquery-3.3.1.min.js"></script>
+<script src="~/Scripts/leaflet.js"></script>
+<script src="~/Scripts/leaflet.markercluster-src.js"></script>
+<script src="~/Scripts/leaflet_awesome_number_markers.js"></script>
+<script src="~/Scripts/L.Polyline.SnakeAnim.js"></script>
+
+<link rel="stylesheet" href="~/Content/MarkerCluster.css" />
+<link rel="stylesheet" href="~/Content/MarkerCluster.Default.css" />
+<link href="~/Content/leaflet.css" rel="stylesheet" />
+<link href="~/Content/map.css" rel="stylesheet" />
+<link rel="stylesheet" href="~/Content/leaflet_awesome_number_markers.css">
+<link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+
+
+<!--<script src="~/bin/Scripts/connect.js"></script>-->
+
+
+
+@section styles{
+    <style>
+        .overlay {
+            z-index: 9999 !important
+        }
+    </style>
+}
+
+
+@section scripts {
+
+    <script>
+
+
+        
+        var decodeHtmlEntity = function (str) {
+            return str.replace(/&#(\d+);/g, function (match, dec) {
+                return String.fromCharCode(dec);
+            });
+        };
+
+        function Traduzir(Texto) {
+
+            if (Texto.indexOf("The value") !== -1 && Texto.indexOf("is not valid for") !== -1) {
+                return Texto.replace("The value", "O valor").replace("is not valid for", "é inválido para");
+            }
+            else {
+                return Texto;
+            }
+        }
+
+        function erroLatLong() {
+            Notificar("@RsBase.ATENCAO_","Erro ao montar a rota devido a latitude e longitude configuradas de forma errada.","warning");
+        }
+
+        function NotificacaoMapa(atencao, Texto,tipo){
+            try {
+                parent.Swal.fire({
+                    html: Texto,
+                    type: tipo,
+                    confirmButtonColor: "#3085d6",
+                    confirmButtonText: "OK"
+                });
+            } catch (ex) {
+                Swal.fire({
+                    html: Texto,
+                    type: tipo,
+                    confirmButtonColor: "#3085d6",
+                    confirmButtonText: "OK"
+                });
+            }
+        }
+
+        $(document).ready(function () {
+
+            AddSelect("iMatricula_Id", "@CONSTANTES.URLPortal/api/Equipeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Request.Params["equipe"]", "@RsBase.SELECIONE", false);
+
+            $('#iData_Busca').val('@Request.Params["data"]');
+
+            if($('#iData_Busca').val()) {
+                $('#iData_Busca').val('@Request.Params["data"]');
+                var tempdate = new $('#iData_Busca').val();
+                var partesData = tempdate.split("/");
+                var tempdate = partesData[1] + '/' + partesData[0] + "/" + partesData[2];
+                $('#iData_Busca').val(tempdate);
+            }
+
+            escondeExibeDivPorURL();
+        });
+
+        function recarregaFiltro() {
+
+
+            if (!$('#iMatricula_Id').val() || !$('#iData_Busca').val()) {
+                Notificar("@RsBase.ATENCAO_","@String.Format(RsBase.REQUIRED, RsCadastros.DATA_EQUIPE)","warning");
+                return false;
+            }
+
+            var tempdate = new $('#iData_Busca').val();
+            var partesData = tempdate.split("/");
+            var tempdate = partesData[1] + '/' + partesData[0]  + "/" + partesData[2];
+
+            var url = "@Url.Action("Mapa_Equipes", "Gestao_Equipe")" + "?Equipe=" + $('#iMatricula_Id').val()
+                      + "&Data=" + tempdate + "&nome_equipe=" + $('#iMatricula_Nome').val() + "&Pagina=@Request.Params["pagina"]";
+            window.location.href = url;
+            ShowPageLoading();
+
+        }
+
+        //Esconder e Exibir Divs de acordo com a URL
+        function escondeExibeDivPorURL() {
+
+            var pagina = "@Request.Params["Pagina"]";
+
+            if (pagina == "Acompanhamento") {
+                //$("#iDivData").hide();
+                //$("#iDivEquipe").hide();
+                //$("#iBtnAtualizar").hide();
+                $("#iCircleStatusEquipe").show();
+                $("#iNavPainelRotas").hide();
+                $("#iNavAcompanhamento").show();
+                $("#iBtnVoltar").attr("href", "@Url.Action("Acompanhamento_Equipes", "Gestao_Equipe")");
+
+            } else if (pagina == "Rotas"){
+                $("#iDivData").show();
+                $("#iDivEquipe").show();
+                $("#iBtnAtualizar").show();
+                $("#iCircleStatusEquipe").hide();
+                $("#iNavAcompanhamento").hide();
+                $("#iNavPainelRotas").show();
+                $("#iBtnVoltar").attr("href","@Url.Action("Index","Painel_Roteirizacao")");
+            }
+
+        }
+
+        var fotoAjaxUrl = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_Servicoapi/FotoAjax")' + '?num_fre=@Model.Num_Fre';
+                $.ajax({
+                    url: fotoAjaxUrl,
+                    type: "GET",
+                    dataType: "json"
+                })
+                    .done(function (data) {
+                        $("#iFotoLoading").hide();
+                        if (data.objeto) {
+                            $("#idImg").html('<img id="iFoto" width="80%" height="100%" style="height: 80% !important;" src="data:image/jpeg;base64,' + data.objeto + '" class="rounded-circle img-fluid" alt="@RsCadastros.FUNCIONARIO" />');
+                        }
+                        else {
+                            $("#idImg").html('<i id="iFoto" class="fas fa-user-circle fa-3x"></i>');
+                        }
+                    });
+
+        //Documentação: http://project-osrm.org/docs/v5.22.0/api/#general-options
+        /*ARequestivar e Desativar Rotas Planejadas e Realizadas */
+        $('#iTooglePlanejada').change(function () {
+            if ($(this).is(":checked")) {
+                polylinePlanejada.removeFrom(map);
+
+                var polylinePlanejadaOptions = {
+                    color: 'blue',
+                    weight: 8,
+                    snakingSpeed: 250,
+                    opacity: 0.9,
+                    smoothFactor: 1
+                };
+
+                polylinePlanejada = new L.Polyline(polylinePlanejadaPoints, polylinePlanejadaOptions)
+                polylinePlanejada.addTo(map).snakeIn();
+
+            }
+            else {
+                polylinePlanejada.removeFrom(map);
+            }
+        })
+
+        $('#iToogleRealizada').change(function () {
+            if ($(this).is(":checked")) {
+
+                polylineRealizada.removeFrom(map);
+
+                var polylineOptions = {
+                    color: 'red',
+                    weight: 5,
+                    snakingSpeed: 250,
+                    opacity: 0.9,
+                    smoothFactor: 1
+                };
+
+                polylineRealizada = new L.Polyline(polylineRealizadaPoints, polylineOptions);
+                polylineRealizada.addTo(map).snakeIn();
+
+                $(".iLbRealizada").show();
+
+            }
+            else {
+
+                polylineRealizada.removeFrom(map);
+                $(".iLbRealizada").hide();
+            }
+        })
+
+        $('#iToogleIntegrada').change(function () {
+            if ($(this).is(":checked")) {
+
+                polylineIntegrada.removeFrom(map);
+
+                var polylineOptions = {
+                    color: 'green',
+                    weight: 2.5,
+                    snakingSpeed: 250,
+                    opacity: 0.9,
+                    smoothFactor: 1
+                };
+
+                polylineIntegrada = new L.Polyline(polylineIntegradaPoints, polylineOptions);
+                polylineIntegrada.addTo(map).snakeIn();
+
+            }
+            else {
+
+                polylineIntegrada.removeFrom(map);
+            }
+        })
+
+        $('#iToogleParadas').change(function () {
+            if ($(this).is(":checked")) {
+                for (let parada of paradas) {
+                    parada.removeFrom(map);
+                    parada.addTo(map)
+                }
+            }
+            else {
+                for (let parada of paradas) {
+                    parada.removeFrom(map);
+                }
+            }
+        });
+
+        $('#iTooglePontoInicial').change(function () {
+            if ($(this).is(":checked")) {
+                pontoInicial.removeFrom(map);
+                pontoInicial.addTo(map);
+            }
+            else {
+                
+                pontoInicial.removeFrom(map);
+                
+            }
+        });
+
+        $('#iTooglePontoFinal').change(function () {
+            if ($(this).is(":checked")) {
+                pontoFinal.removeFrom(map);
+                pontoFinal.addTo(map);
+            }
+            else {
+
+                pontoFinal.removeFrom(map);
+
+            }
+        });
+
+        $('#iTooglePontoPartida').change(function () {
+            if ($(this).is(":checked")) {
+                pontoPartida.removeFrom(map);
+                pontoPartida.addTo(map);
+            }
+            else {
+
+                pontoPartida.removeFrom(map);
+
+            }
+        });
+
+        $('#iToogleServicoExecutado').change(function () {
+            if ($(this).is(":checked")) {
+                for (let servico of servicosExecutados) {
+                    servico.removeFrom(map);
+                    servico.addTo(map)
+                }
+            }
+            else {
+                for (let servico of servicosExecutados) {
+                    servico.removeFrom(map);
+                }
+            }
+        });
+
+        $('#iToogleServicoSendoExecutado').change(function () {
+            if ($(this).is(":checked")) {
+                for (let servico of servicosSendoExecutados) {
+                    servico.removeFrom(map);
+                    servico.addTo(map)
+                }
+            }
+            else {
+                for (let servico of servicosSendoExecutados) {
+                    servico.removeFrom(map);
+                }
+            }
+        });
+
+        $('#iToogleServicoaExecutar').change(function () {
+            if ($(this).is(":checked")) {
+                for (let servico of servicosExecutar) {
+                    servico.removeFrom(map);
+                    servico.addTo(map)
+                }
+            }
+            else {
+                for (let servico of servicosExecutar) {
+                    servico.removeFrom(map);
+                }
+            }
+        });
+
+        $('#iToogleServicoExecutadoImprodutivo').change(function () {
+            if ($(this).is(":checked")) {
+                for (let servico of servicosExecutadosImprodutivos) {
+                    servico.removeFrom(map);
+                    servico.addTo(map)
+                }
+            }
+            else {
+                for (let servico of servicosExecutadosImprodutivos) {
+                    servico.removeFrom(map);
+                }
+            }
+        });
+
+        $('#iToogleBaixasServico').change(function () {
+            if ($(this).is(":checked")) {
+                for (let servico of baixasServico) {
+                    servico.removeFrom(map);
+                    servico.addTo(map)
+                }
+            }
+            else {
+                for (let servico of baixasServico) {
+                    servico.removeFrom(map);
+                }
+            }
+        });
+
+
+
+        
+
+    </script>
+
+
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO_ROTA ...</span>
+    </div>
+</div>
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+            <nav id="iNavPainelRotas" aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                        <a href="@Url.Action("Index", "Painel_Roteirizacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_ROTEIRIZACAO</a>
+                    </li>
+                    <li class="breadcrumb-item" style="margin-top:-18px">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <nav id="iNavAcompanhamento" aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                        <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                    </li>
+                    <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                        <a href="@Url.Action("Acompanhamento_Equipes", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_ACOMPANHAMENTO_EQUIPE</a>
+                    </li>
+                    <li class="breadcrumb-item" style="margin-top:-18px">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto">
+            <div class="row" style="float: right;padding-right: 8px;">
+
+                <div class="">
+                    <div style="margin-top: 22px;">
+                        <a id="iBtnVoltar" class="btn btn-danger btn-add-3" href="@Url.Action("Acompanhamento_Equipes","Gestao_Equipe"));" title="Voltar" onclick="ShowPageLoading(); return true;"><i class="fas fa-undo-alt" style="color: #fff"></i></a>
+                    </div>
+                </div>
+
+                <div class="pr-2 pl-2" id="iDivData">
+                    <label style="font-size:12px">@RsCadastros.DATA:</label>
+                    <div class="input-group mb-1">
+                        @Html.TextBoxFor(m => m.Data_Busca, new { @class = "form-control datepicker", @id = "iData_Busca", @autocomplete = "off" })
+                    </div>
+                </div>
+
+
+                <div class="pr-2 pl-2" id="iDivEquipe">
+                    <label for="iMatricula_Id" style="font-size:12px">@RsCadastros.EQUIPE:</label>
+
+                    @Html.DropDownListFor(model => model.Equipe_Busca, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control", @id = "iMatricula_Id" })
+                </div>
+
+                <div class="" id="iBtnAtualizar">
+                    <div class="mt-4 text-right">
+                        <a class="btn btn-success btn-add-2" href="#" title="Atualizar" onclick="recarregaFiltro(); return true;"><i class="fas fa-sync-alt" style="color: #fff"></i></a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Div Mapa -->
+        <div id="map-rotas" class="col">
+            <img src="~/Images/map-leafletjs.png" class="img-fluid" style="height: 100%; width: 100%;">
+        </div>
+
+
+        <!-- Div Filtros -->
+        <!-- Informações Side Menu-->
+        <div class='sidebar col-sm-4' style="@(String.IsNullOrEmpty(Request.Params["equipe"]) ? "display:none;" : "" )">
+
+
+
+
+            <div class='heading form-inline mt-1 pb-2'>
+                <!-- <img src="..." alt="..." class="rounded-circle"> -->
+                <div class="row">
+                    <div class="col-sm-6 col-md-6 col-lg-6 col-xl-3">
+                        <div id="idImg" class="text-center" style="height: 140%;">
+                            <img id="iFotoLoading" src="~/Images/loading-spinner-grey.gif" />
+                        </div>
+                    </div>
+                    <div class="col align-vertical">
+                        @Html.DisplayFor(m => m.Equipe_Nome)<br>
+                        <span id="iCircleStatusEquipe" class="" style="font-size:12px">
+                            <i class="fas fa-circle mr-2 mt-2" style="color: @Model.Cor_StatusEquipe_Mapa"></i>
+                            @Model.Tipo
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class='listings fs-12'>
+                <div class="div-contact">
+                    <span> <i class="fas fa-phone mr-2"></i>@Model.Telefone </span><br>
+                    <span> <i class="fas fa-envelope mr-2"></i>@Model.Email </span><br>
+                    <span> <i class="fas fa-battery-full mr-2"></i>@Model.Bateria</span><br>
+                    <span>@Model.Logado @Model.DataHora_Login</span><br>
+                    <span> <i class="fas fa-walking mr-2"></i>Localização Atual: @Model.Atualizado_Em </span><br>
+                    <span class="font-weight-normal">Endereço: @Model.Endereco</span>
+                </div>
+
+                <div class="div-btn-rota mt-2 mb-2 input-group fs-12">
+                    <div class="input-group mb-2">
+                        <input id="iTooglePlanejada" style="width: 5rem !important; height: 25px;" type="checkbox" data-toggle="toggle" data-on="" data-off="" checked>
+                        <span class="mb-2 ml-2 mt-1"> Ver Rota Planejada</span>
+                        <div class="bg-primary ml-4 mt-2" style="width: 15%;height: 30%;"></div>
+                    </div>
+                    <div class="input-group mb-2">
+                        <input id="iToogleRealizada" type="checkbox" data-toggle="toggle" data-on="" data-off="" checked>
+                        <span class="mb-2 ml-2 mt-1"> Ver Rota Realizada</span>
+                        <div class="bg-danger ml-4 mt-2" style="width: 15%;height: 30%;"></div>
+                    </div>
+                    <div class="input-group">
+                        <input id="iToogleIntegrada" type="checkbox" data-toggle="toggle" data-on="" data-off="" checked>
+                        <span class="mb-2 ml-2 mt-1"> Ver Rota Integrada</span>
+                        <div class="bg-success ml-4 mt-2" style="width: 15%;height: 30%;"></div>
+                    </div>
+                </div>
+
+                <div class="div-btn-rota mt-2 mb-2 input-group fs-12">
+                    <div class="input-group">
+
+                        <span class="">Distancia Rota Planejada: </span>
+                        <span class="" id="iDistanciaPlanejada"></span>
+
+                    </div>
+                    <div class="input-group">
+                        <span class="">Distancia Rota Realizada: </span>
+                        <span class="" id="iDistanciaRealizada"></span>
+                    </div>
+                    <div class="input-group">
+                        <span class="">Distancia Rota Integrada: </span>
+                        <span class="" id="iDistanciaIntegrada">@Model.DistanciaTotalIntegrada KM</span>
+                    </div>
+                </div>
+
+
+                <div class="div-legend" style="border: 1px solid rgb(199, 199, 199);padding: 10px;">
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iTooglePontoPartida" type="checkbox" checked>  <i class="mr-0 icofont-home" style="color:#0000FF;font-size:14px"></i></div>
+                        <div class="ml-1">Ponto Partida</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iTooglePontoInicial" type="checkbox" checked> <i class="mr-0 fas fa-flag ico-flag-start-sbg"></i></div>
+                        <div class="ml-1">Ponto Inicial</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iTooglePontoFinal" type="checkbox" checked> <i class="mr-0 fas fa-flag-checkered ico-flag-end-sbg"></i></div>
+                        <div class="ml-1">Ponto Final</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleServicoExecutado" type="checkbox" checked> <i class="mr-0 fas fa-map-marker" style="color: #71ae26"></i></div>
+                        <div class="ml-1">Serviço Executado Produtivo</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleServicoExecutadoImprodutivo" type="checkbox" checked> <i class="mr-0 fas fa-map-marker" style="color: #d33d29"></i></div>
+                        <div class="ml-1">Serviço Executado Improdutivo</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleServicoSendoExecutado" type="checkbox" checked> <i class="mr-0 fas fa-map-marker" style="color: #ee922e"></i></div>
+                        <div class="ml-1">Serviço sendo Executado</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleServicoaExecutar" type="checkbox" checked> <i class="mr-0 fas fa-map-marker" style="color: #38a9dc"></i></div>
+                        <div class="ml-1">Serviço a Executar</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleParadas" type="checkbox"> <i class="fas fa-stopwatch" style="color:gray"></i></div>
+                        <div class="ml-1">Paradas Realizadas</div>
+
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><input id="iToogleBaixasServico" type="checkbox"> <i class="fas fa-user-check" style="color: #FF7F7F"></i></div>
+                        <div class="ml-1">Baixa Realizada Fora do Local do Serviço</div>
+
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><i class="mr-0 las la-map-marker" style="font-size: 14px;color: black; -webkit-text-stroke: 1px; "></i></div>
+                        <div class="ml-1">Serviço Utilizando a Lat/Long da Caixa</div>
+                    </div>
+                    <div class="row">
+                        <div style="padding-left: 15px"><i class="mr-0 las la-map-marker" style="font-size: 14px; color: red; -webkit-text-stroke: 1px; "></i></div>
+                        <div class="ml-1">Serviço Utilizando a Lat/Long da Localidade</div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="row" style="font-size:10px">
+        Daten © <a target="_blank" href="https://www.openstreetmap.org/copyright">
+            OpenStreetMap</code>-Mitwirkende
+            (<a target="_blank" href="https://opendatacommons.org/licenses/odbl/index.html">ODbL</a>), <a target="_blank" href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, <a target="_blank" href="https://openstreetmap.org/fixthemap">mitmachen/Fehler melden</a>
+    </div>
+    <div class="row" style="font-size:10px">
+        <a target="_blank" href="https://leafletjs.com" title="A JavaScript library for interactive maps"> Leaflet</a> <span aria-hidden="true">|</span> © <a target="_blank" href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors
+    </div>
+
+    @if (!String.IsNullOrEmpty(Request.Params["equipe"]))
+    {
+        if (Model.Rotas_Planejadas != null)
+        {
+
+            if ((Model.Rotas_Planejadas.Count() == 0) && (Model.Rotas_Realizada.Count() == 0))
+            {
+                <text>
+                    <script>
+                        $(document).ready(function () {
+                            alert("Nenhuma rota definida");
+                        });
+                    </script>
+                </text>
+            }
+
+
+
+
+<script>
+
+                function ShowPageLoading() {
+                    try {
+                        parent.App.startPageLoading();
+                    } catch {
+                        try {
+                            parent.parent.App.startPageLoading();
+                        } catch (e) {
+                            console.log(e);
+                        }
+                    }
+                }
+
+                function HidePageLoading() {
+                    try {
+                        parent.App.stopPageLoading();
+                    } catch {
+                        try {
+                            parent.parent.App.stopPageLoading();
+                        } catch (e) {
+                            console.log(e);
+                        }
+                    }
+                }
+
+
+                $('#iDistanciaPlanejada').text("0.00KM");
+                $('#iDistanciaRealizada').text("0.00KM");
+                
+                polylinePlanejada = undefined;
+                polylineRealizada = undefined;
+                polylineIntegrada = undefined;
+                var polylinePlanejadaPoints = [];
+                var polylineRealizadaPoints = [];
+                var polylineIntegradaPoints = [];
+                let paradas = [];
+                let pontoPartida = null;
+                let pontoInicial = null;
+                let pontoFinal = null;
+                let servicosExecutados = [];
+                let servicosExecutadosImprodutivos = [];
+                let baixasServico = [];
+                let servicosExecutar = [];
+                let servicosSendoExecutados = [];
+
+
+                async function PolyLinePlanejada(polylinePlanejadaPoints, lista) {
+
+                    for (data of lista) {
+
+
+                        try {
+
+                            if ($('#iDistanciaPlanejada').text() == "") $('#iDistanciaPlanejada').text(0);
+
+                            distanciaPlanejada = $('#iDistanciaPlanejada').text();
+                            distanciaPlanejada = distanciaPlanejada.replace("KM", "");
+                            distanciaPlanejada = parseFloat(distanciaPlanejada);
+                            distanciaPlanejada = Number(distanciaPlanejada + (data.routes[0].distance / 1000)).toFixed(2);
+
+                            $('#iDistanciaPlanejada').text(distanciaPlanejada + "KM");
+
+
+
+                            for (var y = 0; y < data.routes[0].legs.length; y++) {
+
+                                for (var z = 0; z < data.routes[0].legs[y].steps.length; z++) {
+
+                                    for (var i = 0; i < data.routes[0].legs[y].steps[z].geometry.coordinates.length; i++) {
+                                        //new L.LatLng(-22.884809, -43.499205),
+                                        polylinePlanejadaPoints.push(new L.LatLng(data.routes[0].legs[y].steps[z].geometry.coordinates[i][1], data.routes[0].legs[y].steps[z].geometry.coordinates[i][0]));
+                                    }
+
+                                }
+                            }
+                        }
+
+                        catch (ex) {
+                            var mensagem = '@RsCadastros.NAO_FOI_POSSIVEL_ESTABELCER_ROTA_PLANEJADA';
+                        window.NotificacaoMapa("@RsBase.ATENCAO_", mensagem, "warning");
+                            console.log(e.responseText)
+                        }
+                    }
+
+                }
+
+                async function PolyLineRealizada(polylineRealizadaPoints, lista) {
+
+                    for (data of lista) {
+                        try {
+
+                            if ($('#iDistanciaRealizada').text() == "") $('#iDistanciaRealizada').text(0);
+                            distanciaRealizada = $('#iDistanciaRealizada').text().replace("KM", "");
+                            distanciaRealizada = Number((parseFloat(distanciaRealizada)).toFixed(2));
+                            $('#iDistanciaRealizada').text(((distanciaRealizada + (data.routes[0].distance / 1000)).toFixed(2)) + "KM");
+
+                            for (var y = 0; y < data.routes[0].legs.length; y++) {
+
+                                for (var z = 0; z < data.routes[0].legs[y].steps.length; z++) {
+
+                                    for (var i = 0; i < data.routes[0].legs[y].steps[z].geometry.coordinates.length; i++) {
+                                        //new L.LatLng(-22.884809, -43.499205),
+                                        polylineRealizadaPoints.push(new L.LatLng(data.routes[0].legs[y].steps[z].geometry.coordinates[i][1], data.routes[0].legs[y].steps[z].geometry.coordinates[i][0]));
+                                        if (latInicial == null) {
+                                            latInicial = data.routes[0].legs[y].steps[z].geometry.coordinates[i][1];
+                                            lonInicial = data.routes[0].legs[y].steps[z].geometry.coordinates[i][0];
+                                        }
+                                        latFinal = data.routes[0].legs[y].steps[z].geometry.coordinates[i][1];
+                                        lonFinal = data.routes[0].legs[y].steps[z].geometry.coordinates[i][0];
+                                    }
+                                }
+
+                            };
+                        }
+                        catch (ex) {
+                            var mensagem = '@RsCadastros.NAO_FOI_POSSIVEL_ESTABELCER_ROTA_PLANEJADA';
+                        Notificar("@RsBase.ATENCAO_", mensagem, "warning");
+                            console.log(e.responseText)
+                        }
+                    }
+
+                }
+
+                async function PolyLineIntegrada(polylineIntegradaPoints, lista) {
+
+                    for (data of lista) {
+                        try {
+                            polylineIntegradaPoints.push(new L.LatLng(data.lat,data.lon));
+                        }
+                        catch (ex) {
+                            var mensagem = 'teste';
+                            console.log(e.responseText);
+                        }
+                    }
+
+                }
+
+                var map = new L.Map('map-rotas', { maxZoom: 18 });
+
+
+                        /******************
+                        tratando bug zoom
+                        ******************/
+                        var mapZoomLevel = localStorage.theZoom;
+                        if (isNaN(mapZoomLevel)) {
+                            mapZoomLevel = 15;  //default
+                        }
+                        map.on('load', function (e) {
+                            map.setZoom(mapZoomLevel);
+                        },
+                            //store
+                            map.on('moveend', function (e) {
+                                localStorage.theZoom = map.getZoom();
+                                $('#iToogleServicoExecutado').trigger('change');
+                                $('#iToogleServicoSendoExecutado').trigger('change');
+                                $('#iToogleServicoaExecutar').trigger('change');
+                                $('#iToogleServicoExecutadoImprodutivo').trigger('change');
+
+                            }));
+                        /**fim bug zoom**/
+
+                        L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+                            maxZoom: 20
+                        }).addTo(map);
+
+                        map.attributionControl.setPrefix(''); // Don't show the 'Powered by Leaflet' text.
+
+                        @{
+
+                            String latlongPlanejada = null;
+                            List<String> latlongPlanejadaLista = new List<String>();
+                            if (Model.Rotas_Planejadas.Count() > 1)
+                            {
+                                latlongPlanejadaLista = (from o in Model.Rotas_Planejadas
+                                                         where o.Latitude.HasValue && o.Latitude != 0
+                                                         orderby o.DataHora
+                                                         select String.Format("{0}|{1}", o.Longitude, o.Latitude)).ToList();
+                            }
+                            else
+                            {
+                                <text>
+
+
+                            $(document).ready(function () {
+                                window.NotificacaoMapa("@RsBase.INFORMACAO", "Nenhuma OS foi planejada", "info");
+                               //alert("Nenhuma OS foi planejada");
+                            });
+
+                                </text>
+
+                            }
+
+
+                            String latlongRealizada = null;
+                            List<String> latlongRealizadaLista = new List<String>();
+                            if (Model.Rotas_Realizada.Count() > 1)
+                            {
+                                latlongRealizadaLista = (from o in Model.Rotas_Realizada
+                                                         where o.Latitude.HasValue && o.Latitude != 0
+                                                         orderby o.DataHora
+                                                         select String.Format("{0}|{1}", o.Longitude, o.Latitude)).ToList();
+
+                            }
+                            else
+                            {
+                                <text>
+
+                                $(document).ready(function () {
+                                    window.NotificacaoMapa("@RsBase.INFORMACAO", "Técnico não possui rota realizada.", "info");
+                                    //alert("Nenhuma OS foi realizada");
+                                });
+
+                                </text>
+
+                            }
+
+
+                            String latlongIntegrada = null;
+                            List<String> latlongIntegradaLista = new List<String>();
+                            if (Model.Rotas_Integracao.Count() > 1)
+                            {
+                                latlongIntegradaLista = (from o in Model.Rotas_Integracao
+                                                         where o.Latitude.HasValue && o.Latitude != 0
+                                                         orderby o.DataHora
+                                                         select String.Format("{0}|{1}", o.Longitude, o.Latitude)).ToList();
+
+                            }
+
+                        }
+
+
+                        var erroGeoConsulta = false;
+                        var distanciaPlanejada = 0;
+
+                        async function RotaPlanejada() {
+
+
+                            let GeoPromises = []
+                            @foreach (var latlongPlanejadaListaQuebradaGroup in Sinapse.Util.ListService.GetListaQuebrada(latlongPlanejadaLista,200))
+                            {
+                                var latlongPlanejadaListaQuebrada = latlongPlanejadaListaQuebradaGroup.Value;
+                                latlongPlanejada = null;
+                                for (int i = 0; i < latlongPlanejadaListaQuebrada.Count(); i++)
+                                {
+                                    var latlngAtual = (latlongPlanejadaListaQuebrada[i]).Replace(",", ".").Replace("|", ",");
+
+                                    //caso a latitude/longitude nao esteja com formato correto para ser mostrada no mapa
+                                    if (latlngAtual.Count(p => p == '.') < 2)
+                                    {
+                                            <text>
+                                            $(document).ready(function() {
+                                                erroLatLong();
+                                            });
+                                            </text>
+                                            continue;
+                                        }
+
+                                if (i + 1 < latlongPlanejadaListaQuebrada.Count())
+                                {
+                                    latlongPlanejada += String.Concat(latlngAtual, ";");
+                                }
+                                else
+                                {
+                                    latlongPlanejada += latlngAtual;
+                                }
+
+                            }
+
+                            if(!String.IsNullOrEmpty(latlongPlanejada))
+                            {
+                                    <text>
+                                    // Preenche rota planejada
+                                    @*var link = "http://router.project-osrm.org/route/v1/driving/@latlongPlanejada?geometries=geojson";*@
+
+                                    var geo = {
+                                        ordem: 1,
+                                        url: "@CONSTANTES.URLROUTE@latlongPlanejada?geometries=geojson&steps=true",
+                                        url2: "https://router.project-osrm.org/route/v1/driving/@latlongPlanejada?geometries=geojson&steps=true"
+                                    };
+
+                                    GeoPromises.push(geo)
+                                    </text>
+                            }
+
+                        }
+
+
+                                        if (GeoPromises.length > 0) {
+
+                                            const GeoResultado = [];
+
+                                            for (var index = 0; index < GeoPromises.length; index++)
+                                            {
+                                                let p = GeoPromises[index];
+                                                console.time("RotaPlanejada" + index);
+
+
+                                                var resultado = null;
+
+                                                for (var i = 0; i < 10; i++) {
+
+                                                    if (i > 0)
+                                                        console.log("tentativa " + (i + 1));
+
+                                                    try {
+                                                        resultado = await $.ajax({
+                                                            url: i % 2 == 0 ? p.url : p.url2,
+                                                    type: 'GET',
+                                                    dataType: 'json',
+                                                    tryCount: 0,
+                                                    retryLimit: 4,
+                                                    error: function (xhr, textStatus, errorThrown) {
+                                                                return null;
+                                                            },
+                                                    timeout: 10000
+                                                        })
+                                            }
+                                            catch (ex) {
+                                            console.log(`RotaPlanejada${index} - ${ex.statusText}`);
+                                        }
+
+                                        if (resultado == null)
+                                            continue;
+                                        else
+                                            break;
+                                    }
+
+                                        if (resultado == null)
+                                            erroGeoConsulta = true;
+
+                                        console.timeEnd("RotaPlanejada" + index);
+                                        console.log(i % 2 == 0 ? p.url : p.url2);
+                                        GeoResultado.push(resultado);
+                                    }
+
+                                await PolyLinePlanejada(polylinePlanejadaPoints, GeoResultado.filter(p => p != null));
+                                }
+
+                            var polylinePlanejadaOptions = {
+                                color: 'blue',
+                                weight: 8,
+                                snakingSpeed: 250,
+                                opacity: 0.9,
+                                smoothFactor: 1
+                            };
+
+                            polylinePlanejada = new L.Polyline(polylinePlanejadaPoints, polylinePlanejadaOptions);
+
+                            if (polylinePlanejadaPoints.length > 0)
+                                polylinePlanejada.addTo(map).snakeIn();
+                };
+
+
+
+                async function RotaIntegrada() {
+
+
+                            let localicazoesIntegradas = []
+                            @foreach (var latlongIntegradaListaQuebradaGroup in Sinapse.Util.ListService.GetListaQuebrada(latlongIntegradaLista,100))
+                            {
+                                var latlongIntegradaListaQuebrada = latlongIntegradaListaQuebradaGroup.Value;
+                                latlongIntegrada = null;
+                                for (int i = 0; i < latlongIntegradaListaQuebrada.Count(); i++)
+                                {
+                                    var latlngAtual = (latlongIntegradaListaQuebrada[i]).Replace(",", ".").Replace("|", ",");
+                                    <text>
+                                        localicazoesIntegradas.push({
+                                            lat: @latlngAtual.Split(',')[1],
+                                            lon:  @latlngAtual.Split(',')[0]
+                                        });
+                                    </text>
+
+                                    //caso a latitude/longitude nao esteja com formato correto para ser mostrada no mapa
+                                    if (latlngAtual.Count(p => p == '.') < 2)
+                                    {
+                                            <text>
+                                            $(document).ready(function() {
+                                                erroLatLong();
+                                            });
+                                            </text>
+                                        continue;
+                                    }
+
+                                    if (i + 1 < latlongIntegradaListaQuebrada.Count())
+                                    {
+                                        latlongIntegrada += String.Concat(latlngAtual, ";");
+                                    }
+                                    else
+                                    {
+                                        latlongIntegrada += latlngAtual;
+                                    }
+
+                                }
+
+
+
+                            }
+
+
+
+                            await PolyLineIntegrada(polylineIntegradaPoints, localicazoesIntegradas );
+
+
+                            var polylineIntegradaOptions = {
+                                color: 'green',
+                                weight: 2.5,
+                                snakingSpeed: 250,
+                                opacity: 0.9,
+                                smoothFactor: 1
+                            };
+
+                            polylineIntegrada = new L.Polyline(polylineIntegradaPoints, polylineIntegradaOptions);
+
+                            if (polylineIntegradaPoints.length > 0)
+                                polylineIntegrada.addTo(map).snakeIn();
+                        };
+
+
+
+
+                        $("#divProgress").show();
+
+                        @*{
+                            // Debug das rotas feitas
+                            var realizadas = from o in Model.Rotas_Realizada
+                                             where o.Latitude.HasValue && o.Latitude != 0
+                                             orderby o.DataHora
+                                             select o;
+                            var vi = 0;
+                            foreach (var realizada in realizadas)
+                            {
+                                    <text>
+
+                                        L.marker([@realizada.Latitude.ToString().Replace(",", "."), @realizada.Longitude.ToString().Replace(",", ".")], {
+                                                icon: L.divIcon({
+                                                html: '<stam style="iLbRealizada font-size: 20px; color: red;">@vi</stam>',
+                                                iconSize: [20, 20],
+                                                className: 'myDivIcon'
+                                            })
+                                        }).addTo(map).bindPopup(
+                                            '<span> <b>Latitude:</b> @realizada.Latitude.ToString().Replace(",", ".")</span><br><span><b>Longitude</b></span> @realizada.Longitude.ToString().Replace(",", ".")<br><b>Data\Hora:</b>@realizada.DataHora</span>'
+                                        ).openPopup();
+                                    </text>
+                                vi++;
+                            }
+
+                        }*@
+
+                        var distanciaRealizada = 0;
+                        var latInicial = null;
+                        var lonInicial = null;
+                        var latFinal = null;
+                        var lonFinal = null;
+
+
+
+                        async function RotaRealizada() {
+
+                            let GeoPromises = []
+                            @foreach (var latlongRealizadaListaQuebradaGroup in Sinapse.Util.ListService.GetListaQuebrada(latlongRealizadaLista, 200))
+                            {
+                                var latlongRealizadaListaQuebrada = latlongRealizadaListaQuebradaGroup.Value;
+                                latlongRealizada = null;
+                                for (int i = 0; i < latlongRealizadaListaQuebrada.Count(); i++)
+                                {
+                                    var latlngAtual = (latlongRealizadaListaQuebrada[i]).Replace(",", ".").Replace("|", ",");
+
+                                    if (i + 1 < latlongRealizadaListaQuebrada.Count()) {
+                                        latlongRealizada += String.Concat(latlngAtual, ";");
+                                    }
+                                    else
+                                    {
+                                        latlongRealizada += latlngAtual;
+                                    }
+                                }
+
+                                if(Model.Rotas_Realizada.Count() > 1)
+                                {
+                                    <text>
+                                        // Preenche rota planejada
+
+                                    var geo = {
+                                        ordem: 1,
+                                        url: "@CONSTANTES.URLROUTE@latlongRealizada?geometries=geojson&steps=true",
+                                        url2: "https://router.project-osrm.org/route/v1/driving/@latlongRealizada?geometries=geojson&steps=true"
+                                    }
+
+                                    GeoPromises.push(geo)
+
+                                        //. Preenche rota planejada
+                                    </text>
+                                }
+
+                            }
+
+
+
+                            if (GeoPromises.length > 0) {
+                                const GeoResultado = [];
+
+                                for (var index = 0; index < GeoPromises.length; index++) {
+
+                                    let p = GeoPromises[index];
+                                    console.time("RotaRealizada" + index);
+
+
+                                    var resultado = null
+
+                                    for (var i = 0; i < 10; i++) {
+
+                                        try {
+                                            resultado = await $.ajax({
+                                                url: i % 2 == 0 ? p.url : p.url2,
+                                                type: 'GET',
+                                                dataType: 'json',
+                                                tryCount: 0,
+                                                retryLimit: 4,
+                                                error: function (xhr, textStatus, errorThrown) {
+                                                    return null;
+                                                },
+                                                timeout: 10000
+                                            });
+                                        }
+                                        catch (ex) {
+                                                console.log(`RotaRealizada${index} - ${ex.statusText}`);
+                                        }
+
+                                        if (resultado == null)
+                                            continue;
+                                        else
+                                            break;
+
+                                    }
+
+                                    if (resultado == null)
+                                        erroGeoConsulta = true;
+
+                                    console.timeEnd("RotaRealizada" + index);
+                                    console.log(i % 2 == 0 ? p.url : p.url2);
+                                    GeoResultado.push(resultado);
+                                }
+
+                                    await PolyLineRealizada(polylineRealizadaPoints, GeoResultado.filter(p => p != null));
+                            }
+
+
+
+
+
+                            var polylineOptions = {
+                                color: 'red',
+                                weight: 5,
+                                snakingSpeed: 250,
+                                opacity: 0.9,
+                                smoothFactor: 1
+                            };
+
+                                    polylineRealizada = new L.Polyline(polylineRealizadaPoints, polylineOptions);
+
+                            if (polylineRealizadaPoints.length > 0)
+                                polylineRealizada.addTo(map).snakeIn();
+
+                            if (latInicial && lonInicial) {
+                                pontoInicial = L.marker([latInicial, lonInicial], {
+                                    icon: L.divIcon({
+                                        //html: '<i class="fas fa-flag iLbRealizada" style="color: #7A6600; font-size: 23px;"></i>',
+                                        html: '<i class="fas fa-flag ico-flag-start iLbRealizada"></i>',
+                                        iconSize: [20, 20],
+                                        className: 'myDivIcon'
+                                    })
+                                }).addTo(map);
+                            }
+
+                            if (latFinal && lonFinal) {
+
+                                pontoFinal = L.marker([latFinal, lonFinal], {
+                                    icon: L.divIcon({
+                                        //html: '<i class="fas fa-flag iLbRealizada" style="color: #007749; font-size: 23px;"></i>',
+                                        html: '<i class="fas fa-flag-checkered ico-flag-end iLbRealizada"></i>',
+                                        iconSize: [20, 20],
+                                        className: 'myDivIcon'
+                                    })
+
+                                }).addTo(map);
+                            }
+                        }
+
+
+
+                        Promise.all([RotaPlanejada(), RotaRealizada()]).then((values) => {
+
+                            RotaIntegrada();
+                            $("#divProgress").hide();
+                            if (erroGeoConsulta) {
+                                Swal.fire(
+                                    '@Html.Raw(RsBase.ATENCAO_)',
+                                    'Ocorreu um erro ao montar a rota, tente recarregar o mapa ou verificar georeferencias das ordens de serviço!',
+                                    'warning'
+                                )
+                            }
+                        });
+
+                        let cluster = L.markerClusterGroup({
+                            spiderfyOnMaxZoom: true,
+                            showCoverageOnHover: false,
+                            animate: false,
+                            maxClusterRadius: function (zoom) {
+                                return 1; // radius in pixels
+                            }
+                        });
+
+                        let clickedMarker = "";
+                        map.on('zoomend', function () {
+                            if (clickedMarker !== "" && map.getZoom() >= map.options.maxZoom) {
+                                clickedMarker.__parent.spiderfy();
+                                clickedMarker = "";
+                            }
+                        });
+
+                        cluster.on('clusterclick', function (a) {
+                            if (a.layer._childCount > 0) {
+                                let clusterMarkers = a.layer.getAllChildMarkers();
+                                clickedMarker = clusterMarkers[0];
+                                //clickedMarker.__parent.spiderfy();
+                            }
+                            if (map.getZoom() >= map.options.maxZoom) {
+                                a.layer.spiderfy();
+                            } else {
+                                map.setZoom(18)
+                                a.layer.zoomToBounds({ padding: [20, 20] });
+                            }
+                        });
+
+                        cluster.on('clustermouseover', function (a) {
+                            var allLayers = a.target.getLayers();
+                            a.target.eachLayer(function (layer) {
+
+                                var m = cluster.getVisibleParent(layer);
+
+                                if (m && m._childCount > 0) {
+                                    m.on("mouseover", function () {
+                                        m.bindPopup(`Existem ${a.layer._childCount} OS's. <strong>Clique para ver</strong>`).openPopup();
+                                    });
+                                    m.on("mouseout", function () {
+                                        m.closePopup();
+                                    });
+                                }
+
+                            });
+                        });
+
+                        @if (Model.Rotas_Planejadas.Count() > 0)
+                        {
+                            var i = 0;
+                            foreach (var rota in Model.Rotas_Planejadas.FindAll(p => p.Latitude.HasValue && p.Latitude != 0).OrderBy(p => p.DataHora))
+                            {
+                                if (!String.IsNullOrEmpty(rota.Num_Obra))
+                                {
+                                    var cor_marker = String.Empty;
+                                    switch (rota.StatusExecucaoAniel.Value)
+                                    {
+                                        case StatusExecucaoAniel.Atendimento_Iniciado_Reiniciado:
+                                            {
+                                                cor_marker = "orange";
+                                                break;
+                                            }
+
+                                        case StatusExecucaoAniel.Reiniciado_Atendimento:
+                                            {
+                                                cor_marker = "orange";
+                                                break;
+                                            }
+
+                                        case StatusExecucaoAniel.Fechada_Produtiva:
+                                            {
+                                                cor_marker = "green";
+                                                break;
+                                            }
+
+                                        case StatusExecucaoAniel.Fechada_Improdutiva:
+                                            {
+                                                cor_marker = "red";
+                                                break;
+                                            }
+
+                                        case StatusExecucaoAniel.Atendimento_Finalizado:
+                                            {
+                                                cor_marker = "green";
+                                                break;
+                                            }
+
+                                        default:
+                                            {
+                                                cor_marker = "blue";
+                                                break;
+                                            }
+
+                                    }
+
+
+
+                                    <text>
+                                        let markerOs_@i = L.marker([@rota.Latitude.ToString().Replace(",", "."), @rota.Longitude.ToString().Replace(",", ".")], {
+                                            icon: new L.AwesomeNumberMarkers({
+                                                number: @i,
+                                                markerColor: '@cor_marker',
+                                                tipoLocalizacao: '@rota.TipoLocalizacao'
+                                            })
+                                        })
+                                            .addTo(cluster).bindPopup(
+                                                '<span> <b>OS:</b> @rota.Num_Obra</span><br><span><b>@rota.StatusExecucaoAniel_Str</b></span><br><span><b>Check-in:</b>@rota.Data_Ini_Atendimento</span><br><span><b>Check-out:</b>@rota.Data_Fim_Atendimento</span><br><span><b>@rota.BaixaNoLocal</b></span>'
+                                        ).openPopup();
+
+                                        if ('@cor_marker' == 'green') {
+                                            servicosExecutados.push(markerOs_@i);
+                                        }
+                                        else if ('@cor_marker' == 'orange') {
+                                            servicosSendoExecutados.push(markerOs_@i);
+                                        }
+                                        else if ('@cor_marker' == 'blue') {
+                                            servicosExecutar.push(markerOs_@i);
+                                        }
+                                        else if ('@cor_marker' == 'red') {
+                                            servicosExecutadosImprodutivos.push(markerOs_@i);
+                                        }
+                                    </text>
+
+                                    if (rota.LatitudeBaixa.HasValue && rota.LongitudeBaixa.HasValue)
+                                    {
+                                        <text>
+                                        baixasServico.push(L.marker([@rota.LatitudeBaixa.ToString().Replace(",", "."), @rota.LongitudeBaixa.ToString().Replace(",", ".")], {
+                                            icon: L.divIcon({
+                                                html: '<i class="fas fa-user-check fa-2x" style="color: #FF7F7F"></i><b style="font-weight: 800">@i</b>',
+                                                iconSize: [20, 20],
+                                                className: 'myDivIcon'
+                                            })
+                                        }).bindPopup(
+                                            '<span> <b>OS:</b> @rota.Num_Obra</span><br><span><b>@rota.StatusExecucaoAniel_Str</b></span><br><span><b>Data/Hora Baixa:</b>@rota.DataHoraBaixa</span>'
+                                        ).openPopup());
+                                        </text>
+
+                                    }
+
+
+                            }
+                                else if (!String.IsNullOrEmpty(rota.Ponto_Partida))
+                            {
+                                    <text>
+                                        pontoPartida = L.marker([@rota.Latitude.ToString().Replace(",", "."), @rota.Longitude.ToString().Replace(",", ".")], {
+                                            icon: L.divIcon({
+                                                html: '<i class="icofont-home icofont-2x" style="color:#0000FF"></i>',
+                                                iconSize: [20, 20],
+                                                className: 'myDivIcon'
+                                            })
+                                        }).addTo(map).bindPopup(
+                                        '<span> <b>Ponto Partida:</b> @rota.Ponto_Partida</span><br>'
+    ).openPopup();
+                                    </text>
+                                }
+                                i++;
+                            }
+                        }
+
+                        @if (Model.Rotas_Paradas.Count() > 0)
+                        {
+                            var i = 0;
+                            foreach (var rota in Model.Rotas_Paradas.FindAll(p => p.Latitude.HasValue && p.Latitude != 0).OrderBy(p => p.DataHora))
+                            {
+
+                                    <text>
+                                       paradas.push(L.marker([@rota.Latitude.ToString().Replace(",", "."), @rota.Longitude.ToString().Replace(",", ".")], {
+                                            icon: L.divIcon({
+                                                html: '<i class="fas fa-stopwatch fa-2x" style="color:gray"></i>',
+                                                iconSize: [20, 20],
+                                                className: 'myDivIcon'
+                                            })
+                                       }).bindPopup(
+                                           '<span> <b>Data/Hora Parada:</b> @rota.DataHoraStr</span><br><span> <b>Data/Hora Fim Parada:</b> @rota.DataHoraFimStr<br><span> <b>Local de Interesse:</b> @rota.Geofence</span>'
+                                        ).openPopup());
+
+                                    </text>
+
+                                i++;
+                            }
+                        }
+
+                        map.addLayer(cluster);
+
+
+
+
+                        /*******
+                        Teste2
+                        ********/
+                        //L.marker([-22.849778, -43.337906], {
+                        //    icon: L.divIcon({
+                        //        //html: '<i class="fa fa-truck fa-2x" style="color: blue"></i>',
+                        //        //html: '<i class="icofont-location-pin icofont-2x text-success" style="background-color: #fff; border-radius: 0.5rem;"></i>',
+                        //        html: '<i class="icofont-location-pin icofont-2x text-success"></i>',
+                        //        iconSize: [20, 20],
+                        //        className: 'myDivIcon'
+                        //    })
+                        //}).addTo(map).bindPopup(
+                        //    '<span> <b>OS:</b> 2019051108000001</span><br>' +
+                        //    '<span> <b>Baixada Produtiva no Prazo</b></span><br>' +
+                        //    '<span> <b>Check-in:</b> 11/05/2019 - 08:05</span><br>' +
+                        //    '<span> <b>Check-out:</b> 11/05/2019 - 09:32</span>'
+                        //).openPopup();
+
+                        //L.marker([-22.875947, -43.445668], {
+                        //    icon: L.divIcon({
+                        //        //html: '<i class="fa fa-truck fa-2x" style="color: blue"></i>',
+                        //        html: '<i class="icofont-location-pin icofont-2x text-warning"></i>',
+                        //        iconSize: [20, 20],
+                        //        className: 'myDivIcon'
+                        //    })
+                        //}).addTo(map).bindPopup(
+                        //    '<span> <b>OS:</b> 2019051108000001</span><br>' +
+                        //    '<span> <b>Baixada Produtiva no Prazo</b></span><br>' +
+                        //    '<span> <b>Check-in:</b> 11/05/2019 - 08:05</span><br>' +
+                        //    '<span> <b>Check-out:</b> 11/05/2019 - 09:32</span>'
+                        //).openPopup();
+
+                        /********************
+                        *Adicionando Círculo
+                        ********************/
+                        //L.circle([-22.884809, -43.499205], {
+                        //    //color: 'red',
+                        //    //fillColor: '#f03',
+                        //    color: '#3388ff',
+                        //    fillColor: '#38f',
+                        //    fillOpacity: 0.5,
+                        //    radius: 300
+                        //}).addTo(map).bindPopup("Eu sou um circle.");
+
+                        //L.circle([-22.875467, -43.445684], {
+                        //    //color: 'red',
+                        //    //fillColor: '#f03',
+                        //    color: '#3388ff',
+                        //    fillColor: '#38f',
+                        //    fillOpacity: 0.5,
+                        //    radius: 300
+                        //}).addTo(map).bindPopup("Eu sou um circle.");
+
+                        /********
+                         Teste 2
+                        ********/
+                        //L.circle([-22.849778, -43.337906], {
+                        //    //color: 'red',
+                        //    color: '#3388ff',
+                        //    //fillColor: '#38f',
+                        //    fillColor: 'red',
+                        //    //fillOpacity: 0.5,
+                        //    radius: 300
+                        //}).addTo(map).bindPopup("Eu sou um circle.");
+
+                        //L.circle([-22.875947, -43.445668], {
+                        //    //color: 'red',
+                        //    //fillColor: '#f03',
+                        //    color: '#3388ff',
+                        //    fillColor: '#38f',
+                        //    fillOpacity: 0.5,
+                        //    radius: 300
+                        //}).addTo(map).bindPopup("Eu sou um circle.");
+
+                        @if (latlongPlanejadaLista.Count > 0)
+                        {
+                            var latlng = latlongPlanejadaLista.FirstOrDefault().Replace(",", ".").Replace("|", ",").Split(',');
+                            <text>
+                            try {
+                                map.setView(new L.LatLng(@latlng[1],@latlng[0]), 1);
+                            }
+                            catch(ex){
+
+                            }
+                            </text>
+                        }
+                        else if (latlongRealizadaLista.Count > 0){
+                            var latlng = latlongRealizadaLista.FirstOrDefault().Replace(",", ".").Replace("|", ",").Split(',');
+                            <text>
+                            try {
+                                map.setView(new L.LatLng(@latlng[1],@latlng[0]), 1);
+                            }
+                            catch(ex){
+
+                            }
+                            </text>
+                        }
+
+</script>
+        }
+    }
+
+
+</div>
+
+
+
+<!--./main-->

@@ -1,0 +1,1515 @@
+﻿@model Aniel.Connect.Models.PainelProdutividadeFiltro
+@using Aniel.Connect.Core
+
+@{
+    ViewBag.Title = "Painel de Produtividade";
+    ViewBag.Sessao = RsCadastros.VENDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/csslayoutlimpo")
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    @*style ="margin-left: 6px; width: 50px;"*@
+    <style>
+        #modal-config input {
+            margin-left: 35px;
+            width: 80px;
+        }
+
+        #modal-config label {
+            width: 90px;
+        }
+
+        #modal-config .metaValor {
+            width: 240px;
+        }
+
+        #modal-config span {
+            margin-left: 10px;
+            font-size: 15px;
+        }
+    </style>
+
+}
+
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+    //global variables ->
+    var oDatatable = null;
+    var colunasTecnicos = [];
+    var colunasMonitores = [];
+    var colunasSupervisores = [];
+    var tecnicoProducao = "";
+    var tecnicoRevisita = "";
+    var tecnicoBaixas    = "";
+    var tecnicoVistoria = "";
+    var tecnicoSLA = "";
+    var supervisorProducao = "";
+    var supervisorRevisita = "";
+    var supervisorBaixas = "";
+    var supervisorQualidade = "";
+    var supervisorSLA = "";
+    var monitorProd = "";
+    var monitorRev = "";
+    var monitorRTI = "";
+    var monitorVist = "";
+    var monitorTEC = "";
+    var monitorSLA = "";
+
+    $(document).ready(async function () {
+        $('#iFiltro').modal('show');
+        $('#iProjetoId').prop('disabled', true);
+        await AddSelect('iAgroupId', '@CONSTANTES.URLPortal/api/EquipeApi/GetCombo', @CONSTANTES.PaginacaoRegistros,null,null, null, "@RsBase.SELECIONE",false,null)
+        await AddSelect("iGrupoAreaId", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null,null, "@RsBase.SELECIONE", false);
+        await AddSelect("iProjetoId", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        await AddSelect("iContratoId", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        await ObterConfiguracoes();
+    });
+
+    var filter_state = function () {
+        return {
+            iDataCriacao: {
+                label: "@RsCadastros.DATA_CRIACAO",
+                getDisplay: () => { return Boolean($('input[name="iTipoData"]:checked').val() === "0") ? $('#iDataInicial').val() + ' a ' + $('#iDataFim').val() : "" },
+                onclick: () => {
+                    $('#iDataCriacao').empty().trigger('change');
+                    $('#iDataInicial').val(null).trigger('change');
+                    $('#iDataFim').val(null).trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iDataAgend: {
+                label: "@RsCadastros.DATA_AGENDAMENTO",
+                getDisplay: () => { return Boolean($('input[name="iTipoData"]:checked').val() === "1") ? $('#iDataInicial').val() + ' a ' + $('#iDataFim').val() : "" },
+                onclick: () => {
+                    $('#iDataAgend').empty().trigger('change');
+                    $('#iDataInicial').val(null).trigger('change');
+                    $('#iDataFim').val(null).trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iDataBaixa: {
+                label: "@RsCadastros.DATA da @RsCadastros.BAIXA",
+                getDisplay: () => { return Boolean($('input[name="iTipoData"]:checked').val() === "2") ? $('#iDataInicial').val() + ' a ' + $('#iDataFim').val() : "" },
+                onclick: () => {
+                    $('#iDataBaixa').empty().trigger('change');
+                    $('#iDataInicial').val(null).trigger('change');
+                    $('#iDataFim').val(null).trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iTecnico: {
+                label: "@RsCadastros.TECNICO",
+                getDisplay: () => { return Boolean($('input[name="iAgroup"]:checked').val() === "0") ? ($('#iAgroupId').val() !== null ? $('#iAgroupId option:selected').text() : "Todos" ) : "" },
+                onclick: () => {
+                    $('#iTecnico').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iSupervisor: {
+                label: "@RsCadastros.SUPERVISOR",
+                getDisplay: () => { return Boolean($('input[name="iAgroup"]:checked').val() === "1") ? ($('#iAgroupId').val() !== null ? $('#iAgroupId option:selected').text() : "Todos") : "" },
+                onclick: () => {
+                    $('#iSupervisor').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iMonitor: {
+                label: "@RsCadastros.MONITOR",
+                getDisplay: () => { return Boolean($('input[name="iAgroup"]:checked').val() === "2") ? ($('#iAgroupId').val() !== null ? $('#iAgroupId option:selected').text() : "Todos") : "" },
+                onclick: () => {
+                    $('#iMonitor').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iContratoId: {
+                label: "@RsCadastros.CONTRATO",
+                getDisplay: () => { return Boolean($('#iContratoId').val()) ? $('#iContratoId option:selected').text() : "" },
+                onclick: () => {
+                    $('#iContratoId').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iProjetoId: {
+                label: "@RsCadastros.PROJETO",
+                getDisplay: () => { return Boolean($('#iProjetoId').val()) ? $('#iProjetoId option:selected').text() : "" },
+                onclick: () => {
+                    $('#iProjetoId').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+            iGrupoAreaId: {
+                label: "@RsCadastros.GRUPO_AREA",
+                getDisplay: () => { return Boolean($('#iGrupoAreaId').val()) ? $('#iGrupoAreaId option:selected').text() : "" },
+                onclick: () => {
+                    $('#iGrupoAreaId').empty().trigger('change');
+                    $("#iFiltro").modal("show");
+                }
+            },
+
+        }
+    };
+
+    function ValidarCamposFiltros() {
+        var dateInicial = $("#iDataInicial").val();
+        var dateFinal = $("#iDataFim").val();
+
+        var tipoData = $('input[name="iTipoData"]:checked').val();
+
+        if (!tipoData) {
+            Notificar("Alerta", "Selecione o Período", "warning");
+            return false;
+        }
+
+        if (!dateInicial && !dateFinal) {
+            Notificar("Alerta", "Preencha a Data Inicial", "warning");
+            Notificar("Alerta", "Preencha a Data Final", "warning");
+            return false;
+        }
+
+        if (!dateInicial) {
+            Notificar("Alerta", "Preencha a Data Inicial", "warning");
+            return false;
+        }
+
+        if (!dateFinal) {
+            Notificar("Alerta", "Preencha a Data Final", "warning");
+            return false;
+        }
+
+        if (DataMaior('iDataInicial', 'iDataFim')) {
+            Notificar("Alerta", "A Data Inicial não pode ser maior que a Data Final", "warning");
+            return false;
+        }
+
+        let diferencaDias = DateDiff(dateInicial, dateFinal);
+
+        if (diferencaDias > 31) {
+            Notificar("Alerta", "O período filtrado é maior que 31 dias!", "warning");
+            return false;
+        }
+
+        if ($('#iProjetoId').val()) {
+            if (!$('#iContratoId').val()) {
+                Notificar("Alerta", "Selecione o Contrato", "warning");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function ValidarCamposConfig() {
+            //TECNICO ------------
+            if (!$('#iProducaoValue').val()) {
+                Notificar("Alerta", "Preencha o campo Produção e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaProdutivaTec').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Produção e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iRevisitaValue').val()) {
+                Notificar("Alerta", "Preencha o campo Revisita e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaRevisitaTec').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta Revisita e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iBaixasValue').val()) {
+                Notificar("Alerta", "Preencha o campo Baixas no Prazo e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaBaixasTec').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do Prazo e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iVistoriaValue').val()) {
+                Notificar("Alerta", "Preencha o campo Vistoria e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaVistoriaTec').val()) {
+                Notificar("Alerta", "Preencha campo de valor a pagar por atingir a meta da Vistoria e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iSLAValue').val()) {
+                Notificar("Alerta", "Preencha o campo e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaSLATec').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do SLA e tente novamente", "warning");
+                return true;
+            }
+
+            //SUPERVISOR --------
+            if (!$('#iProducaoValueSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Produção do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaProdutivaSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Produção do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iRevisitaValueSup').val()) {
+                Notificar("Alerta", "Preencha o campo Revisita do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaRevisitaSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Revisita do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iBaixasValueSup').val()) {
+                Notificar("Alerta", "Preencha o campo Baixas no Prazo do Supervisor e tente novamente", "warning");
+                return true;
+            }
+            if (!$('#iMetaBaixasSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do Prazo do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iQualidadeValueSup').val()) {
+                Notificar("Alerta", "Preencha o campo de Qualidade do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaQualidadeSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Qualidade do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iSLAValueSup').val()) {
+                Notificar("Alerta", "Preencha o campo de SLA do Supervisor tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaSLATecSup').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do SLA do Supervisor e tente novamente", "warning");
+                return true;
+            }
+
+            //MONITOR ---------------
+
+            if (!$('#iProducaoValueMon').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Produção do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaProdutivaMon').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Produção do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iRevisitaValueMon').val()) {
+                Notificar("Alerta", "Preencha o campo Revisita do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaRevisitaMon').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta de Revisita do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iTecValueMon').val()) {
+                Notificar("Alerta", "Preencha o campo Baixas no Prazo do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaTECMon').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do Prazo do Monitor e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iVistoriaValueMon').val()) {
+                Notificar("Alerta", "Preencha o campo Vistoria e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaVistoriaTec').val()) {
+                Notificar("Alerta", "Preencha campo de valor a pagar por atingir a meta da Vistoria e tente novamente", "warning");
+                return true;
+            }
+         
+            if (!$('#iMetaTECMon').val()) {
+                Notificar("Alerta", "Preencha campo de valor a pagar por atingir a meta TEC1 e tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iSLAValue').val()) {
+                Notificar("Alerta", "Preencha o campo de SLA do Monitor tente novamente", "warning");
+                return true;
+            }
+
+            if (!$('#iMetaSLAMon').val()) {
+                Notificar("Alerta", "Preencha o campo de valor a pagar por atingir a meta do SLA do Monitor e tente novamente", "warning");
+                return true;
+            }
+        };
+
+    function AtualizarHeader(data) {
+        if (data === '0') {
+            $("#divTable").empty();
+
+            $('#divTable').html(
+                `           <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                <thead>
+                                <tr>
+                                    <th colspan="2"></th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">Produção ${tecnicoProducao}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="3" style="text-align:center;background-color:lightgrey;padding-right:5px">Revisita ${tecnicoRevisita}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">Baixas no Prazos TEC1 ${tecnicoBaixas} </th>
+                                    <th colspan="1"> </th>
+                                    <th colspan="5" style="text-align:center;background-color:lightgrey;padding-right:5px">Vistoria ${tecnicoVistoria}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">SLA ${tecnicoSLA}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="2" style="text-align:center;background-color:lightgrey;padding-right:5px">Total</th>
+                                </tr>
+                                   <tr>
+                                       <th style="text-align:center;">Técnico</th>
+                                       <th style="text-align:center;">Grupo Área</th>
+                                       <th style="text-align:center;">Produtiva</th>
+                                       <th style="text-align:center;">Improdutiva</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                         <th colspan="1"></th>
+                                       <th style="text-align:center;">Quantidade</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <th colspan="1"></th>
+                                       <th style="text-align:center;">B.P</th>
+                                       <th style="text-align:center;">B.F</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <th colspan="1"></th>
+                                       <th style="text-align:center;">APR</th>
+                                       <th style="text-align:center;">REP</th>
+                                       <th style="text-align:center;">N.Real</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <th colspan="1"></th>
+                                       <th style="text-align:center;">D.Prazo</th>
+                                       <th style="text-align:center;">F.Prazo</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <th colspan="1"></th>
+                                       <th style="text-align:center;">R$</th>
+                                   </tr>
+                                </thead>
+                         </table>
+                `
+            );
+        }
+        else if (data === '1') {
+            $("#divTable").empty();
+
+            $('#divTable').html(
+              `
+                          <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                <thead>
+                                   <tr>
+                                    <th colspan="2"></th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">Produção ${supervisorProducao}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="3" style="text-align:center;background-color:lightgrey;padding-right:5px">Revisita ${supervisorRevisita}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">Baixas no Prazo ${supervisorBaixas}</th>
+                                    <th colspan="1"> </th>
+                                    <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">SLA ${supervisorSLA}</th>
+                                    <th colspan="1"></th>
+                                    <th colspan="2" style="text-align:center;background-color:lightgrey;padding-right:5px">Total</th>
+                                </tr>
+                                   <tr>
+                                       <th style="text-align:center;">Supervisor</th>
+                                       <th style="text-align:center;">Grupo Área</th>
+                                       <th style="text-align:center;">Produtiva</th>
+                                       <th style="text-align:center;">Improdutiva</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <td colspan="1"> </td>
+                                       <th style="text-align:center;">Quantidade</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <td colspan="1"> </td>
+                                       <th style="text-align:center;">B.P</th>
+                                       <th style="text-align:center;">B.F</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <td colspan="1"> </td>
+                                       <th style="text-align:center;">D.Prazo</th>
+                                       <th style="text-align:center;">F.Prazo</th>
+                                       <th style="text-align:center;">%</th>
+                                       <th style="text-align:center;">R$</th>
+                                       <th colspan="1"></th>
+                                       <th style="text-align:center;">R$</th>
+                                   </tr>
+                                </thead>
+                        </table>
+               `
+            );
+        }
+        else {
+            $("#divTable").empty();
+
+            $('#divTable').html(
+                `
+                     <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                     <thead>
+                                        <tr>
+                                            <th colspan="2"></th>
+                                            <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">Produção ${monitorProd}</th>
+                                            <th colspan="1"></th>
+                                            <th colspan="3" style="text-align:center;background-color:lightgrey;padding-right:5px">Revisita ${monitorRev}</th>
+                                            <th colspan="1"></th>
+                                            <th colspan="5" style="text-align:center;background-color:lightgrey;padding-right:5px">Vistoria ${monitorVist}</th>
+                                            <th colspan="1"></th>
+                                            <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">TEC1 ${monitorTEC} </th>
+                                            <th colspan="1"> </th>
+                                            <th colspan="4" style="text-align:center;background-color:lightgrey;padding-right:5px">SLA ${monitorSLA}</th>
+                                            <th colspan="1"></th>
+                                            <th colspan="2" style="text-align:center;background-color:lightgrey;padding-right:5px">Total</th>
+                                        </tr>
+                                        <tr>
+                                            <th style="text-align:center;">Monitor</th>
+                                            <th style="text-align:center;">Grupo Área</th>
+                                            <th style="text-align:center;">Produtiva</th>
+                                            <th style="text-align:center;">Improdutiva</th>
+                                            <th style="text-align:center;">%</th>
+                                            <th style="text-align:center;">R$</th>
+                                              <th colspan="1"></th>
+                                            <th style="text-align:center;">Quantidade</th>
+                                            <th style="text-align:center;">%</th>
+                                            <th style="text-align:center;">R$</th>
+                                                <th colspan="1"></th>
+                                            <th style="text-align:center;">V.ABERTA</th>
+                                            <th style="text-align:center;">V.FECH</th>
+                                            <th style="text-align:center;">REPR</th>
+                                            <th style="text-align:center;">%</th>
+                                            <th style="text-align:center;">R$</th>
+                                                <th colspan="1"></th>
+                                            <th style="text-align:center;">B.P</th>
+                                            <th style="text-align:center;">B.F</th>
+                                            <th style="text-align:center;">%</th>
+                                            <th style="text-align:center;">R$</th>                                              
+                                                <th colspan="1"></th>
+                                            <th style="text-align:center;">D.Prazo</th>
+                                            <th style="text-align:center;">F.Prazo</th>
+                                            <th style="text-align:center;">%</th>
+                                            <th style="text-align:center;">R$</th>
+                                                <th colspan="1"></th>
+                                            <th style="text-align:center;">R$</th>
+                                        </tr>
+                                    </thead>
+                    </table>
+                `
+            );
+        }
+    }
+
+    function RecarregarTela() {
+        window.location.href = '@Url.Action("Index", "PainelProdutividade")';
+    }
+
+    async function GravarConfiguracoes() {
+
+        var validarCampos = ValidarCamposConfig();
+
+        if (validarCampos) {
+            Notificar("Alerta", "Valide os campos a serem preenchidos e tente novamente", "warning");
+        }
+
+        let urlGravarConfig = baseUrl + '/api/PainelProdutividadeApi/GravarConfiguracoes';
+
+        let resultado = await $.ajax({
+            url: urlGravarConfig,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                id: "1",
+                producaoPorcentTec: $('#iProducaoValue').val(),
+                metaProdutivaTec: $('#iMetaProdutivaTec').val(),
+                revisitaPorcentTec: $('#iRevisitaValue').val(),
+                metaRevisitaTec: $('#iMetaRevisitaTec').val(),
+                baixasPrazoPorcentTec: $('#iBaixasValue').val(),
+                metaBaixasPrazoTec: $('#iMetaBaixasTec').val(),
+                vistoriaPorcentTec: $('#iVistoriaValue').val(),
+                metaVistoriaTec: $('#iMetaVistoriaTec').val(),
+                sLAPorcentTec: $('#iSLAValue').val(),
+                metaSLATec: $('#iMetaSLATec').val(),
+                // Configs Supervisor
+                producaoPorcentSup: $('#iProducaoValueSup').val(),
+                metaProdutivaSup: $('#iMetaProdutivaSup').val(),
+                revisitaPorcentSup: $('#iRevisitaValueSup').val(),
+                metaRevisitaSup: $('#iMetaRevisitaSup').val(),
+                baixasPrazoPorcentSup: $('#iBaixasValueSup').val(),
+                metaBaixasPrazoSup: $('#iMetaBaixasSup').val(),
+                qualidadePorcentSup: $('#iQualidadeValueSup').val(),
+                metaQualidadeSup: $('#iMetaQualidadeSup').val(),
+                sLAPorcentSup: $('#iSLAValueSup').val(),
+                metaSLASup: $('#iMetaSLATecSup').val(),
+                // Configs Monitor
+                producaoPorcentMon: $('#iProducaoValueMon').val(),
+                metaProdutivaMon: $('#iMetaProdutivaMon').val(),
+                revisitaPorcentMon: $('#iRevisitaValueMon').val(),
+                metaRevisitaMon: $('#iMetaRevisitaMon').val(),
+                rTIPorcentMon: $('#iRTIValue').val(),
+                metaRTIMon: $('#iMetaRTIMon').val(),
+                vistoriaPorcentMon: $('#iVistoriaValueMon').val(),
+                metaVistoriaMon: $('#iMetaVistoriaMon').val(),
+                tECPorcentMon: $('#iTecValueMon').val(),
+                metaTECMon: $('#iMetaTECMon').val(),
+                sLAPorcentMon: $('#iSlaMonitor').val(),
+                metaSLAMon: $('#iMetaSLAMon').val()
+            },
+            complete: function () {
+                RecarregarTela();
+            }
+        });
+    };
+
+    async function ObterConfiguracoes() {
+
+        let url = baseUrl + '/api/PainelProdutividadeApi/GetConfiguracoes';
+
+        let configuracoes = await $.ajax({
+            url: url,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                if (data !== null) {
+                    if (data.idObjeto !== null) {
+                        $('#iProducaoValue').val(data.idObjeto.producaoPorcentTec),
+                            $('#iMetaProdutivaTec').val(data.idObjeto.metaProdutivaTec),
+                            $('#iRevisitaValue').val(data.idObjeto.revisitaPorcentTec),
+                            $('#iMetaRevisitaTec').val(data.idObjeto.metaRevisitaTec),
+                            $('#iBaixasValue').val(data.idObjeto.baixasPrazoPorcentTec),
+                            $('#iMetaBaixasTec').val(data.idObjeto.metaBaixasPrazoTec),
+                            $('#iVistoriaValue').val(data.idObjeto.vistoriaPorcentTec),
+                            $('#iMetaVistoriaTec').val(data.idObjeto.metaVistoriaTec),
+                            $('#iSLAValue').val(data.idObjeto.slaPorcentTec),
+                            $('#iMetaSLATec').val(data.idObjeto.metaSLATec),
+                            $('#iProducaoValueSup').val(data.idObjeto.producaoPorcentSup),
+                            $('#iMetaProdutivaSup').val(data.idObjeto.metaProdutivaSup),
+                            $('#iRevisitaValueSup').val(data.idObjeto.revisitaPorcentSup),
+                            $('#iMetaRevisitaSup').val(data.idObjeto.metaRevisitaSup),
+                            $('#iBaixasValueSup').val(data.idObjeto.baixasPrazoPorcentSup),
+                            $('#iMetaBaixasSup').val(data.idObjeto.metaBaixasPrazoSup),
+                            $('#iQualidadeValueSup').val(data.idObjeto.qualidadePorcentSup),
+                            $('#iMetaQualidadeSup').val(data.idObjeto.metaQualidadeSup),
+                            $('#iSLAValueSup').val(data.idObjeto.slaPorcentSup),
+                            $('#iMetaSLATecSup').val(data.idObjeto.metaSLASup),
+                            $('#iProducaoValueMon').val(data.idObjeto.producaoPorcentMon),
+                            $('#iMetaProdutivaMon').val(data.idObjeto.metaProdutivaMon),
+                            $('#iRevisitaValueMon').val(data.idObjeto.revisitaPorcentMon),
+                            $('#iMetaRevisitaMon').val(data.idObjeto.metaRevisitaMon),
+                            $('#iRTIValue').val(data.idObjeto.rtiPorcentMon),
+                            $('#iMetaRTIMon').val(data.idObjeto.metaRTIMon),
+                            $('#iVistoriaValueMon').val(data.idObjeto.vistoriaPorcentMon),
+                            $('#iMetaVistoriaMon').val(data.idObjeto.metaVistoriaMon),
+                            $('#iTecValueMon').val(data.idObjeto.tecPorcentMon),
+                            $('#iMetaTECMon').val(data.idObjeto.metaTECMon),
+                            $('#iSlaMonitor').val(data.idObjeto.slaPorcentMon),
+                            $('#iMetaSLAMon').val(data.idObjeto.metaSLAMon);
+
+                            tecnicoProducao = `${data.idObjeto.producaoPorcentTec}%`;
+                            tecnicoRevisita = `${data.idObjeto.revisitaPorcentTec}%`;
+                            tecnicoBaixas = `${data.idObjeto.baixasPrazoPorcentTec}%`;
+                            tecnicoVistoria = `${data.idObjeto.vistoriaPorcentTec}%`;
+                            tecnicoSLA = `${data.idObjeto.slaPorcentTec}%`;
+                            supervisorProducao = `${data.idObjeto.producaoPorcentSup}%`;
+                            supervisorRevisita = `${data.idObjeto.revisitaPorcentSup}%`;
+                            supervisorBaixas = `${data.idObjeto.baixasPrazoPorcentSup}%`;
+                            supervisorQualidade = `${data.idObjeto.qualidadePorcentSup}%`;
+                            supervisorSLA = `${data.idObjeto.slaPorcentSup}%`;
+                            monitorProd = `${data.idObjeto.producaoPorcentMon}%`;
+                            monitorRev = `${data.idObjeto.revisitaPorcentMon}%`;
+                            monitorRTI = `${data.idObjeto.rtiPorcentMon}%`;
+                            monitorVist = `${data.idObjeto.vistoriaPorcentMon}%`;
+                            monitorTEC = `${data.idObjeto.tecPorcentMon}%`;
+                            monitorSLA = `${data.idObjeto.slaPorcentMon}%`;
+                    }
+                }
+            }
+        });
+    };
+
+    colunasTecnicos = [
+        { data: 'tecnico', className: 'text-center', orderable: false },
+        { data: 'grupoArea', className: 'text-center', orderable: false },
+        { data: 'osprodutiva', className: 'text-center', orderable: false },
+        { data: 'osimprodutiva', className: 'text-center', orderable: false },
+        { data: 'osporcentagemProducao', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'osprecoProducao', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'quantidadeRevisita', className: 'text-center', orderable: false },
+        { data: 'porcentagemRevisita', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoRevisita', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'baixaProdutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'baixaImprodutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'porcentagemBaixaNoPrazo', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoBaixaTEC', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'vistoriaAprovada', className: 'text-center', orderable: false },
+        { data: 'vistoriaReprovada', className: 'text-center', orderable: false },
+        { data: 'vistoriaNaoFeitas', className: 'text-center', orderable: false },
+        { data: 'porcentagemVistoria', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoVistoria', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'dentroPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'foraPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'porcentagemSLA', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoSLA', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'totalPrecoSomado', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } }
+    ];
+
+    colunasSupervisores = [
+        { data: 'supervisor', className: 'text-center', orderable: false },
+        { data: 'grupoArea', className: 'text-center', orderable: false },
+        { data: 'osprodutiva', className: 'text-center', orderable: false },
+        { data: 'osimprodutiva', className: 'text-center', orderable: false },
+        { data: 'osporcentagemProducao', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'osprecoProducao', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'quantidadeRevisita', className: 'text-center', orderable: false },
+        { data: 'porcentagemRevisita', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoRevisita', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'baixaProdutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'baixaImprodutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'porcentagemBaixaNoPrazo', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoBaixaTEC', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'dentroPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'foraPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'porcentagemSLA', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoSLA', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'totalPrecoSomado', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } }
+    ];
+
+    colunasMonitores = [
+        { data: 'monitor', className: 'text-center', orderable: false },
+        { data: 'grupoArea', className: 'text-center', orderable: false },
+        { data: 'osprodutiva', className: 'text-center', orderable: false },
+        { data: 'osimprodutiva', className: 'text-center', orderable: false },
+        { data: 'osporcentagemProducao', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'osprecoProducao', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'quantidadeRevisita', className: 'text-center', orderable: false },
+        { data: 'porcentagemRevisita', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoRevisita', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'vistoriaNaoFeitas', className: 'text-center', orderable: false },
+        { data: 'vistoriaAprovada', className: 'text-center', orderable: false },
+        { data: 'vistoriaReprovada', className: 'text-center', orderable: false },
+        { data: 'porcentagemVistoria', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoVistoria', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'baixaProdutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'baixaImprodutivaPrazo', className: 'text-center', orderable: false },
+        { data: 'porcentagemBaixaNoPrazo', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoBaixaTEC', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'dentroPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'foraPrazoSLA', className: 'text-center', orderable: false },
+        { data: 'porcentagemSLA', className: 'text-center', orderable: false, render: function (data) { return `${data}%` } },
+        { data: 'precoSLA', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } },
+        { data: null, defaultContent: "", className: 'text-center', orderable: false },
+        { data: 'totalPrecoSomado', className: 'text-center', orderable: false, render: function (data) { if (data === null || data === undefined) { return `0,00` } else { return `${data}` } } }
+    ];
+
+    const handleDataTableButtons = async function () {
+        "use strict";
+
+         let link = baseUrl;
+         var tipoSelecionado = $('input[name="iAgroup"]:checked').val();
+
+         if (tipoSelecionado === "0") {
+             link = link + '/api/PainelProdutividadeApi/GetAllTecnicos';
+             $("#selectAgroup option[value='0']").prop("selected", true);
+         }
+         else if (tipoSelecionado === "1") {
+             link = link + '/api/PainelProdutividadeApi/GetAllSupervisores';
+             $("#selectAgroup option[value='1']").prop("selected", true);
+         }
+         else {
+             link = link + '/api/PainelProdutividadeApi/GetAllMonitores';
+             $("#selectAgroup option[value='2']").prop("selected", true);
+         }
+
+         let resultado = await $.ajax({
+             url: link,
+             type: 'POST',
+             dataType: 'json',
+             data: {
+                 grupoArea: $("#iGrupoAreaId").val(),
+                 tipoSelecionado: $('input[name="iAgroup"]:checked').val(),
+                 pessoaAgrupamento: $("#iAgroupId").val(),
+                 contratoValor: $("#iContratoId").val(),
+                 projetoValor: $("#iProjetoId").val(),
+                 dataInicio: $("#iDataInicial").val(),
+                 dataFim: $("#iDataFim").val(),
+                 tipoData: $('input[name="iTipoData"]:checked').val()
+             },
+             beforeSend: function () {
+                 ShowPageLoading();
+             },
+             complete: function (data) {
+                 HidePageLoading();
+             }
+         });
+
+
+        AtualizarHeader($('input[name="iAgroup"]:checked').val());
+
+        TagFilter("FiltrosUtilizados", filter_state());
+
+        oDatatable = $('#datatable').DataTable({
+            dom: "Bfrti",
+            orderCellsTop: true,
+            orderable: false,
+            columns: tipoSelecionado === "0" ? colunasTecnicos : (tipoSelecionado === "1" ? colunasSupervisores : colunasMonitores),
+            data: resultado,
+            paging: false,
+            searching: false,
+            scrollX: true,
+            /*scrollY: '800px',*/
+            scrollCollapse: true,
+            buttons: buttonsDataTable,
+            drawCallBack: function () {
+                HidePageLoading();
+            }
+        });
+    },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+
+        $("#iAplicarFiltro").on('click', function () {
+
+            var valido = ValidarCamposFiltros();
+
+            if (!valido)
+                return;
+
+            $('#iFiltro').modal('hide');
+            TableManageButtons.init();
+        });
+
+        $('#iContratoId').on('change', function () {
+            if (!$('#iContratoId').val()) {
+                $('#iProjetoId').empty();
+                $('#iProjetoId').prop('disabled', true);
+                return;
+            }
+            $('#iProjetoId').prop('disabled', false);
+        });
+
+
+        $('input[name="iAgroup"]').on('click', async function () {
+            let valueSelect = $('input[name="iAgroup"]:checked').val();
+
+            if (valueSelect === '0') {
+                $('#iLabelAgroup').text(null);
+                $('#iLabelAgroup').text("Técnico:");
+                await AddSelect('iAgroupId', '@CONSTANTES.URLPortal/api/EquipeApi/GetCombo', @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null)
+            }
+            else if (valueSelect === '1') {
+                $('#iLabelAgroup').text(null);
+                $('#iLabelAgroup').text("Supervisor:");
+                await AddSelect("iAgroupId", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                $('#iLabelAgroup').text(null);
+                $('#iLabelAgroup').text("Monitor:");
+                await AddSelect('iAgroupId', "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+        });
+
+        $("#iLimparFiltro").on('click', function () {
+            $('#iDataInicial').val('');
+            $('#iDataFim').val('');
+            $('#iAgroupId').empty();
+            $('#iContratoId').empty();
+            $('#iProjetoId').empty();
+            $('#iGrupoAreaId').empty();
+
+            $('#iFiltro').modal('show');
+        });
+
+        $("#iLimparFiltrosModal").on('click', function () {
+            $('#iDataInicial').val('');
+            $('#iDataFim').val('');
+            $('#iAgroupId').empty();
+            $('#iContratoId').empty();
+            $('#iProjetoId').empty();
+            $('#iGrupoAreaId').empty();
+
+            $('#iFiltro').modal('show');
+        });
+</script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page"><i class="fa-solid fa-money-check-dollar"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#iFiltro" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('#modal-config').modal('show');">@RsCadastros.CONFIGURACOES</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="divSubTitle">
+    <div id="FiltrosUtilizados" class="mb-1 mr-2 ml-2"></div>
+    <div class="row" id="divAgrupamento" style="margin-top:20px;margin-left:10px;">
+        <div class="col-sm-7">
+            <div class="row">
+                <div class="col-sm-3">
+                    <div class="form-group d-flex">
+                        <label for="Agrupment" class="metaValor">Agrupamento:</label>
+                        <select name="Agrupment" id="selectAgroup" class="form-control" style="margin-left:10px;" disabled>
+                            <option value=""></option>
+                            <option value="0">Técnico</option>
+                            <option value="1">Supervisor</option>
+                            <option value="2">Monitor</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div id="divTable" style="width: 97.5vw; margin: auto">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!-- Filtros -->
+<div class="modal fade" id="iFiltro" tabindex="-1" role="dialog" aria-labelledby="Filtro" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="iFiltroTitle">Filtros</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row border_radius">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label><span class="text-danger">*</span> Periodo:</label>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-4 d-flex justify-content-center">
+                                        <div class="form-group">
+                                            <input type="radio" name="iTipoData" id="iDataCriacao" value="0" />
+                                            <label for="DataCriacao">@RsCadastros.DATA_CRIACAO</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4 d-flex justify-content-center">
+                                        <div class="form-group">
+                                            <input type="radio" name="iTipoData" id="iDataAgend" value="1" />
+                                            <label for="DataAgend">@RsCadastros.DATA_AGENDAMENTO</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4 d-flex justify-content-center">
+                                        <div class="form-group">
+                                            <input type="radio" name="iTipoData" id="iDataBaixa" value="2" />
+                                            <label for="DataBaixa">@RsCadastros.DATA da @RsCadastros.BAIXA</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-12 mt-3 d-flex justify-content-center">
+                                <div class="form-group">
+                                    @Html.TextBoxFor(m => m.DataInicial, new { @id = "iDataInicial", @class = "form-control datepicker filtro", @placeholder = "00/00/0000", @autocomplete = "off" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(m => m.DataFinal, new { @id = "iDataFim", @class = "form-control datepicker filtro", @placeholder = "00/00/0000", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-8">
+                        <div class="row border_radius">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label>Agrupamento:</label>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3 d-flex">
+                                        <div class="form-group">
+                                            <input type="radio" name="iAgroup" id="iTecnico" value="0" checked />
+                                            <label for="iTecnico">@RsCadastros.TECNICO</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3 d-flex">
+                                        <div class="form-group">
+                                            <input type="radio" name="iAgroup" id="iSupervisor" value="1" />
+                                            <label for="iSupervisor">@RsCadastros.SUPERVISOR</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-3 d-flex">
+                                        <div class="form-group">
+                                            <input type="radio" name="iAgroup" id="iMonitor" value="2" />
+                                            <label for="iMonitor">@RsCadastros.MONITOR</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="row border_radius">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label id="iLabelAgroup">Técnico:</label>
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-sm-12 d-flex">
+                                        @Html.DropDownListFor(m => m.AgroupId, new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control filtro", @id = "iAgroupId", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label>@RsCadastros.CONTRATO</label>
+                                    @Html.DropDownListFor(m => m.ContratoId, new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control filtro", @id = "iContratoId", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label>@RsCadastros.PROJETO</label>
+                                    @Html.DropDownListFor(m => m.ProjetoId, new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control filtro", @id = "iProjetoId", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label>@RsCadastros.GRUPO_AREA</label>
+                                    @Html.DropDownListFor(m => m.GrupoAreaId, new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control filtro", @id = "iGrupoAreaId", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-danger" id="iLimparFiltrosModal">@RsBase.LIMPAR_FILTRO</button>
+                <button type="button" class="btn btn-success" id="iAplicarFiltro">@RsCadastros.APLICAR</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Fim Filtros -->
+<!-- Modal Config -->
+
+<div class="modal fade" id="modal-config" tabindex="-1" role="dialog" aria-labelledby="Filtro" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="iFiltroTitle">@RsCadastros.CONFIGURACOES</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!--Técnico-->
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group" style="font-size:15px;">
+                                    <label><b>@RsCadastros.TECNICO</b></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValue">@RsCadastros.PRODUCAO</label>
+                                    <input name="ProducaoValue" type="number" id="iProducaoValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValue" class="metaValor">@RsCadastros.VALOR_META_PRODUTIVA</label>
+                                    <input name="ProducaoValue" type="number" id="iMetaProdutivaTec" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="RevisitaValue">@RsCadastros.REVISITA</label>
+                                    <input name="RevisitaValue" type="number" id="iRevisitaValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValue" class="metaValor">@RsCadastros.VALOR_META_REVISITA</label>
+                                    <input name="ProducaoValue" type="number" id="iMetaRevisitaTec" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="BaixasValue">@RsCadastros.BAIXAS_PRAZO</label>
+                                    <input name="BaixasValue" type="number" id="iBaixasValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MetaValue" class="metaValor">@RsCadastros.VALOR_META_PRAZO</label>
+                                    <input name="MetaValue" type="number" id="iMetaBaixasTec" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="VistoriaValue">@RsCadastros.Vistoria</label>
+                                    <input name="VistoriaValue" type="number" id="iVistoriaValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaVistoria" class="metaValor">@RsCadastros.VALOR_META_VISTORIA</label>
+                                    <input name="MediaVistoria" type="number" id="iMetaVistoriaTec" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="SlaValue">@RsCadastros.SLA</label>
+                                    <input name="SlaValue" type="number" id="iSLAValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaSLA" class="metaValor">@RsCadastros.VALOR_META_SLA </label>
+                                    <input name="MediaSLA" type="number" id="iMetaSLATec" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!--Supervisor-->
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group" style="font-size:15px;">
+                                    <label><b>@RsCadastros.SUPERVISOR</b></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValueSup">@RsCadastros.PRODUCAO</label>
+                                    <input name="ProducaoValueSup" type="number" id="iProducaoValueSup" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValueSup" class="metaValor">@RsCadastros.VALOR_META_PRODUTIVA</label>
+                                    <input name="ProducaoValueSup" type="number" id="iMetaProdutivaSup" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="RevisitaValueSup">@RsCadastros.REVISITA</label>
+                                    <input name="RevisitaValueSup" type="number" id="iRevisitaValueSup" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValue" class="metaValor">@RsCadastros.VALOR_META_REVISITA</label>
+                                    <input name="ProducaoValue" type="number" id="iMetaRevisitaSup" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="BaixasValueSup">@RsCadastros.BAIXAS_PRAZO</label>
+                                    <input name="BaixasValueSup" type="number" id="iBaixasValueSup" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MetaValueSup" class="metaValor">@RsCadastros.VALOR_META_PRAZO</label>
+                                    <input name="MetaValueSup" type="number" id="iMetaBaixasSup" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="QualidadeValueSup">Qualidade</label>
+                                    <input name="QualidadeValueSup" type="number" id="iQualidadeValueSup" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaQualidadeSup" class="metaValor">@RsCadastros.VALOR_META_QLD</label>
+                                    <input name="MediaQualidadeSup" type="number" id="iMetaQualidadeSup" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="SlaValueSup">@RsCadastros.SLA</label>
+                                    <input name="SlaValueSup" type="number" id="iSLAValueSup" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaSLASup" class="metaValor">@RsCadastros.VALOR_META_SLA </label>
+                                    <input name="MediaSLASup" type="number" id="iMetaSLATecSup" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!--Monitor-->
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group" style="font-size:15px;">
+                                    <label><b>@RsCadastros.MONITOR</b></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValueMon">@RsCadastros.PRODUCAO</label>
+                                    <input name="ProducaoValueMon" type="number" id="iProducaoValueMon" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="ProducaoValueMon" class="metaValor">@RsCadastros.VALOR_META_PRODUTIVA</label>
+                                    <input name="ProducaoValueMon" type="number" id="iMetaProdutivaMon" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="RevisitaValueMon">@RsCadastros.REVISITA</label>
+                                    <input name="RevisitaValueMon" type="number" id="iRevisitaValueMon" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MetaRevisitaMon" class="metaValor">@RsCadastros.VALOR_META_REVISITA</label>
+                                    <input name="MetaRevisitaMon" type="number" id="iMetaRevisitaMon" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="BaixasValueMon">RTI</label>
+                                    <input name="BaixasValueMon" type="number" id="iRTIValue" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MetaValueMon" class="metaValor">@RsCadastros.VALOR_META_RTI</label>
+                                    <input name="MetaValueMon" type="number" id="iMetaRTIMon" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="VistoriaValueMon">@RsCadastros.Vistoria</label>
+                                    <input name="VistoriaValueMon" type="number" id="iVistoriaValueMon" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaVistoria" class="metaValor">@RsCadastros.VALOR_META_VISTORIA</label>
+                                    <input name="MediaVistoria" type="number" id="iMetaVistoriaMon" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="TecValue">TEC1</label>
+                                    <input name="TecValue" type="number" id="iTecValueMon" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaTEC" class="metaValor">@RsCadastros.VALOR_META_TEC1</label>
+                                    <input name="MediaTEC" type="number" id="iMetaTECMon" step=".01" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="SlaValue">@RsCadastros.SLA</label>
+                                    <input name="SlaValue" type="number" id="iSlaMonitor" class="form-control" />  <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group d-flex">
+                                    <label for="MediaSLAMon" class="metaValor">@RsCadastros.VALOR_META_SLA </label>
+                                    <input name="MediaSLAMon" type="number" step=".01" id="iMetaSLAMon" class="form-control" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="justify-content:center">
+                    <button type="button" class="btn btn-success" id="iSalvarConfig" onclick="GravarConfiguracoes();">@RsBase.SALVAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

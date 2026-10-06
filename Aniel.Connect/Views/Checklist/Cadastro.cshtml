@@ -1,0 +1,1024 @@
+﻿@model Aniel.Connect.Repository.Model.ChecklistCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_CHECKLIST;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@{
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @*@Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")*@
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+        #datatableQuestao {
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script>
+    const TIPO_QUESTAO_TEXTO = @((int)EnumQuizTipo.Texto);
+    const TIPO_QUESTAO_VALOR = @((int)EnumQuizTipo.Valor);
+    const TIPO_QUESTAO_DATA = @((int)EnumQuizTipo.Data);
+    const TIPO_QUESTAO_FOTO = @((int)EnumQuizTipo.Foto);
+    const TIPO_QUESTAO_UNICA_ESCOLHA = @((int)EnumQuizTipo.UnicaEscolha);
+    const TIPO_QUESTAO_MULTIPLA_ESCOLHA = @((int)EnumQuizTipo.MultiplaEscolha);
+    const TIPO_QUESTAO_ASSINATURA = @((int)EnumQuizTipo.Assinatura);
+    const TIPO_QUESTAO_CODIGO_BARRA = @((int)EnumQuizTipo.CodigoBarra);
+
+    const TIPO_CHECKLIST_SERVICO = @((int)TipoChecklist.Servico);
+    const TIPO_CHECKLIST_COMERCIAL = @((int)TipoChecklist.Comercial);
+
+    @* Índice da coluna da restrição no datatable das questões *@
+    const COLUMN_RESTRICAO = 7;
+
+    @* Índice da coluna do exibir no rvt no datatable das questões *@
+    const COLUMN_EXIBIR_RVT = 6;
+
+
+    const handleUf = function () {
+        let cidadeCarregada = false;
+
+        $("#iUf").on("select2:select select2:unselecting", function (e) {
+            const ufSelecionada = e.params.data;
+
+            if (ufSelecionada) {
+                if (!cidadeCarregada) {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, ufSelecionada.id, "@Model.IdCidade", "@RsBase.SELECIONE", false);
+                    cidadeCarregada = true;
+                }
+                else {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, ufSelecionada.id, null, "@RsBase.SELECIONE", false);
+                }
+            }
+            else {
+                AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        @* Definindo o valor inicial do campo "Ordem" para o cadastro de novas questões *@
+        const listOrdemQuestoes = oDatatableQuestoes.data().toArray().map(q => q.Ordem);
+
+        @* não retirar o spread operator (os '...' antes do listOrdemQuestoes) *@
+        const ordemMax = Math.max(...listOrdemQuestoes);
+
+        $("#iOrdem").val(ordemMax + 1);
+
+        $("#iTipo").trigger("change");
+
+        AddSelect("iCategoriaCliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdCategoriaCliente", "@RsBase.SELECIONE", false);
+        AddSelect("iMeioCaptacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdMeioCaptacao", "@RsBase.SELECIONE", false);
+
+        AddSelect("iUf", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUf", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdUf", "@RsBase.SELECIONE", false, handleUf);
+        AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdUf", "@Model.IdCidade", "@RsBase.SELECIONE", @Html.Raw(Json.Encode(!Model.IdCidade.HasValue)));
+
+        AddSelect("iCodct", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.CodCt", "@RsBase.SELECIONE", false);
+
+    });
+
+    @* Correção para o checkbox do bootstrap não ficar "achatado" ao trocar de tab no cadastro *@
+    $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+        $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+        $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+    });
+
+        $("#iTipo").on("change", function () {
+            if ($(this).val() == TIPO_CHECKLIST_SERVICO) {
+                $("#divDadosServico").show();
+                $("#divDadosQuestaoServico").show();
+
+                $("#divDadosComercial").hide();
+                $("#divDadosQuestaoComercial").hide();
+
+                $("#divDadosQuestaoComercial input[type='text']").val("").trigger("change");
+                $("#divDadosQuestaoComercial input[type='checkbox']").prop("checked", false).trigger("change");
+                $("#divDadosQuestaoComercial select").val(null).trigger("change");
+
+            @* Exibindo as colunas exclusivas das questões para checklists do tipo de serviço *@
+                oDatatableQuestoes.column(COLUMN_RESTRICAO).visible(false);
+                oDatatableQuestoes.column(COLUMN_EXIBIR_RVT).visible(true);
+
+            @* Corrigindo a aparência das checkboxes *@
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+            }
+            else if ($(this).val() == TIPO_CHECKLIST_COMERCIAL) {
+                $("#divDadosServico").hide();
+                $("#divDadosQuestaoServico").hide();
+
+                $("#divDadosComercial").show();
+                $("#divDadosQuestaoComercial").show();
+
+                $("#divDadosQuestaoServico input[type='text']").val("").trigger("change");
+                $("#divDadosQuestaoServico input[type='checkbox']").prop("checked", false).trigger("change");
+                $("#divDadosQuestaoServico select").val(null).trigger("change");
+
+            @* Exibindo as colunas exclusivas das questões para checklists do tipo comercial *@
+                oDatatableQuestoes.column(COLUMN_RESTRICAO).visible(true);
+                oDatatableQuestoes.column(COLUMN_EXIBIR_RVT).visible(false);
+
+            @* Corrigindo a aparência das checkboxes *@
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+            }
+        });
+
+        var questoes = null;
+        let oDatatableQuestoes = null;
+        var tabela = null;
+
+        var handleDataTableButtonsQuestoes = function () {
+            "use strict";
+
+            questoes = @Html.Raw(Json.Encode(Model.Questoes));
+            var nomeRazorListaQuestoes = "Questoes";
+            oDatatableQuestoes = $("#datatableQuestao").length && $("#datatableQuestao").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                drawCallback: function () {
+                    reindexarTabela();
+                    handleExcluirQuestao();
+                    handleEditarQuestao();
+                    handleExibirAlternativas();
+
+                    this.api().columns.adjust();
+                },
+                paging: false,
+                order: [[2, "asc"]],
+                data: questoes,
+                searching: false,
+                ordering: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '35vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                responsive: true, // habilita responsividade
+                initComplete: function () {
+                    dataTableInitComplete();
+                    this.api().columns.adjust();
+                },
+                buttons: buttonsDataTable,
+                columns: [
+                    {
+                        title: "",
+                        render: function (data, type, row, meta) {
+                            let retorno = `<a class="excluirQuestao" href="#" type="hidden" id="${nomeRazorListaQuestoes}_${meta.row}_excluirQuestao" excluir="${row.Id}" class="index-manager"><i class="far fa-trash-alt" style="font-size:16px"></i></a>`;
+
+                            @* TODO: IMPLEMENTAR EDIÇÃO DE QUESTÃO *@
+                            @*if (row.id != 0) {
+                                    retorno = `${retorno} <a class="editarQuestao" href="#" type="hidden" id="${nomeRazorListaQuestoes}_${meta.row}_editarQuestao" editar="${row.Id}"><i class="fas fa-user-edit pr-1" style="font-size:16px"></i></a>`;
+                                }*@
+
+                            return retorno;
+                        }
+                    },
+                    {
+                        data: "Id",
+                        title: "Id",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__Id" name="${nomeRazorListaQuestoes}[${meta.row}].Id" type="hidden" value="${TrataNulo(row.Id)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "Ordem",
+                        title: "Ordem",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__Ordem" name="${nomeRazorListaQuestoes}[${meta.row}].Ordem" type="hidden" value="${TrataNulo(row.Ordem)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "Pergunta",
+                        title: "Pergunta",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__Pergunta" name="${nomeRazorListaQuestoes}[${meta.row}].Pergunta" type="hidden" value="${TrataNulo(row.Pergunta)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "TipoQuestaoDescricao",
+                        title: "Tipo de Questão",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__TipoQuestao" name="${nomeRazorListaQuestoes}[${meta.row}].TipoQuestao" type="hidden" value="${TrataNulo(row.TipoQuestao)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "RespostaObrigatoriaDescricao",
+                        title: "Resposta Obrigatória",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__RespostaObrigatoria" name="${nomeRazorListaQuestoes}[${meta.row}].RespostaObrigatoria" type="hidden" value="${TrataNulo(row.RespostaObrigatoria)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "ExibirRVTDigitalDescricao",
+                        title: "Exibir no RVT Digital",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__ExibirRVTDigital" name="${nomeRazorListaQuestoes}[${meta.row}].ExibirRVTDigital" type="hidden" value="${TrataNulo(row.ExibirRVTDigital)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "RestricaoDescricao",
+                        title: "Restrição",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__Restricao" name="${nomeRazorListaQuestoes}[${meta.row}].Restricao" type="hidden" value="${TrataNulo(row.Restricao)}" class="index-manager"/>`
+                                + `<input id="${nomeRazorListaQuestoes}_${meta.row}__VinculaRestricao" name="${nomeRazorListaQuestoes}[${meta.row}].VinculaRestricao" type="hidden" value="${TrataNulo(row.VinculaRestricao)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        data: "LiberarGaleriaDescricao",
+                        title: "Liberar Galeria",
+                        render: function (data, type, row, meta) {
+                            return data + `<input id="${nomeRazorListaQuestoes}_${meta.row}__LiberarGaleria" name="${nomeRazorListaQuestoes}[${meta.row}].LiberarGaleria" type="hidden" value="${TrataNulo(row.LiberarGaleria)}" class="index-manager"/>`;
+                        }
+                    },                    
+                    {
+                        data: "DadosSISOPDescricao", 
+                        title: "Dados SISOP",
+                        render: function (data, type, row, meta) {
+                            
+                            return (data ?? "") + `<input id="${nomeRazorListaQuestoes}_${meta.row}__DadosSISOP" name="${nomeRazorListaQuestoes}[${meta.row}].DadosSISOP" type="hidden" value="${TrataNulo(row.DadosSISOP)}" class="index-manager"/>`;
+                        }
+                    },
+                    {
+                        title: "Alternativas Possíveis",
+                        render: function (data, type, row, meta) {
+                            let html = `<a class="exibirAlternativasQuestao" href="#" type="hidden" id="${nomeRazorListaQuestoes}_${meta.row}_exibirAlternativasQuestao" questao="${row.Id}" class="index-manager"><i class="fa fa-list pr-1" style="font-size:16px"></i></a>`
+
+                            for (const alternativa of row.Alternativas) {
+                                const idxAlternativa = row.Alternativas.indexOf(alternativa);
+                                html = html + `<input id="${nomeRazorListaQuestoes}_${meta.row}_${idxAlternativa}__Id" name="${nomeRazorListaQuestoes}[${meta.row}].Alternativas[${idxAlternativa}].Id" type="hidden" value="${TrataNulo(alternativa.Id)}" class="index-manager"/>` +
+                                    `<input id="${nomeRazorListaQuestoes}_${meta.row}_${idxAlternativa}__Resposta" name="${nomeRazorListaQuestoes}[${meta.row}].Alternativas[${idxAlternativa}].Resposta" type="hidden" value="${TrataNulo(alternativa.Resposta)}" class="index-manager"/>`;
+                            }
+
+                            return html;
+                        }
+                    }
+                ]
+            });
+
+            function reindexarTabela() {
+                const api = $("#datatableQuestao").DataTable();
+
+                api.rows().every(function (rowIdx) {
+                    let node = this.node();
+
+                    // 1. Ajusta IDs e Names dos inputs da Questão e das Alternativas
+                    $(node).find('input[name^="' + nomeRazorListaQuestoes + '"]').each(function () {
+                        let oldName = $(this).attr('name');
+                        let oldId = $(this).attr('id');
+
+                        // Substitui o primeiro conjunto de colchetes/números pelo novo rowIdx
+                        let newName = oldName.replace(/\[\d+\]/, '[' + rowIdx + ']');
+                       
+                        let newId = oldId.replace(/_\d+__/, '_' + rowIdx + '__')
+                            .replace(/_\d+_\d+__/, '_' + rowIdx + '_');
+
+                        $(this).attr('name', newName);
+                        $(this).attr('id', newId);
+                    });
+
+                    // 2. Ajusta os IDs dos links (excluir/alternativas)
+                    $(node).find('a[id^="' + nomeRazorListaQuestoes + '"]').each(function () {
+                        let oldId = $(this).attr('id');
+                        let newId = oldId.replace(/_\d+_/, '_' + rowIdx + '_');
+                        $(this).attr('id', newId);
+                    });
+                });
+            }
+
+            $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+                if (e.target.id === 'questoes-tab') {
+                    if ($.fn.DataTable.isDataTable('#datatableQuestao')) {
+                        $('#datatableQuestao').DataTable().columns.adjust();
+                    }
+                }
+            });
+
+            async function handleExcluirQuestao() {
+                $(document).off("click", ".excluirQuestao");
+                $(document).on("click", ".excluirQuestao", async function () {
+                    let idQuestao = Number($(this).attr("excluir"));
+                    let trLinkButton = $(this).parents("tr");
+
+                    if (idQuestao == 0) {
+                        oDatatableQuestoes.row(trLinkButton).remove().draw(false);
+                    }
+                    else {
+                        const retornoAPI = await $.ajax({
+                            url: "@CONSTANTES.URLPortal/api/ChecklistApi/ExcluirQuestao",
+                            type: "POST",
+                            dataType: "json",
+                            data: {
+                                IdChecklist: $("#iCodigo").val(),
+                                IdQuestao: idQuestao
+                            },
+                            beforeSend: function () {
+                                $("#divProgress").show();
+                            },
+                            complete: function () {
+                                $("#divProgress").hide();
+                            }
+                        });
+
+                        if (retornoAPI.ok) {
+                            oDatatableQuestoes.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Questão removida com sucesso", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", "Erro ao remover a questão", "warning");
+                        }
+                    }
+                });
+            }
+
+            handleExcluirQuestao();
+
+            function handleEditarQuestao() {
+                $(".editarQuestao").unbind("click");
+
+                $(".editarQuestao").on("click", function () {
+                    const trLinkButton = $(this).parents("tr");
+                    const record = oDatatableQuestoes.row(trLinkButton).data();
+
+            @* TODO: IMPLEMENTAR CARREGAMENTO DOS CAMPOS PARA EDIÇÃO APÓS IMPLEMENTAR A GRAVAÇÃO *@
+                });
+            }
+
+            function handleExibirAlternativas() {
+                $(".exibirAlternativasQuestao").unbind("click");
+
+                $(".exibirAlternativasQuestao").on("click", function () {
+                    const trLinkButton = $(this).parents("tr");
+                    const record = oDatatableQuestoes.row(trLinkButton).data();
+
+                    oDatatableAlternativasQuestao.clear();
+
+                    if (record.Alternativas != null) {
+                        for (let alternativa of record.Alternativas) {
+                            oDatatableAlternativasQuestao.row.add(alternativa);
+                        }
+                    }
+
+                    oDatatableAlternativasQuestao.draw();
+
+                    $("#iModalAlternativasQuestao").modal("show");
+                });
+            }
+
+            $("#iAdicionar").on("click", function () {
+                const alternativas = oDatatableAlternativas.data().toArray();
+
+                const respostaObrigatoria = $("#iRespostaObrigatoria").prop("checked");
+                const liberarGaleria = $("#iLiberarGaleria").prop("checked");
+
+                const exibirRvt = $("#iExibirRVT").prop("checked");
+                const vinculaRestricao = $("#iVinculaRestricao").prop("checked");
+
+                let erro = false;
+
+                if (!$("#iOrdem").val()) {
+                    Notificar("@RsBase.ATENCAO_", "Informe a ordem da questão", "warning");
+                    erro = true;
+                }
+                else {
+                    const questoes = oDatatableQuestoes.data().toArray();
+                    const ordem = Number($("#iOrdem").val());
+
+                    if (questoes.find(q => q.Ordem == ordem) != null) {
+                        Notificar("@RsBase.ATENCAO_", "Já existe uma questão na posição de número " + ordem + " no checklist", "warning");
+                        erro = true;
+                    }
+                }
+
+                if (!$("#iTipoQuestao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "Informe o tipo de questão", "warning");
+                    erro = true;
+                }
+
+                if (!$("#iPergunta").val()) {
+                    Notificar("@RsBase.ATENCAO_", "Informe a pergunta", "warning");
+                    erro = true;
+                }
+
+                if ($("#iTipo").val() == TIPO_CHECKLIST_COMERCIAL && vinculaRestricao && !$("#iRestricao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "Informe a restrição", "warning");
+                    erro = true;
+                }
+
+                if (erro) {
+                    return;
+                }
+
+                var record = {
+                    Id: 0,
+                    Ordem: Number($("#iOrdem").val()),
+                    Pergunta: $("#iPergunta").val(),
+
+                    TipoQuestaoDescricao: $("#iTipoQuestao option:selected").text(),
+                    RespostaObrigatoriaDescricao: respostaObrigatoria ? "@RsBase.SIM" : "@RsBase.NAO",
+                    LiberarGaleriaDescricao: liberarGaleria ? "@RsBase.SIM" : "@RsBase.NAO",
+
+                    ExibirRVTDigitalDescricao: exibirRvt ? "@RsBase.SIM" : "@RsBase.NAO",
+
+                    VinculaRestricaoDescricao: vinculaRestricao ? "@RsBase.SIM" : "@RsBase.NAO",
+                    RestricaoDescricao: vinculaRestricao ? $("#iRestricao option:selected").text() : "",
+
+                    TipoQuestao: $("#iTipoQuestao").val(),
+                    RespostaObrigatoria: respostaObrigatoria,
+                    LiberarGaleria: liberarGaleria,
+
+                    ExibirRVTDigital: exibirRvt,
+
+                    VinculaRestricao: vinculaRestricao,
+                    Restricao: vinculaRestricao ? $("#iRestricao").val() : null,
+
+                    Alternativas: alternativas,
+                 
+                    DadosSISOP: $("#iDadosSISOP").val() || null,
+                    DadosSISOPDescricao: $("#iDadosSISOP").val() ? $("#iDadosSISOP option:selected").text() : "",
+
+                };
+
+                oDatatableQuestoes.row.add(record).draw(false);
+
+                $("#iOrdem").val(Number($("#iOrdem").val()) + 1);
+                $("#iPergunta").val("");
+                $("#iTipoQuestao").val("");
+                $("#iRestricao").val("");
+
+                $("#iRespostaObrigatoria").prop("checked", false).trigger("change");
+                $("#iLiberarGaleria").prop("checked", false).trigger("change");
+
+                $("#iExibirRVT").prop("checked", false).trigger("change");
+                $("#iVinculaRestricao").prop("checked", false).trigger("change");
+                
+                $("#iDadosSISOP").val(null).trigger("change");
+
+                @* Limpando o datatable das alternativas para a questão *@
+                oDatatableAlternativas.clear().draw();
+            });
+
+        },
+            TableManageButtonsQuestoes = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsQuestoes();
+                    }
+                }
+            }();
+
+        TableManageButtonsQuestoes.init();
+
+    $("#iTipoQuestao").on("change", function () {
+        if ($("#iTipoQuestao").val()) {
+            const tipoQuestao = Number($("#iTipoQuestao").val());
+
+            if (tipoQuestao == TIPO_QUESTAO_UNICA_ESCOLHA || tipoQuestao == TIPO_QUESTAO_MULTIPLA_ESCOLHA) {
+                $("#iAdicionarAlternativas").show();
+            }
+            else {
+                $("#iAdicionarAlternativas").hide();
+            }
+        }
+    });
+
+    $("#iVinculaRestricao").on("change", function () {
+        if ($(this).prop("checked")) {
+            $("#divRestricao").show();
+        }
+        else {
+            $("#divRestricao").hide();
+            $("#iRestricao").val("");
+        }
+    });
+
+    let oDatatableAlternativas = null;
+
+    oDatatableAlternativas = $("#datatableAlternativas").length && $("#datatableAlternativas").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        drawCallback: function () {
+            handleExcluirAlternativa();
+        },
+        paging: false,
+        ordering: false,
+        columns: [
+            {
+                title: "",
+                render: function (data, type, row, meta) {
+                    let retorno = `<a class="excluirAlternativa" href="#" type="hidden" id="${nomeRazorListaQuestoes}_${meta.row}_excluirAlternativa" excluir="${row.Id}"><i class="far fa-trash-alt" style="font-size:16px"></i></a>`;
+
+                    return retorno;
+                }
+            },
+            {
+                data: "Resposta",
+                title: "Resposta",
+                render: function (data, type, row, meta) {
+                    return data;
+                }
+            }
+        ]
+    });
+
+    function handleExcluirAlternativa() {
+        $(".excluirAlternativa").unbind("click");
+
+        $(".excluirAlternativa").on("click", function () {
+            let idAlternativa = Number($(this).attr("excluir"));
+            let trLinkButton = $(this).parents("tr");
+
+            oDatatableAlternativas.row(trLinkButton).remove().draw(false);
+        });
+    }
+
+    $("#iAdicionarAlternativas").on("click", function () {
+        $("#iModalAlternativas").modal("show");
+    });
+
+    $("#iAdicionarResposta").on("click", function () {
+        if (!$("#iRespostaAlternativa").val()) {
+            Notificar("@RsBase.ATENCAO_", "Informe a resposta", "warning");
+            return;
+        }
+
+        const record = {
+            Id: 0,
+            Resposta: $("#iRespostaAlternativa").val()
+        };
+
+        oDatatableAlternativas.row.add(record).draw(false);
+
+        $("#iRespostaAlternativa").val("");
+    });
+
+
+    @* Datatable para exibir as alternativas inseridas nas questões já adicionadas *@
+
+    let oDatatableAlternativasQuestao = $("#datatableAlternativasQuestao").length && $("#datatableAlternativasQuestao").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        paging: false,
+        ordering: false,
+        columns: [
+            {
+                data: "Resposta",
+                title: "Resposta",
+                render: function (data, type, row, meta) {
+                    return data;
+                }
+            }
+        ]
+    });
+
+    $("#iModalAlternativasQuestao").on("hidden.bs.modal", function () {
+        oDatatableAlternativasQuestao.clear().draw();
+    });
+
+    let clicked = false;
+
+        function ValidaSubmit() {
+            let erro = false;
+
+            if (clicked) {
+                return;
+            }
+
+            clicked = true;
+
+            if (!$("#iDescricao").val()) {
+                Notificar("@RsBase.ATENCAO_", "Informe a descrição", "warning");
+                erro = true;
+            }
+
+            if (!$("#iTipo").val()) {
+                Notificar("@RsBase.ATENCAO_", "Informe o tipo do checklist", "warning");
+                erro = true;
+            }
+
+            if (!erro) {
+                ShowPageLoading();
+                $("#form").submit();
+                return;
+            }
+
+            clicked = false;
+            return;
+        }
+
+    </script>
+}
+
+@using (Html.BeginForm("Cadastro", "Checklist", FormMethod.Post, htmlAttributes: new { id = "form" }))
+{
+    <div class="container-fluid" id="divTitle">
+        <div class="row">
+
+            <div class="col-auto mr-auto pl-0">
+                <h4 class="title-page"><i class="fas fa-cog"></i> @ViewBag.Title</h4>
+                <nav aria-label="breadcrumb" class="mb-20">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9">@RsCadastros.CONFIGURACOES</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Index", "Checklist")" style="color:#367fa9">@RsCadastros.LISTAGEM_CHECKLIST</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <span>@ViewBag.Title</span>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+
+        </div>
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="dados-tab" data-toggle="tab" href="#iTabDadosChecklist" role="tab" aria-controls="iTabDadosChecklist" aria-selected="true"><i class="fas fa-pencil-alt"></i> Dados do Checklist</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link " id="questoes-tab" data-toggle="tab" href="#iTabQuestoes" role="tab" aria-controls="iTabQuestoes" aria-selected="false"><i class="fas fa-address-book"></i> Questões </a>
+            </li>
+        </ul>
+    </div>
+
+    <div style="padding:10px;">
+        <div class="tab-content">
+            <div class="tab-pane fade show active" role="tabpanel" id="iTabDadosChecklist" aria-labelledby="dados-tab">
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-1">
+                            <h5>
+                                <a class="collapsed" role="button" data-toggle="collapse" href="collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                    <span class="text-bold-card"> Dados do Checklist</span>
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labellledby="heading-1">
+                            <div class="card-body body-card-accord">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iCodigo">@RsCadastros.CODIGO</label>
+                                            @Html.TextBoxFor(m => m.Id, new { @class = "form-control readonly", @id = "iCodigo" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iDescricao">@RsCadastros.DESCRICAO </label>
+                                            @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control ", @id = "iDescricao", })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iTipo">@RsCadastros.TIPO</label>
+                                            @Html.EnumDropDownListFor(m => m.Tipo, new { @class = "form-control", @id = "iTipo" })
+                                        </div>
+                                    </div>
+                                    @if (Model.Id != 0)
+                                    {
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iStatus">Status</label> <br />
+                                                @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div id="divDadosComercial" style="display: none">
+                                    <div class="row mt-4">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTipoPessoa">@RsCadastros.TIPOPESSOA</label>
+                                                @Html.EnumDropDownListFor(m => m.TipoPessoa, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoPessoa" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iCategoriaCliente">@RsCadastros.CATEGORIA_CLIENTE</label>
+                                                @Html.DropDownListFor(m => m.IdCategoriaCliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<string>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaCliente" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iMeioCaptacao">Meio de Captação</label>
+                                                @Html.DropDownListFor(m => m.IdMeioCaptacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<string>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMeioCaptacao" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-4">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iUf">@RsCadastros.UF</label>
+                                                <select class="form-control"
+                                                        id="iUf"
+                                                        name="IdUf">
+                                                    <option value="" selected>@RsBase.SELECIONE</option>
+                                                    <option value="AC">AC</option>
+                                                    <option value="AL">AL</option>
+                                                    <option value="AP">AP</option>
+                                                    <option value="AM">AM</option>
+                                                    <option value="BA">BA</option>
+                                                    <option value="CE">CE</option>
+                                                    <option value="DF">DF</option>
+                                                    <option value="ES">ES</option>
+                                                    <option value="GO">GO</option>
+                                                    <option value="MA">MA</option>
+                                                    <option value="MT">MT</option>
+                                                    <option value="MS">MS</option>
+                                                    <option value="MG">MG</option>
+                                                    <option value="PA">PA</option>
+                                                    <option value="PB">PB</option>
+                                                    <option value="PR">PR</option>
+                                                    <option value="PE">PE</option>
+                                                    <option value="PI">PI</option>
+                                                    <option value="RJ">RJ</option>
+                                                    <option value="RN">RN</option>
+                                                    <option value="RS">RS</option>
+                                                    <option value="RO">RO</option>
+                                                    <option value="RR">RR</option>
+                                                    <option value="SC">SC</option>
+                                                    <option value="SP">SP</option>
+                                                    <option value="SE">SE</option>
+                                                    <option value="TO">TO</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iCidade">@RsCadastros.CIDADE</label>
+                                                @Html.DropDownListFor(m => m.IdCidade, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<string>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-4">
+                                        <div class="col-4">
+                                            <div class="form-group">
+                                                <label for="iMensagemConcluido">@RsCadastros.MENSAGEM_APOS_CONCLUSAO</label>
+                                                @Html.TextAreaFor(m => m.MensagemConcluido, new { @class = "form-control", @id = "iMensagemConcluido", @rows = "4" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="divDadosServico" style="display: none">
+                                    <div class="row mt-4">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iCodct">@RsCadastros.CONTRATO</label>
+                                                @Html.DropDownListFor(m => m.CodCt, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<string>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCodct" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iObrigImprodutivo">Obrigar Improdutivo</label> <br />
+                                                @Html.CheckBoxFor(m => m.ObrigImprodutivo, new { @class = "form-control", @id = "iObrigImprodutivo", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iPreencheInicioAtividade">Preencher no Início da Atividade</label> <br />
+                                                @Html.CheckBoxFor(m => m.PreencheInicioAtividade, new { @class = "form-control", @id = "iPreencheInicioAtividade", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iChecklistNatureza">Checklist por Natureza</label> <br />
+                                                @Html.CheckBoxFor(m => m.ChecklistNatureza, new { @class = "form-control", @id = "iChecklistNatureza", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div id="divCamposApiSISOP" class="form-group">
+                                                <label for="iTipoApiSISOP">@RsCadastros.TIPO_API_SISOP</label>
+                                                @Html.EnumDropDownListFor(m => m.TipoApiSISOP, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoApiSISOP" })
+                                            </div>
+                                        </div>
+
+                                        </div>
+                                    </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane fade" id="iTabQuestoes" aria-labelledby="questoes-tab">
+                <div id="accordion-2">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-2">
+                            <h5>
+                                <a class="collapsed-2" role="button" data-toggle="collapse" href="collapse-2" aria-controls="collapse-2" aria-expanded="true">
+                                    <span class="text-bold-card">@RsCadastros.QUESTOES</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse-2" class="collapse show" data-parent="#accordion-2" aria-labellledby="heading-2">
+                            <div class="card-body body-card-accord">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iOrdem">@RsCadastros.ORDEM</label>
+                                            @Html.TextBoxFor(m => m.Ordem, new { @class = "form-control", @id = "iOrdem", @type = "number", @min = "1" })
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iDadosSISOP">@RsCadastros.DADOS_SISOP</label>
+                                            @Html.EnumDropDownListFor(m => m.DadosSISOP, RsBase.SELECIONE, new { @class = "form-control", @id = "iDadosSISOP" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iTipoQuestao">@RsCadastros.TIPO_QUESTAO</label>
+                                            @Html.EnumDropDownListFor(m => m.TipoQuestao, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoQuestao" })
+                                        </div>                                     
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iPergunta">@RsCadastros.PERGUNTA</label>
+                                            @Html.TextAreaFor(m => m.Pergunta, new { @class = "form-control", @id = "iPergunta", @rows = "6" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <button id="iAdicionarAlternativas"
+                                                class="btn btn-primary mt-4 mb-4"
+                                                type="button"
+                                                style="display: none">
+                                            Adicionar Alternativas
+                                        </button>
+                                        <button id="iAdicionar"
+                                                class="btn btn-success mt-3"
+                                                type="button">
+                                            Adicionar
+                                        </button>
+                                    </div>
+                                </div>
+                                
+
+                                <div class="row mt-4">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iRespostaObrigatoria">@RsCadastros.RESPOSTA_OBRIGATORIA</label> <br />
+                                            @Html.CheckBoxFor(m => m.RespostaObrigatoria, new { @class = "form-control", @id = "iRespostaObrigatoria", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iLiberarGaleria">@RsCadastros.LIBERAR_GALERIA</label> <br />
+                                            @Html.CheckBoxFor(m => m.LiberarGaleria, new { @class = "form-control", @id = "iLiberarGaleria", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="divDadosQuestaoComercial" class="row mt-4" style="display: none">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iVinculaRestricao">@RsCadastros.VINCULA_RESTRICAO</label> <br />
+                                            @Html.CheckBoxFor(m => m.VinculaRestricao, new { @class = "form-control", @id = "iVinculaRestricao", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                    <div id="divRestricao" class="col-sm-2" style="display: none">
+                                        <div class="form-group">
+                                            <label for="iRestricao">@RsCadastros.RESTRICAO</label>
+                                            @Html.EnumDropDownListFor(m => m.Restricao, RsBase.SELECIONE, new { @class = "form-control", @id = "iRestricao" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="divDadosQuestaoServico" class="row mt-4" style="display: none">
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iExibirRVT">Exibir no RVT Digital</label> <br />
+                                            @Html.CheckBoxFor(m => m.ExibirRVTDigital, new { @class = "form-control", @id = "iExibirRVT", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="accordion-3" class="mt-3">
+                    <div class="card div-card-accord">
+                        <div id="divTableQuestao">
+                            <span class="text-bold-card ml-3"></span>
+                            <hr>
+                            <table id="datatableQuestao" class="table table-hover nowrap" style="width: 100%"></table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <a href="#" onclick="BotaoCancelar('@Url.Action("Index", "Checklist")');" class="float-cancel">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="ValidaSubmit();">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}
+
+<div class="modal fade" id="iModalAlternativas" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Alternativas da Questão</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-10">
+                                    <div class="form-group">
+                                        <label for="iRespostaAlternativa">Resposta</label>
+                                        <input id="iRespostaAlternativa" class="form-control" type="text" />
+                                    </div>
+                                </div>
+                                <div class="col-2">
+                                    <div class="form-group">
+                                        <button id="iAdicionarResposta"
+                                                class="btn btn-success mt-3"
+                                                type="button">
+                                            Adicionar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 mt-2">
+                    <div id="divTableAlternativas">
+                        <table class="table table-hover nowrap" id="datatableAlternativas" style="width:100%"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="iModalAlternativasQuestao" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Alternativas da Questão</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="col-12 mt-2">
+                    <div id="divTableAlternativasQuestao">
+                        <table class="table table-hover nowrap" id="datatableAlternativasQuestao" style="width:100%"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

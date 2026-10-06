@@ -1,0 +1,2215 @@
+﻿@model IEnumerable<Aniel.Connect.Models.ClienteListViewModel>
+@using Aniel.Connect.Repository.Model
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Microsoft.AspNet.Identity;
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_VENDAS;
+    ViewBag.Sessao = RsCadastros.VENDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    var StorageName = CONSTANTES.SIGLA_MODULO + " - " + ViewBag.Title + " - " + CONSTANTES.Versao;
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    PainelVendasFiltrosDashBoard DashBoard = ViewBag.DashBoard;
+    bool BloquearVendaSemContatoValidado = ViewBag.BloquearVendaSemContatoValidado;
+
+    //listaEtapas
+    List<Aniel.Connect.Core.ObjComboResult<String>> listaEtapas = new List<Aniel.Connect.Core.ObjComboResult<String>>();
+    foreach (var valor in Enum.GetValues(typeof(EnumEtapaVenda)))
+    {
+        string descricao = HtmlEnumExtensions.GetEnumDescription(valor);
+        listaEtapas.Add(new Aniel.Connect.Core.ObjComboResult<string>
+        {
+            Id = Convert.ToInt32(valor).ToString(),
+            Text = descricao
+        });
+    }
+    listaEtapas = listaEtapas.OrderBy(x => x.Text).ToList();
+
+
+}
+
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        .swal-wide {
+            width: 450px !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        .dataTables_scrollHeadInner {
+            width: 100% !important;
+        }
+
+            .dataTables_scrollHeadInner table {
+                width: 100% !important;
+            }
+
+        .table {
+            table-layout: fixed;
+        }
+
+            .table > td {
+                overflow-wrap: break-word;
+            }
+
+        .rem17 {
+            width: 17rem !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+    <script src="~/bin/Scripts/valida_cpf_cnpj.js"></script>
+    <script>
+
+        const dashboard = @Html.Raw(Json.Encode(DashBoard));
+        $(document).ready(function () {
+            @if(ViewBag.Cancelamento)
+            {
+                <text>Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");</text>
+            }
+
+            configurarPeriodoDatas();
+            if (dashboard) {
+                $("input[name='iTipoData'][value='0']").prop('checked', true);
+                $("#iDataInicial").removeAttr("disabled");
+                $("#iDataFinal").removeAttr("disabled");
+                $("#iDataInicial").val(dashboard.DataInicial);
+                $("#iDataFinal").val(dashboard.DataAtual);
+
+                if (dashboard.Id) {
+                    let [select, url] = [dashboard.Supervisor ? 'iDesc_Supervisor' : 'iDesc_Vendedor', dashboard.Supervisor ? "api/FuncionarioApi/GetComboSupervisor" : "api/Funcionarioapi/GetComboVendedor"];
+                    AddSelect(`${select}`, `@CONSTANTES.URLPortal/${url}`, @CONSTANTES.PaginacaoRegistros, null, null, dashboard.Id, "@RsBase.SELECIONE", false);
+                }
+
+                if (dashboard.StatusFiltrados.length > 1) {
+                    $("#iAguardandoAvaliacao").prop('checked', true);
+                    $("#iAnaliseCliente").prop('checked', true);
+                    $("#iAguardandoVenda").prop('checked', true);
+                }
+                @*Desistencia*@
+                if (dashboard.StatusFiltrados.some(p => p == "4")) {
+                    $("#iVendaCancelada").prop('checked', true);
+                }
+                @*Aprovação*@
+                if (dashboard.StatusFiltrados.some(p => p == "6")) {
+
+                    $("#iAprovadoCliente").prop('checked', true);
+                    $("#iApenasInstalados").prop("checked", dashboard.ApenasInstalados);
+                }
+            }
+        });
+
+        AddSelect("iMotivo_Desistencia_Venda", "@CONSTANTES.URLPortal/api/Motivo_Desistencia_VendaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iEstadosBrasil", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUfSigla",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+           if ($('input[name="iStatusEtapa"]:checked').val() == null ) {
+                $('#restricaoSection').hide()
+
+
+            }
+            else {
+                $('#restricaoSection').show()
+
+
+            }
+
+        $("input[name='iStatusEtapa']:radio").click(function () {
+            if ($('input[name="iStatusEtapa"]:checked').val() == null || $('input[name="iStatusEtapa"]:checked').val() == "5") {
+                $('#restricaoSection').hide()
+
+
+            }
+            else {
+                $('#restricaoSection').show()
+
+
+            }
+        });
+
+
+        AddSelect("iEquipeVendas", "@CONSTANTES.URLPortal/api/EquipeVendasApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iStatusVenda", "@CONSTANTES.URLPortal/api/Atividade_StatusVendaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iCampanha", "@CONSTANTES.URLPortal/api/campanhaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iMotivoDesistencia", "@CONSTANTES.URLPortal/api/Motivo_Desistencia_VendaApi/GetComboMotivos", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        const bloquearVendaSemContatoValidado = Boolean(@Convert.ToInt32(BloquearVendaSemContatoValidado));
+        var rows_selected = [];
+        var oDatatable = null;
+
+        var colunas = [
+            { title: "<input name='select_all' value='1' type='checkbox'>" },
+            {
+                data: "pendencia", render: function (data) {
+                    if (data) return '<i class="fas fa-circle text-danger"></i>';
+                    else return '';
+                }
+            },
+            {
+                data: "id", coluna_enum: 0, title: "@RsCadastros.NUMERO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "nomeFantasia", coluna_enum: 1, title: "@RsCadastros.NOMEFANTASIA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "cpfCnpj", coluna_enum: 2, title: "@RsCadastros.CPFCNPJ",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "tipo_Cliente", coluna_enum: 3, title: "@RsCadastros.TIPO_CADASTRO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "tipo_Pessoa", coluna_enum: 4, title: "@RsCadastros.TIPOPESSOA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "identificacao_Cliente", coluna_enum: 27, title: "@RsCadastros.IDENTIFICACAO_CLIENTE",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "telefonePrincipal", coluna_enum: 5, title: "@RsCadastros.TELEFONEPRINCIPAL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "telefoneCelular", coluna_enum: 6, title: "@RsCadastros.TELEFONECELULAR",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "email", coluna_enum: 7, title: "@RsCadastros.EMAIL", className: 'rem17',
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "meio_Captacao", coluna_enum: 8, title: "@RsCadastros.MEIO_CAPTACAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "quem_Indicou", coluna_enum: 9, title: "@RsCadastros.QUEM_INDICOU",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "categoria_Cliente", coluna_enum: 25, title: "@RsCadastros.CATEGORIA_CLIENTE",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "profissao", coluna_enum: 35, title: "@RsCadastros.PROFISSAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "bairro", coluna_enum: 10, title: "@RsCadastros.BAIRRO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "tipo_Imovel", coluna_enum: 24, title: "@RsCadastros.TIPO_IMOVEL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "cidade", coluna_enum: 11, title: "@RsCadastros.CIDADE",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "estado", coluna_enum: 12, title: "@RsCadastros.UF",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "logradouro", coluna_enum: 13, title: "@RsCadastros.LOGRADOURO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "numero", coluna_enum: 14, title: "@RsCadastros.NUMERO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "complemento", coluna_enum: 15, title: "@RsCadastros.COMPLEMENTO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "vendedor", coluna_enum: 16, title: "@RsCadastros.VENDEDOR",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "supervisor", coluna_enum: 17, title: "@RsCadastros.SUPERVISOR",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "departamento", coluna_enum: 28, title: "@RsCadastros.SETOR_DEPARTAMENTO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "setor_Responsavel", coluna_enum: 46, title: "@RsCadastros.SETOR_RESPONSAVEL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "responsavel", coluna_enum: 47, title: "@RsCadastros.RESPONSAVEL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+
+
+            {
+                data: "equipeVenda", coluna_enum: 30, title: "@RsCadastros.EQUIPE_VENDAS",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "status", coluna_enum: 18, title: "@RsCadastros.STATUS_VENDA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }, orderable: false
+            },
+            {
+                data: "avaliacao_Expirada", coluna_enum: 18, title: "@RsCadastros.AVALIACAO_EXPIRADA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }, orderable: false
+            },
+            {
+                data: "data_Expiracao", coluna_enum: 18, title: "@RsCadastros.DATA_EXPIRACAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "termo_Adesao_Assinado", coluna_enum: 33, title: "@RsCadastros.TERMO_ADESAO_ASSINADO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "data_Termo_Assinado", coluna_enum: 34, title: "@RsCadastros.DATA_TERMO_ASSINADO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "data_Hora_Criacao", coluna_enum: 19, title: "@RsCadastros.DATAHORA_CRIACAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "dataVenda", coluna_enum: 20, title: "@RsCadastros.DATA_VENDA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "dataHoraAprovacao", coluna_enum: 31, title: "@RsCadastros.DATAHORA_APROVACAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "dataHoraCancelamento", coluna_enum: 32, title: "@RsCadastros.DATAHORA_CANCELAMENTO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "usuarioAprovacaoCancelamento", coluna_enum: 42, title: "@RsCadastros.USUARIO_APROVACAO_CANCELAMENTO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "dataUltimoContato", coluna_enum: 21, title: "@RsCadastros.ULTIMO_CONTATO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "diasSemContato", coluna_enum: 29, title: "@RsCadastros.QTDE_DIAS_SEM_CONTATO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "login", coluna_enum: 22, title: "@RsCadastros.HISTORICO_CONTATO",
+
+                render: function (data, type, row, meta) {
+                    return '<a href="#" id_venda="' + row.id + '" class="btnUltimoContato" id="btnExibirContatos_' + row.id + '">Visualizar</a>';
+                },
+                orderable: false
+            },
+            {
+                data: "motivo_Desistencia_Venda", coluna_enum: 37, title: "@RsCadastros.MOTIVO_DESISTENCIA_VENDA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "etapa_Atual", coluna_enum: 36, title: "@RsCadastros.ETAPA_ATUAL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                }
+            },
+            {
+                data: "checklist", coluna_enum: 38, title: "@RsCadastros.CHECKLIST?",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+            },
+                orderable: false
+            },
+            {
+                data: "data_Preenchimento_Checklist", coluna_enum: 39, title: "@RsCadastros.DATA_PREENCHIMENTO_CHECKLIST",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+            },
+                orderable: false
+            },
+            {
+                data: "valor_Total_Venda", coluna_enum: 43, title: "@RsCadastros.SUB_VALOR_TOTAL",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "valor_Instalacao", coluna_enum: 44, title: "@RsCadastros.VALOR_INSTALACAO",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+            {
+                data: "login", coluna_enum: 23, title: "@RsCadastros.PLANO_PRODUTO",
+                render: function (data, type, row, meta) {
+                    return '<a href="#" id_venda="' + row.id + '" class="btnPlanos" id="btnExibirPlanos_' + row.id + '">@RsCadastros.PLANOS_E_PRODUTOS</a>';
+                },
+                orderable: false
+            },
+            {
+                data: "status_Auditoria", coluna_enum: 45, title: "@RsCadastros.STATUS_AUDITORIA",
+                render: function (data, type, row, meta) {
+                    data = `<span style="overflow-wrap:break-word">${data}</span>`; return data;
+                },
+                orderable: false
+            },
+        ];
+
+
+
+      //  console.log(colunas);
+
+        async function GetColunas(id_modelo,colunas) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_PainelVendaApi/getcolunas")' + `?id_modelo=${id_modelo}`;
+
+                var retorno = await $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json'
+                });
+
+                if (retorno.ok) {
+                    let colunas_retorno = [];
+                    let ordernar_por = null;
+                    colunas_retorno.push({ title: "<input name='select_all' value='1' type='checkbox'>" });
+
+                    console.log(retorno.objeto.colunas)
+
+                    for (let coluna of retorno.objeto.colunas) {
+                        let busca_coluna = colunas.filter(p => p.coluna_enum == coluna);
+                        if (busca_coluna.length > 0)
+                            colunas_retorno.push(busca_coluna[0]);
+                    }
+
+
+                    for (var i = 0; i < colunas_retorno.length; i++) {
+                        if (colunas_retorno[i].coluna_enum == retorno.objeto.ordenar_por) {
+                            ordernar_por = [[i, 'asc']]
+                        }
+                    }
+                    return {
+                        colunas: colunas_retorno,
+                        ordenar_por: ordernar_por
+                    };
+                }
+                else {
+                    return {
+                        colunas: null,
+                        ordenar_por: null
+                    };
+                }
+
+            }
+
+        var HandleModeloPainel = function () {
+
+            $('#iModeloPainel').unbind('select2:select select2:unselecting');
+            $('#iModeloPainel').on('select2:select select2:unselecting', function (e) {
+                let ModeloSelecionado = e.params.data;
+                TableManageButtons.init();
+            });
+        };
+
+        let DepartamentoSelecionado = "";
+        const handleDepartamento = function () {
+        $('#iSetorDepartamento').on('select2:select select2:unselecting',async function (e) {
+            DepartamentoSelecionado = e.params.data;
+
+            if (DepartamentoSelecionado === undefined || DepartamentoSelecionado == "") {
+                await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleDepartamento);
+            } else {
+                await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, null, "@RsBase.SELECIONE", false, handleDepartamento);
+
+            }
+            });
+        }
+
+
+
+        AddSelectSemPag('iModeloPainel', '@CONSTANTES.URLPortal/api/Modelo_PainelVendaApi/GetCombo', null, null, null, '@RsBase.SELECIONE', false, HandleModeloPainel, "@User.Identity.GetUserId()");
+        //reloadData("@(CONSTANTES.URLPortal + "/api/Funcionarioapi/busca")", "id_Vendedor", "iDesc_Vendedor");
+        AddSelect("iDesc_Vendedor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        //reloadData("@(CONSTANTES.URLPortal + "/api/FuncionarioApi/GetComboSupervisor")", "id_Supervisor", "iDesc_Supervisor");
+        AddSelect("iDesc_Supervisor", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        //reloadData("@(CONSTANTES.URLPortal + "/api/modelo_contratoapi/busca")", "id_Contrato", "iDesc_Contrato");
+        AddSelect("iDesc_Contrato", "@CONSTANTES.URLPortal/api/modelo_contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        //reloadData("@(CONSTANTES.URLPortal + "/api/Meio_Captacao/busca")", "id_Meio_Captacao", "iDesc_Meio_Captacao");
+        AddSelect("iDesc_Meio_Captacao", "@CONSTANTES.URLPortal/api/Meio_Captacaoapi/GetComboCliente", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        //reloadData("@(CONSTANTES.URLPortal + "/api/PlanoProdutoApi/busca")", "idPlanoProduto", "descPlanoProduto");
+        AddSelect("descPlanoProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        //reloadData("@(CONSTANTES.URLPortal + "/api/clienteapi/buscaReloadDataContrato")", "idContrato", "descContrato");
+        AddSelect("descContrato", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoModeloDesc", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("descCombo", "@CONSTANTES.URLPortal/api/ComboApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iSetorDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleDepartamento);
+
+        function ExibirLogin(idCliente) {
+            ShowDialog(true, true, 'Login Radius', '@Url.Action("ListaLoginRadius", "Cliente")' + '?Id_Cliente=' + idCliente, 'divLogin',450, 450, 'iframeLoginRadius');
+        }
+
+        $("#iUltimoContato").keyup(function () {
+            var ultimo_contato = $("#iUltimoContato").val()
+            if (ultimo_contato) {
+                if (ultimo_contato[0] == "0")
+                    $("#iUltimoContato").val("");
+            }
+        });
+
+        var tipo_pessoa;
+
+        $('#iVendasNaoCanceladas').on('hidden.bs.modal', function () {
+            CarregarIndex();
+        });
+
+        async function hasNumeroValidado(lead) {
+            let validado = false;
+            const url = `@CONSTANTES.URLPortal/api/clienteapi/FindNumeroValidadoByCliente?cliente=${lead}`;
+            await $.ajax({ type: "GET", dataType: "json", url: url, }).done(function (data) {
+                if (data.ok) {
+                    validado = data.ok;
+                }
+            });
+            return validado;
+        }
+
+        function ShowVendasNaoCanceladas(data) {
+            $('#datatableVendas').DataTable({
+                dom: 'Bfrtip',
+                data: data,
+                order: false,
+                lengthChange: false,
+                paginate:false,
+                language: traducaoDataTableSimples,
+                columns: [
+                    { data: 'numeroVenda', title: 'Nº Venda', orderable: false },
+                    { data: 'status', title: 'Status', orderable: false },
+                    { data: 'termoAdesaoAssinado', title: 'Termo de Adesão Assinado', orderable: false },
+                    { data: 'os', title: 'Ordem de Serviço', orderable: false },
+                    { data: 'motivo', title: 'Motivo', orderable: false }
+                ],
+                buttons: [
+                    'excel'
+                ]
+            });
+
+            $('#iVendasNaoCanceladas').modal('show');
+        }
+
+        function CarregarIndex(cancelamento = false) {
+            let url = "@Html.Raw(Url.Action("Index", "Venda"))";
+            if (cancelamento) {
+                url += "?CancelamentoVenda=S";
+        }
+            location.href = url;
+        }
+
+
+        async function AlterarStatusVenda(listaVendas) {
+            var objeto = {
+                listaVenda: listaVendas
+            }
+
+            $('#iModal_Motivo_Desistencia_Venda').modal('hide');
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Vendaapi/CancelarVendasEmMassa")';
+
+            ShowPageLoading();
+
+            await $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: objeto
+            })
+                .done(async function (data) {
+                    if (data.length > 0) {
+                        Swal.fire({
+                            type: 'question',
+                            html: `Devido algumas restrições, não foi possível cancelar algumas vendas.</br>Deseja visualizar as Vendas não Canceladas? </br></br>`,
+                            showCancelButton: true,
+                            cancelButtonText: 'Não',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'Sim',
+                        }).then((result) => {
+                            if (result.value) {
+                                //vai chamar funcao para carregar a modal com os resultados ShowVendasNaoCanceladas(data)
+                                ShowVendasNaoCanceladas(data);
+                            }
+                            else {
+                                CarregarIndex();
+                            }
+                        });
+                    }
+                    else {
+                        CarregarIndex(true);
+                    }
+                });
+
+            HidePageLoading();
+        }
+
+
+       async function CancelamentoMassa() {
+
+           if (!rows_selected.length > 0)
+           {
+                Notificar("Atenção!", "Nenhum registro selecionado", "warning");
+                return;
+            }
+
+           let result = await SwalFireAlertaCancelamento();
+           if (result) {
+                    $('#iModal_Motivo_Desistencia_Venda').modal('show'); //modal
+                    $('#iMotivoACancelarVendaOutros').hide(); //textbox
+
+                    $('#iMotivo_Desistencia_Venda').change(function (event) {
+                        if ($('#iMotivo_Desistencia_Venda :selected').text() == "Outro") {
+                            $('#iMotivoACancelarVendaOutros').show();
+                   }
+                   else {
+                            $('#iMotivoACancelarVendaOutros').hide();
+                        }
+                    });
+
+                    $("#btnMotivoDesistencia").click(async function () {
+                        var motivo_cancelar_venda = $('#iMotivo_Desistencia_Venda').val();
+                        var justificarCancelamento = $('#iMotivo_Cancelar_Venda_Outros').val();
+
+                        if (motivo_cancelar_venda === null || motivo_cancelar_venda === undefined) {
+                            Notificar("Atenção!", "Nenhum motivo de cancelamento foi selecionado, tente novamente.", "warning");
+                            return;
+                        }
+
+                        var listaVenda = [];
+
+                        for (var i = 0; i <= rows_selected.length; i++){
+                            var requestData = {
+                                id: rows_selected[i],
+                                justificativa: justificarCancelamento,
+                                status: 4, //cancelado
+                                status_atual: 4,
+                                usuario: "@User.Identity.GetUserId()",
+                                idAtividadeWorkflow: null,
+                                motivo_desistencia_venda: parseInt(motivo_cancelar_venda),
+                                situacao: 1
+                            };
+
+                            if (!listaVenda.find(x => x == rows_selected[i])) {
+                                if (rows_selected[i] !== null && rows_selected[i] !== undefined)
+                                    listaVenda.push(requestData);
+                            }
+                        }
+
+                        await AlterarStatusVenda(listaVenda);
+                    });
+       }
+       }
+
+        async function SwalFireAlertaCancelamento() {
+
+            let result = await Swal.fire({
+                    width: 800,
+                    title: 'Deseja Cancelar todas as vendas selecionadas?',
+                    type: 'question',
+                    html: `
+                        </br>
+                            Não será possível retornar essa ação
+                        </br>
+                        </br>
+                            <div style="display:flex;align-items:center">
+                                <b>Regras:</b> </br>
+                            </div>
+                            <div style="display:flex;align-items:center">
+                                <i class="fa fa-arrow-right" aria-hidden="true"></i> A venda não pode estar Cancelada; </br>
+                            </div>
+                            <div style="display:flex;align-items:center">
+                                 <i class="fa fa-arrow-right" aria-hidden="true"></i> A venda não pode estar Aprovada; </br>
+                            </div>
+                            <div style="display:flex;align-items:center">
+                                 <i class="fa fa-arrow-right" aria-hidden="true"></i> A venda não pode estar com o Termo de Adesão Assinado; </br>
+                            </div>
+                            <div style="display:flex;align-items:center">
+                                 <i class="fa fa-arrow-right" aria-hidden="true"></i> A venda não pode estar Com OS Vinculada; </br>
+                            </div>
+                        </br>
+                        </br>
+                      `,
+                    confirmButtonText: 'Sim',
+                    showCancelButton: true,
+                    cancelButtonText: 'Não',
+                    cancelButtonColor: '#d33',
+                    customClass: 'swal-wide'
+
+                });
+
+            return result.value;
+        }
+
+        function configurarPeriodoDatas() {
+            $('input[name="iTipoData"]').on('change', function () {
+                var desativar = $('#iNenhum').is(':checked');
+                $('#iDataInicial, #iDataFinal').prop('disabled', desativar).val(desativar ? '' : '');
+            });
+
+            // Aplica o estado inicial logo ao carregar
+            var desativarInicial = $('#iNenhum').is(':checked');
+            $('#iDataInicial, #iDataFinal').prop('disabled', desativarInicial).val(desativarInicial ? '' : '');
+        }
+
+        function validaCPFCNPJ() {
+
+            var tipoCliente = null;
+            var tipoPessoa = null;
+            var tipoEntrada = null;
+            // Tipo de Pessoa
+
+            Swal.fire({
+                title: 'Vender para Pessoa Física ou Jurídica?',
+                input: 'radio',
+
+                html: '<div class="swal2-radio" style="display: flex;"><label><input type="radio" id="iRadioCPF" name="swal2-radio-option" value="0" checked><span class="swal2-label">Física</span></label><label><input type="radio" name="swal2-radio-option" value="1"><span class="swal2-label">Jurídica</span></label></div><input class="swal2-input" id="iCPFCNPJ" type="text"/>',
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar',
+                showLoaderOnConfirm: true,
+                onOpen: function () {
+
+                    $("input[type=radio][name=swal2-radio-option]")[0].checked = true;
+
+                    $("#iCPFCNPJ").bind('input propertychange', function (e) {
+
+                        var textoEntrada = $("#iCPFCNPJ").val();
+                        textoEntrada = textoEntrada.replace(".", ""); textoEntrada = textoEntrada.replace(".", ""); textoEntrada = textoEntrada.replace("-", ""); textoEntrada = textoEntrada.replace("/", "");
+                        //Não é número, é texto
+                        if (isNaN(textoEntrada)) {
+                            //$("input[type=radio][name=swal2-radio-option]")[0].checked = true;
+                            $(".swal2-input").unmask();
+                        } else {
+                            $("input[type=radio][name=swal2-radio-option]").change()
+                        }
+
+                    });
+
+
+                    $("input[type=radio][name=swal2-radio-option]").change(function () {
+                        if ($("[name='swal2-radio-option']:checked").val() == "0") {
+                            $(".swal2-input").mask("000.000.000-00");
+                        }
+                        if ($("[name='swal2-radio-option']:checked").val() == "1") {
+                            $(".swal2-input").mask("00.000.000/0000-00");
+                        }
+                    });
+
+                },
+                preConfirm: async (value) => {
+
+
+                    let login = $('#iCPFCNPJ').val();
+
+                    login = login.replace(".", ""); login = login.replace(".", ""); login = login.replace("-", ""); login = login.replace("/", "");
+                    let tipo_pessoa = $("[name='swal2-radio-option']:checked").val() == "0" ? "0" : "1";
+
+                    var acesso = false;
+                    if ("@AcessoHelper.TemAcesso(_areas, "348")" == "True"){
+                        acesso = true;
+                    }
+
+                    if (!login)
+                    {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DOCUMENTO_CPF_CNPJ)", "warning");
+                        return false;
+                    }
+
+                    var link = `@String.Concat(CONSTANTES.URLPortal, "/api/VendaApi/verificaVendaDuplicadaCpfCnpj")?cpfCnpj=${login}`;
+                    const response = await $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json'
+                    });
+
+                    if (response.ok == false) {
+                        await Swal.fire({
+                            title: "Pendência encontrada!",
+                            type: "warning",
+                            text: response.mensagem,
+                            confirmButtonText: 'OK'
+                        });
+                        return false;
+                    }
+                    else if (response.ok && acesso && response.idObjeto > 0) {
+
+                        let criarVendaDuplicada = false;
+                        await Swal.fire({
+                            type: 'error',
+                            title: response.mensagem,
+                            text: "Deseja criar uma nova venda para o cliente selecionado?",
+                            type: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#3085d6',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'Sim',
+                            cancelButtonText: 'Não'
+                        }).then(async (result) => {
+                            if (result.value) {
+                                criarVendaDuplicada = true
+                            }
+                        });
+
+                        if (!criarVendaDuplicada) {
+                            return false;
+                        }
+                    }
+                    else if (response.idObjeto > 0 && !acesso) {
+                        await Swal.fire({
+                            title: "Venda duplicada!",
+                            type: "warning",
+                            text: response.mensagem,
+                            confirmButtonText: 'OK'
+                        });
+                        return false;
+
+                    }
+
+
+
+
+                    let actionSwal = await handleSwalVenda(login, tipo_pessoa, bloquearVendaSemContatoValidado);
+
+
+                    switch (actionSwal.type) {
+                        case "success":
+                            window.location.href = '@Url.Action("ClienteDadosGerais", "Venda")' + '?Id_Cliente=' + actionSwal.client;
+                            await Swal.fire({
+                                type: actionSwal.type,
+                                title: actionSwal.title,
+                                text: actionSwal.text
+                            });
+                            break;
+                        case "error":
+                            await Swal.fire({
+                                type: actionSwal.type,
+                                title: actionSwal.title,
+                                text: actionSwal.text,
+                                onClose: actionSwal.onClose
+                            });
+                            break;
+                    }
+                },
+
+                allowOutsideClick: () => !Swal.isLoading(),
+            })
+            .then((result) => {
+
+            });
+        }
+
+        async function handleSwalVenda(login, tipoPessoa, bloqueiaVenda) {
+            const retornoSwal = {
+                type: "error",
+                title: "Oops...",
+                text: "",
+                client: null,
+                onClose : null
+            };
+            let ok = false;
+
+            let endpoint = "";
+            let idCliente = null;
+            let buscaBy = null;
+            try
+            {
+                if (!isNaN(login)) {
+                    endpoint = '@CONSTANTES.URLPortal/api/clienteapi/buscaCpf?term=' + login + "&tipo_cliente&tipo_pessoa";
+
+                    await $.getJSON(endpoint, (data) => { buscaBy = data });
+                    ok = buscaBy.ok;
+                }
+                else if (!ok && login) {
+                    endpoint = '@CONSTANTES.URLPortal/api/clienteapi/buscaNome?term=' + login + "&tipo_cliente&tipo_pessoa";
+
+
+                    await $.getJSON(endpoint, (data) => { buscaBy = data });
+                    ok = buscaBy.ok;
+                }
+                if (ok) {
+                    idCliente = buscaBy.objeto[0].id;
+
+                    if (bloqueiaVenda) {
+                        let numeroValidado = await hasNumeroValidado(idCliente);
+                        if (!numeroValidado) {
+                            throw "Cliente não pode iniciar uma venda sem número de celular validado.";
+                        }
+                    }
+                    retornoSwal.type = "success";
+                    retornoSwal.title = (isNaN(login) ? "Cliente" : tipoPessoa == "0" ? "CPF" : "CNPJ") + " Encontrado";
+                    retornoSwal.client = idCliente;
+                    retornoSwal.onClose = ShowPageLoading;
+                }
+                else {
+                    throw "Cliente não Encontrado";
+                }
+            }
+            catch (exception)
+            {
+                retornoSwal.type = "error";
+                retornoSwal.title = "Oops";
+                retornoSwal.client = null;
+                retornoSwal.text = exception;
+            }
+
+            return retornoSwal;
+        }
+
+        var handleDataTableButtons = async function () {
+
+            "use strict";
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty();
+            }
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+
+                rows_selected = [];
+            }
+
+            var colunas_modelo = $('#iModeloPainel').val() ? await GetColunas($('#iModeloPainel').val(), colunas) : null;
+            if (colunas_modelo != null)
+                colunas = colunas_modelo.colunas.length > 1 ? colunas_modelo.colunas : colunas;
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: colunas_modelo?.ordenar_por == null ? [[1, 'desc']] : colunas_modelo.ordenar_por,
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+                stateSave: true,
+                scrollX: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Vendaapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        // Read values
+                        var supervisor = $("#iDesc_Supervisor").val();
+
+                        //Status
+                        var aprovadoCliente = $("#iAprovadoCliente").is(":checked") ? $("#iAprovadoCliente").val() : null;
+                        var vendaCancelada = $("#iVendaCancelada").is(":checked") ? $("#iVendaCancelada").val() : null;
+                        var analiseCliente = $("#iAnaliseCliente").is(":checked") ? $("#iAnaliseCliente").val() : null;
+                        var aguardandoVenda = $("#iAguardandoVenda").is(":checked") ? $("#iAguardandoVenda").val() : null;
+                        var aguardandoAvaliacao = $("#iAguardandoAvaliacao").is(":checked") ? $("#iAguardandoAvaliacao").val() : null;
+                        var statusAuditoria = $('input[name = "iStatusAuditoria"]:checked').val();
+                        var statusEtapa = $('input[name = "iStatusEtapa"]:checked').val();
+
+                        var etapaVenda = $('input[name = "ietapaVenda"]:checked').val();
+
+                        var consultaViabilidade = $("#iConsultaViabilidade").is(":checked") ? $("#iConsultaViabilidade").val() : null;
+                        var consultaPendenciaFinanceira = $("#iConsultaPendenciaFinanceira").is(":checked") ? $("#iConsultaPendenciaFinanceira").val() : null;
+                        var consultaPendenciaEndereco = $("#iConsultaPendenciaEndereco").is(":checked") ? $("#iConsultaPendenciaEndereco").val() : null;
+                        var consultaCredito = $("#iConsultaCredito").is(":checked") ? $("#iConsultaCredito").val() : null;
+                        var statusQuery = "";
+                        var etapaQuery = "";
+
+                        var statusFlitro = [aprovadoCliente, vendaCancelada, analiseCliente, aguardandoAvaliacao, aguardandoVenda];
+                        var etapaFlitro = [consultaViabilidade, consultaPendenciaFinanceira, consultaPendenciaEndereco, consultaCredito];
+
+                        // adiciona os status selecionados a uma string no formato "0,1,2,3,..."
+                        $.each(statusFlitro, function (key, value) {
+
+                            if (value) {
+
+                                if (!statusQuery)
+                                    statusQuery += value
+                                else
+                                    statusQuery += "," + value
+                            }
+                        });
+
+                        $.each(etapaFlitro, function (key, value) {
+
+                            if (value) {
+
+                                if (!etapaQuery)
+                                    etapaQuery += value
+                                else
+                                    etapaQuery += "," + value
+                            }
+                        });
+
+                        var tipoPessoa = $("#iTipoPessoa option:selected").val();
+                        let _estado = $("#iEstadosBrasil option:selected").text();
+                        let _cidade = $("#iCidade option:selected").val();
+                        let _bairro = $("#iBairro option:selected").text();
+
+                        let estado = _estado!="@RsBase.TODOS"? _estado : null;
+                        let cidade = _cidade != "Selecione" ? _cidade : null;
+                        let bairro = _bairro != "Selecione" ? _bairro : null;
+                        var vendedor = $("#iDesc_Vendedor").val();
+                        var vendedorParm ="@Request.Params["vendedor"]";
+                        var meio_captacao = $("#iDesc_Meio_Captacao").val();
+                        var setorResponsavel = $("#iSetorDepartamento").val();
+                        var responsavel = $("#iResponsavel").val();
+
+
+                        var etapa_atual = $("#iEtapaAtual").val();
+
+                        var ultimo_contato = $("#iUltimoContato").val();
+                        var data_inicial = $("#iDataInicial").val();
+                        var data_inicialParam = "@Request.Params["dataBusca"]";
+                        var data_final = $("#iDataFinal").val();
+                        var data_finalParam = "@Request.Params["dataBusca"]";
+                        var vencimento = $("#iVencimento").val();
+                        var contrato = $("#descContrato").val();
+
+                        var tipoData = $('input[name = "iTipoData"]:checked').val();
+                        var tipoDataParam = "@Request.Params["dataVenda"]";
+
+                        var planoProduto = $("#descPlanoProduto").val();
+                        var combo = $("#descCombo").val();
+
+                        if ($("#iCidade option:selected").val() == "Selecione")
+                            cidade = null;
+                        if ($("#iBairro option:selected").val() == "Selecione")
+                            bairro = null;
+
+                        var idCliente = $("#idContrato").val();
+
+                        var termo_Adesao_Assinado = $("#iTermoAdesaoAssinado option:selected").val();
+                        var porta_reservada = $("#iPortaReservada option:selected").val();
+
+                        var qtde_Dias_Sem_Contato = $("#iQtdeDiasSemContato option:selected").val();
+                        var avaliacaoExpirada = $("#iAvaliacaoExpiradaFiltro option:selected").val();
+                        let _statusvenda = $("#iStatusVenda option:selected").text();
+                        let consultasRestricao = $("input[name='ConsultaRestricao']:checked").toArray().map(p => p.value);
+                        let equipeVenda = $("#iEquipeVendas").val();
+
+
+                        //Filtrar por venda do setor do usuario
+                        @if (@AcessoHelper.TemAcesso(_areas, "206")) {
+                        <text>
+
+                           var usuario_acesso = "@User.Identity.GetUserId()";
+                           var DepartamentoAcesso_Setor = 1;
+                           data.AcessoUsuario = usuario_acesso;
+                           data.AcessoDepartamento_Setor = DepartamentoAcesso_Setor;
+
+                        </text>
+                        }
+
+                        //Limitar o tempo de visualização da listagem em meses
+                        @if (@AcessoHelper.TemAcesso(_areas, "207")) {
+                        <text>
+
+                             var acesso_TempoVisualização = 1;
+                             data.acessoTempoVisualização = acesso_TempoVisualização;
+
+                        </text>
+                        }
+
+                        @*Append to data*@
+                        data.OrigemDashBoard = dashboard != null ? true : false;
+                        data.ApenasInstalados = $("#iApenasInstalados").is(":checked");
+                        data.equipeVenda = equipeVenda;
+                        data.Supervisor = supervisor;
+                        data.Status = statusQuery;
+                        data.StatusVenda = _statusvenda;
+                        data.EtapaVenda = etapaQuery;
+
+                        data.Motivo_Desistencia_Venda = $("#iMotivoDesistencia option:selected").text();
+                        data.Estado = estado;
+                        data.Cidade = cidade;
+                        data.Bairro = bairro;
+                        data.Campanha = $("#iCampanha option:selected").val();
+                        data.tipo_Pessoa = tipoPessoa;
+                        data.Vendedor = vendedor == null ? vendedorParm : vendedor;
+                        data.Meio_Captacao = meio_captacao;
+                        data.Etapa_Atual = etapa_atual;
+                        data.StatusAuditoria = statusAuditoria;
+                        data.StatusEtapa = statusEtapa;
+
+                        data.Ultimo_Contato = ultimo_contato;
+                        data.Data_Inicial = data_inicial == "" ? data_inicialParam : data_inicial;
+                        data.Data_Final = data_final == "" ? data_finalParam : data_final ;
+                        data.Vencimento = vencimento;
+                        data.Contrato = contrato;
+
+                        data.Id_Plano_Produto = planoProduto;
+                        data.Id_Combo = combo;
+
+                        data.TipoData = tipoData == 3 ? tipoDataParam : tipoData ;
+                        data.Id_Modelo = $('#iModeloPainel').val();
+
+                        data.termo_Adesao_Assinado = termo_Adesao_Assinado;
+                        data.porta_reservada = porta_reservada
+                        data.qtde_Dias_Sem_Contato = qtde_Dias_Sem_Contato;
+                        data.avaliacaoExpirada = avaliacaoExpirada;
+                        data.statusEtapa = statusEtapa;
+                        data.ConsultaRestricao = consultasRestricao;
+                        data.setorResponsavel = setorResponsavel;
+                        data.responsavel = responsavel;
+
+                        data.tipoPessoa;
+
+
+
+                    },
+                    error: function (e) {
+                        var errorMessage = "Ocorreu um erro.";
+                        try {
+                            var response = JSON.parse(e.responseText);
+                            if (response && response.exceptionMessage) {
+                                errorMessage = response.exceptionMessage;
+                            }
+                        } catch (ex) {
+                            console.error("Erro: ", ex);
+                        }
+                        Notificar("@RsBase.ATENCAO_", errorMessage, "warning");
+                        HidePageLoading();
+                    },
+                    dataSrc: function (d) {
+                        //Mostrar o Total de Ordens de Serviços encontradas
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                                     Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                                  </div> `);
+
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+                    return "";
+                },
+                preDrawCallback: function () {
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+
+                    if (oDatatable)
+                        oDatatable.columns.adjust();
+
+                    HidePageLoading();
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: colunas
+            });
+
+            setTimeout(function () {
+                oDatatable.columns.adjust().draw();
+            }, 2000)
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+                $("#iAprovadoCliente").prop("checked", false);
+                $("#iAvaliacaoAprovada").prop("checked", false);
+                $("#iAvaliacaoReprovada").prop("checked", false);
+                $("#iVendaCancelada").prop("checked", false);
+                $("#iAnaliseCliente").prop("checked", false);
+
+                $("#iAguardandoVenda").prop("checked", false);
+                $("#iConsultaViabilidade").prop("checked", false);
+                $("#iConsultaPendenciaFinanceira").prop("checked", false);
+                $("#iConsultaPendenciaEndereco").prop("checked", false);
+                $("#iConsultaCredito").prop("checked", false);
+                $('input[name="iStatusAuditoria"]').prop('checked', false);
+                $('input[name="ConsultaRestricao"]').prop('checked', false);
+                $("#iCampanha").val(null).trigger("change");
+
+                $('input[name="iStatusEtapa"]').prop('checked', false);
+                $("#iStatusVenda").val(null).trigger('change');
+                $("#iUltimoContato").val("");
+
+                //$("#id_Supervisor").val("");
+                $("#iDesc_Supervisor").val(null).trigger('change');
+
+                //$("#id_Vendedor").val("");
+                $("#iDesc_Vendedor").val(null).trigger('change');
+                $("#iSetorDepartamento").val(null).trigger('change');
+                $("#iResponsavel").val(null).trigger('change');
+
+
+                //$("#id_Contrato").val("");
+                $("#iDesc_Contrato").val(null).trigger('change');
+
+                $("#iDesc_Meio_Captacao").val(null).trigger('change');
+
+                //$("#idPlanoProduto").val("");
+                $("#descPlanoProduto").val(null).trigger('change');
+
+                $("#descContrato").val(null).trigger('change');
+                $("#iEquipeVendas").val(null).trigger('change');
+
+                $("#iEstadosBrasil").val(null).trigger('change');
+                //$("#iEstadosBrasil").prop("selectedIndex", 0);
+                //$("#iEstadosBrasil").trigger("change");
+
+                $("#iCidade").val("");
+                $("#iBairro").val("");
+
+                $("#iVencimento").val("");
+                $("#iTipoPessoa").val("");
+
+                $("#iLoginRadius").val("");
+
+                $("#iDataInicial").datepicker('update', '');
+                $("#iDataFinal").datepicker('update', '');
+               
+                $("#iEtapaAtual").val(null).trigger("change");
+                $("#iMotivoDesistencia").val(null).trigger('change');
+
+                $('input:radio[name="iTipoData"][value="0"]').prop('checked', true).trigger("change");
+
+                $("#iTermoAdesaoAssinado").prop("selectedIndex", 0);
+                $("#iPortaReservada").prop("selectedIndex", 0);
+
+                $("#iQtdeDiasSemContato").prop("selectedIndex", 0);
+                $("#iAvaliacaoExpiradaFiltro").prop("selectedIndex", 0);
+
+                $('#restricaoSection').hide()
+
+                configurarPeriodoDatas();
+
+                $('#txtSearch').val("");
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+
+            @*$("#modal-filter").on("shown.bs.modal", function () {
+                AddSelect("iEstadosBrasil", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUfSigla",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            });*@
+
+            $("#iPesquisar").on("click", function () {
+
+                if ($('input[name = "iStatusEtapa"]:checked').val() && $('input[name="ConsultaRestricao"]:checked').val() == undefined) {
+                    Notificar("@RsBase.ATENCAO_", "Selecione uma consulta de restrição", "warning");
+                    return;
+                }
+                $("#modal-filter").modal('hide');
+
+                $("#iDataInicial").val($("#iDataInicial").val().replace(/\//g, "."));
+                $("#iDataFinal").val($("#iDataFinal").val().replace(/\//g, "."));
+
+                var _data_ini = $("#iDataInicial").val().split(".");
+                var _data_fim = $("#iDataFinal").val().split(".");
+
+                var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+                var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+                if ($('input[name = "iTipoData"]:checked').val() != "3") {
+                    if ($("#iDataInicial").val() == "" || $("#iDataFinal").val() == "" ) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.SELECIONE_DATAINICIAL_DATAFINAL)", "warning");
+                        return false;
+                    }
+                }
+
+
+                if (data_ini > data_fim) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                }
+                else {
+                    rows_selected = [];
+                    oDatatable.search($('#txtSearch').val()).draw();
+                }
+
+                return true;
+            });
+
+            // Popular lista de cidades
+
+            $('#iEstadosBrasil').change(function () {
+                if ($(this).val() != null) {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidades",@CONSTANTES.PaginacaoRegistros, null, $(this).val(), null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    $('#iCidade').val(null).trigger("change");
+                    if ($('#iCidade').data('select2')) {
+                    $('#iCidade').select2('destroy');
+                    }
+                    $("#iCidade").empty();
+                }
+
+
+                @*var estado = $('#iEstadosBrasil option:selected').val();
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $("#iBairro").empty();
+
+                $.getJSON(enderecoApi, function (data) {
+
+                    $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    });
+                });*@
+
+            });
+
+            $('#iCidade').change(
+            /** */
+                function () {
+                const cidade = $('#iCidade option:selected').val();
+
+                if ($(this).val() != null) {
+                        AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairros",@CONSTANTES.PaginacaoRegistros, null, cidade, null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    if ($('#iBairro').data('select2')) {
+                    $('#iBairro').select2('destroy');
+                    }
+                    $("#iBairro").empty();
+                }
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getbairros?Id_Cidade=" + cidade;
+
+                $("#iBairro").val("");
+
+
+                $('#iBairro').append($('<option></option>').attr('value', null).text('@RsBase.SELECIONE'));
+                $.getJSON(enderecoApi, function (data) {
+                    $.each(data, function (key, value) {
+                        $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+                });
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+
+            $('#datatable tbody').on('click', 'tr', function (e) {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("ClienteDadosGerais", "Venda")' + "?Id_Venda=" + _id;
+                    AddAba(url, 'Cadastro de Venda');
+                    e.stopPropagation();
+                }
+
+            });
+
+            // Handle btn login event
+            $('#datatable tbody').on('click', '.btnPlanos', function (e) {
+
+                var id = $(this).attr("id_venda");
+
+                e.stopPropagation();
+                ShowDialog(true, true, '@RsCadastros.PLANOS_E_PRODUTOS', '@Url.Action("ListaComboPlano", "Venda")' + '?Id_Venda=' + id, 'divLogin',450, 450, 'iframeLoginRadius');
+
+            });
+
+            $('#datatable tbody').on('click', '.btnUltimoContato', function (e) {
+
+                var id = $(this).attr("id_venda");
+
+                e.stopPropagation();
+                ShowDialog(true, true, '@Html.Raw(RsCadastros.ULTIMO_CONTATO)', '@Url.Action("UltimosContatos", "Venda")' + '?Id_Venda=' + id, 'divLogin',650, 450, 'iframeUltimoContato');
+
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        //$('.swal2-select').addClass('form-control');
+        if ($('input[name="iStatusEtapa"]:checked').val() == null) {
+            $('#restricaoSection').hide()
+        }
+
+        else {
+            $('#restricaoSection').show()
+        }
+
+        $("input[name='iStatusEtapa']:radio").click(function () {
+
+            if ($('input[name="iStatusEtapa"]:checked').val() == null || $('input[name="iStatusEtapa"]:checked').val() == "5") {
+                $('#restricaoSection').hide()
+            }
+
+            else {
+                $('#restricaoSection').show()
+            }
+        });
+        $("#iApenasInstalados").on("click", function () {
+            if (!$("#iAprovadoCliente").is(":checked")) {
+                $("#iAprovadoCliente").prop("checked", true)
+            }
+        });
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+
+                <div class="pl-2 pr-4 form-group">
+                    <label for="iModeloPainel">Modelo de Painel de Vendas:</label>
+                    <select class="form-control" id="iModeloPainel" autocomplete="off">
+                        <option value="">@RsBase.SELECIONE</option>
+                    </select>
+                </div>
+
+                <div class="pl-2 pr-4">
+                    <input type="text" class="input-search" id="txtSearch" style="width:200px;" placeholder="@RsCadastros.NOMEOUDOCUMENTO" autocomplete="off">
+                    <i class="la la-search la-2x pl-2" style="color: #999"></i>
+                </div>
+                @if (AcessoHelper.TemAcesso(_areas, "135"))
+                {
+                    <a class="btn btn-success btn-add" onclick="validaCPFCNPJ();" title="@RsBase.INCLUIR"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAR_PARA_O_EXCEL</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "136"))
+                    {
+                        @*<a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                            <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>*@
+                    }
+
+                    @if (AcessoHelper.TemAcesso(_areas, "353"))
+                    {
+                        <a class="dropdown-item" href="#" onclick="CancelamentoMassa();">@RsCadastros.CANCELAR_VENDA</a>
+                    }
+
+
+                    @if (AcessoHelper.TemAcesso(_areas, "173"))
+                    {
+                        <a class="dropdown-item" id="btnGerModViz" href="@Url.Action("Index", "Modelo_PainelVenda")">@RsBase.GERENCIAR_MODELOS_DE_VISUALIZACAO</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+</div>
+
+<div id="divTable" style="width: 97.5vw; margin: auto">
+    <table class="table table-hover nowrap display trocaAba" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div id="divLogin"></div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label for="iDesc_Vendedor">@RsCadastros.VENDEDOR:</label>
+                                    @Html.DropDownList("Vendedor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iDesc_Vendedor", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label for="iDesc_Supervisor">@RsCadastros.SUPERVISOR:</label>
+                                    @Html.DropDownList("select2Supervisor", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iDesc_Supervisor", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    <div class="row">
+
+                        <div class="col-sm-12">
+
+                        <div class="row">
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label for="iDesc_Vendedor">@RsCadastros.SETOR_RESPONSAVEL:</label>
+                                    @Html.DropDownList("SetorDepartamento", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iSetorDepartamento", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6">
+
+                                <div class="form-group">
+                                    <label for="iDesc_Supervisor">@RsCadastros.RESPONSAVEL:</label>
+                                    @Html.DropDownList("Responsavel", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iResponsavel", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="row mt-1">
+
+                            <div class="col">
+                                <div class="form-inline fs-12">
+                                    <label class="fs-12 pr-1">Vendas sem contato há </label>
+                                    <input type="text" class="form-control col-sm-4 integer " id="iUltimoContato"><label> dia(s) ou mais</label>
+
+                                    @*<select class="form-control" id="iUltimoContato">
+                                            <option value="">@RsBase.TODOS</option>
+                                            <option value="0">Até 7 dias</option>
+                                            <option value="1">De 7 à 15 dias</option>
+                                            <option value="2">Mais de 15 dias</option>
+                                        </select>*@
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6" id="iDiv">
+                                <label for="iQtdeDiasSemContato" style="font-size:12px">Expirou @RsCadastros.QTDE_DIAS_SEM_CONTATO?</label>
+                                <div class="form-group">
+                                    <select class="form-control" id="iQtdeDiasSemContato">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="1">Sim</option>
+                                        <option value="0">Não</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6" id="iDiv">
+                                <label for="iEquipeVendas" style="font-size:12px">@RsCadastros.EQUIPE_VENDAS</label>
+                                <div class="form-group">
+                                    <select class="form-control" id="iEquipeVendas">@RsBase.SELECIONE</select>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <label style="font-size: 12px">@RsCadastros.STATUS:</label><br />
+                        <div class="col-sm-12 pl-3 border_radius">
+
+                            <div class="form-group">
+                                <div class="form-check  mt-2">
+
+                                    <div class="row">
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("AprovadoCliente", false, new { @class = "form-check-input", @id = "iAprovadoCliente", @autocomplete = "off", @value = "6" })
+                                            <label for="iAprovadoCliente">@RsCadastros.VENDA_APROVADA</label>
+                                        </div>
+
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("VendaCancelada", false, new { @class = "form-check-input", @id = "iVendaCancelada", @autocomplete = "off", @value = "4" })
+                                            <label for="iVendaCancelada">@RsCadastros.VENDA_CANCELADA</label>
+                                        </div>
+
+                                        @*<div class="col-sm-4">
+                                                @Html.CheckBox("AvaliacaoAprovada", false, new { @class = "form-check-input", @id = "iAvaliacaoAprovada", @autocomplete = "off", @value = "2" })
+                                                <label for="iAvaliacaoAprovada">@RsCadastros.AVALIACAO_APROVADA</label>
+                                            </div>
+
+                                            <div class="col-sm-4">
+                                                @Html.CheckBox("AvaliacaoReprovada", false, new { @class = "form-check-input", @id = "iAvaliacaoReprovada", @autocomplete = "off", @value = "3" })
+                                                <label for="iAvaliacaoReprovada">@RsCadastros.AVALIACAO_REPROVADA</label>
+                                            </div>*@
+
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("AguardandoAvaliacao", false, new { @class = "form-check-input", @id = "iAguardandoAvaliacao", @autocomplete = "off", @value = "5" })
+                                            <label for="iAguardandoAvaliacao">@RsCadastros.AGUARDANDO_AVALIACAO_COMERCIAL</label>
+                                        </div>
+
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("AnaliseCliente", false, new { @class = "form-check-input", @id = "iAnaliseCliente", @autocomplete = "off", @value = "0" })
+                                            <label for="iAnaliseCliente">@RsCadastros.ANALISE_CLIENTE</label>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("AguardandoVenda", false, new { @class = "form-check-input", @id = "iAguardandoVenda", @autocomplete = "off", @value = "8" })
+                                            <label for="iAguardandoAvaliacao">@RsCadastros.AGUARDANDO_LIBERACAO</label>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            @Html.CheckBox("ApenasInstalados", false, new { @class = "form-check-input", @id = "iApenasInstalados", @autocomplete = "off", @value = "9" })
+                                            <label for="iApenasInstalados">@RsCadastros.VENDAS_INSTALADAS</label>
+                                        </div>
+                                        
+
+                                    </div>
+
+
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="col-sm-12">
+                            <div class="form-group">
+                                <label>@RsCadastros.STATUS_VENDA:</label>
+                                <select class="form-control" id="iStatusVenda"></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-12">
+                            <div class="form-group">
+                                <label>@RsCadastros.CAMPANHA:</label>
+                                @Html.DropDownList("CampanhaFilter", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<long>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCampanha" })
+                            </div>
+                        </div>
+
+                        <label style="font-size: 12px">Status da Etapa:</label>
+                        <br />
+                        <div class="col-sm-12 pl-3 border_radius">
+                            <div class="form-group">
+                                <div class="form-check  mt-2">
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusEtapa", "2", new { @class = "form-check-input", @id = "IReprovado", @autocomplete = "off", @value = "2" })
+                                            <label for="IReprovado">@RsCadastros.REPROVADO</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusEtapa", "0", new { @class = "form-check-input", @id = "iPendente", @autocomplete = "off", @value = "0" })
+                                            <label for="iPendente">@RsCadastros.PENDENTE</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusEtapa", "1", new { @class = "form-check-input", @id = "iAprovado", @autocomplete = "off", @value = "1" })
+                                            <label for="iAprovado">@RsCadastros.APROVADO</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusEtapa", "3", new { @class = "form-check-input", @id = "iAguardandoGestor", @autocomplete = "off", @value = "3" })
+                                            <label for="iAguardandoGestor">@RsCadastros.AGUARDANDO_APROVACAO_GESTOR</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusEtapa", "4", new { @class = "form-check-input", @id = "iAprovadoManualmente", @autocomplete = "off", @value = "4" })
+                                            <label for="iAguardandoGestor">@RsCadastros.APROVADO_MANUALMENTE</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="restricaoSection">
+                            <label style="font-size: 12px">@RsCadastros.RESTRICAO:</label><br />
+                            <div class="col-sm-12 pl-3 border_radius">
+                                <div class="form-group">
+                                    <div class="form-check  mt-2">
+                                        <div class="row">
+                                            <div class="col-sm-6">
+                                                @Html.CheckBox("ConsultaRestricao", false, new { @class = "form-check-input", @id = "iConsultaViabilidade", @autocomplete = "off", @value = "1" })
+                                                <label for="iConsultaViabilidade">@RsCadastros.CONSULTA_VIABILIDADE</label>
+                                            </div>
+
+                                            <div class="col-sm-6">
+                                                @Html.CheckBox("ConsultaRestricao", false, new { @class = "form-check-input", @id = "iConsultaPendenciaFinanceira", @autocomplete = "off", @value = "2" })
+                                                <label for="iConsultaPendenciaFinanceira">@RsCadastros.CONSULTA_PENDENCIA_FINANCEIRA</label>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-sm-6">
+                                                @Html.CheckBox("ConsultaRestricao", false, new { @class = "form-check-input", @id = "iConsultaPendenciaEndereco", @autocomplete = "off", @value = "3" })
+                                                <label for="iConsultaPendenciaEndereco">@RsCadastros.CONSULTA_PENDENCIA_ENDERECO</label>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                @Html.CheckBox("ConsultaRestricao", false, new { @class = "form-check-input", @id = "iConsultaCredito", @autocomplete = "off", @value = "4" })
+                                                <label for="iConsultaCredito">@RsCadastros.CONSULTA_CREDITO</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <label style="font-size: 12px">@RsCadastros.STATUS_AUDITORIA:</label><br />
+                        <div class="col-sm-12 pl-3 border_radius">
+
+                            <div class="form-group">
+                                <div class="form-check  mt-2">
+
+                                    <div class="row">
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusAuditoria", "2", new { @class = "form-check-input", @id = "iAguardandoAuditoria", @autocomplete = "off", @value = "2" })
+                                            <label for="iAguardandoAuditoria">@RsCadastros.AGUARDANDO</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusAuditoria", "1", new { @class = "form-check-input", @id = "iAprovadoAuditoria", @autocomplete = "off", @value = "1" })
+                                            <label for="iAprovadoAuditoria">@RsCadastros.APROVADO</label>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            @Html.RadioButton("iStatusAuditoria", "0", new { @class = "form-check-input", @id = "iReprovadoAuditoria", @autocomplete = "off", @value = "0" })
+                                            <label for="iReprovadoAuditoria">@RsCadastros.REPROVADO</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <label>@RsCadastros.UF:</label>
+                                    @Html.DropDownList("EstadosBrasil", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @id = "iEstadosBrasil", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <label>@RsCadastros.CIDADE:</label>
+                                    <select class="form-control" id="iCidade"></select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <label>@RsCadastros.BAIRRO:</label>
+                                    <select class="form-control" id="iBairro"></select>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <!--
+                                                                <input type="hidden" id="id_Meio_Captacao">
+                                    <input type="text" class="form-control" id="iDesc_Meio_Captacao">
+                                                                -->
+                                    <label for="iDesc_Meio_Captacao">@RsCadastros.MEIO_CAPTACAO:</label>
+                                    @Html.DropDownList("Meio_Captacao", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iDesc_Meio_Captacao", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4" id="iDivEquipe" style="margin-top: -4px">
+
+                                <label style="font-size:12px">@RsCadastros.PLANO_PRODUTO:</label>
+                                <div class="form-group">
+                                    @Html.DropDownList("PlanoProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ui-autocomplete-input", @id = "descPlanoProduto", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4" style="margin-top: -4px">
+
+                                <label style="font-size:12px">@RsCadastros.COMBO:</label>
+                                <div class="form-group">
+                                    @Html.DropDownList("Combo", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ui-autocomplete-input", @id = "descCombo", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iTipoPessoa" class="">@RsCadastros.TIPOPESSOA:</label>
+                                    <select id="iTipoPessoa" class="form-control">
+                                        <option value="">@RsBase.TODOS</option>
+                                        <option value="0">@RsCadastros.FISICA</option>
+                                        <option value="1">@RsCadastros.JURIDICA</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row border_radius">
+                            <div class="col-sm-7">
+                                <div class="form-group">
+                                    <label>Período:</label>
+                                    @*<div class="custom-control custom-radio">
+                                            <input type="radio" id="iNenhum" name="iTipoData" value="3" /><label for="iNenhum">@RsBase.TODOS</label>
+                                        </div>*@
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="iDataCriacao" name="iTipoData" value="0" checked /><label for="iDataCriacao">@RsCadastros.DATA_CRIACAO</label>
+                                    </div>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="iDataVenda" name="iTipoData" value="1" /><label for="iDataVenda">@RsCadastros.DATA_VENDA</label>
+                                    </div>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" id="iDataTermo" name="iTipoData" value="4" /><label for="iDataTermo">@RsCadastros.DATA_TERMO_ASSINADO</label>
+                                    </div>
+                                    @*<div class="custom-control custom-radio">
+                                            <input type="radio" id="iDataEncerramento" name="iTipoData" value="2" /><label for="iDataEncerramento">@RsCadastros.DATA_ENCERRAMENTO</label>
+                                        </div>*@
+                                </div>
+                            </div>
+                            <div class="col-sm-5">
+                                <div class="form-group" style="display: flex; flex-direction: column;">
+                                    <label for="iDataInicial" style="display:block;">@RsCadastros.PERIODO:</label>
+
+                                    <div class="input-group mb-2" style="width: fit-content;">                                    
+                                    <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataInicial" />
+                                    </div>
+
+                                    <span>@RsBase.A</span>
+
+                                    <div class="input-group" style="width: fit-content;">                                    
+                                    <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataFinal" />
+
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-4" id="iDiv" style="margin-top: -4px">
+
+                                <label for="descContrato" style="font-size:12px">@RsCadastros.MODELO_CONTRATO:</label>
+                                <div class="form-group">
+                                    @Html.DropDownList("Descricao", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control filtro", style = "height: 25px; z-index: 100;", @id = "descContrato", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4" id="iDiv" style="margin-top: -4px">
+
+                                <label for="iTermoAdesaoAssinado" style="font-size:12px">@RsCadastros.TERMO_ADESAO_ASSINADO.Replace("?", ":")</label>
+                                <div class="form-group">
+                                    <select class="form-control" id="iTermoAdesaoAssinado">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="1">Sim</option>
+                                        <option value="0">Não</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4" id="iDiv" style="margin-top: -4px">
+
+                                <label for="iAvaliacaoExpiradaFiltro" style="font-size:12px">@RsCadastros.AVALIACAO_EXPIRADA.Replace("?", ":")</label>
+                                <div class="form-group">
+                                    <select class="form-control" id="iAvaliacaoExpiradaFiltro">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="1">Sim</option>
+                                        <option value="0">Não</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-6" id="iDiv" style="margin-top: -4px">
+
+                                <label for="iPortaReservada" style="font-size:12px">@RsCadastros.PORTA_RESERVADA.Replace("?", ":")</label>
+                                <div class="form-group">
+                                    <select class="form-control" id="iPortaReservada">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="1">Sim</option>
+                                        <option value="0">Não</option>
+                                    </select>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.MOTIVO_DESISTENCIA_VENDA:</label>
+                                    <select class="form-control" id="iMotivoDesistencia"></select>
+                                </div>
+                            </div>
+                            <div class="col-sm-6" style="margin-top: -4px">
+
+                                <label for="iEtapaAtual" style="font-size:12px">@RsCadastros.ETAPA_ATUAL:</label>
+                                <div class="form-group">
+                                    @Html.DropDownList("Etapa_Atual", new SelectList(listaEtapas, "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEtapaAtual", @autocomplete = "off" })
+                                </div>
+
+                            </div>
+                        </div>
+
+
+
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+    </div>
+</div>
+
+
+<div class="modal fade" id="iModal_Motivo_Desistencia_Venda" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Informe o motivo do Cancelamento</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    @Html.DropDownList("Id_Motivo_Desistencia_Venda", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorioCancelar", @id = "iMotivo_Desistencia_Venda", @autocomplete = "off", required = "required" })
+
+                </div>
+                <div class="form-group" id="iMotivoACancelarVendaOutros">
+                    <div><label>Informe o Motivo:</label></div>
+                    @Html.TextArea("Id_Motivo_Desistencia_Venda", new { @class = "form-control", @maxlength = 300, @id = "iMotivo_Cancelar_Venda_Outros", @autocomplete = "off", required = "required" })
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="btnMotivoDesistencia">Gravar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="iVendasNaoCanceladas" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-xl @*modal-dialog-centered*@" role="document">
+        <div class="modal-content modal">
+            <div class="modal-header">
+                <h4 class="modal-title">Log de Vendas não Canceladas</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="CarregarIndex();">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="divTableVendas">
+                    <a href="#" class="" style="color:dodgerblue" onclick="$('.buttons-excel').click(); return false;">Exportar Excel</a>
+                    <table class="table table-hover nowrap" id="datatableVendas" style="width:100%">
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

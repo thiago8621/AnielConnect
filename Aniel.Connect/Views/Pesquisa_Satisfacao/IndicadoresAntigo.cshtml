@@ -1,0 +1,269 @@
+﻿@model Aniel.Connect.Models.IndicadoresModel
+@using Chart.Mvc.ComplexChart;
+@using Chart.Mvc.SimpleChart;
+@using Chart.Mvc.Extensions;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Resources
+@using Sinapse.Model.enumerados
+
+@{
+    ViewBag.Title = "Gráficos Indicadores";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+     var StorageName = CONSTANTES.SIGLA_MODULO + " - " + ViewBag.Title + " - " + CONSTANTES.Versao;
+}
+
+<script src="~/bin/Scripts/Chart.js"></script>
+
+@section Scripts
+{
+    <script>
+        @foreach (var pergunta in Model.Perguntas)
+        {
+            <text>
+                $("#" + "@String.Format("selectFiltro_{0}", pergunta.Id_Pergunta)").on("change", function () {
+
+                    if ($(this).val() != "") {
+
+                        var urlApi = "@CONSTANTES.URLPortal/api/pesquisa_Satisfacaoapi/GetRespostasIndicadores?Id_Pesquisa_Satisfacao=@Json.Encode(Model.Id_Pesquisa_Satisfacao)" +
+                                                                                                            "&Id_Pergunta=@Json.Encode(pergunta.Id_Pergunta)" +
+                                                                                                            "&Periodo_Filtro=" + $(this).val();
+
+                        $.ajax({
+                            url: urlApi,
+                            type: "GET",
+                            dataType: "json"
+                        }).done(function (data) {
+
+                            //Gráfico
+
+                            var objGrafico = data.objeto[0].obj_Grafico;
+                            var chart = window["@String.Format("chartPergunta_{0}", pergunta.Id_Pergunta)" + "_chart"];
+
+                            while (chart.segments.length > 0) {
+                                chart.removeData()
+                            }
+
+                            $.each(objGrafico, function (index, obj) {
+
+                                chart.addData(obj);
+                            })
+
+                            chart.update();
+
+                            //Lista de valores
+
+                            var elemListaValores = $("#@String.Format("listaChart_{0}", pergunta.Id_Pergunta)").children();
+                            elemListaValores.empty();
+
+                            var objListaValores = data.objeto[0].obj_Lista_Valores;
+
+                            var totalRespostas = 0;
+                            $.each(objListaValores, function (index, obj) {
+
+                                totalRespostas += obj.value;
+                            })
+
+                            $.each(objListaValores, function (index, obj) {
+
+                                var porcentagem = (obj.value / totalRespostas) * 100
+
+                                var html = "<div> <span>" + obj.label + ": " + porcentagem.toFixed(2).replace(".",",") + "%</span> </div>"
+                                elemListaValores.append(html)
+                            })
+
+                            elemListaValores.append("<div class='mt-3'> <span>Total de Respostas: " + totalRespostas + "</span> </div>")
+
+                        })
+                    }
+                })
+            </text>
+        }
+    </script>
+}
+
+@{
+    var barChart = new BarChart();
+    barChart.ComplexData.Labels.AddRange(Model.Qtde_Envios_Respostas.Labels);
+    barChart.ComplexData.Datasets.AddRange(Model.Qtde_Envios_Respostas.Datasets);
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page"><i class="far fa-chart-bar"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("ConsultaPesqSatisfCadCliente", "Pesquisa_Satisfacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PESQUISA_RESPOSTA</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+            <span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>
+        </div>
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                @if (Model.Tem_Comentario)
+                {
+                    <a class="btn btn-success btn-add" href="@Url.Action("Opinioes", "Pesquisa_Satisfacao", new { Id_Pesquisa_Satisfacao = Model.Id_Pesquisa_Satisfacao})" title="Clique aqui para visualizar os comentários dos clientes nesta pesquisa" onclick="ShowPageLoading(); return true;">
+                        <i class="far fa-comments"></i>
+
+                    </a>
+                }
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div id="accordion_1">
+    <div class="ml-3 mr-3 card shadow">
+
+        <div class="card-header title-card" id="heading_1">
+            <h5 class="mb-0">
+                <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                    <span class="text-card" style="font-size: 18px"><b>@Model.Titulo_Pesquisa</b></span>
+                    @if (!String.IsNullOrEmpty(Model.Descricao_Pesquisa))
+                    {
+                        <br />
+                        <span class="text-card">@Model.Descricao_Pesquisa</span>
+                    }
+                </a>
+            </h5>
+        </div>
+
+        <div id="collapse_1" class="collapse show" aria-labelledby="heading_1" data-parent="#accordion_1">
+            <div class="card-body body-card-accord mt-1">
+                <div class="row">
+
+                    <div class="col-sm-5">
+                        <canvas id="qtdeEnviosRespostas" width="450" height="350" />
+                        @Html.CreateChart("qtdeEnviosRespostas", barChart)
+                    </div>
+
+                    <div class="col-sm-2" style="margin-top: 8.5%">
+                        <div class="card">
+                            <div class="ml-3 card-body body-card-accord mt-1">
+
+                                <div class="row">
+                                    <div style="background-color: #FF9900; margin-top:2.5%; width:10px; height:10px"></div> &nbsp; Enviados
+                                </div>
+
+                                <div class="row">
+                                    <div style="background-color: #228822; margin-top:2.5%; width:10px; height:10px"></div> &nbsp; Respondidos
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="graficosPerguntas">
+    <div class="row col-sm-12 pr-0">
+        @{
+            var i = 0;
+            foreach (var pergunta in Model.Perguntas)
+            {
+                var pieChart = new PieChart();
+                pieChart.Data = pergunta.Obj_Grafico;
+                <div class="col-sm-6 pl-0 pr-0 align-horizontal">
+                    <div id="@String.Format("accordion_{0}", i + 2)" class="mt-3">
+                        <div class="ml-3 card shadow">
+
+                            <div class="card-header title-card" id="@String.Format("heading_{0}", i + 2)">
+                                <h5 class="mb-0">
+                                    <a role="button" data-toggle="collapse" data-target="@String.Format("#collapse_{0}", i + 2)" aria-expanded="true" aria-controls="@String.Format("collapse_{0}", i + 2)">
+
+                                        <span class="text-card" style="font-size: 18px"><b>@pergunta.Descricao_Pergunta</b></span>
+                                        <br />
+                                        <span class="text-card">@String.Format("Tipo de Resposta: {0}", pergunta.Tipo_Pergunta)</span>
+
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="@String.Format("collapse_{0}", i + 2)" class="collapse show" aria-labelledby="@String.Format("heading_{0}", i + 2)" data-parent="@String.Format("#accordion_{0}", i + 2)">
+                                <div class="card-body body-card-accord">
+
+                                    <div id="graficosPerguntas">
+
+                                        <div class="row">
+
+                                            <div class="align-vertical ml-4 col-sm-6">
+                                                <canvas id="@String.Format("chartPergunta_{0}", pergunta.Id_Pergunta)" width="275" height="250" />
+                                                @Html.CreateChart(String.Format("chartPergunta_{0}", pergunta.Id_Pergunta), pieChart)
+                                            </div>
+
+                                            <div class="align-vertical col-sm-5 ml-3">
+
+                                                <label for="@String.Format("selectFiltro_{0}", pergunta.Id_Pergunta)"> @RsCadastros.PERIODO: </label>
+
+                                                <select id="@String.Format("selectFiltro_{0}", pergunta.Id_Pergunta)" class="form-control">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                    <option value="0">Mês atual</option>
+                                                    <option value="3">Últimos 3 meses</option>
+                                                    <option value="6">Últimos 6 meses</option>
+                                                    <option value="12" selected>Últimos 12 meses</option>
+                                                    <option value="-1">Histórico Acumulado</option>
+                                                </select>
+
+                                                <div id="@String.Format("listaChart_{0}", pergunta.Id_Pergunta)" class="card mt-2">
+                                                    <div class="card-body body-card-accord mt-1">
+
+                                                        @{
+                                                            var total_respostas = pergunta.Obj_Lista_Valores.Sum(p => p.Value);
+                                                        }
+
+                                                        @foreach (var lista_valores in pergunta.Obj_Lista_Valores)
+                                                        {
+                                                            <div>
+                                                                @{
+                                                                    double porcentagem = ((lista_valores.Value / total_respostas) * 100);
+                                                                }
+                                                                <span>@lista_valores.Label: @(String.Format("{0}%", Math.Round(porcentagem, 2)))</span>
+                                                            </div>
+                                                        }
+
+                                                        <div class="mt-3">
+                                                            <span>Total de Respostas: @total_respostas</span>
+                                                        </div>
+
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                i++;
+            }
+        }
+    </div>
+</div>
+

@@ -1,0 +1,548 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.VINCULAR_USUARIO_PERFIL_DASHBOARD_INICIAL;
+    ViewBag.Sessao = RsCadastros.VINCULAR_USUARIO_PERFIL_DASHBOARD_INICIAL;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+<script>
+
+        AddSelect("iPerfilAgente", "@CONSTANTES.URLPortal/api/Vincular_UsuarioPerfilApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null,null, "@RsBase.SELECIONE", false);
+        AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/Perfil_Dashboardapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        $("#iTodos").prop("checked", true);
+        var rows_selected = [];
+        let oDatatable;
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Vincular_UsuarioPerfilApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            oDatatable =  new DataTable("#datatable", {
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',              
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/Vincular_UsuarioPerfilApi/GetAll',
+                    type: 'POST',
+                    data: function(data) {
+                            data.secao = $("#iSecao").val();
+                            data.tipoUsuario = $("#iTipoUsuario").val();
+                            data.perfilAgente = $("#iPerfilAgente").val();
+                            data.perfil = $("#iPerfil").val();
+                            data.todos = $("#iTodos").is(":checked");
+                            data.configurados = $("#iConfigurados").is(":checked");
+                            data.naoConfigurados = $("#iNaoConfigurados").is(":checked");
+                            data.nome = $("#txtSearch").val();
+                            data.perfilVenda = $("#iPerfilVenda").val();
+
+                        }
+                    ,
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                drawCallback: function () {
+                    HidePageLoading();
+                    $('#modal-filter').modal("hide");
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.LOGIN" },
+                    { data: "usuario", title: "@RsCadastros.USUARIO" },
+                    { data: "nome", title: "@RsCadastros.NOME" },
+                    { data: "secao", title: "@RsCadastros.SECAO_CONNECT" },
+                    { data: "tipo", title: "@RsCadastros.TIPO_USUARIO" },
+                    { data: "perfilDashboard", title: "@RsCadastros.PERFIL_DASHBOARD" },
+                    { data: "perfilAgente", title: "@RsCadastros.PERFIL_AGENTE" },
+                    { data: "departamento", title: "@RsCadastros.SETOR_DEPARTAMENTO" },
+                    { data: "perfilVisualizacaoServico", title: "@RsCadastros.PERFIL_VISUALIZACAO_SERVICO" },
+                    { data: "perfilVisualizacaoVenda", title: "@RsCadastros.PERFIL_VISUALIZACAO_VENDA" },
+                ]
+            });
+            $('#datatable tbody').on('click', 'tr', function () {
+                 @if (AcessoHelper.TemAcesso(_areas, "146"))
+                 {
+                 <text>
+                if (oDatatable.row(this).data() != null) {
+                    var _id = oDatatable.row(this).data().id;
+                    ShowDialog(true, false, '@Html.Raw(RsCadastros.VINCULAR_USUARIO_PERFIL_DASHBOARD_INICIAL)', '@Url.Action("Cadastro", "Vincular_UsuarioPerfil")' + '?Id=' + _id, 'divPerfil', 600, 600, 'iframePerfil',
+                        function () {
+                            rows_selected = [];
+
+                            ShowPageLoading();
+                            oDatatable.draw(false);
+                        }
+                     );
+                }
+                 </text>
+                 }
+                 else
+                 {
+                     <text>
+                Notificar("@RsBase.ATENCAO_", "O usuário não possui a area de acesso 146.", "warning");
+                     </text>
+                 }
+            });
+
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.draw();
+                console.log("pesquisa");
+            });
+
+            $('#iLimparFiltro, #iLimparFiltroModal').on('click', function () {
+
+                $("#iSecao").prop('selectedIndex', 0);
+                $("#iTipoUsuario").prop('selectedIndex', 0);
+                $("#iPerfilAgente").text("");
+                $("#iPerfil").text("");
+                $("#iPerfilVenda").text("");
+                $("#iTodos").prop("checked", false);
+                $("#iConfigurados").prop("checked", false);
+                $("#iNaoConfigurados").prop("checked", false);
+                $("#txtSearch").val('');
+
+                oDatatable.draw();
+            });
+
+
+            $("#btnVincular").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                ShowDialog(true, false, '@Html.Raw(RsCadastros.VINCULAR_USUARIO_PERFIL_DASHBOARD_INICIAL)', '@Url.Action("CadastroMultiplo", "Vincular_UsuarioPerfil")' + '?id=' + rows_selected, 'divPerfil', 600, 600, 'iframePerfil',
+                    function () {
+
+                        try {
+                            setTimeout(function (){
+                                oDatatable.draw(false);
+                            }, 1000)
+                        }
+                        catch {
+                            setTimeout(function (){
+                                oDatatable.draw(false);
+                            }, 1000)
+                        }
+                    }
+                    );
+            });
+
+            $("#btnRemvoer").on("click", function () {
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                else {
+                    parent.Swal.fire({
+                        type: 'warning',
+                        title: 'Confirmar ação',
+                        text: 'Confirma a remoção de perfis para os usuários selecionados na lista?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sim',
+                        cancelButtonText: 'Não',
+                    })
+                .then(function (res) {
+                    if (res.value) {
+                        $.ajax({
+                            url: '@String.Concat(CONSTANTES.URLPortal, "/api/Vincular_UsuarioPerfilApi/RemoverPerfis")',
+                            type: 'POST',
+                            contentType: "application/json",
+                            data: JSON.stringify({ ids: rows_selected }),
+                        }).done(function () {
+                            Notificar("Sucesso", "Perfis removidos", "success");
+                        });
+                    }
+                });
+                }
+            }
+            );
+
+            $("#btnResetarAssinatura").on("click", function () {
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                else {
+                    parent.Swal.fire({
+                        type: 'warning',
+                        title: 'Confirmar ação',
+                        text: 'Confirma a remoção da assinatura do usuário?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sim',
+                        cancelButtonText: 'Não',
+                    })
+                        .then(function (res) {
+                            if (res.value) {
+                                $.ajax({
+                                    url: '@String.Concat(CONSTANTES.URLPortal, "/api/Vincular_UsuarioPerfilApi/ResetarAssinatura")',
+                                    type: 'POST',
+                                    contentType: "application/json",
+                                    data: JSON.stringify({ ids: rows_selected }),
+                                }).done(function (data) {
+
+                                    if (data.ok) {
+                                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                                        rows_selected = [];
+                                        oDatatable.draw();
+                                    }
+                                    else {
+                                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                   }
+                                });
+                            }
+                        });
+                }
+            }
+            );
+
+
+            $('#iPesquisar').on("click", function () {
+
+                oDatatable.draw();
+
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+</script>
+}
+
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-user-circle"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.LOGIN_USUARIO_NOME" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                @if (AcessoHelper.TemAcesso(_areas, "146"))
+                {
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" id="btnVincular" href="#" onclick="return false;"> <i class="fas fa-user-plus"></i> @RsCadastros.VINCULAR_PERFIS</a>
+                    <a class="dropdown-item" id="btnRemvoer" href="#" onclick="return false;"><i class="fas fa-user-times"> </i> @RsCadastros.REMOVER_PERFIS</a>
+                    <a class="dropdown-item" href="@Url.Action("Historico_Alteracao", "Vincular_UsuarioPerfil")"><i class="fas fa-print"></i> @RsCadastros.LOG_ALTERACAO_AREA</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+					@if (AcessoHelper.TemAcesso(_areas, "400"))
+                    {
+                        <a class="dropdown-item" id="btnResetarAssinatura" href="#" onclick="return false;">@RsCadastros.RESETAR_ASSINATURA</a>
+                    }
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>                </div>
+                }
+            </div>
+        </div>
+        <div class="col-auto mr-auto">
+            <span style="color: red;">
+               Atenção! Quando for exibido nas colunas a palavra DEFINIDO significa que o usuário tem mais de uma seção connect, tipo de usuário ou perfil vinculado
+            </span>
+        </div>
+    </div>
+
+        <!--./main-->
+    </div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div id="divPerfil">
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="col-sm-11 container" style="align-content:center;">
+                    <div class="row">
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iSecao">@RsCadastros.SECAO_CONNECT:</label>
+                                @Html.DropDownList("Secao", new SelectList(ViewBag.Secao, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iSecao", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iTipoUsuario">@RsCadastros.TIPO_USUARIO:</label>
+                                @Html.DropDownList("TipoUsuario", new SelectList(ViewBag.Tipos, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control filtro", @id = "iTipoUsuario", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iPerfilAgente">@RsCadastros.PERFIL_AGENTE:</label>
+                                @Html.DropDownList("PerfilAgente", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3 perfil-agente", @id = "iPerfilAgente", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iPerfil">@RsCadastros.PERFIL_DASHBOARD:</label>
+                                @Html.DropDownList("Perfil", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfil", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iPerfilVenda">@RsCadastros.PERFIL_VISUALIZACAO_VENDA:</label>
+                                @Html.DropDownList("PerfilVenda", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfilVenda", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <label for="iParamPreQual">@RsCadastros.PARAM_CONS_CREDITO_PREQUAL:</label>
+                                @Html.DropDownList("ParamPreQual", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iParamPreQual", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <br /><br /><br />
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <input type="radio" id="iTodos" name="radio" />
+                                <label for="iTodos">Todos</label>
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <input type="radio" id="iConfigurados" name="radio" />
+                                <label for="iConfigurados">Somente usuários configurados</label>
+                            </div>
+                        </div>
+                        <div class="col-12" style="width: 50%">
+                            <div class="form-group">
+                                <input type="radio" id="iNaoConfigurados" name="radio"/>
+                                <label for="iNaoConfigurados">Somente usuários não configurados</label>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                            <input type="submit" class="btn btn-success" id="iPesquisar" value="@RsCadastros.PESQUISAR" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

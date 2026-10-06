@@ -1,0 +1,720 @@
+﻿@model Aniel.Connect.Models.ClientePesquisa_DataTableRequest
+@using Resources
+@using Microsoft.AspNet.Identity
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.ENVIAR_PESQUISA_SATISFACAO;
+    ViewBag.Sessao = RsCadastros.PESQUISA_SATISFACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+    <style>
+        .swal2-overflow {
+            overflow-x: visible;
+            overflow-y: visible;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+    var oDatatable = null;
+        $( document ).ready(function() {
+            AddSelect("idCategoria_Cliente", "@CONSTANTES.URLPortal/api/categoria_clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.INDIFERENTE", false);
+            AddSelect("iPlanoProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.INDIFERENTE", false);
+        });
+
+         $('#modal-filter').on('show.bs.modal', function (event) {
+
+
+            $(this).find('input[name=tipodata]').prop('checked', false);
+         })
+
+    function AbrirHistorio() {
+        let _url = `@Url.Action("Historico_Alteracao", "Pesquisa_Satisfacao")?Ids_Pesquisa_Satisfacao=@Model.Ids_Pesquisa_Satisfacao`;
+                                ShowPageLoading();
+                                window.location = _url;
+       };
+
+        var ids_pesquisa = [];
+        var rows_selected = [];
+
+        @{
+            var array_pesquisas = Model.Ids_Pesquisa_Satisfacao.Split(',');
+            foreach(var i in array_pesquisas)
+            {
+                <text>
+                ids_pesquisa.push(@i);
+                </text>
+            }
+        }
+    async function EnviarPesquisa() {
+
+            if (rows_selected.length > 0) {
+
+                $("#divProgress").show();
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/pesquisa_SatisfacaoApi/EnviarEmMassa")';
+                var requestData = {
+                    Id: '@Model.Ids_Pesquisa_Satisfacao',
+                     usuario: '@User.Identity.Name'
+                }
+
+                await $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        ids_pesquisa: ids_pesquisa,
+                        usuario: "@ViewBag.UserId"
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            if (data.mensagens.length > 0) {
+
+                                $.each(data.mensagens, function (key, value) {
+
+                                    Notificar("@RsBase.INFORMACAO", value.mensagem, "info");
+                                })
+                            }
+                            else {
+
+                                Notificar("@RsBase.INFORMACAO", "@RsCadastros.PESQUISA_ENVIADO", "info");
+                                ShowPageLoading();
+                                location.href = "@Html.Raw(Url.Action("ListaCliente", "Pesquisa_Satisfacao", new { Id = Model.Ids_Pesquisa_Satisfacao }))"
+                                window.location.reload(true);
+                            }
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    }).always(function () {
+
+                        $("#divProgress").hide();
+
+                    });
+
+                rows_selected = [];
+            }
+            else {
+
+                Notificar("@RsBase.ATENCAO_", "Selecione um cliente", "warning");
+            }
+        }
+
+        var handleDataTableButtons = function () {
+
+            "use strict";
+
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/clienteApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[4, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '70vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/clienteapi/GetAllPesquisa',
+                    type: 'POST',
+                    data: function (data) {
+                        // Read values
+                        var tipo_cliente = $("#iTipoCliente option:selected").val();
+                        var tipo_pessoa = $("#iTipoPessoa option:selected").val();
+                        var status = $("#iStatus option:selected").val();
+                        var estado = $("#iEstadosBrasil option:selected").val();
+                        var cidade = $("#iCidade option:selected").text();
+                        var bairro = $("#iBairro option:selected").text();
+                        var login_radius = $("#iLoginRadius").val();
+
+                        //var categoria_cliente = $("#idCategoria_Cliente option:selected").val();
+                        var categoria_cliente = $("#iCategoriaCliente").val();
+                        var sexo = $("#iSexo option:selected").val();
+                        var estado_Civil = $("#iEstado_Civil option:selected").val();
+                        var grau_Instrucao = $("#iInstrucao option:selected").val();
+
+                        var planoProduto = $("#iPlanoProduto option:selected").val();
+
+                        if ($("#iCidade option:selected").val() == "Selecione")
+                            cidade = null;
+                        if ($("#iBairro option:selected").val() == "Selecione")
+                            bairro = null;
+                        // Append to data
+                        data.Tipo_Cliente = tipo_cliente;
+                        data.Tipo_Pessoa = tipo_pessoa;
+                        data.Status = status;
+                        data.Estado = estado;
+                        data.Cidade = cidade;
+                        data.Bairro = bairro;
+                        data.Login_Radius = login_radius;
+                        data.Categoria_Cliente = categoria_cliente;
+                        data.Sexo = sexo;
+                        data.Estado_Civil = estado_Civil;
+                        data.Grau_Instrucao = grau_Instrucao;
+                        data.Id_Plano_Produto = planoProduto;
+
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "status", title: "@RsCadastros.STATUS" },
+                    { data: "tipo_Cliente", title: "Perfil" },
+                    { data: "tipoPessoa", title: "@RsCadastros.TIPOPESSOA" },
+                    { data: "nomeFantasia", title: "@RsCadastros.NOMEFANTASIA" },
+                    { data: "cpfCnpj", title: "@RsCadastros.CPFCNPJ" },
+                    { data: "categoria", title: "@RsCadastros.CATEGORIA" },
+                    { data: "estado", title: "@RsCadastros.ESTADO" },
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO" },
+                    { data: "sexo", title: "@RsCadastros.SEXO" },
+                    { data: "grau_Instrucao", title: "@RsCadastros.GRAU_DE_INSTRUCAO" },
+                    { data: "estado_Civil", title: "@RsCadastros.ESTADO_CIVIL" },
+                    { data: "telefonePrincipal", title: "@RsCadastros.TELEFONEPRINCIPAL", ordering: false },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+                $("#iTipoPessoa").val("");
+                $("#iStatus").val("");
+                $("#iEstadosBrasil").val("");
+                $("#iCidade").empty();
+                $("#iBairro").empty();
+                $("#iLoginRadius").val("");
+                $("#iCategoriaCliente").val("");
+                $("#iSexo").val("");
+                $("#iEstado_Civil").val("");
+                $("#iInstrucao").val("");
+                $("#iPlanoProduto").val("");
+                $('#txtSearch').val("");
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+
+            $(document).ready(async () => {
+                $('#modal-filter').modal('show')
+
+            });
+
+
+            $("#iPesquisar").on("click", function () {
+
+                $("#modal-filter").modal('hide');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            // Popular lista de cidades
+
+            $('#iEstadosBrasil').change(function () {
+
+                var estado = $('#iEstadosBrasil option:selected').val();
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                $("#iCidade").val("");
+                $("#iBairro").val("");
+
+                $.getJSON(enderecoApi, function (data) {
+
+                    $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    });
+                });
+            });
+
+            $('#iCidade').change(function () {
+
+                var cidade = $('#iCidade option:selected').val();
+                var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getbairros?Id_Cidade=" + cidade;
+
+                $("#iBairro").val("");
+
+
+                $('#iBairro').append($('<option></option>').attr('value', null).text('@RsBase.SELECIONE'));
+                $.getJSON(enderecoApi, function (data) {
+                    $.each(data, function (key, value) {
+                        $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+                });
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            @*$('#datatable tbody').on('click', 'tr', function () {
+
+                @if (AcessoHelper.TemAcesso(_areas, "22"))
+                {
+                    <text>
+                    if (oDatatable.row(this).data() != null) {
+                        //var tipos = @(Html.EnumToString<Tipo_Pessoa>());
+
+                        var _id = oDatatable.row(this).data().id;
+
+                        //var _tipo_pessoa = tipos[oDatatable.row(this).data().tipoPessoa];
+
+                        var url = '@Url.Action("ClienteDadosGerais", "Cliente", new { id = "__id__" })'; //, tipo_pessoa = "__tipo_pessoa__"
+                        window.location.href = url.replace('__id__', _id);
+                        ShowPageLoading();
+                        //.replace('__tipo_pessoa__', _tipo_pessoa);
+                    }
+                    </text>
+                }
+                else
+                {
+                    <text>
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEM_ACESSO_22, "22")", "warning");
+                    </text>
+                }
+
+            });*@
+
+
+            // Handle btn login event
+            $('#datatable tbody').on('click', '.btnLogin', function (e) {
+
+                var id = $(this).attr("id_cliente");
+                ExibirLogin(id);
+
+                e.stopPropagation();
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        if (oDatatable == null) {
+            TableManageButtons.init();
+        }
+        else {
+            oDatatable.draw()
+        }
+
+        $('#modal-filter').modal('hide')
+
+
+</script>
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none; height: 530px;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+            @Html.HiddenFor(p => p.Ids_Pesquisa_Satisfacao, new { Id = "id_pesquisas" })
+
+            <div class="row" style="padding-top: 10px;">
+                <div class="col" style="margin-top: -10px">
+
+                    <h4 class="title-page"><i class="fas fa-headset"></i> @ViewBag.Title</h4>
+
+                    <nav aria-label="breadcrumb" style="font-size:12px">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Index", "Pesquisa_Satisfacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINELPESQUISA_SATISFACAO</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-top:-18px">
+                                <span>@ViewBag.Title</span>
+                            </li>
+                        </ol>
+                    </nav>
+
+                    <span style="font-size:11px" id="dtLegend"></span>
+                </div>
+
+                <div class="row pr-4">
+
+
+                    <div class=" pl-4 pr-2">
+                        <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.NOMEOUDOCUMENTO" autocomplete="off">
+                        <i class="la la-search la-2x" style="color: #999"></i>
+                    </div>
+
+                    <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                    <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                    <div class="col2">
+                        <button class="btn btn-success btn-sm" id="iEnviarPesquisa" onclick="return EnviarPesquisa();">
+                            @RsCadastros.ENVIAR_PESQUISA_SATISFACAO <i class="la la-play la-2x"></i>
+                        </button>
+                    </div>
+
+                    <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </button>
+
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                        <a class="dropdown-item" href="#" onclick="return EnviarPesquisa();">@RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+                        <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                        <a class="dropdown-item" id="btnHistorico" href="#" onclick="AbrirHistorio();"> @RsCadastros.HISTORICO_ENVIO</a>
+                    </div>
+
+                </div>
+            </div>
+            <div class="row" style="padding-top: 10px;">
+                <div class="col" style="margin-top: -10px">
+                    <b><span style="font-size:12px" id="dtLegend">@RsCadastros.PESQUISAS_SELECIONADAS:</span></b>
+                    @foreach (String pesquisa in Model.Descricoes_Pesquisa_Satisfacao)
+                    {
+                        <span style="font-size:12px; padding-left:10px;">@pesquisa</span>
+                    }
+                </div>
+            </div>
+
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                <thead class="tb-head">
+
+                </thead>
+            </table>
+
+
+            <!--./main-->
+        </div>
+    </div>
+</div>
+
+<div id="divLogin"></div>
+
+
+
+
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter" data-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12 container" style="align-content:center;">
+
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label>Perfil:</label>
+                                    <select class="form-control" id="iTipoCliente">
+                                        <option value="0">Cliente</option>
+                                        <option value="1">Prospect</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label>Status:</label>
+                                    <select class="form-control" id="iStatus">
+                                        <option value="-1" selected>@RsBase.TODOS</option>
+                                        <option value="0">Inativo</option>
+                                        <option value="1">Ativo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label>Tipo de Pessoa:</label>
+                                    <select class="form-control" id="iTipoPessoa">
+                                        <option value="-1" selected>@RsBase.TODOS</option>
+                                        <option value="0">Fisica</option>
+                                        <option value="1">Jurídica</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Categoria do Cliente</label>
+                                    @Html.DropDownList("iCategoriaCliente", new SelectList(ViewBag.Categorias, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaCliente", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Estado Civil</label>
+                                    <select class="form-control" id="iEstado_Civil">
+                                        <option selected value="">@RsBase.SELECIONE</option>
+                                        <option value="0">SOLTEIRO</option>
+                                        <option value="1">CASADO</option>
+                                        <option value="2">VIUVO</option>
+                                        <option value="3">DIVORCIADO</option>
+                                        <option value="4">UNIAOESTAVEL</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+
+                            <div class="col-sm-3">
+
+                                <div class="form-group">
+                                    <label>UF:</label>
+                                    <select class="form-control" id="iEstadosBrasil">
+                                        <option value="" selected>@RsBase.TODOS</option>
+                                        <option value="AC">AC</option>
+                                        <option value="AL">AL</option>
+                                        <option value="AP">AP</option>
+                                        <option value="AM">AM</option>
+                                        <option value="BA">BA</option>
+                                        <option value="CE">CE</option>
+                                        <option value="DF">DF</option>
+                                        <option value="ES">ES</option>
+                                        <option value="GO">GO</option>
+                                        <option value="MA">MA</option>
+                                        <option value="MT">MT</option>
+                                        <option value="MS">MS</option>
+                                        <option value="MG">MG</option>
+                                        <option value="PA">PA</option>
+                                        <option value="PB">PB</option>
+                                        <option value="PR">PR</option>
+                                        <option value="PE">PE</option>
+                                        <option value="PI">PI</option>
+                                        <option value="RJ">RJ</option>
+                                        <option value="RN">RN</option>
+                                        <option value="RS">RS</option>
+                                        <option value="RO">RO</option>
+                                        <option value="RR">RR</option>
+                                        <option value="SC">SC</option>
+                                        <option value="SP">SP</option>
+                                        <option value="SE">SE</option>
+                                        <option value="TO">TO</option>
+                                    </select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-4">
+
+                                <div class="form-group">
+                                    <label>Cidade:</label>
+                                    <select class="form-control" id="iCidade"></select>
+                                </div>
+
+                            </div>
+
+                            <div class="col-sm-5">
+                                <div class="form-group">
+                                    <label>Bairro:</label>
+                                    <select class="form-control" id="iBairro"></select>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label>Plano/Produto</label>
+                                    @Html.DropDownList("PlanoProduto", new SelectList(ViewBag.Planos, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlanoProduto", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

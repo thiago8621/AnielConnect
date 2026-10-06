@@ -1,0 +1,151 @@
+﻿@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ATENDIMENTO;
+    ViewBag.Sessao = RsCadastros.ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script type="text/javascript">
+
+        var oDatatable;
+        let colunasDatatable =
+            [
+                { data: "id", title: "Titulo do CheckList", className: "text-center" },
+                {
+                    render: function (data, type, row, meta) {
+                    @*return '@Html.ActionLink(Html.Raw("<i class='fas fa-eye' style='font-size:16px; padding-right:2px;'></i>").ToHtmlString(),"VisualizarChecklist", "Acompanhamento_Servico",  new { Cod_Ct = ViewBag.Codct, Projeto = ViewBag.Projeto, Num_Obra = ViewBag.NumObra, Num_Doc = ViewBag.NumDoc }, new { @class= "btnExcluir mr-3" })'*@
+                        return '<a onclick="ShowPageLoading()" href="@Url.Action("VisualizarChecklist", new { codct = Html.Raw(ViewBag.Codct), projeto = Html.Raw(ViewBag.Projeto), numobra = Html.Raw(ViewBag.NumObra), numdoc = Html.Raw(ViewBag.NumDoc) })&IdChecklist=' + row.id + '" class="btnExcluir mr-3"><i class="fas fa-eye" style="font-size:16px;padding-right:2px;"></i></a>';
+                    }
+                },
+                {
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluir mr-3" onclick="ExcluirChecklist(' + row.id + ');return false;"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                    }
+                },
+                { data: "titulo", title: "Titulo do CheckList", className: "text-center" },
+                { data: "tipo", title: "Tipo do CheckList", className: "text-center" },
+                { data: "perguntas", title: "Perguntas", className: "text-center" },
+                { data: "respondidas", title: "Respondidas", className: "text-center" },
+                { data: "usuarioCriacao", title: "Usuário Criação", className: "text-center" },
+                { data: "dataHoraCriacao", title: "Data/Hora Criação", className: "text-center" },
+                { data: "usuarioUltimaAlteracao", title: "Usuário Última Alteração", className: "text-center" },
+                { data: "dataHoraUltimaAlteracao", title: "Data/Hora Última Alteração", className: "text-center" },
+
+            ];
+
+        oDatatable = $("#datatable").DataTable({
+            dom: "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            columnDefs:
+            [{
+                "targets": [0],
+                "visible": false,
+                "searchable": false
+             }],
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: false,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/Acompanhamento_ServicoApi/GetChecklist',
+                type: 'POST',
+                data: function (data) {
+                    data.codct = '@Html.Raw(ViewBag.Codct)';
+                    data.projeto = '@Html.Raw(ViewBag.Projeto)';
+                    data.numobra = '@Html.Raw(ViewBag.NumObra)';
+                    data.numdoc = '@Html.Raw(ViewBag.NumDoc)';
+                },
+                error: function (e) {
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            pageLength: 5,
+            order: [],
+            language: traducaoDataTableSimples,
+            columns: colunasDatatable
+        });
+
+        function ExcluirChecklist(id) {
+
+            @if (AcessoHelper.TemAcesso(_areas, "194"))
+            {
+                <text>
+                ShowPageLoading();
+                Swal.fire({
+                    text: "Tem certeza de que deseja excluir este checklist?",
+                    showCancelButton: true,
+                    confirmButtonColor: '#357ca5',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Excluir',
+                    cancelButtonText: 'Cancelar',
+                    target: "#iChecklist"
+                }).then(async (okay) => {
+                    if (okay.value)
+                    {
+                        $.ajax({
+                            method: "POST",
+                            url: baseUrl + '/api/Acompanhamento_ServicoApi/ExcluirChecklist?id=' + id +'&numDoc=@ViewBag.NumDoc',
+                        }).done(function () {
+                            Notificar("@RsBase.ATENCAO_", "Checklist excluído com sucesso", "warning");
+                        });
+
+                    }
+
+                    HidePageLoading();
+
+                })
+                </text>
+             }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+        }
+
+</script>
+}
+
+<div style="padding: 10px; min-height: 500px;" id="divChecklist">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+            <div colspan="2" class="font-weight-bold mt-3"><h4>@RsCadastros.CHECKLIST_SERVICO_PRODUTIVO</h4></div>
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+            </table>
+
+        </div>
+    </div>
+</div>

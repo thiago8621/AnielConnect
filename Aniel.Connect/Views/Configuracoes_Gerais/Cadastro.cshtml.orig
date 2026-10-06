@@ -1,0 +1,2284 @@
+﻿@model Aniel.Connect.Models.Configuracoes_GeraisCadastroModel
+@using Aniel.Connect.Models
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.CONFIGURACOES_EMPRESA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+        var onready = false;
+        let oDatatableEmail;
+        let oDatatableIntegracaoExterna;
+        function ValidateEmail(inputText)
+        {
+            var mailformat = @Html.Raw(@"/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/");
+            if(inputText.match(mailformat))
+            {
+                return true;
+            }
+            else
+            {
+                return false
+            }
+        }
+
+
+
+        $('#iCriterio_SLA').click(function () {
+            if ($(this).is(':checked')) {
+                $('#diviCriterio_SLAHora').show();
+            }
+            else {
+                $('#diviCriterio_SLAHora').hide();
+                $('#iCriterio_SLAHora').val(false);
+            }
+        });
+
+        $('#iradioigual').change(function () {
+            if ($(this).is(':checked')) {
+                $('#iUtiliza_AgrupamentoDistancia').bootstrapToggle('off');;
+            }
+        });
+
+        $('#iUtiliza_AgrupamentoDistancia').change(function () {
+            if ($('#iradioigual').is(':checked')) {
+                $('#iUtiliza_AgrupamentoDistancia').bootstrapToggle('off');;
+            }
+        });
+
+
+        $('#iSenhaIcon').on('mousedown touchstart', function (e) {
+            const id = $(this).attr('id');
+            const type = $('#iSenha').attr('type');
+
+            if (type == "password") {
+                $('#iSenha').attr('type', 'text')
+            }
+
+        }).bind('mouseup mouseleave touchend', function () {
+            const id = $(this).attr('id');
+            const type = $('#iSenha').attr('type');
+            if (type == "text") {
+                $('#iSenha').attr('type','password')
+            }
+        });
+
+        $('#iSenhaEditarIcon').on('mousedown touchstart', function (e) {
+            const id = $(this).attr('id');
+            const type = $('#iSenhaEditar').attr('type');
+
+            if (type == "password") {
+                $('#iSenhaEditar').attr('type', 'text')
+            }
+
+        }).bind('mouseup mouseleave touchend', function () {
+            const id = $(this).attr('id');
+            const type = $('#iSenhaEditar').attr('type');
+            if (type == "text") {
+                $('#iSenhaEditar').attr('type','password')
+            }
+        });
+
+
+
+
+        $(document).ready(function () {
+            onready = true;
+            $(".tempo").mask('00:00', { reverse: true });
+            $(".hora").mask('00:00', { reverse: true });
+            $(".horaSemRegra").mask('00:00', { reverse: true });
+            $(".hora99").mask('000:00', { reverse: true });
+            $("#iValorPadraoEstimadoLitro").mask('0000,00', { reverse: true });
+            $("#iMediaPadraoKmL").mask(' 0000,00', { reverse: true });
+
+            //Dispara os eventos ao carregar a página
+            $('#iTrava_Atendimento_OS').change();
+            $("#iEmpresa_Roteirizacao_Servico").trigger('change');
+            $('#iUsa_Dias_Liberacao_Did').trigger('change');
+            $('#iExige_Agendamento_Servico').trigger('change');
+            $('#iradioigual').trigger('change');
+            $('#iExige_Avaliacao_Comercial').trigger('change');
+            $('#iAtribuir_Tempo_Limite_Venda').trigger('change');
+            $('#iExige_Termo_Adesao').trigger('change');
+            $('#iUtilizar_Criacao_Dominio_Email_Atendimento').trigger('change');
+            $('#iUtilizaCriacaoEmailAtendimento').trigger('change');
+            $('#iRoteirizarPorCaixa').trigger('change');
+            $('#iRoteirizarSemLatLong').trigger('change');
+
+            //Verifica se valor está entre 1 e 31 (aceita somente letras)
+            $('body').on('keyup', '#iDia_Mes_Finaliza_Medicao_Comissao', function()
+            {
+
+                 var _quantity = $("#iDia_Mes_Finaliza_Medicao_Comissao").val().length;
+
+                 var valorConvertido = parseInt($("#iDia_Mes_Finaliza_Medicao_Comissao").val());
+
+                 if (_quantity > 2 || valorConvertido > 31 || valorConvertido < 1 || isNaN($("#iDia_Mes_Finaliza_Medicao_Comissao").val()))
+                 {
+                    var oldStr = $("#iDia_Mes_Finaliza_Medicao_Comissao").val();
+                    var newStr = oldStr.slice(0, oldStr.length-1);
+                    $("#iDia_Mes_Finaliza_Medicao_Comissao").val(newStr);
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.NUMEROS_VALIDOS_1_31)", "warning");
+                 }
+             });
+
+            $('#iSenha_APIANIEL').attr("value", "@Model.Senha_APIANIEL");
+            onready = false;
+        });
+
+        $(".hora99").on("focusout", function () {
+
+            let value = $(this).val();
+            hora_min = value.split(':');
+
+
+            if (hora_min.length === 0) {
+                $(this).val("");
+                Notificar("@RsBase.ATENCAO_", "@RsCadastros.HORA_INVALIDA", "warning");
+            }
+
+            @* Foi pedido para retirar critica #683
+            let min = hora_min[1];
+            if (((parseInt(min) % 5) != 0.00) && parseInt(min) != 0.00) {
+                Notificar("@RsBase.ATENCAO_", "@RsCadastros.EX_HORAMULTIPLO_5MIN", "warning");
+                $(this).focus();
+            }*@
+
+
+        });
+
+        //
+        $(".hora").on("focusout", function () {
+
+            if ($(this).val()) {
+                let min = ($(this).val().substr(3, 2));
+                if (((parseInt(min) % 5) != 0.00) && parseInt(min) != 0.00) {
+                    $(this).val("");
+                    Notificar("@RsBase.ATENCAO_", "@RsCadastros.INTERVALO_MULTIPLO_5_MIN", "warning");
+                }
+            }
+
+        });
+
+
+
+        $("#iTempoBaseDeslocamentoPorKm").on("focusout", function () {
+         var tamanho = $(this).val();
+            if (tamanho.length < 5) { // 00:00 = 5 caracteres
+                $("#iTempoBaseDeslocamentoPorKm").val("");
+            }
+        });
+
+        $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").on("focusout", function () {
+            var tamanho = $(this).val();
+            if (tamanho.length < 5) { // 00:00 = 5 caracteres
+                $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").val("");
+            }
+        });
+
+        $("#iTempo_Medio_Deslocamento").on("focusout", function () {
+                var tamanho = $(this).val();
+                if (tamanho.length < 5) { // 00:00 = 5 caracteres
+                    $("#iTempo_Medio_Deslocamento").val("");
+                }
+            });
+
+        $("#iTempo_Execucao_Padrao").on("focusout", function () {
+                var tamanho = $(this).val();
+                if (tamanho.length < 5) { // 00:00 = 5 caracteres
+                    $("#iTempo_Execucao_Padrao").val("");
+                }
+            });
+
+
+        //Campo somente Números
+        //somenteNumeros("iDia_Mes_Finaliza_Medicao_Comissao");
+
+       // somenteNumeros_1_31("iDia_Mes_Finaliza_Medicao_Comissao");
+
+        //Retirarndo preenchimento obrigatório dos campos se flag NÂO estiver habilitada
+        $("#iEmpresa_Roteirizacao_Servico").change(function () {
+            if (!$("#iEmpresa_Roteirizacao_Servico").is(':checked') && !$("#iExige_Agendamento_Servico").is(':checked')) {
+                if (!onready) {
+                    $('#iTempo_Medio_Deslocamento').val("");
+                    $('#iTempo_Execucao_Padrao').val("");
+                    $('#iTempoBaseDeslocamentoPorKm').val("");
+                }
+
+            }
+        });
+
+        $('#iUsa_Dias_Liberacao_Did').change(function () {
+
+            if ($("#iUsa_Dias_Liberacao_Did").is(':checked')) {
+                $('#iDivDias_Liberacao_Did').show();
+            }
+            else {
+                $('#iDivDias_Liberacao_Did').hide();
+            }
+        });
+
+
+        $('#iCheckin_Checkout_Auto').change(function () {
+
+            if ($("#iCheckin_Checkout_Auto").is(':checked')) {
+                if(!onready)
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ao ativar esta configuração os serviços serão inciados e finalizados, ainda que não estejam baixados, automaticamente pelo sistema quando o técnico atingir um raio de aproximadamente 50 metros em relação ao endereço do serviço.", "info");
+            }
+        });
+
+        $('#iUtilizar_Criacao_Dominio_Email_Atendimento').change(function () {
+            if ($("#iUtilizar_Criacao_Dominio_Email_Atendimento").is(':checked')) {
+                $("#iUtilizaCriacaoEmailAtendimento").prop('checked', true).change()
+                if(!onready)
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ao ativar esta configuração, o sistema importará os e-mail's pelo domínio. Para a rotina funcionar, é necessário que haja organizações(Empresas) cadastradas.", "info");
+            }
+        });
+
+        $('#iUtilizaCriacaoEmailAtendimento').change(function () {
+            if ($("#iUtilizaCriacaoEmailAtendimento").is(':checked')) {
+                $('#iContasEmail').show()
+                $('#iUtilizar_SSL').prop('checked', false).change()
+            }
+            else {
+                $('#iContasEmail').hide()
+                $('#iUtilizar_Criacao_Dominio_Email_Atendimento').prop('checked', false).change()
+
+            }
+        });
+
+
+        $("#iExige_Agendamento_Servico").change(function () {
+            if (!$("#iEmpresa_Roteirizacao_Servico").is(':checked') && !$("#iExige_Agendamento_Servico").is(':checked')) {
+
+                if (!onready) {
+                    $('#iTempo_Medio_Deslocamento').val("");
+                    $('#iTempo_Execucao_Padrao').val("");
+                    $('#iTempoBaseDeslocamentoPorKm').val("");
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ao ativar esta configuração, para criar ordens de serviço, o usuário deverá selecionar um agendamento (data/hora) dísponivel. O sistema mostrará a agenda a partir do horário de agendamento padrão cadastrado com as escalas das técnicos e de acordo com os critérios definidos aqui nas configurações.", "info");
+                }
+            }
+
+            if ($("#iExige_Agendamento_Servico").is(':checked')) {
+                //$("#iCriterio_SLA").prop("checked", false).change();
+                //$("#diviCriterio_SLA").hide();
+
+                if(!onready)
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA","Ao ativar esta configuração, para criar ordens de serviço, o usuário deverá selecionar um agendamento (data/hora) dísponivel. O sistema mostrará a agenda a partir do horário de agendamento padrão cadastrado com as escalas das técnicos e de acordo com os critérios definidos aqui nas configurações.", "info");
+            }
+
+
+            else {
+
+                //$("#iCriterio_SLA").prop("checked", false).change();
+                $("#diviCriterio_SLA").show();
+
+                if(!onready)
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Ao desativar esta configuração o agendamento pode ser realizado livremente pelo usuário, nos campos data/hora agendamento após a gravação da ordem de serviço. Caso utilize roteirização; o agendamento será feito automaticamente pelo sistema com base nos critérios aqui definidos.", "info");
+
+            }
+
+        });
+
+        $("#iExige_Avaliacao_Comercial").change(function () {
+            if ($("#iExige_Avaliacao_Comercial").is(':checked')) {
+                $('#iDivQtde_Dias_Avaliacao_Comercial').removeClass("d-none");
+            }
+            else{
+                $('#iDivQtde_Dias_Avaliacao_Comercial').addClass("d-none");
+            }
+        });
+
+
+
+
+
+        $("#iAtribuir_Tempo_Limite_Venda").change(function () {
+            $("#iAtribuir_Tempo_Limite_Venda").is(":checked") ? $("#iDivQtde_Meses_Visualizacao_Venda").removeClass("d-none") : $("#iDivQtde_Meses_Visualizacao_Venda").addClass("d-none");
+            console.log("la")
+        });
+
+
+
+
+        $('#iEditarEmail').click(async function () {
+
+
+            if (ValidaObrigatoriosPorClasse("emailObrigatorioEditar", false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                return false;
+            }
+
+
+            ShowPageLoading();
+
+            const result = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Configuracoes_Geraisapi/ContaEmailEditar")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id : $('#idConta').val(),
+                    email : $('#iEmailEditar').val(),
+                    senha :$('#iSenhaEditar').val(),
+                    servidorRecebimento:$('#iServidorRecebimentoEditar').val(),
+                    portaRecebimento :$('#iPortaRecebimentoEditar').val(),
+                    servidorEnvio :$('#iServidorEnvioEditar').val(),
+                    portaEnvio: $('#iPortaEnvioEditar').val(),
+                    authMethodImap : $('#iAuthMethodImapEditar').val(),
+                    utilizar_SSL_Imap: $('#iUtilizar_SSL_ImapEditar').prop('checked'),
+                    utilizar_SSL_Smtp: $('#iUtilizar_SSL_SmtpEditar').prop('checked')
+                }
+            })
+
+            HidePageLoading();
+
+            if (!result.ok) {
+                Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+            }
+            else {
+                $('#modal-editar-email').modal('hide')
+                let updatedData = oDatatableEmail.rows().data().toArray()
+                let atualizar = updatedData.filter(p => p.Id == $('#idConta').val())[0]
+
+                atualizar.Email = $('#iEmailEditar').val();
+                atualizar.Senha = $('#iSenhaEditar').val();
+                atualizar.ServidorRecebimento = $('#iServidorRecebimentoEditar').val();
+                atualizar.PortaRecebimento = $('#iPortaRecebimentoEditar').val();
+                atualizar.ServidorEnvio = $('#iServidorEnvioEditar').val();
+                atualizar.PortaEnvio = $('#iPortaEnvioEditar').val();
+                atualizar.AuthMethodImap = $('#iAuthMethodImapEditar').val();
+                atualizar.AuthMethodImap_Descricao = $('#iAuthMethodImapEditar option:selected').text();
+                atualizar.Utilizar_SSL_Imap = $('#iUtilizar_SSL_ImapEditar').prop('checked');
+                atualizar.Utilizar_SSL_Smtp = $('#iUtilizar_SSL_SmtpEditar').prop('checked');
+
+                $('#datatableEmail').dataTable().fnClearTable();
+                $('#datatableEmail').dataTable().fnAddData(updatedData);
+            }
+
+        })
+
+        //Botao Foi colocado em Lista de atendimento
+        //O botão "Encerrar Atendimento junto a Ordem de Serviço" deve habilitar somente se o botão "Travar Atendimento estiver SIM"
+       //  $("#iTrava_Atendimento_OS").change(function () {
+
+         //    if ($('#iTrava_Atendimento_OS').is(':checked')) {
+           //          $('#iEncerrar_Atendimento_Junto_OS').attr('disabled', false).change();
+             //}
+             //if (!$('#iTrava_Atendimento_OS').is(':checked')) {
+               //  $('#iEncerrar_Atendimento_Junto_OS').prop('checked', false).change();
+                 //$("#iEncerrar_Atendimento_Junto_OS").attr("disabled", true).change();
+             //}
+
+         // });
+
+        ////Se o botão "Travar Atendimento estiver NÃO" o botão "Encerrar Atendimento junto a Ordem de Serviço" deve ficar NÃO também
+        //$("#iEncerrar_Atendimento_Junto_OS").change(function () {
+        //    if ($("#iEncerrar_Atendimento_Junto_OS").is(":checked")) {
+        //        if (!$('#iTrava_Atendimento_OS').is(':checked'))
+        //            $("#iTrava_Atendimento_OS").prop("checked", true).change();
+        //    }
+        //    else {
+        //        if ($('#iTrava_Atendimento_OS').is(':checked'))
+        //            $("#iTrava_Atendimento_OS").prop("checked", false).change();
+        //    }
+        //});
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.URL_Sistemas));
+
+            var nome_lista = "URL_Sistemas";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir=' + row.Id + '><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "Sistema",
+                        title: "@RsCadastros.SISTEMA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Sistema" name="' + nome_lista + '[' + meta.row + '].Sistema" type="hidden" value="' + TrataNulo(data) + '">' +
+                                              ' <input id="' + nome_lista + '_' + meta.row + '__Id_Sistema" name="' + nome_lista + '[' + meta.row + '].Id_Sistema" type="hidden" value="' + TrataNulo(row.Id_Sistema) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "URL",
+                        title: "@RsCadastros.URL_SISTEMAS",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__URL" name="' + nome_lista + '[' + meta.row + '].URL" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");//[0].id.replace("btnExcluir_", "");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/URL_Sistemaapi/Excluir?id=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+
+
+            }
+
+            handleExcluir();
+
+
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+
+                if (!$("#iSistema option:selected").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.SISTEMA)", "warning");
+                    erro = true;
+                }
+
+                if (!erro) {
+                    for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                        if (oDatatable.rows().data()[i].Id_Sistema == $("#iSistema option:selected").val()) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.SISTEMA)", "warning");
+                            erro = true;
+                            i = oDatatable.rows().data().length;
+                        }
+                    }
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add({
+                    Id: 0,
+                    URL: $("#iURL").val(),
+                    Id_Sistema: $("#iSistema option:selected").val(),
+                    Sistema: $("#iSistema option:selected").text()
+                }).draw(false);
+
+                $("#iURL").val("");
+                $("#iSistema").val("");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        var handleDataTableButtonsEmail = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Emails));
+
+            var nome_lista = "Emails";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatableEmail = $("#datatableEmail").length && $("#datatableEmail").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                drawCallBack: () => {
+
+                },
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            var retorno = "";
+                            retorno += '<a href="#" class="btnExcluirEmail mr-3" id="btnExcluirEmail_' + meta.row + '" excluir=' + row.Id + '><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            if (row.Id != 0) {
+                                retorno += '<a href="#" data-toggle="modal" data-target="#modal-editar-email" class="btnEditarEmail ml-2" id="btnEditarEmail_' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+                            }
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Senha" name="' + nome_lista + '[' + meta.row + '].Senha" type="hidden" value="' + TrataNulo(row.Senha) + '">';
+                            return retorno;
+                        }
+                    },
+                    {
+                        data: "Principal",
+                        title: "@RsCadastros.PRINCIPAL",
+                        className: "text-center",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+
+                                if (data) {
+                                    data = '<input class="radioPrincipal"  id="' + nome_lista + '_' + meta.row + '__Principal" checked name="' + nome_lista + '[' + meta.row + '].Principal" type="radio" value="true">';
+                                }
+                                else {
+                                    data = '<input class="radioPrincipal" id="' + nome_lista + '_' + meta.row + '__Principal"  name="' + nome_lista + '[' + meta.row + '].Principal" type="radio" value="true">';
+                                }
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Email",
+                        title: "@RsCadastros.EMAIL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Email" name="' + nome_lista + '[' + meta.row + '].Email" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "ServidorEnvio",
+                        title: "@RsCadastros.SERVIDOR_ENVIO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__ServidorEnvio" name="' + nome_lista + '[' + meta.row + '].ServidorEnvio" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "PortaEnvio",
+                        title: "@RsCadastros.PORTA_ENVIO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__PortaEnvio" name="' + nome_lista + '[' + meta.row + '].PortaEnvio" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "ServidorRecebimento",
+                        title: "@RsCadastros.SERVIDOR_RECEBIMENTO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__ServidorRecebimento" name="' + nome_lista + '[' + meta.row + '].ServidorRecebimento" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "PortaRecebimento",
+                        title: "@RsCadastros.PORTA_RECEBIMENTO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__PortaRecebimento" name="' + nome_lista + '[' + meta.row + '].PortaRecebimento" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "AuthMethodImap",
+                        title: "@RsCadastros.METODO_AUTENTICACAO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = row.AuthMethodImap_Descricao + ' <input id="' + nome_lista + '_' + meta.row + '__AuthMethodImap" name="' + nome_lista + '[' + meta.row + '].AuthMethodImap" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Utilizar_SSL_Imap",
+                        title: "Utilizar SSL Imap",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = (data ? "@Html.Raw(RsBase.SIM)" : "@Html.Raw(RsBase.NAO)" )  + ' <input id="' + nome_lista + '_' + meta.row + '__Utilizar_SSL_Imap" name="' + nome_lista + '[' + meta.row + '].Utilizar_SSL_Imap" type="hidden" value="' + data  + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Utilizar_SSL_Smtp",
+                        title: "Utilizar SSL Smtp",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = (data ? "@Html.Raw(RsBase.SIM)" : "@Html.Raw(RsBase.NAO)" )  + ' <input id="' + nome_lista + '_' + meta.row + '__Utilizar_SSL_Smtp" name="' + nome_lista + '[' + meta.row + '].Utilizar_SSL_Smtp" type="hidden" value="' + data  + '">';
+                            }
+                            return data;
+                        }
+                    },
+
+                ]
+            });
+
+            $(".radioPrincipal").on("change", function () {
+
+                let id = $(this).attr("id");
+
+                $(".radioPrincipal").each(function (i,item) {
+                    if ($(item).attr("id") != id) {
+
+                        $(item).prop('checked', false);
+
+                    }
+                });
+
+            });
+
+            $('#datatableEmail tbody').on('click', '.btnEditarEmail', function (e) {
+
+
+                var $row = $(this).closest('tr');
+
+                const data_row = oDatatableEmail.row($row).data();
+
+                $('#iEmailEditar').val(data_row.Email);
+                $('#iSenhaEditar').val(data_row.Senha);
+                $('#iServidorRecebimentoEditar').val(data_row.ServidorRecebimento);
+                $('#iServidorEnvioEditar').val(data_row.ServidorEnvio);
+                $('#iPortaRecebimentoEditar').val(data_row.PortaRecebimento);
+                $('#iPortaEnvioEditar').val(data_row.PortaEnvio);
+                $('#iSenhaEditar').val(data_row.Senha);
+                $('#idConta').val(data_row.Id);
+                $('#iAuthMethodImapEditar').val(data_row.AuthMethodImap);
+
+                $('#iUtilizar_SSL_ImapEditar').prop('checked', data_row.Utilizar_SSL_Imap)
+                $('#iUtilizar_SSL_SmtpEditar').prop('checked' , data_row.Utilizar_SSL_Smtp)
+
+            });
+
+
+            function handleExcluirEmail() {
+                $(".btnExcluirEmail").unbind('click');
+                $(".btnExcluirEmail").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");//[0].id.replace("btnExcluir_", "");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableEmail.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Configuracoes_Geraisapi/ContaEmailExcluir?id=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableEmail.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+
+
+            }
+
+            handleExcluirEmail();
+
+            $("#btnAdicionarEmail").on('click', function () {
+
+                var erro = false;
+
+                if (ValidaObrigatoriosPorClasse("emailObrigatorio", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                if (!ValidateEmail($("#iEmail").val())) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.INVALIDO_FORMAT,RsCadastros.EMAIL)", "warning");
+                    erro = true
+                }
+
+
+
+
+
+                if (!erro) {
+                    for (var i = 0; i < oDatatableEmail.rows().data().length; i++) {
+
+                        if (oDatatableEmail.rows().data()[i].Email == $("#iEmail").val()) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.EMAIL)", "warning");
+                            erro = true;
+                            i = oDatatableEmail.rows().data().length;
+                        }
+                    }
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatableEmail.row.add({
+                    Id: 0,
+                    Email: $("#iEmail").val(),
+                    Senha: $("#iSenha").val(),
+                    ServidorEnvio: $("#iServidorEnvio").val(),
+                    PortaEnvio: $("#iPortaEnvio").val(),
+                    ServidorRecebimento: $("#iServidorRecebimento").val(),
+                    PortaRecebimento: $("#iPortaRecebimento").val(),
+                    Utilizar_SSL_Imap: $("#iUtilizar_SSL_Imap").prop('checked'),
+                    Utilizar_SSL_Smtp: $("#iUtilizar_SSL_Smtp").prop('checked'),
+                    AuthMethodImap: $("#iAuthMethodImap").val(),
+                    AuthMethodImap_Descricao: $("#iAuthMethodImap option:selected").text(),
+                }).draw(false);
+
+                $("#iEmail").val("");
+                $("#iSenha").val("");
+                $("#iServidorEnvio").val("");
+                $("#iPortaEnvio").val("");
+                $("#iPortaRecebimento").val("");
+                $("#iServidorRecebimento").val("");
+                $("#iAuthMethodImap").val("");
+                $('#iUtilizar_SSL_Imap').prop('checked', false).change()
+                $('#iUtilizar_SSL_Smtp').prop('checked', false).change()
+
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtonsEmail = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsEmail();
+                    }
+                }
+            }();
+
+        TableManageButtonsEmail.init();
+
+        var handleDataTableButtonsIntegracoesExternas = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Integracoes));
+
+            var nome_lista = "Integracoes";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatableIntegracaoExterna = $("#datatableIntegracoesExternas").length && $("#datatableIntegracoesExternas").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                drawCallBack: () => {
+                    handleExcluirIntegracaoExterna();
+
+                },
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            var retorno = "";
+                            retorno += '<a href="#" class="btnExcluirIntegracaoExterna mr-3" id="btnExcluirIntegracaoExterna_' + meta.row + '" excluir=' + row.Id + '><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            if (row.Id != 0) {
+                                retorno += '<a href="#" data-toggle="modal" data-target="#modal-editar-integracao" class="btnEditarEmail ml-2" id="btnEditarEmail_' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+                            }
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Senha" name="' + nome_lista + '[' + meta.row + '].Senha" type="hidden" value="' + TrataNulo(row.Senha) + '">';
+                            return retorno;
+                        }
+                    },
+                    {
+                        data: "IntegracaoDesc",
+                        title: "@RsCadastros.INTEGRACAO",
+                        className: "text-center",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__IntegracaoDesc" name="' + nome_lista + '[' + meta.row + '].IntegracaoDesc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                    ' <input id="' + nome_lista + '_' + meta.row + '__IntegracaoExterna" name="' + nome_lista + '[' + meta.row + '].IntegracaoExterna" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "UrlApi",
+                        title: "@RsCadastros.URL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__UrlApi" name="' + nome_lista + '[' + meta.row + '].UrlApi" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Usuario",
+                        title: "@RsCadastros.USUARIO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Usuario" name="' + nome_lista + '[' + meta.row + '].Usuario" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Senha",
+                        title: "@RsCadastros.SENHA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Senha" name="' + nome_lista + '[' + meta.row + '].Senha" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Token",
+                        title: "@RsCadastros.TOKEN",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Token" name="' + nome_lista + '[' + meta.row + '].Token" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+
+                ]
+            });
+
+
+
+            $('#datatableIntegracoesExternas tbody').on('click', '.btnEditarIntegracaoExterna', function (e) {
+
+
+                var $row = $(this).closest('tr');
+
+                const data_row = oDatatableIntegracaoExterna.row($row).data();
+
+                $('#iEmailEditar').val(data_row.Email);
+                $('#iSenhaEditar').val(data_row.Senha);
+                $('#iServidorRecebimentoEditar').val(data_row.ServidorRecebimento);
+                $('#iServidorEnvioEditar').val(data_row.ServidorEnvio);
+                $('#iPortaRecebimentoEditar').val(data_row.PortaRecebimento);
+                $('#iPortaEnvioEditar').val(data_row.PortaEnvio);
+                $('#iSenhaEditar').val(data_row.Senha);
+                $('#idConta').val(data_row.Id);
+                $('#iAuthMethodImapEditar').val(data_row.AuthMethodImap);
+
+                $('#iUtilizar_SSL_ImapEditar').prop('checked', data_row.Utilizar_SSL_Imap)
+                $('#iUtilizar_SSL_SmtpEditar').prop('checked' , data_row.Utilizar_SSL_Smtp)
+
+            });
+
+
+            function handleExcluirIntegracaoExterna() {
+
+                $(".btnExcluirIntegracaoExterna").unbind('click');
+                $(".btnExcluirIntegracaoExterna").click(function (e) {
+                     Swal.fire({
+                    text: "Tem certeza de que deseja excluir esta Integração?",
+                    showCancelButton: true,
+                    confirmButtonColor: '#357ca5',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Excluir',
+                    cancelButtonText: 'Cancelar',
+                    target: "#iChecklist"
+                }).then(async (okay) => {
+                    if (okay.value)
+                    {
+                        e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");//[0].id.replace("btnExcluir_", "");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableIntegracaoExterna.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Configuracoes_Geraisapi/Excluir_IntegracaoExterna?id=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableIntegracaoExterna.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                    }
+
+                    HidePageLoading();
+
+                })
+
+
+                });
+
+
+            }
+
+            handleExcluirIntegracaoExterna();
+
+            $("#btnAdicionarIntegracaoExterna").on('click', function () {
+
+                var erro = false;
+
+                if (ValidaObrigatoriosPorClasse("integracaoExternaObrigatorio", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatableIntegracaoExterna.row.add({
+                    Id: 0,
+                    IntegracaoDesc: $("#iIntegracaoExterna option:selected").text(),
+                    Usuario: $("#iUsuarioIntegracaoExterna").val(),
+                    Senha: $("#iSenhaIntegracaoExterna").val(),
+                    Token: $("#iTokenIntegracaoExterna").val(),
+                    UrlApi: $("#iUrlApiIntegracaoExterna").val()
+                }).draw(false);
+
+
+                handleExcluirIntegracaoExterna();
+            });
+
+
+        },
+            TableManageButtonsIntegracoesExternas = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsIntegracoesExternas();
+                    }
+                }
+            }();
+
+        TableManageButtonsIntegracoesExternas.init();
+
+        //$(document).ready(function () {
+        //    $("#iTipo_Resposta").on("change", function () {
+
+        //        if (($(this).val() == "3") || ($(this).val() == "4")) {
+        //            $("#divRespostas_Possiveis").show();
+        //        }
+        //        else {
+        //            $("#iRespostas_Possiveis").tagsinput('removeAll');
+        //            $("#divRespostas_Possiveis").hide();
+        //        }
+        //    });
+
+        //    $('#iRespostas_Possiveis').tagsinput({
+        //        tagClass: 'tagChips',
+        //        confirmKeys: [13, 44]
+        //    });
+        //});
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            //Remover a cada submit
+            $(".msginvalid").html("")
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+
+            var erro = false;
+
+
+             @*
+            //if ($("#iTempo_Execucao_Padrao").val() == "") {
+            //if ($("#iTempo_Execucao_Padrao").is(':checked')) {
+                //Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TEMPO_EXECUCAO_PADRAO)", "warning");
+                //erro = true;
+            //}
+            //else
+
+           if ($("#iDia_Mes_Finaliza_Medicao_Comissao").val() > 0 && $("#iDia_Mes_Finaliza_Medicao_Comissao").val() <= 31) {
+                ("#iDia_Mes_Finaliza_Medicao_Comissao").val();
+            } else {
+                 Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMEROS_VALIDOS_1_31)", "warning");
+                 erro = true;
+            }*@
+
+            //validação Tempo limite para visualização de painel de vendas
+            if (($("#iAtribuir_Tempo_Limite_Venda").is(":checked")) && $("#Qtde_Meses_Visualizacao_Venda").val() == '') {
+                   Notificar("@RsBase.ATENCAO_", "Informe o tempo limite para visualização de vendas", "warning");
+                erro = true;
+            };
+
+            //Validação 00:00
+            if ($("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").val() == "00:00") {
+                Notificar("@RsBase.ATENCAO_", "Tempo de Atualização deve ser a parir de 00:01 minuto.", "warning");
+
+                $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").css('border-color', '#ff0000')
+                $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").parent().append('<span class="text-danger msginvalid">Deve ser a parir de 1 minuto. Ex.: 00:01</span>')
+
+                erro = true;
+            }
+
+            //Validação 0
+            if ($("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").val() == "0") {
+
+                $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").css('border-color', '#ff0000')
+                $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").parent().append('<span class="text-danger msginvalid">O formato deve ser HH:MM</span>')
+
+                Notificar("@RsBase.ATENCAO_", "Tempo de Atualização deve ser HH:MM", "warning");
+                erro = true;
+            }
+
+            //Focusout
+            $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").focusout(function () {
+                if ($("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").length > 0) {
+                    $(".msginvalid").html("")
+                    $("#iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico").css('border-color', '#ced4da')
+
+                }
+            });
+
+
+
+
+            var _sla_servico_padrao = $("#iSLA_Servico_Padrao").val().split(":");
+
+            if ((_sla_servico_padrao[0] == "00" && _sla_servico_padrao[1] == "00") || (_sla_servico_padrao[0] == "000" && _sla_servico_padrao[1] == "00")) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.SLA_SERVICO_PADRAO)", "warning");
+                erro = true;
+            }
+
+            //Se Roteirização ou Agendamento estiver SIM (checked)
+            if ($("#iEmpresa_Roteirizacao_Servico").is(':checked') || $("#iExige_Agendamento_Servico").is(':checked'))  {
+
+                if (!$('#iTempo_Medio_Deslocamento').val()) {
+                    $("#iTempo_Medio_Deslocamento").prop('required', true);
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TEMPO_MEDIO_DESLOCAMENTO)", "warning");
+                    erro = true;
+                }
+                else {
+                    var _tempo_medio_deslocamento = $("#iTempo_Medio_Deslocamento").val().split(":");
+
+                    if (parseInt(_tempo_medio_deslocamento[1]) % 5 != 0.00) {
+                        Notificar("@RsBase.ATENCAO_", "@RsCadastros.TEMPO_MEDIO_INVALIDO", "warning")
+                        erro = true;
+                    }
+                }
+
+<<<<<<< HEAD
+                @*if (!$("iRoteirizarTipo").val()) {
+                    $("iRoteirizarTipo").prop('required', true);
+=======
+                if (!$("#iRoteirizarTipo").val()) {
+                    $("#iRoteirizarTipo").prop('required', true);
+>>>>>>> ed26f3318e26cf4fbd3407f1df289f71759430fc
+                    Notificar("@RsBase.ATENCAO_", "Selecione o Formato de Roteirização dos Serviços.", "warning");
+                    erro = true;
+                }*@
+
+
+                if (!$('#iTempo_Execucao_Padrao').val()) {
+                    $("#iTempo_Execucao_Padrao").prop('required', true);
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TEMPO_EXECUCAO_PADRAO)", "warning");
+                    erro = true;
+                }
+                else {
+
+                    var _tempo_execucao_padrao = $("#iTempo_Execucao_Padrao").val().split(":");
+
+                    if (parseInt(_tempo_execucao_padrao[1]) % 5 != 0.00) {
+                        Notificar("@RsBase.ATENCAO_", "@RsCadastros.TEMPO_EXECUCAO_INVALIDO", "warning")
+                        erro = true;
+                    }
+
+                }
+
+                if (!$('#iTempoBaseDeslocamentoPorKm').val()) {
+                    $("#iTempoBaseDeslocamentoPorKm").prop('required', true);
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TEMPO_BASE_DESLOCAMENTO_POR_KM)", "warning");
+                    erro = true;
+                } else {
+
+                    var _tempo_execucao_padrao = $("#iTempo_Execucao_Padrao").val().split(":");
+
+                    if (parseInt(_tempo_execucao_padrao[1]) % 5 != 0.00) {
+                        Notificar("@RsBase.ATENCAO_", "@RsCadastros.TEMPO_BASE_DESLOCAMENTO_POR_KM", "warning")
+                        erro = true;
+                    }
+
+                }
+
+
+            }
+
+            HoraSLA = document.getElementById("iSLA_Servico_Padrao");
+            hrs = (HoraSLA.value.split(':')[0]);
+            min = (HoraSLA.value.split(':')[1]);
+
+            estado = "";
+            if ((hrs < 00) || (hrs > 999) || (min < 00) || (min > 59)) {
+                document.getElementById("iSLA_Servico_Padrao").style.borderColor = "red";
+                estado = "errada";
+                erro = true;
+
+            }
+            if (HoraSLA == "") {
+                document.getElementById("iSLA_Servico_Padrao").style.borderColor = "red";
+                estado = "errada";
+                erro = true;
+
+            }
+            if (estado == "errada") {
+                document.getElementById("iSLA_Servico_Padrao").style.borderColor = "red";
+                document.getElementById("iSLA_Servico_Padrao").focus();
+                erro = true;
+
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+            else {
+                document.getElementById("iSLA_Servico_Padrao").style.borderColor = "";
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Configuracoes_Gerais", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-city"></i> @ViewBag.Title</h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+                <!--Configurações Comercial / Financeiro-->
+                <div class="accordion div-card-accord" id="accordion_1">
+                    <div class="card-header title-card" id="heading_1">
+                        <h5 class="mb-0">
+                            <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                                <span class="text-bold-card">@RsCadastros.CONFIGURACAO_COMERCIAL_FINANCEIRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse_1" style="margin-top: -20px;" class="collapse show" aria-labelledby="heading_1" data-parent="#accordion_1">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iUtilizaPoint_RoteirizacaoAgendamento" class="mr-3">@RsCadastros.UTILIZA_MODULO_EVA</label><br>
+                                        @Html.CheckBoxFor(model => model.UtilizaEva, new { @class = "form-control", @id = "iUtilizaEva", @name = "iUtilizaEva", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iAcumular_Descontos_Diferente" class="mr-3">@RsCadastros.ACUMULAR_DESCONTOS_DIFERENTE</label><br>
+                                        @Html.CheckBoxFor(model => model.Acumular_Descontos_Diferente, new { @class = "form-control", @id = "iAcumular_Descontos_Diferente", @name = "iEncerrar_Atendimento_Junto_OS", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iAcumular_Descontos_Mesma_Natureza" class="mr-3">@RsCadastros.ACUMULAR_DESCONTOS_MESMO_TIPO</label><br>
+                                        @Html.CheckBoxFor(model => model.Acumular_Descontos_Mesmo_Tipo, new { @class = "form-control", @id = "iAcumular_Descontos_Mesma_Natureza", @name = "iEncerrar_Atendimento_Junto_OS", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iExige_Avaliacao_Comercial" class="mr-3">@RsCadastros.EXIGE_AVALIACAO_COMERCIAL</label><br>
+                                        @Html.CheckBoxFor(model => model.Exige_Avaliacao_Comercial, new { @class = "form-control", @id = "iExige_Avaliacao_Comercial", @name = "iExige_Avaliacao_Comercial", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iExige_Termo_Adesao" class="mr-3">@RsCadastros.EXIGE_TERMO_ADESAO</label><br>
+                                        @Html.CheckBoxFor(model => model.Exige_Termo_Adesao, new { @class = "form-control", @id = "iExige_Termo_Adesao", @name = "iExige_Termo_Adesao", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iOfertar_Plano_Produto_Cobertura" class="mr-3">@RsCadastros.OFERTAR_PLANO_PRODUTO_COBERTURA</label><br>
+                                        @Html.CheckBoxFor(model => model.Ofertar_Plano_Produto_Cobertura, new { @class = "form-control", @id = "iOfertar_Plano_Produto_Cobertura", @name = "iOfertar_Plano_Produto_Cobertura", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iUtilizar_Cadastro_Endereco" class="mr-3">@RsCadastros.UTILIZA_CADASTRO_ENDERECO ?</label><br>
+                                        @Html.CheckBoxFor(model => model.Utiliza_Cadastro_Endereco, new { @class = "form-control", @id = "iUtiliza_Cadastro_Endereco", @name = "iUtiliza_Cadastro_Endereco", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iAtribuir_Tempo_Limite_Venda" class="mr-3">@RsCadastros.ATRIBUIR_TEMPO_LIMITE_VENDA ?</label><br>
+                                        @Html.CheckBoxFor(model => model.Atribuir_Tempo_Limite_Venda, new { @class = "form-control", @id = "iAtribuir_Tempo_Limite_Venda", @name = "iAtribuir_Tempo_Limite_Venda", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                           <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iReservaPortaAutomatica" class="mr-3">@RsCadastros.RESERVA_PORTA_AUTOMATICA ?</label><br>
+                                        @Html.CheckBoxFor(model => model.Reserva_Porta_Automatica, new { @class = "form-control", @id = "iReservaPortaAutomatica", @name = "iReservaPortaAutomatica", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row d-none" id="iDivQtde_Meses_Visualizacao_Venda">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iQtde_Meses_Visualizacao_Venda" class="mr-3">@RsCadastros.QTDE_MESES_VISUALIZACAO_VENDA</label><br>
+                                        @Html.TextBoxFor(model => model.Qtde_Meses_Visualizacao_Venda, new { @maxlength = "2", @class = "form-control col-sm-5", @id = "Qtde_Meses_Visualizacao_Venda", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Qtde_Meses_Visualizacao_Venda, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row d-none" id="iDivQtde_Dias_Avaliacao_Comercial">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iQtde_Dias_Avaliacao_Comercial" class="mr-3">@RsCadastros.QTDE_DIAS_AVALIACAO_COMERCIAL</label><br>
+                                        @Html.TextBoxFor(model => model.Qtde_Dias_Avaliacao_Comercial, new { @maxlength = "2", @class = "form-control col-sm-5", @id = "Qtde_Dias_Avaliacao_Comercial", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Qtde_Dias_Avaliacao_Comercial, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iDia_Mes_Finaliza_Medicao_Comissao" class="mr-3">@RsCadastros.DIA_MES_FINALIZA_MEDICAO_COMISSAO</label><br>
+                                        @Html.TextBoxFor(model => model.Dia_Mes_Finaliza_Medicao_Comissao, new { @maxlength = "2", @class = "form-control col-sm-5", @id = "iDia_Mes_Finaliza_Medicao_Comissao", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Dia_Mes_Finaliza_Medicao_Comissao, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iMax_Dias_Sem_Contato" class="mr-3">@RsCadastros.MAX_DIAS_SEM_CONTATO</label><br>
+                                        @Html.TextBoxFor(model => model.Max_Dias_Sem_Contato, new { @class = "form-control col-sm-5", @id = "iMax_Dias_Sem_Contato", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Max_Dias_Sem_Contato, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <label for="iDistancia_Elemento" class="mr-3">@RsCadastros.DISTANCIA_EXIBICAO_CAIXA_PORTA_DISPONIVEL</label><br>
+                                    @Html.TextBoxFor(model => model.Distancia_Exibicao_Elemento, new { id = "iDistancia_Elemento", @type = "number", @class = "form-control col-sm-5", @placeholder = "x", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Distancia_Exibicao_Elemento, "", new { @class = "text-danger" })
+
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <label for="iDisponibilidade" class="mr-3">@RsCadastros.EXIBIR_CAIXA_PORTA_DISPONIVEL</label><br>
+                                    @Html.TextBoxFor(model => model.Disponibilidade, new { id = "iDisponibilidade", @type = "number", @class = "form-control col-sm-5", @placeholder = "x", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Disponibilidade, "", new { @class = "text-danger" })
+
+                                </div>
+                            </div>
+
+                            <div class="row mt-2">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iUsa_Dias_Liberacao_Did" class="mr-3">
+                                            Definir Qtd. de dias de Quarentena para DID’s desassociado?
+                                        </label><i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" title="Configuração Dias de Liberação" data-content="Defina a quantidade de dias que os DID’s
+removidos de um plano cancelado poderá ser liberado para venda novamente"></i>
+                                        <br>
+                                        @Html.CheckBoxFor(model => model.Usa_Dias_Liberacao_Did, new { @class = "form-control", @id = "iUsa_Dias_Liberacao_Did", @name = "iUsa_Dias_Liberacao_Did", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6" id="iDivDias_Liberacao_Did" style="display:none">
+                                    <label for="iDias_Liberacao_Did" class="mr-3">Defina a quantidade de dias</label><br>
+                                    @Html.TextBoxFor(model => model.Dias_Liberacao_Did, new { id = "iDias_Liberacao_Did", @type = "number", @class = "form-control col-sm-5", @placeholder = "", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Disponibilidade, "", new { @class = "text-danger" })
+
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!--Configurações Para Integrações-->
+                <div class="card mt-3 mb-3" style="border:none;">
+                    <div class="accordion div-card-accord" id="accordion_2">
+                        <div class="card-header title-card" id="heading_2">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                                    <span class="text-bold-card">@RsCadastros.CONFIGURACAO_INTEGRACAO</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_2" style="margin-top: -20px;" class="collapse show" aria-labelledby="heading_2" data-parent="#accordion_2">
+                            <div class="card-body">
+                                @if (User.Identity.GetUserId().ToUpper() == "ADMIN")
+                                {
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iToken_Widepay" class="mr-3">@RsCadastros.USUARIO_APPANIEL:</label><br>
+                                                @Html.TextBoxFor(model => model.Usuario_APIANIEL, new { @class = "form-control", @id = "iUsuario_APIANIEL", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iToken_Widepay" class="mr-3">@RsCadastros.SENHA_APPANIEL:</label><br>
+                                                @Html.PasswordFor(model => model.Senha_APIANIEL, new { @class = "form-control", @id = "iSenha_APIANIEL", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iToken_Widepay" class="mr-3">@RsCadastros.TOKEN_APPANIEL:</label><br>
+                                                @Html.TextBoxFor(model => model.Token_APIANIEL, new { @class = "form-control", @id = "iToken_APIANIEL", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtilizar_Integracao_Externa" class="mr-3">Utiliza Integração Externa</label><br>
+                                            @Html.CheckBoxFor(model => model.Utilizar_Integracao_Externa, new { @class = "form-control", @id = "iUtilizar_Integracao_Externa", @name = "iUtilizar_Integracao_Externa", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div id="iIntegracaoExterna">
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iIntegracaoExterna">Integração Externa</label>
+                                                @Html.EnumDropDownListFor(m => m.IntegracaoExterna, RsBase.SELECIONE, new { @class = "form-control", @id = "iIntegracaoExterna", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.IntegracaoExterna, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUrlApiIntegracaoExterna">URL da API</label>
+                                                @Html.TextBoxFor(model => model.UrlApiIntegracaoExterna, new { @class = "form-control", @id = "iUrlApiIntegracaoExterna", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.UrlApiIntegracaoExterna, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUsuarioIntegracaoExterna" class="mr-3">@RsCadastros.USUARIO</label><br>
+                                                @Html.TextBoxFor(model => model.UsuarioIntegracaoExterna, new { @class = "form-control", @id = "iUsuarioIntegracaoExterna", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.UsuarioIntegracaoExterna, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iSenhaIntegracaoExterna">@RsCadastros.SENHA</label>
+                                                @Html.TextBoxFor(model => model.SenhaIntegracaoExterna, new { @class = "form-control", @id = "iSenhaIntegracaoExterna", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.SenhaIntegracaoExterna, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iTokenIntegracaoExterna">@RsCadastros.TOKEN</label>
+                                                @Html.TextBoxFor(model => model.TokenIntegracaoExterna, new { @class = "form-control", @id = "iTokenIntegracaoExterna", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TokenIntegracaoExterna, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <input type="button" id="btnAdicionarIntegracaoExterna" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="accordion" class="col-sm-12 mt-5">
+                                    <div class="">
+                                        <div class="title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Integrações Externas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                            <div class="card-body">
+                                                <table class="table table-hover nowrap" id="datatableIntegracoesExternas" style="width:100%">
+                                                    <thead class="tb-head"></thead>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!--Configurações Atendimento e Ordem de Serviço-->
+                <div class="card mt-3 mb-3" style="border:none;">
+                    <div class="accordion div-card-accord" id="accordion_3">
+                        <div class="card-header title-card" id="heading_3">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_3" aria-expanded="true" aria-controls="collapse_3">
+                                    <span class="text-bold-card">@RsCadastros.CONFIGURACAO_ATENDIMENTO</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_3" style="margin-top: -20px;" class="collapse show" aria-labelledby="heading_3" data-parent="#accordion_3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iFormato_Protocolo_Atendimento">@RsCadastros.FORMATO_PROTOCOLO_ATENDIMENTO</label>
+                                            @Html.EnumDropDownListFor(m => m.Formato_Protocolo_Atendimento, RsBase.SELECIONE, new { @class = "form-control", @id = "iFormato_Protocolo_Atendimento", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Formato_Protocolo_Atendimento, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iIdentificacao_Cliente">@RsCadastros.IDENTIFICACAO_CLIENTE</label>
+                                            @Html.EnumDropDownListFor(m => m.Identificacao_Cliente, RsBase.SELECIONE, new { @class = "form-control", @id = "iIdentificacao_Cliente" })
+                                            @Html.ValidationMessageFor(model => model.Identificacao_Cliente, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-10">
+                                        <div class="form-group">
+                                            <label for="iPessoaContato" class="mr-3">@RsCadastros.PESSOA_CONTATO_CLIENTE_OU_PROSPECT</label>
+                                            <br>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.RadioButtonFor(m => m.Pessoa_Contato_Primeira_Vez, "Prospect", new { @id = "iradioProspect", @checked = true })
+                                                <label for="iradioProspect" class="pl-1 pr-1">@RsCadastros.PROSPECTO</label>
+                                            </div>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.RadioButtonFor(m => m.Pessoa_Contato_Primeira_Vez, "Cliente", new { @id = "iradioCliente" })
+                                                <label for="iradioCliente" class="pl-1 pr-1">@RsCadastros.CLIENTE</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!--<div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTrava_Atendimento_OS" class="mr-3">@RsCadastros.TRAVA_ATENDIMENTO_OS ?</label><br>
+                                            @Html.CheckBoxFor(model => model.Trava_Atendimento_OS, new { @class = "form-control", @id = "iTrava_Atendimento_OS", @name = "iEncerrar_Atendimento_Junto_OS", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iEncerrar_Atendimento_Junto_OS" class="mr-3">@RsCadastros.ENCERRAR_ATENDIMENTO_JUNTO_OS ?</label><br>
+                                            @Html.CheckBoxFor(model => model.Encerrar_Atendimento_Junto_OS, new { @class = "form-control", @id = "iEncerrar_Atendimento_Junto_OS", @name = "iEncerrar_Atendimento_Junto_OS", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>-->
+
+                                <div class="row">
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iAtendimento_Cria_Cliente" class="mr-3">Permitir Cadastrar Cliente na tela de Atendimento ?</label><br>
+                                            @Html.CheckBoxFor(model => model.Atendimento_Cria_Cliente, new { @class = "form-control", @id = "iAtendimento_Cria_Cliente", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <div class="title-card mt-3">
+                                    <h5 class="mb-1">
+                                        <a role="button">
+                                            <span class="text-bold-card">Configure abertura de  atendimento e-mail</span>
+                                        </a>
+                                    </h5>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtilizaCriacaoEmailAtendimento" class="mr-3">@RsCadastros.UTILIZAR_CRIACAO_EMAIL_ATENDIMENTO</label><br>
+                                            @Html.CheckBoxFor(model => model.Utilizar_Criacao_Email_Atendimento, new { @class = "form-control", @id = "iUtilizaCriacaoEmailAtendimento", @name = "iExige_Agendamento_Servico", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            <i class=" ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="Será gerado atendimento para e-mail's vinculados a um Cliente"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iExige_Agendamento_Servico" class="mr-3">@RsCadastros.UTILIZAR_CRIACAO_DOMINIOEMAIL_ATENDIMENTO</label><br>
+                                            @Html.CheckBoxFor(model => model.Utilizar_Criacao_Dominio_Email_Atendimento, new { @class = "form-control", @id = "iUtilizar_Criacao_Dominio_Email_Atendimento", @name = "iExige_Agendamento_Servico", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            <i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="Será gerado atendimento para domínios cadastrados em Organizações"></i>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="iContasEmail" class="mt-5" style="display:none">
+
+                                    <div class="title-card">
+                                        <h5 class="mb-1">
+                                            <a role="button">
+                                                <span class="text-bold-card">Adicionar Conta de E-mail</span>
+                                            </a>
+                                        </h5>
+                                    </div>
+
+                                    <div class="row mt-2">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iemail" class="mr-3">@RsCadastros.EMAIL:</label><br>
+                                                <input type="text" class="form-control emailObrigatorio" id="iEmail">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iSenha" class="mr-3">@RsCadastros.SENHA:</label><br>
+                                                <div class="input-group" style="flex-wrap: nowrap !important; width:inherit">
+                                                    <input type="password" style="width:inherit" class="form-control col-sm-11 emailObrigatorio" id="iSenha">
+                                                    <div class="input-group-append">
+                                                        <span class="input-group-text input-password-hide" id="iSenhaIcon" style="cursor: pointer;"><i id="" class="fa fa-eye"></i></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iServidorRecebimento" class="mr-3">@RsCadastros.SERVIDOR_RECEBIMENTO (IMAP):</label><br>
+                                                <input type="email" class="form-control emailObrigatorio" id="iServidorRecebimento">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-1">
+                                            <div class="form-group">
+                                                <label for="iPortaRecebimento" class="mr-3">@RsCadastros.PORTA:</label><br>
+                                                <input type="text" class="form-control emailObrigatorio" id="iPortaRecebimento">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iServidorEnvio" class="mr-3">@RsCadastros.SERVIDOR_ENVIO (SMTP):</label><br>
+                                                <input type="email" class="form-control emailObrigatorio" id="iServidorEnvio">
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-1">
+                                            <div class="form-group">
+                                                <label for="iPortaEnvio" class="mr-3">@RsCadastros.PORTA:</label><br>
+                                                <input type="text" class="form-control emailObrigatorio" id="iPortaEnvio">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iAuthMethodImap" class="">@RsCadastros.METODO_AUTENTICACAO:</label>
+                                                @Html.EnumDropDownListFor(model => model.AuthMethodImap, new { @class = "form-control emailObrigatorio", @id = "iAuthMethodImap", @name = "iAuthMethodImap" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizar_SSL_Imap" class="">Utilizar SSL Imap:</label>
+                                                @Html.CheckBoxFor(model => model.Utilizar_SSL, new { @class = "mt-4", @id = "iUtilizar_SSL_Imap", @name = "iUtilizar_SSL_Imap" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iUtilizar_SSL_Smtp" class="">Utilizar SSL Smtp:</label>
+                                                @Html.CheckBoxFor(model => model.Utilizar_SSL, new { @class = "mt-4", @id = "iUtilizar_SSL_Smtp", @name = "iUtilizar_SSL_Smtp" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <div class="mt-3">
+                                        <input type="button" id="btnAdicionarEmail" value="Adicionar" class="btn btn-success" />
+                                    </div>
+                                    <div class="row">
+                                        <!--URL Sistema-->
+                                        <div id="accordion" class="col-sm-12 mt-5">
+                                            <div class="">
+                                                <div class="title-card">
+                                                    <h5 class="mb-1">
+                                                        <a role="button">
+                                                            <span class="text-bold-card">Lista de Contas de E-mail</span>
+                                                        </a>
+                                                    </h5>
+                                                </div>
+                                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                                    <div class="card-body">
+                                                        <table class="table table-hover nowrap" id="datatableEmail" style="width:100%">
+                                                            <thead class="tb-head"></thead>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                        </div>
+
+
+
+
+
+                    </div>
+                </div>
+
+                <div class="card mt-3 mb-3" style="border:none;">
+                    <div class="accordion div-card-accord" id="accordion_3">
+                        <div class="card-header title-card" id="heading_3">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_3" aria-expanded="true" aria-controls="collapse_3">
+                                    <span class="text-bold-card">@RsCadastros.CONFIGURACAO_OS</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_3" style="margin-top: -20px;" class="collapse show" aria-labelledby="heading_3" data-parent="#accordion_3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iExige_Agendamento_Servico" class="mr-3">@RsCadastros.EXIGE_AGENDAMENTO_SERVICO</label><br>
+                                            @Html.CheckBoxFor(model => model.Exige_Agendamento_Servico, new { @class = "form-control", @id = "iExige_Agendamento_Servico", @name = "iExige_Agendamento_Servico", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iEmpresa_Roteirizacao_Servico" class="mr-3">@RsCadastros.EMPRESA_ROTEIRIZACAO_SERVICO</label><br>
+                                            @Html.CheckBoxFor(model => model.Empresa_Roteirizacao_Servico, new { @class = "form-control", @id = "iEmpresa_Roteirizacao_Servico", @name = "iEmpresa_Roteirizacao_Servico", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iConsiderar_Agendamento_Periodo" class="mr-3">@RsCadastros.CONSIDERAR_AGENDAMENTO_PERIODO</label><br>
+                                            @Html.CheckBoxFor(model => model.Considerar_Agendamento_Periodo, new { @class = "form-control", @id = "iEmpresa_Roteirizacao_Servico", @name = "iConsiderar_Agendamento_Periodo", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtilizaPoint_RoteirizacaoAgendamento" class="mr-3">Utiliza Aniel Point para Roteirização e Agendamento:</label><br>
+                                            @Html.CheckBoxFor(model => model.UtilizaPoint_RoteirizacaoAgendamento, new { @class = "form-control", @id = "iUtilizaPoint_RoteirizacaoAgendamento", @name = "iUtilizaPoint_RoteirizacaoAgendamento", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtiliza_AgrupamentoDistancia" class="mr-3">Roteirizar por Caixa:</label><br>
+                                            @Html.CheckBoxFor(model => model.RoteirizarPorCaixa, new { @class = "form-control", @id = "iRoteirizarPorCaixa", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtiliza_AgrupamentoDistancia" class="mr-3">Roteirizar Sem Latitude/Longitude:</label><br>
+                                            @Html.CheckBoxFor(model => model.RoteirizarSemLatLong, new { @class = "form-control", @id = "iRoteirizarSemLatLong", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iUtiliza_AgrupamentoDistancia" class="mr-3">Utiliza Agrupamento de Distancia:</label><br>
+                                            @Html.CheckBoxFor(model => model.Utiliza_AgrupamentoDistancia, new { @class = "form-control", @id = "iUtiliza_AgrupamentoDistancia", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iFormato_Protocolo_OS">@RsCadastros.FORMATO_PROTOCOLO_OS</label>
+                                            @Html.EnumDropDownListFor(m => m.Formato_Protocolo_OS, RsBase.SELECIONE, new { @class = "form-control", @id = "iFormato_Protocolo_OS" })
+                                            @Html.ValidationMessageFor(model => model.Formato_Protocolo_OS, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="iDivCriterios" class="row">
+                                    <div class="col-sm-5">
+                                        <div class="form-group">
+                                            <label for="iCriterio_AgRot" class="mr-3">@RsCadastros.DEFINIR_CRITERIOS_AGENDAMENTO_ROTEIRIZACAO</label><br>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.CheckBoxFor(model => model.Criterio_Habilidade, new { @class = "form-control", @id = "iCriterio_Habilidade" })
+                                                <label for="iCriterio_Habilidade" class="pl-1 pr-1">@RsCadastros.HABILIDADES_SKILS</label>
+                                            </div>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.CheckBoxFor(model => model.Criterio_Area, new { @class = "form-control", @id = "iCriterio_Area" })
+                                                <label for="iCriterio_Area" class="pl-1 pr-1">@RsCadastros.AREAS_ATUACAO</label>
+                                            </div>
+                                            <div class="form-inline" style="padding-left: 25px;" id="diviCriterio_SLA">
+                                                @Html.CheckBoxFor(model => model.Criterio_SLA_Execucao, new { @class = "form-control", @id = "iCriterio_SLA" })
+                                                <label for="iCriterio_SLA" class="pl-1 pr-1">SLA de Execução</label>
+                                            </div>
+                                            <div class="form-inline" style="padding-left: 50px;@(Model.Criterio_SLA_Execucao ? "" : "display:none")" id="diviCriterio_SLAHora">
+                                                @Html.CheckBoxFor(model => model.Criterio_SLA_Execucao, new { @class = "form-control", @id = "iCriterio_SLAHora" })
+                                                <label for="iCriterio_SLA" class="pl-1 pr-1">Considerar SLA por data e hora</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-10">
+                                        <div class="form-group">
+                                            <label for="iCriterio_Distancia" class="mr-3">@RsCadastros.FORMATO_DISTRIBUICAO_SERV_ROTERIZADOS_</label>
+                                            <br>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.RadioButtonFor(m => m.Distribuicao_Servico_Por, Enum_Distribuir_Servico_Roteirizado_Por.Igual, new { @id = "iradioigual" })
+                                                <label for="iradioigual" class="pl-1 pr-1">@RsCadastros.DISTRIBUICAO_IGUAL - (@RsCadastros.DESCRICAO_DISTRIBUICAO_IGUAL)</label>
+                                            </div>
+                                            <div class="form-inline" style="padding-left: 25px;">
+                                                @Html.RadioButtonFor(m => m.Distribuicao_Servico_Por, Enum_Distribuir_Servico_Roteirizado_Por.Enchendo_Equipe, new { @id = "iradioequipe" })
+                                                <label for="iradioequipe" class="pl-1 pr-1">@RsCadastros.DISTRIBUICAO_EQUIPE - (@RsCadastros.DESCRICAO_DISTRIBUICAO_PILHA)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                     
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iSLA_Servico_Padrao">@RsCadastros.SLA_SERVICO_PADRAO</label>
+                                            @Html.TextBoxFor(m => m.SLA_Servico_Padrao, new { @class = "form-control hora99", @id = "iSLA_Servico_Padrao", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.SLA_Servico_Padrao, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iDistanciaMinimaDeslocamento">@RsCadastros.DISTANCIA_MINIMA_DESLOCAMENTO (metros)</label>
+                                            @Html.TextBoxFor(m => m.DistanciaMinimaDeslocamento, new { @maxlength = "6", @class = "form-control", @id = "iDistanciaMinimaDeslocamento", @autocomplete = "off", @placeholder = "valor em metros" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTempoBaseDeslocamentoPorKm">@RsCadastros.TEMPO_BASE_DESLOCAMENTO_POR_KM</label>
+                                            @Html.TextBoxFor(m => m.TempoBaseDeslocamentoPorKm, new { @class = "form-control tempo", @id = "iTempoBaseDeslocamentoPorKm", @autocomplete = "off", @placeholder = "00:00" })
+                                            @Html.ValidationMessageFor(model => model.TempoBaseDeslocamentoPorKm, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTempo_Medio_Deslocamento">@RsCadastros.TEMPO_MEDIO_DESLOCAMENTO</label>
+                                            @Html.TextBoxFor(m => m.Tempo_Medio_Deslocamento, new { @class = "form-control hora", @id = "iTempo_Medio_Deslocamento", @autocomplete = "off", @placeholder = "Intervalo múltiplo de 5 min. Ex.: 00:15" })
+                                            @Html.ValidationMessageFor(model => model.Tempo_Medio_Deslocamento, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTempo_Execucao_Padrao">@RsCadastros.TEMPO_EXECUCAO_PADRAO</label>
+                                            @Html.TextBoxFor(m => m.Tempo_Execucao_Padrao, new { @class = "form-control hora", @id = "iTempo_Execucao_Padrao", @autocomplete = "off", @placeholder = "Intervalo múltiplo de 5 min. Ex.: 00:15" })
+                                            @Html.ValidationMessageFor(model => model.Tempo_Execucao_Padrao, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico">@RsCadastros.TEMPO_ATUALIZACAO_AUTOMATICA_PAINEL_ACOMPANHAMENTO_TECNICO</label>
+                                            @Html.TextBoxFor(m => m.Tempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico, new { @class = "form-control tempo", @id = "iTempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico", @autocomplete = "off", @placeholder = "00:00" })
+                                            @Html.ValidationMessageFor(model => model.Tempo_Atualizacao_Automatica_Painel_Acompanhamento_Tecnico, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iMediaPadraoKmL">@RsCadastros.MEDIA_PADRAO_KM_L</label>
+                                            @Html.TextBoxFor(m => m.MediaPadraoKmL, new { @class = "form-control", @id = "iMediaPadraoKmL", @placeholder = "Valor em Quilômetros", @autocomplete = "off", })
+
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iValorPadraoEstimadoLitro">@RsCadastros.VALOR_PADRAO_ESTIMADO_LITRO</label>
+                                            @Html.TextBoxFor(m => m.ValorPadraoEstimadoLitro, new { @class = "form-control ", @id = "iValorPadraoEstimadoLitro", @placeholder = "Valor em Litros", @autocomplete = "off", })
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTempo_Atualizacao_Automatica_Timeline">@RsCadastros.TEMPO_ATUALIZACAO_AUTOMATICA_TIMELINE</label>
+                                            @Html.TextBoxFor(m => m.Tempo_Atualizacao_Automatica_Timeline, new { @class = "form-control tempo", @id = "iTempo_Atualizacao_Automatica_Timeline", @autocomplete = "off", @placeholder = "00:00" })
+                                            @Html.ValidationMessageFor(model => model.Tempo_Atualizacao_Automatica_Timeline, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iCheckin_Checkout_Auto" class="mr-3">@RsCadastros.CHECKIN_CHECKOUT_AUTO</label><br>
+                                            @Html.CheckBoxFor(model => model.Checkin_Checkout_Auto, new { @class = "form-control", @id = "iCheckin_Checkout_Auto", @name = "iCheckin_Checkout_Auto", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iExibirRDOs" class="mr-3">@RsCadastros.EXIBIR_RDOS</label><br>
+                                            @Html.CheckBoxFor(model => model.ExibeRDOs, new { @class = "form-control", @id = "iExibirRDOs", @name = "iExibirRDOs", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                    </div>
+                </div>
+
+
+
+                <!--Configurações Ola Cliente-->
+                <div class="card mt-3 mb-3" style="border:none;">
+                    <div class="accordion div-card-accord" id="accordion_4">
+                        <div class="card-header title-card" id="heading_4">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_4" aria-expanded="true" aria-controls="collapse_4">
+                                    <span class="text-bold-card">@RsCadastros.CONFIGURACOES_OLA</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_4" style="margin-top: -20px;" class="collapse show" aria-labelledby="heading_4" data-parent="#accordion_4">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iCNPJ">@RsCadastros.CNPJ:</label>
+                                            @Html.TextBoxFor(model => model.CNPJ, new { @class = "form-control", @id = "iCNPJ", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.CNPJ, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iNome_Cliente_Sinapse">@RsCadastros.NOME_CLIENTE_SINAPSE:</label>
+                                            @Html.TextBoxFor(model => model.Nome_Cliente_Sinapse, new { @class = "form-control", @id = "iNome_Cliente_Sinapse", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Nome_Cliente_Sinapse, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iToken">@RsCadastros.TOKEN:</label>
+                                            @Html.TextBoxFor(model => model.Token, new { @class = "form-control", @id = "iToken", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Token, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iOLA_Cor_Assests">@RsCadastros.OLA_COR_ASSESTS:</label>
+                                            @Html.TextBoxFor(model => model.OLA_Cor_Assests, new { @type = "color", @class = "form-control", @id = "iOLA_Cor_Assests", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.OLA_Cor_Assests, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iOLA_Cor_Fonte">@RsCadastros.OLA_COR_FONTE:</label>
+                                            @Html.TextBoxFor(model => model.OLA_Cor_Fonte, new { @type = "color", @class = "form-control", @id = "iOLA_Cor_Fonte", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.OLA_Cor_Fonte, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iOLA_Cor_Principal">@RsCadastros.OLA_COR_PRINCIPAL:</label>
+                                            @Html.TextBoxFor(model => model.OLA_Cor_Principal, new { @type = "color", @class = "form-control", @id = "iOLA_Cor_Principal", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.OLA_Cor_Principal, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iOLA_Cor_Principal_Dark">@RsCadastros.OLA_COR_PRINCIPAL_DARK:</label>
+                                            @Html.TextBoxFor(model => model.OLA_Cor_Principal_Dark, new { @type = "color", @class = "form-control", @id = "iOLA_Cor_Principal_Dark", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.OLA_Cor_Principal_Dark, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row mb-4">
+                                    <div class="col-sm-8">
+                                        <div class="form-group">
+                                            <label for="iOLA_URL_Logo">@RsCadastros.OLA_URL_LOGO:</label>
+                                            @Html.TextBoxFor(model => model.OLA_URL_Logo, new { @class = "form-control", @id = "iOLA_URL_Logo", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.OLA_URL_Logo, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="row mt-2">
+                                    <div class="col-sm-6">
+                                        <div class="form-group">
+                                            <label for="iSistema">@RsCadastros.SISTEMA:</label>
+                                            @Html.EnumDropDownListFor(m => m.Sistema, RsBase.SELECIONE, new { @class = "form-control", @id = "iSistema", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Sistema, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iURL">@RsCadastros.URL:</label>
+                                            @Html.TextBoxFor(model => model.URL, new { @class = "form-control", @id = "iURL", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.URL, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="mt-3">
+                                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <!--URL Sistema-->
+                                    <div id="accordion" class="col-sm-12 mt-3">
+                                        <div class="card div-card-accord">
+                                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                                <div class="card-body">
+                                                    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                                        <thead class="tb-head"></thead>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "Configuracao")" class="float-cancel">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+    <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}
+<!--./BeginForm-->
+
+<div class="modal fade" id="modal-editar-email">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Editar Conta de Email</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input id="idConta" type="hidden">
+                <div class="row">
+                    <div class="col-sm-12 container" style="align-content:center;">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iemailEditar" class="mr-3">@RsCadastros.EMAIL:</label><br>
+                                    <input type="text" class="form-control emailEditarObrigatorio" id="iEmailEditar">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iSenhaEditar" class="fs-12 mr-3">@RsCadastros.SENHA:</label><br>
+                                    <div class="input-group" style="flex-wrap: nowrap !important;">
+                                        <input type="password" style="width:inherit" class="form-control emailEditarObrigatorio" id="iSenhaEditar">
+                                        <div class="input-group-append" style="width:10%">
+                                            <span class="input-group-text input-password-hide" id="iSenhaEditarIcon" style="cursor: pointer;"><i class="fa fa-eye"></i></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label for="iServidorRecebimentoEditar" class="mr-3">@RsCadastros.SERVIDOR_RECEBIMENTO (IMAP):</label><br>
+                                    <input type="email" class="form-control emailEditarObrigatorio" id="iServidorRecebimentoEditar">
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iPortaRecebimentoEditar" class="mr-3">@RsCadastros.PORTA:</label><br>
+                                    <input type="text" class="form-control emailEditarObrigatorio" id="iPortaRecebimentoEditar">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label for="iServidorEnvioEditar" class="mr-3">@RsCadastros.SERVIDOR_ENVIO (SMTP):</label><br>
+                                    <input type="email" class="form-control emailEditarObrigatorio" id="iServidorEnvioEditar">
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iPortaEnvioEditar" class="mr-3">@RsCadastros.PORTA:</label><br>
+                                    <input type="text" class="form-control emailEditarObrigatorio" id="iPortaEnvioEditar">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label for="iAuthMethodImapEditar" class="">@RsCadastros.METODO_AUTENTICACAO:</label>
+                                    @Html.EnumDropDownListFor(model => model.AuthMethodImap, new { @class = "form-control emailEditarObrigatorio", @id = "iAuthMethodImapEditar", @name = "iAuthMethodImapEditar" })
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iUtilizar_SSL_ImapEditar" class="">Utilizar SSL Imap:</label>
+                                    @Html.CheckBoxFor(model => model.Utilizar_SSL, new { @class = "mt-4", @id = "iUtilizar_SSL_ImapEditar", @name = "iUtilizar_SSL_ImapEditar" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iUtilizar_SSL_SmtpEditar" class="">Utilizar SSL Smtp:</label>
+                                    @Html.CheckBoxFor(model => model.Utilizar_SSL, new { @class = "mt-4", @id = "iUtilizar_SSL_SmtpEditar", @name = "iUtilizar_SSL_SmtpEditar" })
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-success" id="iEditarEmail">Editar</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="modal fade" id="modal-editar-integracao">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Editar Integração Externa</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input id="idConta" type="hidden">
+                <div class="row">
+                    <div class="col-sm-12 container" style="align-content:center;">
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iIntegracaoEditar" class="mr-3">@RsCadastros.EMAIL:</label><br>
+                                    <select type="text" class="form-control integracaoEditarObrigatorio" id="iIntegracaoEditar">
+                                        <option value="0">@RsCadastros.SAPERX</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iUrlIntegracaoEditar" class="fs-12 mr-3">@RsCadastros.SENHA:</label><br>
+                                    <input type="text" style="width:inherit" class="form-control integracaoEditarObrigatorio" id="iUrlIntegracaoEditar">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label for="iUsuarioIntegracaoEditar" class="mr-3">@RsCadastros.USUARIO:</label><br>
+                                    <input type="email" class="form-control emailEditarObrigatorio" id="iUsuarioIntegracaoEditar">
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iSenhaIntegracaoEditar" class="mr-3">@RsCadastros.SENHA:</label><br>
+                                    <input type="text" class="form-control emailEditarObrigatorio" id="iSenhaIntegracaoEditar">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <div class="form-group">
+                                    <label for="iTokenIntegracaoEditar" class="mr-3">@RsCadastros.TOKEN:</label><br>
+                                    <input type="text" class="form-control emailEditarObrigatorio" id="iTokenIntegracaoEditar">
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+
+                    </div>
+
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-success" id="iEditarEmail">Editar</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

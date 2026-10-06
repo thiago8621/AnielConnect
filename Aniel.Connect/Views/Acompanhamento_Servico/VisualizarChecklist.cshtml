@@ -1,0 +1,571 @@
+﻿@model List<QuizAnswer>
+@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Repository.Model
+
+@{
+    ViewBag.Title = RsCadastros.VISUALIZAR_CHECKLIST;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    int count = 1;
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    <style>
+    </style>
+}
+
+@section Scripts
+{
+    <script>
+
+        var respostas = [];
+        var alterou = false;
+
+        $(document).ready(function () {
+            for (let item of $(".somenteNumerosPontoVirgula")) {
+                somenteNumerosPontoVirgula($(item).attr("id"));
+            }
+        });
+
+        $("input[type=text]").change(function () {
+             alterou = true;
+        });
+
+        $("input[type=radio]").change(function () {
+            alterou = true;
+        });
+
+        function editarPergunta(id) {
+
+            @if (AcessoHelper.TemAcesso(_areas, "195"))
+            {
+                <text>
+                $("#pergunta_" + id).attr("readonly", false);
+                $(`input[name="pergunta_${id}"]`).removeClass("readonly");
+                </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+
+        }
+
+        function editarPerguntaData(id) {
+
+            @if (AcessoHelper.TemAcesso(_areas, "195"))
+            {
+                <text>
+                $("#pergunta_" + id).attr("readonly", false);
+                $(`#pergunta_${id}`).removeClass("readonly");
+
+                if ($(`#pergunta_${id}`).hasClass("datepicker") == false) {
+                    $(`#pergunta_${id}`).addClass("datepicker");
+
+                    //DATEPICKER
+
+
+                    $(`#pergunta_${id}`).mask("00/00/0000");
+                    $(`#pergunta_${id}`)
+                        .datepicker({
+                            format: "dd/mm/yyyy",
+                            language: "pt-BR",
+                            todayHighlight: "true",
+                            autoclose: true
+                        })
+                        .on("changeDate", function (e) {
+                            if ($(this).val().length === 10) return $(this).trigger("focusout");
+                            else return true;
+                        })
+                        .after(function () {
+                            var nameLink = `${$(this)[0].id}_dp`;
+
+                            return $(this).is(".readonly") || $(this).prop("readonly")
+                                ? $(
+                                    `<i id='${nameLink}' class='far fa-calendar-alt fs-15 color-icon-date pl-1 pr-1'></i>`
+                                )
+                                : $(
+                                    `<a id='${nameLink}' href='javascript: void(0);' class='pl-1 pr-1'><i class='far fa-calendar-alt fs-15 color-icon-date'></i></a>`
+                                ).click(function () {
+                                    $(this)
+                                        .prev()
+                                        .datepicker("show");
+                                });
+                        });
+            }
+            </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+
+        }
+
+
+
+        async function SalvaTextos() {
+            if (alterou) {
+
+                respostas = [];
+                respostasEscolhas = [];
+                respostasMultiplas = [];
+
+                $("input[type=text]").each(function () {
+                    respostas.push([this.id.split("_").pop(),this.value]);
+                });
+
+                $("input[type=radio]").each(function () {
+                    const opcao = $(`input[name=${$(this).attr("name")}]:checked`).val()
+                    const idResposta = $(this).attr("name").split("_").pop();
+                    if (respostasEscolhas.filter(p => p[0] == idResposta).length == 0)
+                        respostasEscolhas.push([idResposta, opcao]);
+
+                });
+
+                $("input[type=checkbox]:checked").each(function () {
+                    const opcao = $(this).val()
+                    const idResposta = $(this).attr("name").split("_").pop();
+                    const dataQuizAnwser = $(this).attr("data-quiz-anwser");
+
+                    if (respostasMultiplas.filter(p => p.IdItem == idResposta).length == 0) {
+                        respostasMultiplas.push({
+                            IdItem: idResposta,
+                            Respostas: [[dataQuizAnwser, opcao]]
+                        });
+                    }
+                    else {
+                        var objResposta = respostasMultiplas.filter(p => p.IdItem == idResposta)[0];
+                        objResposta.Respostas.push([dataQuizAnwser, opcao]);
+                    }
+
+                });
+
+                let retornoSalvaTextoChecklist = await $.ajax({
+                    method: "POST",
+                    url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaTextoChecklist",
+                    data: { respostas: respostas}
+                })
+
+                let retornoSalvaEscolhasChecklist = await $.ajax({
+                    method: "POST",
+                    url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaEscolhaChecklist",
+                    data: { respostas: respostasEscolhas }
+                });
+
+                let retornoSalvaEscolhasMultiplasChecklist = await $.ajax({
+                    method: "POST",
+                    url: "@CONSTANTES.URLPortal/api/Quizapi/SalvaEscolhaMultiplaChecklist",
+                    data: { multi: respostasMultiplas }
+                });
+
+                if (retornoSalvaEscolhasChecklist.ok && retornoSalvaTextoChecklist.ok) {
+                    Notificar("@RsBase.ATENCAO_", "Checklist salvo com sucesso", "warning");
+                    $("input[type=text]").attr("readonly", true);
+                }
+
+                alterou = false;
+            }
+        }
+
+
+
+        $('#inputFoto').change(function () {
+            enviarImagem();
+        });
+
+        function enviarImagem() {
+            var data = new FormData();
+            var file = $('#inputFoto')[0].files[0];
+            data.append('file', file);
+            data.append('idQuestionAnswerItem', IdItem);
+            data.append('idQuestion', Question);
+            data.append('idQuestionAnswerCapa', Capa);
+            data.append('idQuiz', Quiz);
+
+            Notificar("@RsBase.ATENCAO_", "Enviando imagem", "warning");
+
+            $.ajax({
+                url: '@Url.Action("UploadFotoQuiz", "Acompanhamento_Servico")',
+                processData: false,
+                contentType: false,
+                data: data,
+                type: 'POST'
+            }).done(function () {
+                Notificar("@RsBase.ATENCAO_", "Imagem enviada com sucesso", "warning");
+
+                let searchParams = new URLSearchParams(parent.location.search);
+                window.location = baseUrl + `/pt-BR/Acompanhamento_Servico/VisualizarChecklist?codct=${searchParams.get("CodCt")}&projeto=${searchParams.get("Projeto")}&numobra=${searchParams.get("Num_Obra")}&numdoc=${searchParams.get("Num_Doc")}`;
+            });
+        }
+
+        var IdItem, Question, Capa, Quiz, lens;
+
+        function escolherImagem(idItem, idQuestion, idCapa, idQuiz) {
+            @if (AcessoHelper.TemAcesso(_areas, "196"))
+            {
+                <text>
+                $('#inputFoto').click();
+                IdItem = idItem;
+                Question = idQuestion;
+                Capa = idCapa;
+                Quiz = idQuiz;
+                </text>
+            }
+            else
+            {
+                <text>
+                parent.Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: '@Html.Raw(RsBase.NAO_POSSUI_AREA_ACESSO)'
+                });
+                </text>
+            }
+        }
+
+
+
+
+        $("img").on("click", function () {
+
+
+            let src = $(`.imgFotoModal`).toArray().map(p => {
+                return {
+                    src : p.src,
+                    id : p.id
+                }
+            });
+
+
+            abrirModal(src, this.id);
+        });
+
+
+
+        //recebe o src da miniatura e abre no modal de visualização
+        function abrirModal(src, id) {
+
+            montarModal();
+
+            $(parent.document).find(`#iCarouselIndicators`).empty();
+
+
+            for (const [index, item] of src.entries()) {
+                $(parent.document).find(`#iCarouselIndicators`).append(`<li data-target="#carouselExampleIndicators" data-slide-to="${index}" class="${id == item.id ? "active" : ""}">${index + 1}</li>`);
+
+                $(parent.document).find(`.carousel-item`).removeClass("active");
+
+                carouselItem = $(parent.document).find(`.carousel-item`).toArray().filter(p => $(p).attr("data-idFoto") == id);
+
+                if (carouselItem.length > 0) {
+                    $(carouselItem[0]).addClass("active");
+                    $(parent.document).find('#iPerguntaFoto').html($(carouselItem[0]).attr("data-pergunta"));
+                }
+            }
+
+
+            $(parent.document).find("#linkDownload").attr("href", src);
+            /*$(parent.document).find("#imgModal").attr("src", src);*/
+            idFoto = id;
+        }
+
+        function montarModal() {
+
+            $(parent.document).find(`#iCarouselInner`).empty();
+
+            let src = $(`.imgFotoModal`).toArray().map(p => {
+                return {
+                    src: p.src,
+                    id: p.id,
+                    idItem: $(p).attr("data-IdItem"),
+                    pergunta: $(p).attr("data-pergunta")
+                }
+            });
+
+            for (const [index, item] of src.entries()) {
+
+                $(parent.document).find(`#iCarouselInner`).append(`<div data-pergunta="${item.pergunta}" data-slideIndex=${index} data-idFoto=${item.id} data-IdItem="${item.idItem}" class="carousel-item ">
+                                    <img onmouseout="desativaZoom()" onmouseover="ativaZoom()" src="${item.src}" class="img-fluid imgModal" style="display: inline-block; float: left;max-height: 70vh" />
+                                </div>`);
+
+
+            }
+
+        }
+
+
+
+
+
+
+    </script>
+}
+
+<div style="padding:10px;" id="divChecklist">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+
+            @foreach (var item in Model)
+            {
+                <div class="pt-2">
+                    <span>@item.titulo</span>
+                </div>
+                <br />
+
+                foreach (var resp in item.respostas)
+                {
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Texto)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control" value="@resp.resposta" maxlength="300">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.CodigoBarra)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control" value="@resp.resposta" maxlength="300">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Data)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPerguntaData(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control" value="@resp.resposta">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Valor)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        <input type="text" id="pergunta_@resp.id" readonly class="form form-control somenteNumerosPontoVirgula" value="@resp.resposta">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.UnicaEscolha)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        @foreach (var opcao in resp.opcoesResposta)
+                                        {
+                                            <input value="@(opcao.resposta)" type="radio" name="pergunta_@resp.id" id="pergunta_@(resp.id)_@(opcao.resposta) " @(Convert.ToString(resp.resposta) == opcao.resposta ? "checked" : "") readonly class="readonly">
+                                            @(opcao.resposta.ToString())
+                                            <br />
+                                        }
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.MultiplaEscolha)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                            <a href="#" onclick="editarPergunta(@resp.id); return false;" class="ml-3"><i class="fas fa-edit "></i></a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body" style="margin-top: -20px;">
+                                        @foreach (var opcao in resp.opcoesResposta)
+                                        {
+                                            <input value="@(opcao.resposta)" type="checkbox" name="pergunta_@resp.id" data-quiz-anwser="@opcao.id" id="pergunta_@(resp.id)_@(opcao.resposta) " @(resp.multi.Select(p => p.resposta).Contains(opcao.resposta) ? "checked" : "") readonly class="readonly">
+                                            @(opcao.resposta.ToString())
+                                            <br />
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.Foto)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body d-flex align-items-center" style="flex-wrap:wrap; margin-top: -20px;">
+                                        @foreach (var foto in resp.multi)
+                                        {
+                                            <img data-pergunta="@resp.pergunta" class="ml-3 imgFotoModal" onclick="parent.ModalFoto(@foto.id,@((int)resp.tipo))" style="cursor: pointer" id="@foto.id" src="data:image/png;base64,@foto.foto64" width="150" height="150" data-toggle="modal" data-target="#modalFoto" />
+
+                                        }
+                                        <a href="#" class="ml-3 mt-3" onclick="escolherImagem('@resp.id', '@resp.idQuestion', '@item.id', '@item.idQuiz'); return false;" width="150" height="150">
+                                            <i class="fas fa-plus-circle fa-7x"></i>
+                                        </a>
+                                        <input id="inputFoto" type="file" accept="image/*" style="display: none" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if (resp.tipo == Aniel.T5.Model.enumerado.EnumQuizTipo.AssinaturaCliente)
+                    {
+                        <div class="accordion mb-3" id="accordion_@resp.id">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_@resp.id">
+                                    <h5 class="mb-0">
+                                        <div class="row">
+                                            <a role="button" data-toggle="collapse" data-target="#collapse_@resp.id" aria-expanded="true" aria-controls="collapse_@resp.id">
+                                                @count - <span>@resp.pergunta</span>
+                                            </a>
+                                        </div>
+                                    </h5>
+                                </div>
+                                <div id="collapse_@resp.id" class="collapse show" aria-labelledby="heading_@resp.id" data-parent="#accordion_@resp.id">
+                                    <div class="card-body d-flex align-items-center" style="flex-wrap:wrap; margin-top: -20px;">
+
+                                        @if (resp.resposta != null)
+                                        {
+                                            <img data-pergunta="@resp.pergunta" class="ml-3 imgFotoModal" onclick="parent.ModalFoto(@resp.idAssinatura,@((int)resp.id))" style="cursor: pointer" id="@resp.idAssinatura" data-IdItem="@((int)resp.id)" src="data:image/png;base64,@resp.resposta" width="150" height="150" data-toggle="modal" data-target="#modalFoto" />
+                                        }
+                                        else
+                                        {
+
+                                            <a href="#" class="ml-3 mt-3" onclick="escolherImagem('@resp.id', '@resp.idQuestion', '@item.id', '@item.idQuiz'); return false;" width="150" height="150">
+                                                <i class="fas fa-plus-circle fa-7x"></i>
+                                            </a>
+                                        }
+                                        <input id="inputFoto" type="file" accept="image/*" style="display: none" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    count++;
+                }
+
+            }
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
+<a href="#" onclick="BotaoCancelar('@Url.Action("Checklist", "Acompanhamento_Servico",new { Cod_Ct = Model.First().codct, Projeto = Model.First().projeto, Num_Obra = Model.First().num_obra,  Num_Doc = Model.First().numDoc })');" class="float-cancel">
+    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return SalvaTextos();">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar" id="btnSalvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+

@@ -1,0 +1,1288 @@
+﻿@model Aniel.Connect.Models.T5.Tipo_Elemento_RedeCadastroModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_TIPOS_ELEMENTOS_REDE;
+
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .none {
+            display: none;
+        }
+
+        .dashed {
+            border-bottom-style: dashed;
+            border-bottom-width: 5px;
+        }
+
+        .dotted {
+            border-bottom-style: dotted;
+            border-bottom-width: 5px;
+        }
+
+        .solid {
+            border-bottom-style: solid;
+            border-bottom-width: 5px;
+        }
+
+        .ridge {
+            border-bottom-style: ridge;
+            border-bottom-width: 5px;
+        }
+
+        .groove {
+            border-bottom-style: groove;
+            border-bottom-width: 5px;
+        }
+
+        .inset {
+            border-bottom-style: inset;
+            border-bottom-width: 5px;
+        }
+
+        .outset {
+            border-bottom-style: outset;
+            border-bottom-width: 5px;
+        }
+
+        .objeto {
+            height: 50px;
+            fill: blue;
+            width: 50px;
+        }
+
+        #iElementoIcone svg {
+            height: 40px;
+            width: 40px;
+            margin-top: 1rem;
+        }
+
+        #iElementoIcone svg path {
+            fill: black;
+            fill-rule: evenodd;
+        }
+
+
+        .float-save-modal {
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+<script>
+
+    let oDatatableMaterial = null;
+    let oDatatableServico = null;
+
+    $('#iAdicionarMaterial').click(async function () {
+
+        if (!$(`#iProduto`).val()) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        var jaAdicionado = oDatatableMaterial.rows().data().toArray().some(p => p.CodMat === $("#iProduto").val());
+        if (jaAdicionado)
+        {
+            Notificar("@RsBase.ATENCAO_", `Produto já lançado no sistema`, "warning");
+            return;
+        }
+
+        $.ajax({
+            url: '@String.Concat(CONSTANTES.URLPortal, "/api/Tipo_Elemento_RedeApi/MaterialVinculado")',
+            type: `Get`,
+            dataType: `json`,
+            data: {
+                codMat: $(`#iProduto`).val()
+            }
+
+        })
+            .done(function (data) {
+                if (data.ok) {
+
+                    if (data.objeto != null) {
+                        Notificar("@RsBase.ATENCAO_", `Produto ${data.objeto.descricao} já lançado em outro Tipo de Elemento`, "warning");
+                        return;
+                    }
+
+                    oDatatableMaterial.row.add({
+                        Id: 0,
+                        Descricao: $(`#iProduto option:selected`).text(),
+                        CodMat: $(`#iProduto`).val()
+                    }).draw(false);
+
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+
+            });
+
+
+        handleExcluirServico();
+        handleExcluirMaterial();
+    });
+
+    $('#iAdicionarServico').click(function () {
+
+        if (!$(`#iServico`).val()) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        oDatatableServico.row.add({
+            Id: 0,
+            Descricao: $(`#iServico option:selected`).text(),
+            Codigo: $(`#iServico`).val(),
+            UnidadeCusto: $(`#iServico`).attr("unidadeCusto"),
+        }).draw(false);
+
+        handleExcluirServico();
+        handleExcluirMaterial();
+    });
+
+
+    function handleExcluirMaterial() {
+        $(".btnExcluirMaterial").unbind('click');
+        $(".btnExcluirMaterial").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatableMaterial.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = `@String.Concat(CONSTANTES.URLPortal, "/api/Tipo_Elemento_MaterialApi/ExcluirGrid?value=")${idArquivo}` ;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableMaterial.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+
+    function handleExcluirServico() {
+        $(".btnExcluirServico").unbind('click');
+        $(".btnExcluirServico").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                oDatatableServico.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = `@String.Concat(CONSTANTES.URLPortal, "/api/Tipo_Elemento_CadernoEncargoApi/ExcluirGrid?value=")${idArquivo}`;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableServico.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+                    });
+            }
+
+        });
+    }
+
+    var HandleServico = function () {
+        $('#iServico').on('select2:select select2:unselecting', function (e) {
+            ServicoSelecionado = e.params.data;
+
+            if (ServicoSelecionado != undefined) {
+                $('#iServico').attr("unidadeCusto", ServicoSelecionado.unidade_Custo);
+            }
+        });
+    };
+
+        var HandleUnidadeCusto = function () {
+            $("#iUnid_Custo").on('select2:select select2:unselecting', function (e) {
+                Unidade_Custo = e.params.data;
+                if (Unidade_Custo != undefined)
+                    AddSelect("iServico", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, Unidade_Custo.id, null, "@RsBase.SELECIONE", false);
+                else {
+                    AddSelect("iServico", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+            });
+        }
+    var rows_selected = [];
+        $(document).ready(function () {
+            AddSelect("iIcone", "@CONSTANTES.URLPortal/api/Tipo_Elemento_IconeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Icone", "@RsBase.SELECIONE", false, HandleIcones);
+
+            AddSelect("iModelo", "@CONSTANTES.URLPortal/api/Modelo_Elemento_RedeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Modelo", "@RsBase.SELECIONE", false, HandleModelo);
+
+         @*AddSelect("iTipo_Cabo", "@CONSTANTES.URLPortal/api/Tipo_CaboApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+
+            AddSelect("iServico", "@CONSTANTES.URLPortal/api/Caderno_EncargosApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            AddSelect("iUnid_Custo", "@CONSTANTES.URLPortal/api/Unidade_Custoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleUnidadeCusto);
+
+            AddSelect("iProduto", "@CONSTANTES.URLPortal/api/MaterialApi/GetComboMaterial", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleServico);
+
+            $('#iE_Cabo').trigger('change');
+            $('#iE_Caixa').trigger('change');
+
+        });
+
+        var HandleIcones = function () {
+            $("#iIcone").on("select2:select select2:unselecting", function (e) {
+                var icon = e.params.data;
+                $("#iPadrao").text("");
+                if (icon.padrao_connect) {
+                    $("#iPadrao").text("Padrão Connect");
+                }
+            });
+        }
+        var HandleModelo = function () {
+            $("#iModelo").on("select2:select select2:unselecting", function (evt) {
+                let data = evt.params.data,
+                    phrase = "";
+                try {
+                    switch (data.id) {
+
+                        case 4:
+                        case 7: phrase = "Modelo de @RsCadastros.CAIXA Selecionado";
+
+                            $("#iE_Caixa").bootstrapToggle('on');
+                            $("#iE_Cabo").bootstrapToggle('off');
+                            break;
+
+                        case 5:
+                            phrase = "Modelo de @RsCadastros.POSTE Selecionado";
+                            break;
+
+                        case 6: phrase = "Modelo de @RsCadastros.CABO Selecionado";
+
+                            $("#iE_Cabo").bootstrapToggle('on');
+                            $("#iE_Caixa").bootstrapToggle('off');
+                            break;
+
+                        default: phrase = "Modelo Customizado";
+                            break;
+                    }
+                }
+                catch (Exception) {
+                    phrase = "Dados não encontrados";
+
+                    $("#iE_Caixa").bootstrapToggle('off');
+                    $("#iE_Cabo").bootstrapToggle('off');
+                }
+
+            });
+        }
+
+    $("#btnAtivar").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        //Alterando para Inativo
+        AlterarStatusObj(1);
+    });
+
+
+    $("#btnExcluir").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Modelo_ContratoApi/excluirlista")';
+
+        $.ajax({
+            url: link,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                ids: rows_selected
+            }
+        })
+            .done(function (data) {
+
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                    rows_selected = [];
+                    oDatatableMaterial.draw();
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                }
+            });
+    });
+        //#region changestyle
+      /**   funcao trocar estilo de linha
+       * @@param{string} selectid
+       * @@param{string} pId
+       */
+        //#endregion
+        function changestyle(selectId,pId) {
+            //$(`#${pId}`).removeClass("dashed groove dotted solid ridge inset outset");
+            $(`#${pId}`).removeClass("dashed");
+            $(`#${pId}`).removeClass("groove");
+            $(`#${pId}`).removeClass("dotted");
+            $(`#${pId}`).removeClass("solid");
+            $(`#${pId}`).removeClass("ridge");
+            $(`#${pId}`).removeClass("inset");
+            $(`#${pId}`).removeClass("outset");
+
+            let estilo = $(`#${selectId} option:selected`).text();
+
+            $(`#${pId}`).addClass(estilo);
+
+                return;
+        }
+        $("#iEstilo_Linha_Ativa").on('change',function () { changestyle("iEstilo_Linha_Ativa", "iEstiloAtivoDemonstracao") });
+        $("#iEstilo_Linha_Inativa").on('change',function () { changestyle("iEstilo_Linha_Inativa", "iEstiloInativoDemonstracao") });
+
+        $("#iE_Cabo").change(function () {
+
+            if ($("#iE_Cabo").is(':checked')) {
+
+                $("#DivTipo_Cabo").removeClass('none');
+                $("#DivPar_Fibra").removeClass('none');
+                $("#Div_PadraoCores").removeClass('none');
+                $("#DivPar_Loose").removeClass('none');
+                $("#DivTotal_Loose").removeClass('none');
+                $("#DivEspessura_Cabo").removeClass('none');
+                $("#DivEspessura_Linha").removeClass('none');
+                $("#DivCorAtiva").removeClass('none');
+                $("#DivCorInativa").removeClass('none');
+                $("#DivEstiloAtivo").removeClass('none');
+                $("#DivEstiloAtvDemo").removeClass('none');
+                $("#DivEstiloInativo").removeClass('none');
+                $("#DivEstiloInatvDemo").removeClass('none');
+                $("#DivIcone").addClass('none');
+                $("#iModalIcone").addClass('none');
+                $("#DivCor").addClass('none');
+                $("#iDivCapacidade").addClass('none');
+
+                if ($("#iE_Caixa").is(':checked')) {
+                    $("#iE_Caixa").bootstrapToggle('off');
+                }
+
+            }
+            else
+            {
+                $("#iDivCapacidade").removeClass('none');
+                $("#DivTipo_Cabo").addClass('none');
+                $("#DivPar_Fibra").addClass('none');
+                $("#DivPar_Loose").addClass('none');
+                $("#DivTotal_Loose").addClass('none');
+                $("#DivEspessura_Cabo").addClass('none');
+                $("#DivEspessura_Linha").addClass('none');
+                $("#Div_PadraoCores").addClass('none');
+
+                $("#DivCorAtiva").addClass('none');
+                $("#DivCorInativa").addClass('none');
+                $("#DivEstiloAtivo").addClass('none');
+                $("#DivEstiloInativo").addClass('none');
+                $("#DivEstiloAtvDemo").addClass('none');
+                $("#DivEstiloInatvDemo").addClass('none');
+                $("#DivIcone").removeClass('none');
+                $("#iModalIcone").removeClass('none');
+                $("#DivCor").removeClass('none');
+
+            }
+
+        });
+
+        $("#iE_Caixa").change(function () {
+
+            if ($("#iE_Caixa").is(':checked')) {
+                $("#iDivCapacidade").removeClass('d-none');
+
+                if ($("#iE_Cabo").is(':checked')) {
+                    $("#iE_Cabo").bootstrapToggle('off');
+                }
+
+            }
+            else {
+                $("#iCapacidade").val("0");
+
+                $("#iDivCapacidade").addClass('d-none');
+            }
+        });
+
+        function totalLoose() {
+            var total = 0;
+            par = $("#iNum_Pares_Fibra").val();
+            tubo = $("#iNum_Tubo_Loose").val();
+
+            total = (par * 1) * (tubo * 1);
+
+            return $("#iTotal_Tubo_Loose").val(total);
+        }
+
+        $("#iNum_Pares_Fibra").on("focusout", function () { totalLoose() });
+        $("#iNum_Tubo_Loose").on("focusout", function () { totalLoose() });
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+    }();
+
+    var clicked = false;
+    function limparSelect2(id) {
+        if ($(`#${id}`).data('select2'))
+        {
+            $(`#${id}`).select2('destroy');
+        }
+        $(`#${id}`).empty();
+    }
+
+    let arrayMateriais = @Html.Raw(Json.Encode(Model.Materiais));
+    var nome_listaMateriais = "Materiais";
+    oDatatableMaterial = $('#datatableMateriais').DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayMateriais,
+        paging: false,
+        order: [],
+        drawCallBack: function () {
+            handleExcluirMaterial();
+        },
+        columns: [
+            {
+                data: "Id",
+                title: "Remover",
+                render: function (data, type, row, meta) {
+                    return `<a href="#" class="btnExcluirMaterial" id="btnExcluirMaterial_"${meta.row}" excluir="${row.Id}">
+                                <i class="far fa-trash-alt" style="font-size:16px">
+                                </i>
+                            </a>
+                            <input id="${nome_listaMateriais}_${meta.row}__Id" name="${nome_listaMateriais}[${meta.row}].Id" type="hidden" value="${TrataNulo(data)}">
+                            <input id="${nome_listaMateriais}_${meta.row}__CodMat" name="${nome_listaMateriais}[${meta.row}].CodMat" type="hidden" value="${TrataNulo(row.CodMat)}">`;
+
+                }
+            },
+            {
+                data: "CodMat",
+                title: "@RsCadastros.CODIGO",
+                render: function (data, type, row, meta) {
+                    return data;
+                }
+
+            },
+            {
+                data: "Descricao",
+                title: "Descricao do Material",
+                render: function (data, type, row, meta) {
+
+                    data = `${data} <input id="${nome_listaMateriais}_${meta.row}_Id" name="${nome_listaMateriais}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">`;
+                    return data;
+                }
+
+            }
+        ]
+    });
+
+
+    let arrayServicos = @Html.Raw(Json.Encode(Model.Servicos));
+    var nome_listaServicos = "Servicos";
+    oDatatableServico = $('#datatableServicos').DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayServicos,
+        drawCallBack: function () {
+            handleExcluirServico();
+        },
+        paging: false,
+        order: [],
+        columns: [
+            {
+                data: "Id",
+                title: "Remover",
+                render: function (data, type, row, meta) {
+                    return `<a href="#" class="btnExcluirServico" id="btnExcluirServico_${meta.row}" excluir="${row.Id}">
+                                <i class="far fa-trash-alt" style="font-size:16px"></i>
+                            </a>
+                            <input id="${nome_listaServicos}_${meta.row}__Id" name="${nome_listaServicos}[${meta.row}].Id type="hidden" value="${TrataNulo(data)}"
+                            <input id="${nome_listaServicos}_${meta.row}__Codigo" name="${nome_listaServicos}[${meta.row}].Codigo type="hidden" value="${TrataNulo(row.Codigo)}"
+                            <input id="${nome_listaServicos}_${meta.row}__UnidadeCusto" name="${nome_listaServicos}[${meta.row}].UnidadeCusto type="hidden" value="${TrataNulo(row.UnidadeCusto)}"`;
+                }
+            },
+            {
+                data: "UnidadeCusto",
+                title: "@RsCadastros.UNIDADE_CUSTO",
+                render: function (data, type, row, meta) {
+                    return data;
+                }
+
+            },
+            {
+                data: "Codigo",
+                title: "@RsCadastros.CODIGO",
+                render: function (data, type, row, meta) {
+                    return data;
+                }
+
+            },
+            {
+                data: "Descricao",
+                title: "Descrição do Serviço",
+                render: function (data, type, row, meta) {
+                    data = `<input id="${nome_listaServicos}_${meta.row}_Id" name="${nome_listaServicos}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">`;
+                    return data;
+                }
+
+            }
+        ]
+    });
+
+
+    handleExcluirServico();
+    handleExcluirMaterial();
+
+    function ValidaSubmit() {
+      if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        erro = false;
+
+        if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+        }
+          var HandleExcluirIcone =  function () {
+        $(".btnExcluirIcone").unbind('click');
+        $(".btnExcluirIcone").click(function (e) {
+            e.preventDefault();
+
+            var idArquivo = $(this).attr("excluir");
+
+            var trLinkButton = $(this).parents('tr');
+
+            if (idArquivo === "0") {
+                datatableIcone.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+            }
+            else {
+
+                var link = `@String.Concat(CONSTANTES.URLPortal, "/Tipo_Elemento_IconeApi/ExcluirGrid?value=")'${idArquivo}`;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            oDatatableServico.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+
+
+                    });
+            }
+
+        });
+        }
+        //#region fix_float()
+        /**
+         *
+         * @@param {number} value
+         * @@param {boolean} boo indica se é um método de adição ou subtração de elementos
+         */
+        //#endregion
+        function fix_floatSave(value, boo) {
+
+            if (boo)
+               value = value + (value/20)
+            if (!boo)
+                value = value - (value/20)
+            return value;
+        }
+
+        $("#iModalIcone").on("click", function () {
+            $("#modal-Icone").modal({backdrop:"static"},"show");
+        });
+
+    //datatable de Ícones
+    let datatableIcone = null;
+    var nome = "Icone";
+    var arrayIcon = []
+        datatableIcone = $("#datatableIcone").length && $("#datatableIcone").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+          /*Model Pendente*/  data: arrayIcon,
+            drawCallback: function () {
+                HandleExcluirIcone();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                {
+                data: "Id",
+                title: "Remover",
+                render: function (data, type, row, meta) {
+                    data = `<a href="#" class="btnExcluirIcone" name="[${meta.row}].Id" id="btnExcluirIcone_${meta.row}" excluir="${row.Id}">
+                            <i class="far fa-trash-alt" style="font-size:16px"></i></a>
+                            <input id="${nome}_${meta.row}__Id" class="" type="hidden" name="${nome}[${meta.row}].Id" value="${TrataNulo(data)}">`;
+
+                    return data;
+                }
+
+                },
+
+                {
+                    data: "Descricao",
+                    title: "Descricao",
+                    render: function (data, type, row, meta) {
+                        data = `${TrataNulo(data)} <input id="${nome}_${meta.row}__Descricao" class="" type="hidden" name="${nome}[${meta.row}].Descricao" value="${TrataNulo(data)}">`;
+                        return data;
+                    }
+                },
+
+                {
+                    data: "Tipo",
+                    title: "Tipo",
+                    render: function (data, type, row, meta) {
+                        data = `${TrataNulo(data)} <input id="${nome}_${meta.row}__Descricao" type="hidden" class="" name="${nome}[${meta.row}].Descricao" value="${TrataNulo(data)}"">`;
+                        return data;
+                    }
+                }
+            ]
+
+        });
+
+        let arquivos = [];
+
+    $("#iSVG").on("change", function (e) {
+        arquivos.push($("#iSVG")[0].files[0]);
+        var documento = $("#iSVG").val();
+        let docname = documento.substr(documento.lastIndexOf("\\") + 1).split('.')[0];
+        let doctype = documento.substr(documento.lastIndexOf(".") + 1, documento.length).toUpperCase();
+
+        if ($("#iSVG")[0].files.length > 0 && doctype !== "SVG") {
+            Notificar("@RsBase.ATENCAO_", "A extensão do arquivo deve ser .svg!", "warning");
+        }
+        if (documento == "") {
+            return false;
+        }
+        else {
+            datatableIcone.row.add({
+                Id: 0,
+                Descricao: docname,
+                Tipo: doctype
+            });
+            datatableIcone.draw(false);
+        }
+    });
+
+   @*var newForm = '<form method="POST" enctype="multipart/form-data" action="@Url.Action("Gravar_Icone", "Tipo_ElementoIcone")" class="form-group" id="formArquivo">'+
+    '</form><br/>';*@
+        var impo = false;
+        document.getElementById("iClose").addEventListener("click", function () { impo = true; })
+
+        //$("#modal-Icone").on("hide.bs.modal", async function () {
+
+        //    if (datatableIcone.data().length > 0 && !impo) {
+        //        $("#iGravaIcone").trigger("click");
+        //    }
+        //});
+    $("#iGravaIcone").on("click", async function () {
+        form = new FormData();
+        var path = [];
+        var iconearray = [];
+
+        var tamanho = datatableIcone.data().length;
+        for (var i = 0; i < tamanho; i++)
+            iconearray.push(datatableIcone.data()[i]);
+
+        form.append("File_Json", JSON.stringify(iconearray));
+        form.append("Path", JSON.stringify(path));
+        for (var file of arquivos) {
+            form.append("Posted_Arquivo_JSON", file);
+
+            //text = await file.text();
+            //var xml = new DOMParser().parseFromString(text,"image/svg+xml");
+            //var caminhos = xml.getElementsByTagName("path");
+            //for ( var caminho of caminhos) {
+            //     path.push(caminho.getAttribute("d"));
+            //}
+        }
+
+        $.ajax({
+            url: '@Url.Action("Gravar_Icone", "Tipo_Elemento_Icone")',
+            type: "POST",
+            data: form,
+            processData: false,
+            contentType: false
+        })
+            .done(function (data) {
+
+                data = JSON.parse(data);
+                        if (data.Ok) {
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROADICIONADO", "info");
+
+                            $("#modal-Icone").modal("hide");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.Mensagem, "warning");
+                        }
+                    })
+    });
+
+    $("#modal-Icone").on("hide.bs.modal", function () {
+        datatableIcone.clear();
+        datatableIcone.draw(false);
+    });
+
+</script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Tipo_Elemento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_TIPO_ELEMENTO_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+    </div>
+    <!--Nav Tab-->
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="cadastro-tab" data-toggle="tab" href="#iTabCadastro" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.CADASTRO</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link " id="produto-tab" data-toggle="tab" href="#iTabProduto" role="tab" aria-controls="financeiro" aria-selected="false"><i class="fas fa-boxes"></i> @RsCadastros.PRODUTOS </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="servico-tab" data-toggle="tab" href="#iTabServico" role="tab" aria-controls="planos" aria-selected="false"><i class="icofont-tools-alt-2"></i> @RsCadastros.ITENS_SERVICOS</a>
+        </li>
+    </ul>
+
+</div>
+<!--./main-->
+@using (Html.BeginForm("Cadastro", "Tipo_Elemento_Rede", FormMethod.Post, new { enctype = "multipart/formdata", @id = "form", autocomplete = "off" }))
+{
+    <div style="padding:10px">
+        @*Criação das Tabs*@
+        <div class="tab-content">
+            @*Tab de Cadastro*@
+            <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+
+
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iId">@RsCadastros.ID:</label><br />
+                                        @Html.TextBoxFor(model => model.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.DESCRICAO do Elemento de Rede:</label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control obrigatorio", id = "iDescricao", @maxlength = "100", autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCodigo_Auxiliar">@RsCadastros.CODIGO_AUXILIAR:</label>
+                                        @Html.TextBoxFor(model => model.Codigo_Auxiliar, new { @class = "form-control", id = "iCodigo_Auxiliar", @maxlength = "100", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iModelo">@RsCadastros.MODELO_ELEMENTO_REDE:</label>
+                                        @Html.DropDownListFor(model => model.Id_Modelo, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModelo", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iE_Cabo">&Eacute; &nbsp; @RsCadastros.CABO :</label><br />
+                                        @Html.CheckBoxFor(m => m.E_Cabo, new { @class = "form-control", @id = "iE_Cabo", @name = "iE_Cabo", @data_toggle = "toggle", @data_off = @RsBase.NAO, @data_on = @RsBase.SIM, @data_offstyle = "light", @data_onstyle = "success" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iE_Caixa">&Eacute; &nbsp; @RsCadastros.CABO.Replace("Cabo", "Caixa") :</label><br />
+                                        @Html.CheckBoxFor(m => m.E_Caixa, new { @class = "form-control", @id = "iE_Caixa", @name = "iE_Caixa", @data_toggle = "toggle", @data_off = @RsBase.NAO, @data_on = @RsBase.SIM, @data_offstyle = "light", @data_onstyle = "success" })
+                                    </div>
+                                </div>
+
+                                @if (Model.Id != 0)
+                                {
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iE_Cabo">@RsCadastros.STATUS :</label><br />
+                                            @Html.CheckBoxFor(m => m.Situacao, new { @class = "form-control", @id = "iSituacao", @data_toggle = "toggle", @data_off = @RsCadastros.INATIVO, @data_on = @RsCadastros.ATIVO, @data_offstyle = "light", @data_onstyle = "success" })
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+
+                            <div class="row">
+
+
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="x">@RsCadastros.FABRICANTE:</label>
+                                        @Html.TextBoxFor(model => model.Fabricante, new { @class = "form-control", id = "iFabricante", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1 d-none" id="iDivCapacidade">
+                                    <div class="form-group">
+                                        <label for="iCapacidade">@RsCadastros.CAPACIDADE</label>
+                                        @Html.TextBoxFor(model => model.Capacidade, new { @class = "form-control", @type = "number", id = "iCapacidade", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2  pr-0" id="DivIcone">
+                                    <div class="form-group">
+                                        <label for="iIcone">@RsCadastros.ICONE_ELEMENTO_REDE:</label>
+                                        @Html.DropDownListFor(model => model.Id_Icone, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iIcone", @autocomplete = "off" })
+                                        <span id="iPadrao" class="pl-1"></span>
+                                    </div>
+                                    <div class="text-left pt-md-4"> <span id="iPadrao" class="pl-1"></span></div>
+
+                                </div>
+                                <div class="text-left pt-3">
+                                    <a class="float-right" href="#" id="iModalIcone"><i class="icofont-folder-open " style="font-size:24px;color:black"></i></a>
+
+                                </div>
+
+
+                                <div class="col-sm-2" id="DivCor">
+                                    <div class="form-group">
+                                        <label for="iCor">@RsCadastros.COR_ELEMENTO_REDE:</label>
+                                        @Html.TextBoxFor(model => model.Cor, new { @type = "color", @class = "form-control", id = "iCor", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-2 cabo" id="DivTipo_Cabo">
+                                    <div class="form-group">
+                                        <label for="iTipo_Cabo">@RsCadastros.TIPO_CABO:</label>
+                                        @Html.EnumDropDownListFor(model => model.TipoCabo, RsBase.SELECIONE, new { @class = "form-control", id = "iTipo_Cabo", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivPar_Loose">
+                                    <div class="form-group ">
+                                        <label for="iNum_Tubo_Loose">@RsCadastros.TUBO_LOOSE:</label>
+                                        @Html.TextBoxFor(model => model.Num_Tubos_Loose, new { @class = "form-control", @type = "number", id = "iNum_Tubo_Loose", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivPar_Fibra">
+                                    <div class="form-group ">
+                                        <label for="iNum_Pares_Fibra">@RsCadastros.PAR_FIBRA:</label>
+                                        @Html.TextBoxFor(model => model.Num_Pares_Fibra, new { @class = "form-control", @type = "number", id = "iNum_Pares_Fibra", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivTotal_Loose">
+                                    <div class="form-group ">
+                                        <label for="iTotal_Tubo_Loose">@RsBase.TOTAL:</label>
+                                        @Html.TextBoxFor(model => model.Total_Tubos_Loose, new { @class = "form-control", id = "iTotal_Tubo_Loose", autocomplete = "off", @disabled = "disabled" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2 cabo" id="Div_PadraoCores">
+                                    <div class="form-group">
+                                        <label for="iPadraoCores">@RsCadastros.PADRAO de Cores:</label>
+                                        @Html.EnumDropDownListFor(model => model.Padrao_Cor, RsBase.SELECIONE, new { @class = "form-control", id = "iPadraoCores", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-2 cabo" id="DivEspessura_Cabo">
+                                    <div class="form-group">
+                                        <label for="">@RsCadastros.ESPESSURA_CABO (Calibre):</label>
+                                        @Html.TextBoxFor(model => model.Espessura, new { @class = "form-control", @type = "number", id = "iEspessura", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivEspessura_Linha">
+                                    <div class="form-group ">
+                                        <label for="iEspessura_Linha">@RsCadastros.ESPESSURA_LINHA:</label>
+                                        @Html.TextBoxFor(model => model.Espessura_linha, new { @class = "form-control", @type = "number", id = "iEspessura_linha", autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                @*Estilo e Cor do Cabo*@
+                                <div class="col-sm-2 cabo" id="DivCorAtiva">
+                                    <div class="form-group">
+                                        <label for="iCor_Linha_Ativa">@RsCadastros.COR_ATIVO:</label>
+                                        @Html.TextBoxFor(model => model.Cor_Linha_Ativa, new { @type = "color", @class = "form-control", id = "iCor_Linha_Ativa", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivEstiloAtivo">
+                                    <div class="form-group">
+                                        <label for="iEstilo_Linha_Ativa">@RsCadastros.ESTILO_ATIVO:</label>
+                                        @Html.EnumDropDownListFor(model => model.Estilo_Linha_Ativa, RsBase.SELECIONE, new { @class = "form-control", id = "iEstilo_Linha_Ativa", autocomplete = "off" })
+
+
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivEstiloAtvDemo">
+                                    <div class="form-group">
+                                        <label for="iEstiloAtivoDemonstracao">Elemento Ativo</label>
+                                        <p id="iEstiloAtivoDemonstracao"></p>
+                                    </div>
+                                </div>
+
+
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-2 cabo" id="DivCorInativa">
+                                    <div class="form-group">
+                                        <label for="iCor_Linha_Inativa">@RsCadastros.COR_INATIVO:</label>
+                                        @Html.TextBoxFor(model => model.Cor_Linha_Inativa, new { @type = "color", @class = "form-control", id = "iCor_Linha_Inativa", autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivEstiloInativo">
+                                    <div class="form-group">
+                                        <label for="iEstilo_Linha_Inativa">@RsCadastros.ESTILO_INATIVO:</label>
+                                        @Html.EnumDropDownListFor(model => model.Estilo_Linha_Inativa, RsBase.SELECIONE, new { @class = "form-control", id = "iEstilo_Linha_Inativa", autocomplete = "off" })
+
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2 cabo" id="DivEstiloInatvDemo">
+                                    <div class="form-group">
+                                        <label for="iEstiloInativoDemonstracao">Elemento Inativo</label>
+                                        <p id="iEstiloInativoDemonstracao"></p>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-8"></div>
+                                <div class="col-sm-2">
+
+                                    <button type="button" class="btn btn-primary" onclick="AddAba(`@Url.Action("Index","Elemento_Rede")?IdTipo=${@Model.Id}`,'@RsCadastros.VISUALIZAR_ELEMENTOS_REDE')">
+                                        <i class="fas fa-map"></i><span>&nbsp;</span>
+                                        <span>@RsCadastros.VISUALIZAR_ELEMENTOS_REDE</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            @*Tab de Produto*@
+            <div role="tabpanel" class="tab-pane " id="iTabProduto">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.PRODUTOS </span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iProduto">@RsCadastros.PRODUTO:</label>
+                                        @Html.DropDownList("iProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iProduto", @class = "form-control", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" style="color:white" id="iAdicionarMaterial" title="@RsCadastros.ADICIONAR">@RsCadastros.ADICIONAR</a>
+                                        @*<button class="btn btn-success">Action</button>*@
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <table class="table table-hover nowrap" id="datatableMateriais" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @*Tab de Serviço*@
+            <div role="tabpanel" class="tab-pane" id="iTabServico">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-3">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                <span class="text-bold-card">Itens de @RsCadastros.SERVICO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iUnidade_Custo">@RsCadastros.UNIDADE_CUSTO</label>
+                                        @Html.DropDownList("iUnid_Custo", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iUnid_Custo", @autocomplete = "off" })
+
+                                    </div>
+                                </div><div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iServico">Item de @RsCadastros.SERVICO:</label>
+                                        @Html.DropDownList("iServico", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iServico", @autocomplete = "off" })
+
+                                    </div>
+                                </div>
+
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" style="color:white" id="iAdicionarServico" title="@RsCadastros.ADICIONAR">@RsCadastros.ADICIONAR</a>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <table class="table table-hover nowrap" id="datatableServicos" style="width:100%"></table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+<div class="modal fade" id="modal-Icone">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+
+                <h4 class="modal-title text-muted">@RsCadastros.IMPORTAR_ICONE </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" id="iClose">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+
+            </div>
+            @using (Html.BeginForm("Gravar_Icone", "Tipo_ElementoIcone", FormMethod.Post, new { enctype = "multipart/form-data", @id = "formModal", autocomplete = "off" }))
+            {
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-12" sytle="align-content:center">
+                            <div class="row">
+                                <div class="col-sm-4 pl-2">
+                                    <div class="form-group">
+                                        <button onclick="$(`#iSVG`).click()" type="button" class="btn btn-success" id="iArquivo">
+                                            <span>&ensp;</span>
+                                            <span>Anexar @RsCadastros.ARQUIVO_IMG</span>
+                                        </button>
+                                        <input type="file" multiple=multiple name="iSVG" accept=".svg" class="d-none" id="iSVG" />
+                                    </div>
+                                </div>
+                                <div class="col-sm">
+                                    <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true"
+                                       data-content="<div style='font-size: 12px'>
+                                        <span class='p-3'>A extensão do arquivo deve ser .svg</span><br />
+                                    </div>"></i>
+                                </div>
+                                <div class="col-sm-3">
+
+                                    @*
+                                            <div class="form-group">
+                                                <button type="button" class="btn btn-success" id="iGravaIcone">
+                                                    <span>&ensp;</span>
+                                                    <span>Gravar</span>
+                                                </button>
+                                            </div>
+                                        </div>*@
+
+                                    @*<a href="#" class="float-save float-save-modal" id="iGravaIcone" name="gravar">
+                                            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                                                <i class="fas fa-save fa-2x"></i>
+                                            </div>
+                                        </a>*@
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatableIcone" style="width:100%"></table>
+                            <div class="row d-flex justify-content-end pr-4">
+                                <button type="button" class="btn btn-success" id="iGravaIcone" name="gravar">
+                                    <span> @RsBase.IMPORTAR</span>
+                                </button>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+
+
+<!--Button Float-->
+<a href="@Url.Action("Index", "Tipo_Elemento_rede")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>

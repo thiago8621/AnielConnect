@@ -1,0 +1,256 @@
+﻿@model Aniel.Connect.Models.PonCadastroModel
+
+@{
+    /**/
+
+    ViewBag.Title = RsCadastros.CADASTRO_PON;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script>
+        var interface = { subrack: "", olt: "", slot: "", pon: "" };
+        var OLTSelecionada = null;
+
+        var HandleOLT = function () {
+            // Categoria do Cliente
+            $('#iId_OLT').on('select2:select select2:unselecting', function (e) {
+                OLTSelecionada = e.params.data;
+
+                interface.subrack = OLTSelecionada.subrack;
+                interface.olt = OLTSelecionada.numOlt;
+                $('#iInterface').val(preencheInterface());
+
+                if ($('#iId_Slot').val()) {
+                    AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, $("#iId_Slot").val(), "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, null, "@RsBase.SELECIONE", false);
+                }
+
+                AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, null, "@RsBase.SELECIONE", false);
+                $(".select2-selection").addClass("outlineNone")
+
+                
+
+                return true;
+            });
+        };
+
+        AddSelect("iId_OLT", "@CONSTANTES.URLPortal/api/OLTapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_OLT", "@RsBase.SELECIONE", false, HandleOLT);
+        AddSelect("iId_Slot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_OLT", "@Model.Id_Slot", "@RsBase.SELECIONE", false);        
+
+        $('#iInterface').attr('readonly', true);
+
+        $('#iId_Slot').on('select2:select select2:unselecting', function (e) {
+            SlotSelecionado = e.params.data;
+            interface.slot = SlotSelecionado.numSlot;
+            $('#iInterface').val(preencheInterface());
+            return true;
+        });
+
+        $('#iNumPON').on('input', function(e) {
+            interface.pon = e.originalEvent.data;
+            $('#iInterface').val(preencheInterface());
+        });
+
+        function preencheInterface() {
+            var retorno = "";
+
+            if ($('#iNumPON').val())
+                interface.pon = $('#iNumPON').val();
+
+            if (interface.subrack != "" && interface.subrack != undefined) {               
+                retorno = interface.subrack;
+                if (interface.olt != "" && interface.olt != undefined) {
+                     $('#iInterface').attr('readonly', true);
+                    retorno += "-" + interface.olt;
+                    if (interface.slot != "" && interface.slot != undefined) {
+                        retorno += "-" + interface.slot;
+                        if (interface.pon != "" && interface.pon != undefined)
+                            retorno += "-" + interface.pon
+                    }
+                }
+                else {
+                    $('#iInterface').attr('readonly', false);
+                }
+            }                        
+
+            return retorno;
+        }
+
+        var clicked = false;
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            let erro = false
+
+             if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+
+            parent.dial.dialog('close');
+        }
+
+    </script>
+}
+
+@using (Html.BeginForm("Cadastro", "PON", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+
+    <div class="row">
+        <div class="col-sm-6">
+            <div class="form-group">
+                <label for="iId_OLT">@RsCadastros.OLT:</label>
+                @Html.DropDownListFor(p => p.Id_OLT, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iId_OLT", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <div class="form-group">
+                <label for="iId_Slot">@RsCadastros.SLOT:</label>
+                @Html.DropDownListFor(p => p.Id_Slot, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iId_Slot", @autocomplete = "off" })
+
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @if (Model.Id != 0)
+        {
+            <div class="col-sm-2">
+                <div class="form-group">
+                    <label for="iId">@RsCadastros.ID:</label>
+                    @Html.TextBoxFor(m => m.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                </div>
+            </div>
+        }
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iNumPON">@RsCadastros.NUM_PON:</label>
+                @Html.TextBoxFor(m => m.NumPON, new { @class = "form-control obrigatorio", @id = "iNumPON", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iDescricao">@RsCadastros.DESCRICAO_PON:</label>
+                @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control obrigatorio", @id = "iDescricao", @placeholder = "Informe a Descricao do Slot", @autocomplete = "off" })
+            </div>
+        </div>       
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iPotenciaSaida" class="mr-3">@RsCadastros.POTENCIA_MAXIMA_SAIDA:</label>
+                <!--<i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" title="Detalhes potência ONU Baixa" data-content="Se o técnico tentar baixar a OS com potência de sinal da ONU acima deste limite informado o sistema irá gerar crítica, impedindo o processo."></i>
+    <br>-->
+                @Html.TextBoxFor(p => p.LimitePotenciaONUBaixa, new { @class = "form-control", @style="width:50%", @id = "iPotenciaSaida", @autocomplete = "off", @type = "number" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iInterface" class="mr-3">@RsCadastros.INTERFACE:</label><br />
+                @Html.TextBoxFor(m => m.Interface, new { @class = "form-control", @id = "iInterface", @autocomplete = "off" })
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanUplink">@RsCadastros.VLAN_UPLINK:</label>
+                @Html.TextBoxFor(model => model.VLAN_Uplink, new { @class = "form-control", @type = "number", @id = "iVlanUplink", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanPPPOE">@RsCadastros.VLAN_PPPOE:</label>
+                @Html.TextBoxFor(model => model.VLAN_PPPOE, new { @class = "form-control", @type = "number", @id = "iVlanPPPOE", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanDHCP">@RsCadastros.VLAN_DHCP:</label>
+                @Html.TextBoxFor(model => model.VLAN_DHCP, new { @class = "form-control", @type = "number", @id = "iVlanDHCP", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanIPTV">@RsCadastros.VLAN_IPTV:</label>
+                @Html.TextBoxFor(model => model.VLAN_IPTV, new { @class = "form-control", @type = "number", @id = "iVlanIPTV", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            @if (Model.Id != 0)
+            {
+                <div class="form-group">
+                    <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label><br />
+                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanVOIP">@RsCadastros.VLAN_VOIP:</label>
+                @Html.TextBoxFor(model => model.VLAN_VOIP, new { @class = "form-control", @type = "number", @id = "iVlanVOIP", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanTR69">@RsCadastros.VLAN_TR69:</label>
+                @Html.TextBoxFor(model => model.VLAN_TR69, new { @class = "form-control", @type = "number", @id = "iVlanTR69", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-2">
+            <div class="form-group">
+                <label for="iVlanOutros">@RsCadastros.VLAN_OUTROS:</label>
+                @Html.TextBoxFor(model => model.VLAN_Outros, new { @class = "form-control", @type = "number", @id = "iVlanOutros", @autocomplete = "off" })
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iVlanProfile">@RsCadastros.VLAN_PROFILE:</label>
+                @Html.TextBoxFor(m => m.VLAN_Profile, new { @class = "form-control", @id = "iVlanProfile", @placeholder = "Informe o nome do Profile da VLAN", @autocomplete = "off" })
+            </div>
+        </div>
+         <div class="col-sm-2">
+     <div class="form-group">
+         <label for="iCodigoAuxiliar" class="mr-3">@RsCadastros.CODIGO_AUXILIAR:</label><br />
+         @Html.TextBoxFor(m => m.CodigoAuxiliar, new { @class = "form-control", @id = "iCodigoAuxiliar", @autocomplete = "off", @type = "text" })
+     </div>
+ </div>
+    </div>
+
+    <!--Button Float-->
+    <a class="float-cancel" onclick="parent.dial.dialog('close')">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}

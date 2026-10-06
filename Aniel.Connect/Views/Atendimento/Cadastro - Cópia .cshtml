@@ -1,0 +1,1889 @@
+﻿@model Aniel.Connect.Models.AtendimentoCadastroModel
+
+@using Aniel.Connect.Model.enumerado;
+@using Aniel.Connect.Core.Helpers;
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Model.nhibernate;
+@using Sinapse.DAO.repository;
+@using NHibernate;
+@using System.Web.Mvc;
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Models
+@using Aniel.Connect.ControllersWebApi
+@using Sinapse.Model.enumerados
+
+@{
+
+    ViewBag.Title = Model.Id == 0 ? RsCadastros.NOVO_ATENDIMENTO : RsCadastros.ACOMPANHAMENTO_ATENDIMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.AreasAcesso;
+    var campos = (List<CamposObrigatoriosAtendimentoModel>)ViewBag.CamposObrigatorios;
+}
+
+@section Styles{
+    <style>
+        .swal2-popup {
+            padding: 0.25em !important;
+        }
+
+        button.swal2-cancel.swal2-styled {
+            width: 135px !important;
+        }
+
+        button.swal2-confirm.swal2-styled {
+            width: 135px !important;
+        }
+        /*Resolvendo o zindex do select2*/
+        .select2-container--open {
+            z-index: 9999999
+        }
+    </style>
+}
+@section scripts
+{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+
+
+        var ja_passou = null;
+
+        var criar_Os_Encerrar = false ;
+        var id_tipo_atendimento = parseInt( $("#iTipoAtendimento option:selected").val() );
+        var login_radius = "";
+
+        var Tipo_AtendimentoSelecionado = null;
+        var HandleTipo_Atendimento = function () {
+            $('#iTipoAtendimento').on('select2:select select2:unselecting', function (e) {
+
+                Tipo_AtendimentoSelecionado = e.params.data;
+
+                if (Tipo_AtendimentoSelecionado.id != "@Model.Id_Tipo_Atendimento") {
+
+                    if (Tipo_AtendimentoSelecionado != undefined && Tipo_AtendimentoSelecionado.prioridade_Padrao != '') {
+
+                        Tipo_AtendimentoSelecionado.prioridade_Padrao == '@Convert.ToInt32(Prioridade_Atendimento.Alto)' ? $('#labelPrioridadeAlta').addClass('active') : $('#labelPrioridadeAlta').removeClass('active');
+                        Tipo_AtendimentoSelecionado.prioridade_Padrao == '@Convert.ToInt32(Prioridade_Atendimento.Medio)' ? $('#labelPrioridadeMedia').addClass('active') : $('#labelPrioridadeMedia').removeClass('active');
+                        Tipo_AtendimentoSelecionado.prioridade_Padrao == '@Convert.ToInt32(Prioridade_Atendimento.Baixo)' ? $('#labelPrioridadeBaixa').addClass('active') : $('#labelPrioridadeBaixa').removeClass('active');
+                    }
+
+                    if (Tipo_AtendimentoSelecionado != undefined && Tipo_AtendimentoSelecionado.categoria_Atendimento != '') {
+                        var categoriaBloq = @Json.Encode(CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.CATEGORIA_ATENDIMENTO));
+                        AddSelect("iCategoriaAtendimento", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, Tipo_AtendimentoSelecionado.categoria_Atendimento, "@RsBase.SELECIONE", disabled || categoriaBloq);
+                    }
+                }
+
+                if (Tipo_AtendimentoSelecionado != undefined && Tipo_AtendimentoSelecionado.criar_Os_Encerrar != '') {
+                    if(Tipo_AtendimentoSelecionado.criar_Os_Encerrar == "1")
+                        criar_Os_Encerrar = true;
+                    else
+                        criar_Os_Encerrar = false;
+                }
+
+                if (Tipo_AtendimentoSelecionado != undefined && Tipo_AtendimentoSelecionado.script != '') {
+                    $("#iLink_Script_Atendimento").show();
+                }
+                else {
+                    $("#iLink_Script_Atendimento").hide();
+                }
+            });
+        }
+
+        function CarregarTodos() {
+
+            //$("#btnCarregarTodos").hide();
+
+            Swal.fire({
+                text: "Deseja Criar OS ?",
+                type: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sim',
+                cancelButtonText: 'Não'
+            }).then((result) => {
+
+                var link = '';
+
+                if (result.value) {
+                    //link = '@String.Concat(CONSTANTES.URLPortal, "/api/ComissionamentoApi/CarregarPlanoProduto?IdComisionamento=")' + @Model.Id + "&CarregaValores=true";
+                    try {
+                        parent.App.startPageLoading();
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+
+
+                }
+                else {
+                    link = '@String.Concat(CONSTANTES.URLPortal, "/api/AtendimentoApi/Gravar?value=")' + @Model ;
+                }
+
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+
+                })
+
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsCadastros.DADOS_INSERIDOS", "info");
+
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () {
+
+                    })
+                    .always(function () {
+                        try {
+                            parent.App.stopPageLoading();
+                        }
+                        catch (e) {
+                            console.log(e);
+                        }
+                    });
+
+
+            })
+
+        }
+
+        function Nova_Acao() {
+            $("#iId_Acao").val(null);
+            $("#iAcao").val(null);
+            $("#divArquivo").css("display", "block");
+            $("#iAcao").focus();
+            $("#iAcao").attr("disabled", false);
+            $("#iDivAcaoGeraEmail").show();
+        }
+
+        function AddAba(url, title, id = 'undefined') {
+
+            parent.addTabs({
+                id: id,
+                title: title,
+                close: true,
+                url: url,
+                urlType: "absolute"
+            });
+        }
+
+            function EnviarPesquisa() {
+                @*var url = "@Url.Action("Cadastro", "Pesquisa_Satisfacao")";
+                var titulo = "Pesquisa Satisfacao";
+                AddAba(url, titulo);
+                return false;*@
+            }
+
+
+            function AlterarEndereco(idEndereco) {
+                if ($("#iCpfCliente").val() == "" && idEndereco == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.INFORME_CLIENTE)", "warning");
+                    return false;
+                }
+                if (idEndereco == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.NAO_EXISTE_ENDERECO_INSTALACAO_ASSOCIADO_AO_CLIENTE)", "warning");
+                    return false;
+                }
+                if ($("#iCpfCliente").val() != "") {
+                    ShowDialog(true, true, 'Alterar Endereco', '@Url.Action("AlterarEndereco", "Cliente")?atendimento=' + @Model.Id + '&IdEndereco=' + idEndereco, 'divAlterarEndereco', 850, 525, 'iframeAlterarEndereco'); // + '?Id_Cliente=' + idCliente
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.INFORME_CLIENTE)", "warning");
+                }
+            }
+
+        var clienteSelecionado = null;
+        var tipoCliente = null;
+        var listaPlanosProdutos = @(Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(ViewBag.Planos_Produtos,
+                                                                                        Newtonsoft.Json.Formatting.Indented,
+                                                                                        new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() } )));
+
+        function findPlanoProduto(id) {
+
+            return $.grep(listaPlanosProdutos, function (item) {
+                return item.value == id;
+            });
+        };
+
+        function AbrirHistorio() {
+
+                var _id = $("#iId").val();
+                window.location = '@Url.Action("HistoricoAtendimento", "Atendimento")' + "?IdAtendimento=" + _id;
+
+        };
+
+
+        function Script_Atendimento() {
+
+            var _id_antendimento = $("#iId").val();
+            var _id_tipo_atendimento = $("#iTipoAtendimento option:selected").val();
+
+            window.location = "@Url.Action("Script_Atendimento", "Atendimento")" + "?IdAtendimento=" + _id_antendimento + "&IdTipoAtendimento=" + _id_tipo_atendimento;
+        }
+
+
+         var Responsaveis = @Html.Raw(Json.Encode(ViewBag.Responsaveis));
+
+
+        var HandleDepartamento = function () {
+            $('#iDepartamento').on('select2:select select2:unselecting', function (e) {
+                DepartamentoSelecionado = e.params.data;
+                AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, "@Model.Id_Responsavel", "@RsBase.SELECIONE", disabled);
+            });
+        }
+
+        $("#iGrauLigacao").change(function () {
+
+            var grau_licacao = $("#iGrauLigacao option:selected").val();
+            $("#iGrau_LigacaoHidden").val(grau_licacao);
+
+        });
+
+    $("#btnCriarOs").click(function () {
+
+            @if (Model.Cliente_Status != Status_Cliente.Ativo)
+            {
+                <text>Notificar("@RsBase.ATENCAO_", "Não é possível criar Os para cliente Inativo.", "warning");</text>
+            }
+            else if (Model.Tipo_Cliente != Convert.ToInt32(Tipo_Cliente.Cliente))
+            {
+                <text>Notificar("@RsBase.ATENCAO_", "Não é possível criar Os para prospect.", "warning");</text>
+            }
+            else if (Model.Id_Plano_Produto == 0 && Model.Id_Plano_Produto == null)
+            {
+                <text>Notificar("@RsBase.ATENCAO_", "Não é possível criar Os pois nao foi informado plano/produto.", "warning");</text>
+            }
+            else {
+                <text>ShowPageLoading();</text>
+                <text>window.location = '@Url.Action("Criar_Ordem_Servico", "Painel_Servicos", new { Id_Atendimento = Model.Id })'</text>
+            }
+
+        });
+
+
+        $("#iStatusAtendimento").change(function () {
+
+            $('#iDescMotivoStatus').val('');
+            AddSelect("iDescMotivoStatus", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null,$("#iStatusAtendimento").val(),"@Model.Id_Motivo_Status", "@RsBase.SELECIONE", disabled);
+            status_atendimento_value = $("#iStatusAtendimento option:selected").val();
+            if (['2', '3', '4'].includes(status_atendimento_value)) {
+                $('#iDivMotivoStatus').removeClass('readonly');
+                HandleDescMotivoStatus();
+            }
+            else {
+                $('#select2-iDescMotivoStatus-container').parent().addClass('readonly');
+            }
+
+
+        });
+
+        function HandleDescMotivoStatus() {
+           jQuery($("#iDescMotivoStatus")).removeData('autocomplete');
+            $("#iDescMotivoStatus").autocomplete({
+                source: '@(CONSTANTES.URLPortal)' + '/api/motivo_status_atendimentoapi/busca' + '?Status_Motivo=' + $("#iStatusAtendimento").val(),
+                dataType: "json",
+                minLength: 2,
+                focus: function () { return false; },
+                open: function () {
+                    setTimeout(function () {
+                        $('.ui-autocomplete').css('z-index', 99999999999999);
+                    }, 0);
+                },
+                select: function (event, ui) {
+                    var obj = ui.item;
+                    $("#iMotivoStatus").val(obj.value);
+                    $("#iDescMotivoStatus").val(obj.label);
+                    return false;
+                },
+                change: function (event, ui) {
+                    if (!ui.item) {
+                        $("#iMotivoStatus").val(null);
+                        $("#iDescMotivoStatus").val(null);
+                    }
+                    return false;
+                }
+            }).css('z-index', 100);
+        }
+
+        var disabled = (@Json.Encode((new[] { Status_Atendimento.Concluido, Status_Atendimento.Cancelado }).Contains(Model.Status_Atendimento)));
+        $('#iGrupoArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Areaapi/GetList?grupo_area=" + grupo_area;
+
+            $('#iArea').empty();
+            $('#iLocalidade').empty();
+
+            $.ajax({
+            url: enderecoApi,
+            type: 'GET',
+            dataType: 'json'
+
+        })
+                .done(function (data) {
+
+                    $('#iArea').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                    $.each(data.objeto, function (key, value) {
+                        $('#iArea').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+                var grupo_area = $('#iGrupoArea option:selected').val();
+                var area = $('#iArea option:selected').val();
+
+                var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+                    $('#iLocalidade').empty();
+
+                    $.getJSON(enderecoApi, function (data) {
+                        $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                        $.each(data.objeto, function (key, value) {
+                            $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+                });
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) { console.log(ex); }
+
+            });
+
+        });
+
+        $('#iArea').change(function () {
+
+            var grupo_area = $('#iGrupoArea option:selected').val();
+            var area = $('#iArea option:selected').val();
+
+            var enderecoApi = "@CONSTANTES.URLPortal/api/Localidadeapi/GetList?grupo_area=" + grupo_area + "&area=" + area;
+
+            $('#iLocalidade').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+                $('#iLocalidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data.objeto, function (key, value) {
+                    $('#iLocalidade').append($('<option></option>').attr('value', value.value).text(value.label));
+                });
+
+            });
+
+
+        });
+
+
+        $(document).ready(function () {
+
+
+
+            if (@Json.Encode(ViewBag.MensagemReabrirOsOuCancelarAtd == "S")) {
+
+
+                    Swal.fire({
+                    //text: "Reabrir OS ou Cancelar Atendimento ?",
+                        title:"Não é permitido concluir este atendimento. Por favor abrir uma nova Ordem de Serviço ou Cancelar o atendimento. ",
+                    text: "Não é permitido concluir este atendimento. Por favor abrir uma nova Ordem de Serviço ou Cancelar o atendimento. ",
+                    type: 'question',
+                        html: "<div class='text-center'><button id='btnConfirm' class='swal2-confirm swal2-styled'> Reabrir OS </button>" +
+                            "<button id='btnCancel' class='swal2-cancel swal2-styled' style='background-color: #d33;'> Cancelar Atendimento </button> </div>",
+                    showConfirmButton: false
+                    //showCancelButton: true,
+                    //confirmButtonColor: '#3085d6',
+                    //cancelButtonColor: '#d33',
+                    //confirmButtonText: 'Reabrir OS',
+                    //cancelButtonText: 'Cancelar Atendimento'
+
+                    })
+
+                    $("#btnConfirm").on("click", function () {
+
+                        var url = '@Html.Raw(@Url.Action("Criar_Ordem_Servico", "Painel_Servicos", new { Id_Atendimento = Model.Id }))';
+
+                        window.open(url, "_self");
+
+                        Swal.close();
+                    })
+
+                    $("#btnCancel").on("click", function () {
+
+                         //
+                                        Swal.fire({
+                        title: 'Selecione um motivo para o cancelamento?',
+                        html: '<select class="swal2-input" type="text" id="iDescMotivoCancelar" autocomplete="off">',
+                        showCancelButton: true,
+                        onOpen: function () {
+                            AddSelect("iDescMotivoCancelar", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null,3,null,"@RsBase.SELECIONE",false);
+                        },
+                        cancelButtonText: 'Não',
+                        confirmButtonText: 'Sim',
+                        type: 'question',
+                        allowOutsideClick: () => !Swal.isLoading(),
+                        }).then(input => {
+                            if (input.value && $('#iDescMotivoCancelar').val()) {
+
+                                var motivo = $("#iDescMotivoCancelar").val();
+                                var link = "@(CONSTANTES.URLPortal + "/api/atendimentoapi/CancelarAtendimento")" + "?id_atendimento=@Model.Id" + "&id_motivo_status=" + motivo +"";
+                                var retorno = null;
+
+                                $.getJSON(link, function (data) {
+
+                                //return retorno = data;
+                                })
+
+                                //Swal.close();
+
+                                //Modal Sucesso
+                                Swal.fire({
+
+                                    title: "Atendimento cancelado com sucesso. ",
+
+                                    type: 'success',
+
+                                    showConfirmButton: true
+
+
+                                }).then(input => {
+                                     var _id = @Model.Id;
+
+                                     var url = '@Url.Action("Cadastro", "Atendimento", new { id = "__id__" })';
+                                        window.location.href = url.replace('__id__', _id);
+                                        });
+
+                                //Swal.fire({
+                                //title: 'Atendimento cancelado com sucesso',
+                                //type: 'success',
+                                //});
+                                //Swal.close();
+                                //
+
+
+
+                            }
+                            else if(input.value && !$('#iDescMotivoCancelar').val()){
+                                Notificar("@RsBase.ATENCAO_", "@String.Concat(RsBase.REQUIRED, RsCadastros.MOTIVO_STATUS_ATENDIMENTO)", "warning");
+                            }
+                        });
+                        //
+
+
+
+                    })
+
+
+            }
+            else if (@Json.Encode(ViewBag.MensagemReabrirOsOuCancelarAtd == "N")) {
+
+
+                 //Notificar("@RsBase.INFORMACAO", " Atendimento só poderá ser concluido se a OS vinculada estiver fechada. ", "info")
+                Swal.fire({
+                    title: " Atendimento só poderá ser concluido se a OS vinculada estiver fechada. ",
+                    type: 'info',
+                }).then(result => {
+                    var _id = @Model.Id;
+
+                    var url = '@Url.Action("Cadastro", "Atendimento", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    return false;
+                })
+
+
+            }
+        //})
+
+
+
+            if (@Json.Encode(String.IsNullOrEmpty(Model.Numero) && Model.Id_Cliente.HasValue)) {
+
+                var link = "@(CONSTANTES.URLPortal + "/api/clienteapi/buscaAtedimento")" + "?term=@Model.CPF_CNPJ_Cliente";
+                var retorno = null;
+
+                $.getJSON(link, function (data) {
+
+                    return retorno = data[0];
+                })
+                .promise().done(function () {
+
+                    $("#iCpfCliente").data('ui-autocomplete')._trigger('select', 'autocompleteselect', { item: retorno });
+                })
+            }
+
+
+
+            $('#iStatusAtendimento option').each(function () {
+
+                @if (Model.Id == 0) {
+                    <text>
+                     if ($(this).val() == 0)
+                        $(this).remove();
+                    </text>
+                }
+            });
+
+            if (disabled) {
+                $("#iHiddenMotivo").prop('disabled', false);
+            }
+            else {
+                $("#iHiddenMotivo").prop('disabled', true);
+            }
+
+           AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Tipo_Atendimento", "@RsBase.SELECIONE", disabled, HandleTipo_Atendimento);
+           AddSelect("iDescMotivoStatus", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null,$("#iStatusAtendimento").val(),"@Model.Id_Motivo_Status", "@RsBase.SELECIONE", disabled);
+           AddSelect("iOrigem", "@CONSTANTES.URLPortal/api/Origemapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Origem_Atendimento", "@RsBase.SELECIONE", disabled);
+           AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Setor", "@RsBase.SELECIONE", disabled,HandleDepartamento);
+           AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Id_Setor", "@Model.Id_Responsavel", "@RsBase.SELECIONE", disabled);
+
+
+         var categoriaBloq = @Json.Encode(CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.CATEGORIA_ATENDIMENTO));
+         AddSelect("iCategoriaAtendimento", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Categoria_Atendimento", "@RsBase.SELECIONE", disabled || categoriaBloq);
+
+
+         @if (Request.Params["os_criada"] == "true")
+         {
+                <text>
+                Notificar("@RsBase.INFORMACAO", "Os criada com sucesso", "info")
+                </text>
+         }
+
+          @if (Request.Params["Sucesso"] == "S")
+          {
+                <text>
+                Notificar("@RsBase.INFORMACAO", "@RsCadastros.DADOS_GRAVADOS_SUCESSO", "info")
+                </text>
+          }
+
+            if (disabled) {
+                AddSelect("iDescMotivoStatus", "@CONSTANTES.URLPortal/api/motivo_status_atendimentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null,$("#iStatusAtendimento").val(),"@Model.Id_Motivo_Status", "@RsBase.SELECIONE", disabled);
+                $("#iAssunto").addClass("readonly");
+                $("#iStatusAtendimento").addClass("readonly");
+                $("#labelPrioridadeAlta").addClass("readonly");
+                $("#labelPrioridadeMedia").addClass("readonly");
+                $("#labelPrioridadeBaixa").addClass("readonly");
+                $("#iExplicacao_Cliente").addClass("readonly");
+                $("#iExplicacao_Cliente").addClass("readonly");
+                $("#iPessoa_Contato").addClass("readonly");
+                $("#iGrauLigacao").addClass("readonly");
+
+                DisableSelect("iTipoAtendimento");
+                DisableSelect("iCategoriaAtendimento");
+                DisableSelect("iDescMotivoStatus");
+                DisableSelect("iOrigem");
+                DisableSelect("iDepartamento");
+                DisableSelect("iResponsavel");
+
+                $("#iRdOutros").click(function() {
+                    return false;
+                });
+
+                $("#iRdTitular").click(function() {
+                    return false;
+                });
+
+                @Json.Encode(Model.Prioridade != Prioridade_Atendimento.Alto)   ? $('#labelPrioridadeAlta').addClass('prioridade-label-inactive')  : "";
+                @Json.Encode(Model.Prioridade != Prioridade_Atendimento.Medio)  ? $('#labelPrioridadeMedia').addClass('prioridade-label-inactive') : "";
+                @Json.Encode(Model.Prioridade != Prioridade_Atendimento.Baixo)  ? $('#labelPrioridadeBaixa').addClass('prioridade-label-inactive') : "";
+            }
+            else {
+                var categoriaBloq = @Json.Encode(CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.CATEGORIA_ATENDIMENTO));
+                if (categoriaBloq) DisableSelect("iCategoriaAtendimento");
+
+                var origemBloq = @Json.Encode(CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.ORIGEM));
+                if (origemBloq) DisableSelect("iOrigem");
+            }
+
+            @if (Model.Id != 0)
+            {
+                <text>
+                $('#iCliente_Plano_Produto').val(@Model.Id_Cliente_Plano_Produto);
+                $("#iLink_Script_Atendimento").removeClass("d-none");
+                </text>
+            }
+
+             @if (Model.Id == 0)
+             {
+                <text>
+                $("#iStatusAtendimento").val("5");
+                AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@ViewBag.Departamento_Usuario", "@RsBase.SELECIONE", disabled);
+                AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@ViewBag.Departamento_Usuario", "@User.Identity.GetUserId()", "@RsBase.SELECIONE", disabled);
+                </text>
+              }
+
+
+            $("#iGrau_LigacaoHidden").val(@Html.Raw(Json.Encode(Model.Grau_Ligacao))) ;
+
+            $("#iGrauLigacao").each(function()
+            {
+                // Add $(this).val() to your list
+                //$('#iGrau_LigacaoHidden option[value=]').attr('selected','selected');
+                //$("iGrauLigacao select").val("val2");
+                if ($(this).val() ==  $("#iGrau_LigacaoHidden").val()) {
+                    $("#iGrau_LigacaoHidden").attr('selected','selected');
+                }
+            });
+
+            var id = parseInt($("#iId").val());
+                //var id = $("#iId"").val();
+
+            if (id > 0) {
+                $("#iAcao").attr("disabled", "disabled");
+            }
+            else if(id == 0) {
+                $("#iAcao").attr("disabled", false);
+            }
+
+            $("#iRdOutros").trigger("change");
+            $("#iRdTitular").trigger("change");
+            $("#iStatusAtendimento").trigger("change");
+            $(".readonly").attr("tabindex", "-1");
+
+
+            if ($("#iGrupoArea").val())
+            {
+                $("#iGrupoArea").trigger('change');
+            }
+
+            });
+
+            $("#iRdOutros").change(function () {
+                if ($("#iRdOutros").is(':checked')) {
+                    $('#iLblPessoa_Contato').show();
+                    $('#iLblGrau_Ligacao').show();
+                    $('#iPessoa_Contato').show();
+                    $('#iGrauLigacao').show();
+                }
+                else{
+                    $('#iLblPessoa_Contato').hide();
+                    $('#iLblGrau_Ligacao').hide();
+                    $('#iPessoa_Contato').hide();
+                    $('#iGrauLigacao').hide();
+                }
+            });
+
+            $("#iRdTitular").change(function () {
+                if ($("#iRdTitular").is(':checked')) {
+                    $('#iLblPessoa_Contato').hide();
+                    $('#iLblGrau_Ligacao').hide();
+                    $('#iPessoa_Contato').hide();
+                    $('#iGrauLigacao').hide();
+                }
+                else{
+                    $('#iLblPessoa_Contato').show();
+                    $('#iLblGrau_Ligacao').show();
+                    $('#iPessoa_Contato').show();
+                    $('#iGrauLigacao').show();
+                }
+            });
+
+
+            $("#iCpfCliente").autocomplete({
+                source: "@(CONSTANTES.URLPortal + "/api/clienteapi/buscaAtedimento")",
+                dataType: "json",
+                minLength: 2,
+                focus: function () { return false; },
+                select: function (event, ui) {
+
+                    event.preventDefault();
+
+                    var obj = ui.item;
+                    $("#idCliente").val(obj.value);
+                    $("#iCpfCliente").val(obj.label);
+                    $("#iDataCadastro").html(obj.data_Cadastro);
+                    $("#iDias").html(obj.cliente_Ha + " Dias ");
+                    $("#iCategoria_Cliente").html(obj.categoria_Cliente);
+                    $("#iTelefone_Fixo").html(" " + obj.telefone_Fixo + " " + " &nbsp  ");
+                    $("#iCelular").html(" " + obj.telefone_Celular + " " + " &nbsp  ");
+                    $("#iTelefone_Recado").html(obj.telefone_Recado);
+                    $("#iEmail_Principal").html( "  " + obj.email_Principal + "  ");
+                    $("#iForma_Pagamento_Utilizada").html(obj.forma_Pagamento_Utilizada);
+                    $("#iEndereco").html(obj.endereco_Cliente);
+                    login_radius = obj.login_Radius;
+                    $("#iLogin_Rad").html(obj.login_Radius);
+                    $("#iEndereco_Instalacao").val(obj.id_Endereco_Cliente);
+                    $("#iValor_Final_Total").html(obj.valor_Final_Plano);
+                    $("#iCpf").html(obj.cpF_CNPJ_Cliente);
+                    clienteSelecionado = obj;
+                    $("#idEnderecoCliente").val(obj.id_Endereco_Cliente);
+
+                    listaPlanosProdutos = obj.planosProdutos;
+
+                    $('#iPlano_Produto').empty();
+
+                    $.each(obj.planosProdutos, function (key, value) {
+                        $('#iPlano_Produto').append($('<option></option>').attr('value', value.value).text(value.label));
+                    });
+
+
+
+                    var tipo_Cliente = obj.tipo_Cliente;
+
+                    $("#iTipoCliente").val(obj.tipo_Cliente);
+
+                    if (obj.tipo_Cliente == 1) {
+                        $('#accordionPlanoProduto').hide();
+                        $('#iSpanCliente').text('Cliente Prospect');
+                        $('#iDivClienteHa').hide();
+                        $('#iDivForma').hide();
+                    }
+                    else if (obj.tipo_Cliente == 0) {
+                        $('#accordionPlanoProduto').show();
+                        $('#iSpanCliente').text('Cliente');
+                        $('#iDivForma').show();
+                        $('#iDataCadastro').show();
+                        $('#iLblCategoriaCliente').show();
+                    }
+
+                    $('#iPlano_Produto').val(null);
+
+                    if (!ui.item) {
+
+                        if (!$("#iCpfCliente").val()) {
+                            Notificar("Atenção", "Cliente/Prospect não encontrado", "warning");
+                        }
+
+                         LimpaControles();
+                         return false;
+                    }
+
+                        Swal.fire({
+                            title: 'Cadastrar Atendimento?',
+                            showCancelButton: true,
+                            cancelButtonText: 'Não',
+                            confirmButtonText: 'Sim',
+                            type: 'question',
+                            allowOutsideClick: () => !Swal.isLoading(),
+                        }).then(result => {
+                            if (result.value) {
+
+                                var id_cliente = $('#idCliente').val(); //
+
+                                var enderecoApi = "@CONSTANTES.URLPortal/api/AtendimentoApi/GerarProtocolo?Id_Cliente=" + id_cliente;
+                                $.getJSON(enderecoApi, function (data) {
+
+                                    if (data.ok) {
+                                        $("#iNumeroAtendimentoHtml").html(data.idObjeto);
+                                        $("#iNumeroAtendimento").val(data.idObjeto);
+
+                                        $("#iProtocolo").val(data.idObjeto);
+
+
+                                        var _mensagem = 'Foi gerado o número de protocolo #' + data.idObjeto + '. Favor informá-lo ao';
+                                        _mensagem += tipo_Cliente == 0 ? ' cliente' : ' prospect' + ' .';
+
+                                        Swal.fire({
+                                        title: _mensagem,
+                                            type: 'success',
+                                        });
+
+                                    }
+                                    else {
+                                            //Exibir erro
+                                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+
+
+                                        LimpaControles();
+                                    }
+
+                                });
+
+                            }
+                            else {
+                                LimpaControles();
+                            }
+                        })
+
+                    return false;
+                }
+            });
+
+        $("#iCpfCliente").on("autocompleteselect", function (event, ui) {
+
+            event.preventDefault();
+
+            var obj = ui.item; //ui.item;
+            $("#idCliente").val(obj.value);
+            $("#iCpfCliente").val(obj.label);
+            $("#iDataCadastro").html(obj.data_Cadastro);
+            $("#iDias").html(obj.cliente_Ha + " Dias ");
+            $("#iCategoria_Cliente").html(obj.categoria_Cliente);
+            $("#iTelefone_Fixo").html(" " + obj.telefone_Fixo + " " + " &nbsp  ");
+            $("#iCelular").html(" " + obj.telefone_Celular + " " + " &nbsp  ");
+            $("#iEmail_Principal").html("  " + obj.email_Principal + "  ");
+            $("#iForma_Pagamento_Utilizada").html(obj.forma_Pagamento_Utilizada);
+            $("#iEndereco").html(obj.endereco_Cliente);
+            login_radius = obj.login_Radius;
+            $("#iLogin_Rad").html(obj.login_Radius);
+
+            listaPlanosProdutos = obj.planosProdutos;
+
+            $('#iPlano_Produto').empty();
+
+            $.each(obj.planosProdutos, function (key, value) {
+                $('#iPlano_Produto').append($('<option></option>').attr('value', value.value).text(value.label));
+            });
+
+
+
+            var tipo_Cliente = obj.tipo_Cliente;
+
+            $("#iTipoCliente").val(obj.tipo_Cliente);
+
+            if (obj.tipo_Cliente == 1) {
+                $('#accordionPlanoProduto').hide();
+                $('#iSpanCliente').text('Cliente Prospect');
+                $('#iDivClienteHa').hide();
+                $('#iDivForma').hide();
+            }
+            else if (obj.tipo_Cliente == 0) {
+                $('#accordionPlanoProduto').show();
+                $('#iSpanCliente').text('Cliente');
+                $('#iDivForma').show();
+                $('#iDataCadastro').show();
+                $('#iLblCategoriaCliente').show();
+            }
+
+            $('#iPlano_Produto').val(null);
+
+            if (!ui.item) {
+
+                if (!$("#iCpfCliente").val()) {
+                    Notificar("Atenção", "Cliente/Prospect não encontrado", "warning");
+                }
+
+                LimpaControles();
+                return false;
+            }
+
+            Swal.fire({
+                title: 'Cadastrar Atendimento?',
+                showCancelButton: true,
+                cancelButtonText: 'Não',
+                confirmButtonText: 'Sim',
+                type: 'question',
+                allowOutsideClick: () => !Swal.isLoading(),
+            }).then(result => {
+                if (result.value) {
+
+                    var id_cliente = $('#idCliente').val(); //
+
+                    var enderecoApi = "@CONSTANTES.URLPortal/api/AtendimentoApi/GerarProtocolo?Id_Cliente=" + id_cliente;
+                    $.getJSON(enderecoApi, function (data) {
+
+                        if (data.ok) {
+                            $("#iNumeroAtendimentoHtml").html(data.idObjeto);
+                            $("#iNumeroAtendimento").val(data.idObjeto);
+
+                            $("#iProtocolo").val(data.idObjeto);
+
+
+                            var _mensagem = 'Foi gerado o número de protocolo #' + data.idObjeto + '. Favor informá-lo ao';
+                            _mensagem += tipo_Cliente == 0 ? ' cliente' : ' prospect' + ' .';
+
+                            Swal.fire({
+                                title: _mensagem,
+                                type: 'success',
+                            });
+
+                        }
+                        else {
+                            //Exibir erro
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+
+
+                            LimpaControles();
+                        }
+                    });
+
+                }
+                else {
+                    LimpaControles();
+                }
+            })
+            return false;
+        });
+
+
+        function swalReabrirAtendimento(idAtendimento) {
+            Swal.fire({
+                text: "Deseja Reabrir esse Atendimento ?",
+                type: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sim',
+                cancelButtonText: 'Não'
+            }).then((result) => {
+
+                var link = '';
+
+                if (result.value) {
+
+                    ReabrirAtendimento(idAtendimento)
+
+                }
+
+            });
+        }
+
+
+    // Reabrir Atendimento
+    function ReabrirAtendimento(idAtendimento) {
+
+        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoapi/ReabrirAtendimento?id_atendimento=")' + idAtendimento;
+
+
+            @*@if (Json.Encode(!AcessoHelper.TemAcesso(_areas, "150")))*@
+            if (!@Json.Encode(AcessoHelper.TemAcesso(_areas,"150")))
+            {
+                //<text>
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEMACESSO_150, "150")", "warning");
+                return false;
+                //</text>
+            }
+            else {
+                $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id_atendimento: idAtendimento,
+                    //ids: idAtendimento,
+                    //status: Status
+                }
+            })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        ShowPageLoading();
+                        location.reload();
+                        //oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+            }
+
+
+
+
+        }
+
+            function LimpaControles() {
+                $("#idCliente").val(null);
+                $("#iCpfCliente").val(null);
+                $("#iCpf").html(null);
+                $("#iCategoria_Cliente").html(null);
+                $("#iTelefone_Fixo").html(null);
+                $("#iiDias").html(null);
+                $("#iCelular").html(null);
+                $("#iTelefone_Recado").html(null);
+                $("#iEmail_Principal").html(null);
+                $("#iForma_Pagamento_Utilizada").html(null);
+                $("#iLogin_Radius").html(null);
+                $("#iLogin_Rad").html(null);
+                $("#iEndereco_Instalacao").html(null);
+                $("#iValor_Final_Total").html(null);
+                $("#iEndereco").html(null);
+                $('#iPlano_Produto').empty();
+            }
+
+
+
+            $('#iPlano_Produto').change(function () {
+
+                var id = $(this).val()
+
+                var objPlanoProduto = findPlanoProduto(id);
+
+
+
+                if (objPlanoProduto.length > 0) {
+                    //$("#iLogin_Radius").html(objPlanoProduto[0].login_Radius);
+
+                    $("#iLogin_Radius").html( login_radius );
+
+                    $("#iLogin_Rad").html(objPlanoProduto[0].login_Radius);
+                    $("#iEndereco_Instalacao").html(objPlanoProduto[0].endereco);
+                    $("#iEndereco_Plano").html(objPlanoProduto[0].endereco);
+                    $("#iValor_Final_Total").html(objPlanoProduto[0].valor_Final);
+                }
+                else {
+                    $("#iLogin_Radius").html(null);
+
+                    login_radius = "" ;
+
+                    $("#iLogin_Rad").html(null);
+                    $("#iEndereco_Instalacao").html(null);
+                    $("#iEndereco_Plano").html(null);
+                    $("#iValor_Final_Total").html(null);
+                }
+
+                $('#iCliente_Plano_Produto').val($('#iPlano_Produto').val())
+
+            });
+
+
+
+            $(document).on('change', 'input[type="file"]', function(){
+
+                $(this).click(function () { e.preventDefault(); });
+
+                $(this).attr('adicionado',true)
+                const novo_index = Number($(this).attr('data-index') + 1);
+                let newFile = document.createElement("INPUT");
+                newFile.setAttribute("type", "file");
+                newFile.setAttribute("hidden", "hidden");
+                newFile.setAttribute("data-index", novo_index);
+                newFile.setAttribute("name", `Files[${novo_index}]`);
+                $(this).before(newFile);
+
+                var filter_state = {}
+
+                $('input[type="file"]').each(function (i, obj) {
+
+                    if (obj.files.length > 0) {
+                        filter_state[obj.files[0].name + i] = {
+                            label: "",
+                            removable: false,
+                            getDisplay: () => { return obj.files[0].name },
+                            onclick: () => { }
+                        }
+                    }
+                });
+
+
+                TagFilter("tagFiles", filter_state)
+                $('#TagLabel').show()
+
+            });
+
+
+
+
+
+            //});
+
+
+        var clicked = false;
+
+        async function SweetAlertOs() {
+            var erro = false;
+            var _id_atendimento = parseInt($("#iId").val());
+            var _id_plano_produto = parseInt($("#Id_Plano_Produto").val());
+
+            var BuscarOs = '@String.Concat(CONSTANTES.URLPortal, "/api/Documento_ProducaoApi/BuscarPorAtendimentotrava?AtendimentoId=")' + @Model.Id;
+            var Os_atend_criada_link = '@String.Concat(CONSTANTES.URLPortal, "/api/Documento_ProducaoApi/Os_Criada_Atendimento?AtendimentoId=")' + @Model.Id;
+            var Os_atend_criada_qtde = 0;
+
+
+            await $.ajax({
+                url: Os_atend_criada_link,
+                type: 'GET',
+                dataType: 'json',
+
+            }).done(function (data) {
+
+                if (data != 0) {
+                    Os_atend_criada_qtde = data;
+                }
+            });
+
+            if (['2', '3', '4'].includes($("#iStatusAtendimento").val()) && !$('#iDescMotivoStatus').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MOTIVO_STATUS_ATENDIMENTO)", "warning");
+                erro = true;
+            }
+
+            if (!$('#iTipoAtendimento').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_ATENDIMENTO)", "warning");
+                erro = true;
+            }
+
+            if (!$('#iOrigem').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ORIGEM)", "warning");
+                erro = true;
+            }
+
+            if (!$('#iCategoriaAtendimento').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CATEGORIA_ATENDIMENTO)", "warning");
+                erro = true;
+            }
+
+            if (!$('#iAssunto').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ASSUNTO)", "warning");
+                erro = true;
+            }
+
+            if (!$('#idCliente').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CLIENTE)", "warning");
+                erro = true;
+            }
+
+
+            if (!$('#iDepartamento').val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.SETOR)", "warning");
+                erro = true;
+            }
+
+            @if (Model.Id == 0) {
+             <text>
+            if (!$("#iCliente_Plano_Produto").val() && $("#iTipoCliente").val() == 0) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.PLANO_PRODUTO)", "warning");
+                erro = true;
+            }
+             </text>
+
+             }
+
+            if ($('#iLocalidadeInstalacao').text() != 'Selecione') {
+
+            }
+
+            if (erro) {
+                clicked = false;
+                erro = false;
+                return false;
+            }
+
+            $.ajax({
+                url: BuscarOs,
+                type: 'POST',
+                dataType: 'json',
+
+            }).done(function (data) {
+
+
+                if (criar_Os_Encerrar == true && $('#iStatusAtendimento').val() == @Convert.ToInt32(Status_Atendimento.Concluido) && Os_atend_criada_qtde == 0) {
+                    Swal.fire({
+                        text: "Deseja Criar OS ?",
+                        type: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33',
+                        confirmButtonText: 'Sim',
+                        cancelButtonText: 'Não'
+                    }).then((result) => {
+
+                        var link = '';
+
+                        if (result.value) {
+
+                            if ($("#iTipoAtendimento option:selected").val() == "") {
+                                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.TIPO_ATENDIMENTO)", "warning");
+                                erro = true;
+                            }
+
+                            $("#iCriar_Os_Encerrar_Parametro_Controller").val(true);
+                            ValidaSubmit();
+
+                        }
+                        else {
+                            var clicked = false;
+
+                            if ($("#iTipoAtendimento option:selected").val() == "") {
+                                Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.TIPO_ATENDIMENTO)", "warning");
+                                erro = true;
+                            }
+
+                            $("#iCriar_Os_Encerrar_Parametro_Controller").val(false);
+                            ValidaSubmit();
+                        }
+                    })
+                }
+
+                else {
+                    ValidaSubmit();
+                }
+
+
+            });
+        }
+
+            function ValidaSubmit() {
+                var erro = false;
+                var _id_atendimento = parseInt($("#iId").val());
+                var _id_plano_produto = parseInt($("#Id_Plano_Produto").val());
+                var BuscarOs = '@String.Concat(CONSTANTES.URLPortal, "/api/Documento_ProducaoApi/BuscarPorAtendimentotrava?AtendimentoId=")' + @Model.Id;
+
+                erro = false;
+
+                if ($('#iStatusAtendimento').val() == @Convert.ToInt32(Status_Atendimento.Concluido) ||
+                    $('#iStatusAtendimento').val() == @Convert.ToInt32(Status_Atendimento.Cancelado)) {
+
+                    $.ajax({
+                        url: BuscarOs,
+                        type: 'POST',
+                        dataType: 'json',
+
+                    }).done(function (data) {
+
+                        if (data) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.ATENDIMENTO_TRAVADO)", "warning");
+                            erro = true;
+                        }
+
+                        if (erro) {
+                            clicked = false;
+                            return false;
+                        }
+
+                        ShowPageLoading();
+                        $('#form').submit();
+                        return true;
+
+                    })
+                }
+
+                else {
+
+
+                    if (erro) {
+                        clicked = false;
+                        return false;
+                    }
+
+                    ShowPageLoading();
+                    $('#form').submit();
+                    return true;
+                }
+            }
+
+
+
+</script>
+
+}
+
+
+@using (Html.BeginForm("Cadastro", "Atendimento", FormMethod.Post, htmlAttributes: new { enctype = "multipart/form-data", @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id, new { @id = "iId" })
+
+    @Html.HiddenFor(model => model.Criar_Os_Encerrar_Parametro_Controller, new { @id = "iCriar_Os_Encerrar_Parametro_Controller" })
+
+    @Html.HiddenFor(model => model.Id_Endereco, new { @id = "idEnderecoCliente" })
+
+
+    @Html.HiddenFor(model => model.Id_Plano_Produto, new { @id = "iIdPlanoProduto" })
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <!--main-->
+                <div class="row">
+                    <div class="col main-title mr-auto">
+                        <h4 class="title-page">
+                            <i class="fas fa-headset"></i>
+                            @if (Model.Id != 0)
+                            {
+                                @RsCadastros.ACOMPANHAMENTO_ATENDIMENTO
+                            }
+                            else
+                            {
+                                @ViewBag.Title
+                            }
+
+                        </h4>
+
+                        <nav class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Atendimento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_ATENDIMENTO</a>
+                                </li>
+                                <li class="breadcrumb-item active">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                    </div>
+
+                    <!--Button Menu-->
+                    <div class="col-auto">
+
+                        @if (Model.Id_Tipo_Atendimento != null && Model.Id_Categoria_Atendimento != null)
+                        {
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+
+                                @if (Model.Id != 0)
+                                {
+                                    <a class="dropdown-item" id="btnHistorico" href="#" onclick="AbrirHistorio();"><i class="far fa-clock"></i> @RsCadastros.HISTORICO_ATENDIMENTO</a>
+                                }
+
+
+                                @if (Model != null && Model.Id != 0)
+                                {
+                                    if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                                    {
+
+                                        @Html.HiddenFor(model => model.Id, new { @id = "iId" })
+
+                                        <a class="dropdown-item" id="btnCriarOs"><i class="fas fa-wrench"></i> @RsCadastros.CRIAR_OS</a>
+
+                                    }
+                                }
+
+
+                                @*<a href="@Url.Action("Criar_Ordem_Servico", "Painel_Servicos", new { Id_Atendimento = Model.Id })" class="dropdown-item" id="btnCriarOs" onclick=""><i class="fas fa-wrench"></i> @RsCadastros.CRIAR_OS</a>*@
+
+
+                                @if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                                {
+                                    <a class="dropdown-item" id="btnAtalhoCadCli" href="@Url.Action("CadastroClientePasso1", "Cliente")" onclick=""><i class="fas fa-user"></i> @RsCadastros.ATALHO_CADASTRO_CLIENTE</a>
+                                }
+
+                                @if (Model != null && Model.Id != 0)
+                                {
+                                    if (Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                                    {
+
+                                        <a class="dropdown-item" id="btnEnviarPesqSat" href="#" onclick='return EnviarPesquisa();'><i class="far fa-smile"></i> @RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+
+                                    }
+                                    else
+                                    {
+                                        <a class="dropdown-item" id="btnEnviarPesqSat" href="#" onclick='javascript:void(0);'><i class="far fa-smile"></i> @RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+
+                                    }
+                                }
+
+                                @if (Model.Id != 0)
+                                {
+                                    <a class="dropdown-item" id="btnEnviarEmailAss" href="#" onclick=""><i class="fas fa-envelope"></i> @RsCadastros.ENVIAR_EMAIL_AO_ASSINANTE</a>
+                                }
+
+                                @if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                                {
+                                    <a class="dropdown-item" id="btnTrocarEnderecoInstalacao" href="#" onclick="AlterarEndereco($('#idEnderecoCliente').val())"><i class="fas fa-map-marker-alt"></i> @RsCadastros.TROCAR_ENDERECO_INSTALACAO</a>
+                                }
+
+
+
+                                @if (Model.Id != 0 && (Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Cancelado || Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido))
+                                {
+                                    <a class="dropdown-item" id="btnReabrirAtendimento" href="#" onclick="return swalReabrirAtendimento($('#iId').val());"><i class="fas fa-headset"></i> @RsCadastros.REABRIR_ATENDIMENTO</a>
+                                }
+
+                            </div>
+
+                            <a id="botao_ellipsis" class="btn-default" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                            </a>
+                        }
+                    </div>
+
+                </div>
+                <!--Número Atendimento-->
+                <div class="col-sm-12 mb-2 ml-2 mt-3">
+                    <label for="iNome" class="text-bold-card text-muted">@RsCadastros.ATENDIMENTO_GERADO_N </label>
+                    @Html.HiddenFor(model => model.Numero, new { Id = "iNumeroAtendimento" })
+                    <span id="iNumeroAtendimentoHtml">@Model.Numero</span>
+
+                </div>
+
+
+
+
+
+                <div id="divAlterarEndereco"></div>
+
+                @Html.Hidden("iEndereco_Instalacao")
+
+                @*<span id="iEnderecoCliente"></span>*@
+
+
+
+
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-1">
+                            <h5 class="mb-0">
+                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                    @if (Model.Tipo_Cliente == 0)
+                                    {
+                                        <span id="iSpanCliente" class="text-bold-card">@RsCadastros.CLIENTE</span>
+                                    }
+                                    else if (Model.Tipo_Cliente == 1)
+                                    {
+                                        <span id="iSpanCliente" class="text-bold-card">@RsCadastros.CLIENTE_PROSPECTO</span>
+                                    }
+
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                            <div class="card-body body-card-accord">
+
+
+                                <div class="row">
+
+                                    <div class="col-sm-3">
+
+                                        <label for="iNome">@RsCadastros.TITULAR </label>
+                                        @if (Model.Id == 0)
+                                        {
+                                            <div class="input-group">
+
+                                                @Html.HiddenFor(model => model.Nome_Cliente, new { Id = "iCpfClienteHidden" })
+                                                @Html.TextBoxFor(model => model.Nome_Cliente, new { @class = "form-control input-without-border", @id = "iCpfCliente", @autocomplete = "off", @required = true, @placeholder = RsCadastros.NOMEOUDOCUMENTO })
+                                                @Html.ValidationMessageFor(model => model.Nome_Cliente, "", new { @class = "text-danger" })
+                                                <div class="input-group-append">
+                                                    <div class="input-group-text"><i class="fas fa-search"></i></div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <br />
+                                            <span id="iNomeCliente">@Model.Nome_Cliente</span>
+                                            @Html.ValidationMessageFor(model => model.Nome_Cliente, "", new { @class = "text-danger" })
+                                            @Html.HiddenFor(model => model.Nome_Cliente)
+                                        }
+
+                                    </div>
+
+                                    <div class="col-sm-3">
+                                        <label for="iSaldo_Caixa" class="mr-3">@RsCadastros.CPFCNPJ:</label>
+
+                                        @Html.HiddenFor(model => model.Id_Cliente, new { @id = "idCliente" })
+
+                                        <br />
+                                        <span id="iCpf">@Model.CPF_CNPJ_Cliente</span>
+                                        @Html.HiddenFor(model => model.CPF_CNPJ_Cliente, new { @id = "idCPF_CNPJ_ClienteHidden" })
+
+                                    </div>
+
+
+
+                                </div>
+
+                                @if (Model.Tipo_Cliente == 0)
+                                {
+                                    <div class="row" id="iDivClienteHa">
+                                        <div class="col-sm-12 pt-3">
+
+                                            <label id="iLblCliente" for="iCliente">@RsCadastros.CLIENTE_HA:</label>
+
+                                            <span id="iDias">@Model.Cliente_Ha</span>
+                                            @Html.HiddenFor(model => model.Cliente_Ha, new { @id = "idCliente_HaHidden" })
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-12 pt-3">
+                                            <label id="iLblCategoriaCliente" for="iCategoriaCliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                            <span id="iCategoria_Cliente">@Model.Categoria_Cliente</span>
+                                            @Html.HiddenFor(model => model.Categoria_Cliente, new { @id = "idCategoria_ClienteHidden" })
+                                        </div>
+                                    </div>
+
+                                }
+
+
+
+                                <div class="row">
+                                    <div class="col-sm-12 pt-3" id="iDivClienteDados">
+                                        @*<label for="iNome">@RsCadastros.CONTATO:</label>*@
+                                        @* <span id="iTelefone_Fixo">@Model.Telefone_Fixo</span>
+                                            <span id="iCelular">@Model.Celular</span>
+                                            <span id="iTelefone_Recado">@Model.Telefone_Recado</span> *@
+
+                                        <label for="iEmail">@RsCadastros.EMAIL:</label>
+                                        <span id="iEmail_Principal">@Model.Email_Principal</span> <br /> <br />
+                                        <label for="iEmail">@RsCadastros.TELEFONE:</label>
+                                        <span id="iTelefone_Fixo">@Model.Telefone_Fixo</span> &nbsp; &nbsp;
+
+                                        <label for="iEmail">@RsCadastros.CELULAR:</label>
+                                        <span id="iCelular">@Model.Telefone_Celular</span> &nbsp; &nbsp;
+
+                                    </div>
+                                </div>
+                                <div class="row" id="iDivForma">
+                                    <div class="col-sm-12 pt-3">
+                                        <label for="iNome">@RsCadastros.FORMA_PAGAMENTO_UTILIZADA:</label>
+                                        <span id="iForma_Pagamento_Utilizada">@Model.Forma_Pagamento_Utilizada</span>
+
+                                        @Html.HiddenFor(model => model.Forma_Pagamento_Utilizada, new { @id = "idForma_Pagamento_UtilizadaHidden" })
+                                    </div>
+                                </div>
+
+                                <div class="row" id="iDivEndereco">
+                                    <div class="col-sm-12 pt-3">
+                                        <label for="iEndereco">@RsCadastros.ENDERECO:</label>
+                                        <span id="iEndereco">@Model.Endereco_Principal</span>
+
+                                        @Html.HiddenFor(model => model.Endereco_Principal, new { @id = "idEndereco_PrincipalHidden" })
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <span id="iTipoCliente" hidden="hidden"></span>
+
+                @if (Model.Tipo_Cliente == 0)
+                {
+                    <div id="accordionPlanoProduto">
+                        <div id="accordion">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-2">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                            <span class="text-bold-card">@RsCadastros.PLANO_PRODUTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                    <div class="card-body body-card-accord">
+
+
+                                        <div class="row">
+
+
+                                            <div class="col-sm-3 pt-0">
+
+                                                <label for="iPlano_Produto" class="mr-3">@RsCadastros.NOME:</label>
+
+
+                                                @Html.HiddenFor(m => m.Id_Cliente_Plano_Produto, new { @id = "iCliente_Plano_Produto" })
+                                                @if (Model.Id == 0 || (!Model.Id_Cliente_Plano_Produto.HasValue))
+                                                {
+                                                    @Html.HiddenFor(model => model.Id_Plano_Produto)
+                                                    @Html.DropDownListFor(m => m.Id_Plano_Produto, new SelectList(ViewBag.Planos_Produtos, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano_Produto", @autocomplete = "off", @required = true })
+                                                    @Html.ValidationMessageFor(model => model.Id_Plano_Produto, "", new { @class = "text-danger" })
+                                                }
+                                                else
+                                                {
+                                                    @Html.HiddenFor(model => model.Id_Plano_Produto)
+                                                    <span>@Model.Nome_Plano_Produto</span>
+
+                                                    @Html.HiddenFor(m => m.Nome_Plano_Produto, new { @id = "iNome_Plano_ProdutoHidden" })
+                                                }
+
+                                            </div>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-sm-12 pt-3">
+                                                <label for="iNome">@RsCadastros.LOGIN_DO_RADIUS:</label>
+
+                                                <span id="iLogin_Radius">@Model.Login_Radius</span>
+                                                <span id="iLogin_Rad" style="display:none;">@Model.Login_Radius</span>
+                                                @*@Html.ValidationMessageFor(model => model.Login_Radius, "", new { @class = "text-danger" })*@
+
+                                                @Html.HiddenFor(m => m.Login_Radius, new { @id = "iLogin_RadiusHidden" })
+
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-sm-12 pt-3">
+
+                                                <label for="iNome">@RsCadastros.ENDERECO_DE_INSTALACAO:</label>
+                                                @*<span id="iEndereco_Instalacao">@Model.Endereco_Instalacao</span>*@
+                                                <span id="iEndereco_Plano">@Model.Endereco_Instalacao</span>
+
+                                                @Html.HiddenFor(m => m.Endereco_Instalacao, new { @id = "iEndereco_InstalacaoHidden" })
+
+                                            </div>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-sm-12 pt-3">
+                                                <label for="iNome">@RsCadastros.VALOR_FINAL_PLANO:</label>
+
+                                                <span id="iValor_Final_Total">  @Model.Valor_Final_Plano </span>
+
+                                                @Html.HiddenFor(m => m.Valor_Final_Plano, new { @id = "iValor_Final_PlanoHidden" })
+
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading-3">
+                            <h5 class="mb-0">
+                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                    <span class="text-bold-card">@RsCadastros.SOBRE_O_ATENDIMENTO</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                            <div class="card-body body-card-accord">
+
+
+                                <div class="row">
+
+
+                                    @if (CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.PRIORIDADE))
+                                    {
+                                        Html.HiddenFor(m => m.Prioridade);
+                                    }
+                                    else
+                                    {
+                                        <div class="col-sm-3">
+
+                                            <label for="iPrioridade">@RsCadastros.PRIORIDADE:</label>
+                                            <br>
+                                            <div class="btn-group btn-group-toggle btn-group-sm" data-toggle="buttons">
+                                                <label for="iPrioridadeAlto" id="labelPrioridadeAlta" class="btn btn-danger @(@Model.Prioridade == Prioridade_Atendimento.Alto ? "active" : "")">
+                                                    @Html.RadioButtonFor(m => m.Prioridade, "Alto")<span>@RsBase.ALTO</span>
+                                                </label>
+                                                <label id="labelPrioridadeMedia" class="btn btn-danger  @(@Model.Prioridade == Prioridade_Atendimento.Medio ? "active" : "")">
+                                                    @Html.RadioButtonFor(m => m.Prioridade, "Medio")<span>@RsBase.MEDIO</span>
+                                                </label>
+                                                <label id="labelPrioridadeBaixa" class="btn btn-danger  @(@Model.Prioridade == Prioridade_Atendimento.Baixo ? "active" : "")">
+                                                    @Html.RadioButtonFor(m => m.Prioridade, "Baixo")<span>@RsBase.BAIXO</span>
+                                                </label>
+                                            </div>
+
+                                        </div>
+
+                                        <div class="col-sm-9 text-right">
+                                            <div class="mt-3">
+                                                <a id="iLink_Script_Atendimento" class="btn btn-outline-info" href="#" onclick="Script_Atendimento()" style="display:none;"><i class="icofont-live-support icofont-2x"></i> @RsCadastros.SCRIPT_ATENDIMENTO</a>
+                                            </div>
+                                        </div>
+
+                                    }
+                                </div>
+
+                                <div class="row">
+
+                                    <div class="col-4">
+                                        <div class="form-group">
+                                            <label for="iNome">@RsCadastros.ORIGEM:</label>
+                                            @Html.DropDownListFor(m => m.Id_Origem_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iOrigem", @autocomplete = "off" })
+                                            @*@Html.ValidationMessageFor(model => model.Id_Origem_Atendimento, "", new { @class = "text-danger" })*@
+
+                                        </div>
+                                    </div>
+
+                                    <div class="col-8">
+                                        <label for="iAssunto" class="mr-3">@RsCadastros.ASSUNTO:</label>
+                                        <div class="form-group">
+                                            @Html.TextBoxFor(model => model.Assunto, new { @class = "form-control " + (CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.ASSUNTO) ? "readonly" : ""), @id = "iAssunto", @autocomplete = "off", @required = true, @Maxlength = 100 })
+                                            @Html.ValidationMessageFor(model => model.Assunto, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+
+
+                                    <div class="col">
+                                        <label for="iTipoAtendimento" class="mr-3">@RsCadastros.TIPO_ATENDIMENTO:</label>
+                                        <div class="form-group">
+                                            @Html.DropDownListFor(m => m.Id_Tipo_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoAtendimento", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Tipo_Atendimento, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col">
+                                        <div class="form-group">
+                                            <label for="iStatusAtendimento">@RsCadastros.STATUS_ATEDIMENTO:</label>
+                                            @Html.EnumDropDownListFor(m => m.Status_Atendimento, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento" })
+                                            @Html.ValidationMessageFor(model => model.Status_Atendimento, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col" id="iDivMotivoStatus">
+                                        <div class="form-group">
+                                            <label for="iMotivoStatus" class="mr-3 ">@RsCadastros.MOTIVOS_STATUS_ATENDIMENTO:</label>
+                                            @Html.HiddenFor(model => model.Id_Motivo_Status, new { @id = "iHiddenMotivo" })
+                                            @Html.DropDownListFor(m => m.Id_Motivo_Status, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), String.Concat(RsBase.SELECIONE, " ", RsCadastros.MOTIVOS_STATUS_ATENDIMENTO), new { @class = "form-control", @id = "iDescMotivoStatus", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col">
+                                        <div class="form-group">
+                                            <label for="iCategoriaAtendimento">@RsCadastros.CATEGORIA_ATENDIMENTO:</label>
+                                            @Html.DropDownListFor(m => m.Id_Categoria_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaAtendimento", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Categoria_Atendimento, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <div class="form-group">
+                                            <label for="iDepartamento">@RsCadastros.SETOR_ENVOLVIDO:</label>
+                                            @Html.DropDownListFor(m => m.Id_Setor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iDepartamento", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Setor, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <div class="form-group">
+                                            <label for="iResponsavel">@RsCadastros.RESPONSAVEL:</label>
+                                            @Html.DropDownListFor(m => m.Id_Responsavel, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iResponsavel", @autocomplete = "off" })
+
+                                        </div>
+                                    </div>
+
+                                </div>
+
+
+                                <div class="row">
+
+
+                                    <div class="col pt-3">
+
+                                        <div class="form-group">
+
+
+                                            @*<div id="accordion" class="pr-0 pl mb-0">*@
+
+
+                                            <div class="card-body pt-0 pb-0">
+                                                <div class="row">
+
+                                                    <label for="iPessoaContato" class="mr-3">@RsCadastros.PESSOA_QUE_ENTROU_EM_CONTATO</label>
+
+                                                    @Html.RadioButtonFor(m => m.Tipo_Pessoa_Contato, "Titular", new { @id = "iRdTitular", @style = "margin-top: 2px;" })
+                                                    <label for="iRdTitular" class="pl-1 mr-2">@RsCadastros.TITULAR</label>
+
+                                                    @Html.RadioButtonFor(m => m.Tipo_Pessoa_Contato, "Outros", new { @id = "iRdOutros", @style = "margin-top: 2px;" })
+                                                    <label for="iRdOutros" class="pl-1">@RsCadastros.OUTROS</label>
+
+                                                </div>
+                                                @*<div class="row" style="@(Model.Tipo_Pessoa_Contato == 0 ? "display: none;" : "")">*@
+                                                <div class="row">
+                                                    @*class="details @(@Model.Details.Count > 0 ? "show" : "hide")"*@
+                                                    @*<div></div>*@
+                                                    <label id="iLblPessoa_Contato"> Nome: </label>
+                                                    @Html.TextBoxFor(model => model.Pessoa_Contato, new { @class = "form-control " + (CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.PESSOA_QUE_ENTROU_EM_CONTATO) ? "readonly" : ""), @id = "iPessoa_Contato", @autocomplete = "off", @required = true })
+
+                                                    <div class="form-group">
+                                                        <label id="iLblGrau_Ligacao"> Grau de Ligação :</label>
+                                                        @*@Html.HiddenFor(m => m.Grau_Ligacao, new { id = "iGrau_LigacaoHidden" })*@
+                                                        @Html.EnumDropDownListFor(m => m.Grau_Ligacao, RsBase.SELECIONE, new { @class = "form-control " + (CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.PESSOA_QUE_ENTROU_EM_CONTATO) ? "readonly" : ""), @id = "iGrauLigacao" })
+                                                    </div>
+
+                                                    @*@Html.TextBoxFor(model => model.Nome_Outra_Pessoa_Contato, new { @class = "form-corol", @id = "iGrau_Ligacao", @autocomplete = "off", @required = true })*@
+                                                </div>
+                                            </div>
+
+                                            @* </div>*@
+
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div class="row">
+                                    <div class="col">
+                                        <label for="iProblema_Relatado">@RsCadastros.PROBLEMA_RELATADO_DETALHES_DO_ASSUNTO</label>
+                                        <div class="form-group">
+                                            @Html.TextAreaFor(model => model.Problema_Relatado, new { @rows = "4", @class = "form-control " + (CamposObrigatoriosAtendimentoApiController.CampoBloqueado(campos, CamposObrigatoriosAtendimentoEnum.PROBLEMA_RELATADO) ? "readonly" : ""), @id = "iExplicacao_Cliente", @autocomplete = "off", @required = true, @maxlength = 200 })
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <div class="row mt-3">
+                                    <div class="col">
+                                        <label for="iUltima_Acao">@RsCadastros.ULTIMA_ACAO</label>
+                                        <div class="form-group">
+                                            @Html.HiddenFor(model => model.Id_Acao, new { @id = "iId_Acao" })
+                                            @Html.TextAreaFor(model => model.Ultima_Acao, new { @rows = "5", @class = "form-control", @id = "iAcao", @autocomplete = "off", @required = true, @Maxlength = 800 })
+                                        </div>
+                                        <div>
+                                        </div>
+
+
+
+                                        @*<div class="row" style="@(Model.Id != 0 ? "display: none;" : "")" id="divArquivo" )>*@
+                                        <div class="row" id="divArquivo" )>
+                                            <div class="col-sm-12">
+                                                <div class="btn-group-sm" role="group" aria-label="Basic example">
+                                                    <label class="btn btn-outline-dark">
+                                                        <i class="fas fa-paperclip"></i> <input type="file" name="Files[0]" data-index=0 hidden>
+                                                    </label>
+
+                                                    <button type="button" class="btn btn-outline-dark"><i class="fas fa-font"></i></button>
+                                                    @if (Model.Id != 0 && Model.Status_Atendimento != Status_Atendimento.Cancelado && Model.Status_Atendimento != Status_Atendimento.Concluido)
+                                                    {
+                                                        <button type="button" class="btn btn-outline-dark" onclick="Nova_Acao()"><i class="fas fa-plus"></i> Nova Ação</button>
+                                                        if (Model.Id_Email_Abertura.HasValue)
+                                                        {
+                                                            <div class="ml-4" style="display:inline-block">
+                                                                <div id="iDivAcaoGeraEmail" style="display:none">
+                                                                    @Html.CheckBoxFor(m => m.AcaoGeraEmail, new { @id = "iAcaoGeraEmail", @class = "form-check-input" })
+                                                                    <label for="iAcaoGeraEmail">Enviar Email</label>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-inline mt-2">
+                                            <label id="TagLabel" style="display:none">Arquivos: </label>
+                                            <div id="tagFiles">
+
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+
+
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+
+                <!--Button Float-->
+                @*<a href="@Url.Action("Index", "Atendimento")" class="float-cancel" onclick="ShowPageLoading(); return true;">*@
+                <a href="@Url.Action("Index", "Atendimento")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+                    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                        <i class="fas fa-times fa-2x"></i>
+                    </div>
+                </a>
+
+                <a href="#" class="float-save" onclick="return SweetAlertOs();">
+                    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                        <i class="fas fa-save fa-2x"></i>
+                    </div>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+}

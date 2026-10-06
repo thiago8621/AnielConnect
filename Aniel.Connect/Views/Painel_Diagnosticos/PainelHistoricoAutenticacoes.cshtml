@@ -1,0 +1,362 @@
+@model IEnumerable<Aniel.Connect.Models.ClienteListViewModel>
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_HISTORICO_AUTENTICACOES;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+
+<script>
+
+        let oDatatable;
+
+
+
+$(document).ready(async function () {
+    // Check if filters are stored in localStorage
+    if (localStorage.getItem("filtro_painelHistorico") != null) {
+        var storedFilters = JSON.parse(localStorage.getItem("filtro_painelHistorico"));
+        await recuperarFiltrosCache(storedFilters);
+
+        // Restore selected values using the stored IDs
+        $("#iDescConcentradora").val(storedFilters.id_Concentradora);
+        $("#iLogin").val(storedFilters.id_Login);
+    } else {
+        // Populate dropdowns with default values
+        AddSelect("iDescConcentradora", "@CONSTANTES.URLPortal/api/ConcentradoraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+        AddSelect("iLogin", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetComboVinculoCliente", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+    }
+
+    // Initialize filters object with default values
+    var filters = {
+        status_Autenticacao: $("#iStatusAutenticacao").val(),
+        desc_Concentradora: $("#iDescConcentradora option:selected").text(), // Filter value
+        id_Concentradora: $("#iDescConcentradora").val(),                  // Selected ID
+        login_Radius: $("#iLogin option:selected").text(),                 // Filter value
+        id_Login: $("#iLogin").val(),                                      // Selected ID
+        data_Autenticacao: $("#iDataAutenticacao").val()
+    };
+
+    // Update filters on dropdown or input change
+    $("#iStatusAutenticacao, #iDescConcentradora, #iLogin, #iDataAutenticacao").on("change", function () {
+        var fieldId = $(this).attr("id");
+
+        // Update filters object
+        switch (fieldId) {
+            case "iStatusAutenticacao":
+                filters.status_Autenticacao = $(this).val();
+                break;
+
+            case "iDescConcentradora":
+                filters.desc_Concentradora = $("#iDescConcentradora option:selected").text(); // Update value
+                filters.id_Concentradora = $(this).val(); // Update ID
+                break;
+
+            case "iLogin":
+                filters.login_Radius = $("#iLogin option:selected").text(); // Update value
+                filters.id_Login = $(this).val(); // Update ID
+                break;
+
+            case "iDataAutenticacao":
+                filters.data_Autenticacao = $(this).val();
+                break;
+        }
+
+        // Save the updated filters to localStorage
+        localStorage.setItem("filtro_painelHistorico", JSON.stringify(filters));
+    });
+});
+
+
+    async function recuperarFiltrosCache(storedFilters) {
+        AddSelect("iDescConcentradora", "@CONSTANTES.URLPortal/api/ConcentradoraApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, storedFilters?.id_Concentradora ?? null, "@RsBase.TODOS", false);
+        AddSelect("iLogin", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetComboVinculoCliente", @CONSTANTES.PaginacaoRegistros, null, null, storedFilters?.id_Login ?? null, "@RsBase.TODOS", false);
+
+                 $("#iDataAutenticacao").val(storedFilters?.data_Autenticacao ?? "");
+                $("#iStatusAutenticacao").val(storedFilters?.status_Autenticacao ?? "");
+
+
+            }
+
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+            $("#iStatusAutenticacao").val("");
+            $("#iLogin").val(null).trigger('change');
+            $("#iDataAutenticacao").val(null).trigger('change');
+            $("#iDescConcentradora").val(null).trigger('change');
+
+            localStorage.removeItem("filtro_painelHistorico");
+
+            $('#txtSearch').val("");
+
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+        $("#iPesquisar").on("click", function () {
+            $("#modal-filter").modal('hide');
+            oDatatable.search($('#txtSearch').val()).draw();
+
+            return true;
+        });
+
+        var handleDataTableButtons = function () {
+
+            "use strict";
+            ShowPageLoading();
+
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable", {
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                searching: true,
+                ordering: true,
+                serverSide: true,
+                deferRender: true,
+                language: traducaoDataTableSimples,
+                scrollX: true,
+                //scrollCollapse: true,
+                scrollY: '79vh',
+                paging: true,
+                /*stateSave: true,*/
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                pageLength: 10,
+                ajax: {
+                    url: baseUrl + '/api/Relatorio_Conexaoapi/GetAllPainelHistorico',
+                    type: 'POST',
+                    data: function (data) {
+                        // Read values
+                        var login_Radius = $("#iLogin option:selected").text();
+                        var data_Autenticacao = $("#iDataAutenticacao").val();
+                        var status_Autenticacao = $("#iStatusAutenticacao option:selected").val();
+                        var desc_Concentradora = $("#iDescConcentradora option:selected").text();
+
+                        var storedFilters = JSON.parse(localStorage.getItem("filtro_painelHistorico"));
+
+                        data.Login_Radius = storedFilters?.login_Radius ?? login_Radius;
+                        data.Data_Autenticacao = storedFilters?.data_Autenticacao ?? data_Autenticacao;
+                        data.Status_Autenticacao = storedFilters?.status_Autenticacao ?? status_Autenticacao;
+                        data.Desc_Concentradora = storedFilters?.desc_Concentradora ?? desc_Concentradora;
+
+                        /*if ($("#iCidade option:selected").val() == "Selecione")
+                             cidade = null;
+                         if ($("#iBairro option:selected").val() == "Selecione")
+                             bairro = null;
+
+                       var planoProduto = $("#iPlano option:selected").val();
+                        var login_radius = $("#iLoginRadius").val();
+
+
+                        if ($("#iMes_Aniversario option:selected").text() == "Selecione")
+                            mes_Aniversario = null;*/
+
+                        // Append to data
+                        /*data.Login_Radius = login_radius;
+
+                        data.Id_Plano_Produto = planoProduto;*/
+                        data.search.option = $("#optionSearch").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                        Notificar("@RsBase.ATENCAO_", e.responseJSON.exceptionMessage || "@RsBase.ERROAORECUPERARLISTAGEMDOSERVIDOR", "warning");
+                        HidePageLoading();
+                    },
+                    dataSrc: function (d) {
+                        HidePageLoading();
+                        return d.data;
+                    }
+                },
+                columns: [
+                    { data: "login_Radius", title: "@RsCadastros.LOGIN_RADIUS" },
+                    { data: "senha", title: "@RsCadastros.SENHA" },
+                    { data: "status_Autenticacao", title: "@RsCadastros.STATUS_AUTENTICACAO_RADIUS" },
+                    { data: "data_Autenticacao", title: "Data/Hora autenticação" },
+                    { data: "desc_Concentradora", title: "@RsCadastros.CONCENTRADORA" },
+                    { data: "endereco_Ip", title: "@RsCadastros.ENDERECO_IP" },
+                    { data: "desc_Pool_Ip", title: "@RsCadastros.POOL_IP" },
+                ]
+            });
+
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-wrench"></i>
+                @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class="form-inline pl-4 pr-2">
+                    <select class="form-control" id="optionSearch">
+                        <option value="login">@RsCadastros.LOGIN_RADIUS</option>
+                    </select>
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui para busca rápida" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO">
+                    <i class="la la-filter la-2x" style="color: #999"></i>
+                </button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO">
+                    <i class="la la-eraser la-2x" style="color: #999"></i>
+                </button>             
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+                    <div class="col-sm-8 container" style="align-content:center;">
+                        <div class="row">
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iStatusAutenticacao">@RsCadastros.STATUS_AUTENTICACAO_RADIUS</label>
+                                    @Html.DropDownList("iStatusAutenticacao", Enum.GetValues(typeof(Sinapse.Model.enumerados.Status_Autenticacao_Radius))
+                                                        .Cast<Sinapse.Model.enumerados.Status_Autenticacao_Radius>()
+                                                        .OrderBy(e => Enum.GetName(typeof(Sinapse.Model.enumerados.Status_Autenticacao_Radius), e))
+                                                        .Select(e => new SelectListItem
+                                                        {
+                                                            Value = ((int)e).ToString(),
+                                                            Text = e.ToString()
+                                                        }), RsBase.TODOS, new { @class = "form-control", @id = "iStatusAutenticacao", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <input class="form-control datepicker-period mb-1" id="iDataAutenticacao" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+                                </div>
+                            </div>
+
+                          
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iDescConcentradora">@RsCadastros.CONCENTRADORA</label>
+                                    <select class="form-control" id="iDescConcentradora">
+                                        <option>@RsBase.TODOS</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="form-group">
+                                    <label for="iLogin">@RsCadastros.LOGIN</label>
+                                    <select class="form-control" id="iLogin">
+                                        <option>@RsBase.TODOS</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>                       
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

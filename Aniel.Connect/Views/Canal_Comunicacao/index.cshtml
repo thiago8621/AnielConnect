@@ -1,0 +1,2359 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@using Aniel.Connect.CustomHtmlHelper
+@model Aniel.Connect.Models.Configuracao_Canal_ComunicacaoCadastroModel
+@{
+    ViewBag.Title = RsCadastros.CONFIGURAWHATSAPP;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        /* Define o tamanho e a borda do quadrado da imagem */
+        /* Define o tamanho fixo e aparência da imagem */
+        .border img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+
+        /* Remove margens duplicadas e centraliza verticalmente */
+        .d-flex.align-items-center {
+            gap: 15px; /* espaço entre a imagem e o botão */
+        }
+
+        /* Estilo mais limpo para o container da imagem */
+        border {
+            border: 2px solid #000; /* borda preta */
+            padding: 4px;
+            border-radius: 6px;
+            background-color: #fff; /* fundo branco pra destacar a imagem */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Ajuste do input file para não ocupar toda a largura */
+        .form-control-file {
+            width: auto;
+        }
+        #nomeArquivo {
+            display: block;
+            font-size: 0.9rem;
+        }
+
+    </style>
+}
+
+
+<script>
+
+
+    var clicked = false;
+    function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        var erro = false;
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+        ShowPageLoading();
+        $('#form').submit();
+
+    }
+
+</script>
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+    AddSelect("iModeloPadrao", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdModeloPadraoWhatsApp", "@RsBase.SELECIONE", false);
+    AddSelect("iModeloPadraoEditar", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdModeloPadraoWhatsApp", "@RsBase.SELECIONE", false);
+    AddSelect("iBot", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdBot", "@RsBase.SELECIONE", false);
+    AddSelect("iBotEditar", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdBot", "@RsBase.SELECIONE", false);
+
+    var idat = 0;
+
+    var inp = document.getElementById('iImagemInput');
+    inp.addEventListener('change', function (e) {
+        var file = this.files[0];
+        var reader = new FileReader();
+        reader.onload = function () {
+            document.getElementById('iImagem').src = this.result;
+        };
+        reader.readAsDataURL(file);
+    }, false);
+
+    var inpEdt = document.getElementById('iImagemInputEdt');
+    inpEdt.addEventListener('change', function (e) {
+        var file = this.files[0];
+        var reader = new FileReader();
+        reader.onload = function () {
+            document.getElementById('iImagemEditar').src = this.result;
+        };
+        reader.readAsDataURL(file);
+    }, false);
+
+
+    $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+        $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+        $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+
+        $($.fn.dataTable.tables(true)).DataTable()
+            .columns.adjust()
+            .responsive.recalc()
+    });
+
+    var rows_selected = [];
+
+    //<!-- WHATSAPP DATATABLE-->
+    var handleDataTableButtons = function () {
+            "use strict";
+
+            var nome_lista = "WhatsApp";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Canal_ComunicacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.tipoCanal = 0;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    {
+                        data: "id",
+                        title: "@RsCadastros.CODIGO",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_id" name="' + nome_lista + '[' + meta.row + '].id" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+
+                    {
+                        data: "nome",
+                        title: "@RsCadastros.NOME_CANAL",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_nome" name="' + nome_lista + '[' + meta.row + '].nome" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+
+                    @*{
+                        data: "statusAPI",
+                        title: "@RsCadastros.STATUS_API",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusAPI" name="' + nome_lista + '[' + meta.row + '].statusAPI" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },*@
+                     {
+                         data: "statusNumero",
+                        title: "@RsCadastros.STATUS",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusNumero" name="' + nome_lista + '[' + meta.row + '].statusNumero" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+                    {
+                         data: "numero",
+                        title: "@RsCadastros.NUMERO",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_numero" name="' + nome_lista + '[' + meta.row + '].numero" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+                    {
+                        data: "botVinculado",
+                        title: "@RsCadastros.BOT_VINCULADO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__botVinculado" name="' + nome_lista + '[' + meta.row + '].botVinculado" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+
+                    {
+                        data: "id", title: "@RsCadastros.DETALHES",
+                        render: function (data, type, row, meta) {
+                            let retorno = '<a href="#" data-toggle="modal" data-target="#modal-editar" class="btnEditarDetalhes ml-2" ' +
+                                'data-id="' + row.id + '" id="btnEditarDetalhes_' + meta.row + '">' +
+                                '<i class="far fa-file-alt"></i></a>' +
+                                '<input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" ' +
+                                'type="hidden" value="' + TrataNulo(data) + '">';
+
+                            @if (AcessoHelper.TemAcesso(_areas, "192") == false)
+                            {
+                                <text>
+                                retorno = `<a href="#" class="aConfig" onclick="Notificar('@RsBase.ATENCAO_','sem acesso','warning')"><i class="far fa-file-alt"></i></a>`;
+                                </text>
+                            }
+
+                            return retorno;
+                        }
+                    }
+
+                ]
+            });
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                let acesso = $(this).data("acesso");
+
+                if (acesso === "negado") {
+                    Notificar("Sem Acesso", "Você não possui permissão para realizar esta ação.", "warning");
+                    return false;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+                let acesso = $(this).data("acesso");
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+                if (acesso === "negado") {
+    Notificar("Sem Acesso", "Você não possui permissão para realizar esta ação.", "warning");
+    return false;
+}
+
+                //Alterando para Inativo
+                  AlterarStatusObj(1);
+            });
+
+             $('#datatable tbody').on('click', '.btnEditarDetalhes', async function (e) {
+                e.preventDefault();
+
+                var id = $(this).data('id'); // pega o id certo
+                const data_row = oDatatable.row($(this).closest('tr')).data();
+
+                    preencherModal(data_row);
+             });
+
+             function preencherModal(data_row) {
+
+                 $("#divWhatsAppEditar").show();
+                 $("#divTelegramEditar, #divMessengerEditar, #divInstagramEditar, #divSkypeEditar").hide();
+
+                 idat = data_row.id;
+
+                 $('#iTipoCanalEditar').val(data_row.idTipoCanalComunicacao).change();
+                 $('#iNomeEditar').val(data_row.nome);
+
+                 if (data_row.statusNumero === 'Ativo' || data_row.statusNumero === true) {
+                     $('#iStatus').prop('checked', true).change();
+                 } else {
+                     $('#iStatus').prop('checked', false).change();
+                 }
+
+                 $('#iDescCanalEditar').val(data_row.descricao);
+                 $('#iEmailEditar').val(data_row.email);
+                 $('#iSiteEditar').val(data_row.site);
+                 $('#iNumeroEditar').val(data_row.numero);
+                 $('#iTokenWhatsAppEditar').val(data_row.tokenWhatsAppBusiness);
+                 $('#iNumeroIdWhatsAppEditar').val(data_row.idNumeroWhatsAppBusiness);
+                 $('#iIdWhatsAppEditar').val(data_row.whatsAppBusinessAccount);
+                 $('#iTokenInstagramEditar').val(data_row.tokenInstagram);
+                 $('#iTokenMessengerEditar').val(data_row.tokenMessenger);
+                 $('#iTokenTelegramEditar').val(data_row.tokenTelegram);
+                 $('#iTokenSkypeEditar').val(data_row.tokenSkype);
+                 $('#iImagemEditar').attr("src", data_row.imagem);
+                 AddSelect("iModeloPadraoEditar", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idModeloPadraoWhatsApp, "@RsBase.SELECIONE", false);
+                 AddSelect("iBotEditar", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idBot, "@RsBase.SELECIONE", false);
+
+
+                 $("#iModeloPadraoEditar").on("change", function () {
+                     if ($('#iModeloPadraoEditar').val()) {
+                         $("#divConsultaEditar").show();
+                     } else {
+                         $("#divConsultaEditar").hide();
+                     }
+                 });
+             }
+
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+        $('#datatable tbody').on('click', 'tr', function () {
+
+       @if (AcessoHelper.TemAcesso(_areas, "192"))
+                {
+         <text>
+            if (oDatatable.row(this).data() != null) {
+
+                var _id = oDatatable.row(this).data().id;
+
+            }
+        </text>
+        }
+        });
+
+
+        $('#datatable tbody').on('click', 'tr', function () {
+
+            if (oDatatable.row(this).data() != null) {
+            }
+        });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+        $("#btnAdicionarFluxo").off("click").on("click", async function () {
+            try {
+                // Dados do formulário (exemplo — ajuste os IDs conforme seu modal)
+                let erro = false
+                   if (!$("#iNome").val()) {
+                     Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NOME_CANAL)", "warning");
+                    erro = true;
+                    return;
+                }
+
+                if ($("#iTipoCanal").val() == 0) {
+                    if (!$("#iNumero").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO)", "warning");
+                        erro = true;
+                        return;
+                    }
+
+                    if (!$("#iTokenWhatsApp").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_WHATSAPP_BUS)", "warning");
+                        erro = true;
+                        return;
+                    }
+
+                    if (!$("#iNumeroIdWhatsApp").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO_ID_WHATSAPP_BUSINESS)", "warning");
+                         erro = true;
+                        return;
+                    }
+
+                    if (!$("#iNumeroIdWhatsApp").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ID_WHATSAPP_BUSINESS)", "warning");
+                         erro = true;
+                        return;
+                    }
+                }
+
+                if ($("#iTipoCanal").val() == 1) {
+                    if (!$("#iTokenTelegram").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_TELEGRAM)", "warning");
+                         erro = true;
+                        return;
+                    }
+                }
+
+                if ($("#iTipoCanal").val() == 2) {
+                    if (!$("#iTokenMessenger").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_MESSENGER)", "warning");
+                        erro = true;
+                        return;
+                    }
+                }
+
+                if ($("#iTipoCanal").val() == 2) {
+                    if (!$("#iTokenMessenger").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_MESSENGER)", "warning");
+                         erro = true;
+                    }
+                }
+
+                if ($("#iTipoCanal").val() == 3) {
+                    if (!$("#iTokenInstagram").val()) {
+                         Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_INSTAGRAM)", "warning");
+                        erro = true;
+                        return;
+                    }
+                }
+                if (erro) { return; }
+                const formData = {
+                    Id: 0,
+                    Nome: $("#iNome").val(),
+                    Descricao: $("#iDescCanal").val(),
+                    Email: $("#iEmail").val(),
+                    Site: $("#iSite").val(),
+                    IdBot: $("#iBot option:selected").val(),
+                    Numero: $("#iNumero").val(),
+                    TokenWhatsAppBusiness: $("#iTokenWhatsApp").val(),
+                    IdNumeroWhatsAppBusiness: $("#iNumeroIdWhatsApp").val(),
+                    WhatsAppBusinessAccount: $("#iIdWhatsApp").val(),
+                    ModeloPadraoWhatsApp: $("#iModeloPadrao option:selected").val(),
+                    TokenTelegram: $("#iTokenTelegram").val(),
+                    TokenMessenger: $("#iTokenMessenger").val(),
+                    TokenInstagram: $("#iTokenInstagram").val(),
+                    TokenSkype: $("#iTokenSkype").val(),
+                    Image: $("#iImagemInput").val(),
+                    TipoCanalComunicacao: $("#iTipoCanal").val()
+
+                };
+
+                // Objeto no formato esperado pela API
+                const payload = {
+                    Usuario: "admin", // ou pegue dinamicamente via variável global
+                    Objeto: formData
+                };
+
+                // Envio à API
+                const response = await $.ajax({
+                    url: baseUrl + "/api/Canal_ComunicacaoApi/Gravar",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(payload),
+                    success: function (response) {
+                        console.log("Sucesso:", response);
+                    },
+                    error: function (xhr, status, error) {
+                        console.error("Erro:", error);
+                    }
+                });
+
+                if ($('#iImagemInput').val()) {
+                    let obj = $('#iImagemInput')[0];
+
+                    if (obj.files.length > 0) {
+
+                        let fileid = response.idObjeto;
+                        var data = new FormData();
+                        data.append("UploadedImage", obj.files[0]);
+                        data.append("id", fileid);
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Canal_ComunicacaoApi/AdicionarArquivo")' + "?Id=" + response.idObjeto;
+
+                        let resultUploadArquivo = await $.ajax({
+                            url: link,
+                            type: 'POST',
+                            contentType: false,
+                            processData: false,
+                            data: data
+                        });
+
+                        if (!resultUploadArquivo.ok) {
+                            Notificar("@RsBase.ATENCAO_", resultUploadArquivo.mensagem, "warning");
+                            return false;
+                        }
+                    }
+                }
+
+                    // Fecha o modal
+                    $("#modal-filter").modal("hide");
+
+                    // Recarrega a página após 1 segundo
+                    setTimeout(() => location.reload(), 1000);
+
+                if (erro == false) {
+                    Notificar("@RsBase.INFORMACAO", "@RsCadastros.CANAL_ADICIONADO", "info");
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+            } catch (error) {
+                console.error("Erro ao gravar canal:", error);
+                Notificar("Erro", "Falha ao salvar canal.", "danger");
+            }
+        });
+
+
+    //<!--TELEGRAM DATATABLE-->
+    var handleDataTableButtons_telegram = function () {
+        "use strict";
+
+            var nome_lista = "Telegram";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable_telegram = $("#datatable_telegram").length && $("#datatable_telegram").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: 'auto',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Canal_ComunicacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.tipoCanal = 1;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    {
+                        data: "id",
+                        title: "@RsCadastros.CODIGO",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_id" name="' + nome_lista + '[' + meta.row + '].id" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+                    @*{
+                        data: "statusAPI",
+                        title: "@RsCadastros.STATUS_API",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusAPI" name="' + nome_lista + '[' + meta.row + '].statusAPI" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },*@
+                    {
+                          data: "statusNumero",
+                         title: "@RsCadastros.STATUS",
+                         render: function (data, type, row, meta) {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusNumero" name="' + nome_lista + '[' + meta.row + '].statusNumero" type="hidden" value="' + TrataNulo(data) + '">';
+                         return data;
+                         }
+                     },
+
+                    {
+                        data: "botVinculado",
+                        title: "@RsCadastros.BOT_VINCULADO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__botVinculado" name="' + nome_lista + '[' + meta.row + '].botVinculado" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                                        {
+                        data: "nome",
+                        title: "@RsCadastros.NOME_CANAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__nome" name="' + nome_lista + '[' + meta.row + '].nome" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+
+                    {
+                        data: "detalhes", title: "@RsCadastros.DETALHES",
+                        render: function (data, type, row, meta) {
+                            var _id = row.id;
+
+
+                            let retorno = '<a href="#" data-toggle="modal" data-target="#modal-editar" class="btnEditarDetalhesTelegram ml-2" id="btnEditarDetalhesTelegram_' + meta.row + '" editar=' + row.Id + '><i class="far fa-file-alt"></i>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+
+                            @if (AcessoHelper.TemAcesso(_areas, "192") == false)
+                            {
+                                <text>
+                                retorno = `<a href="#" class="aConfig" onclick="Notificar('@RsBase.ATENCAO_','sem acesso','warning')"><i class="far fa-file-alt"></i></a>`;
+                                </text>
+                            }
+
+                            return retorno;
+                        }
+                    }
+
+                ]
+            });
+
+            $('#datatable_telegram tbody').on('click', '.btnEditarDetalhesTelegram', async function (e) {
+                e.preventDefault();
+
+                var id = $(this).data('id'); // pega o id certo
+                const data_row = oDatatable_telegram.row($(this).closest('tr')).data();
+
+                preencherModal(data_row);
+
+             });
+
+             function preencherModal(data_row) {
+
+                 $("#divTelegramEditar").show();
+                 $("#divWhatsAppEditar, #divMessengerEditar, #divInstagramEditar, #divSkypeEditar").hide();
+                 idat = data_row.id;
+
+                 $('#iTipoCanalEditar').val(data_row.idTipoCanalComunicacao).change();
+
+                 if (data_row.statusNumero === 'Ativo' || data_row.statusNumero === true) {
+                     $('#iStatus').prop('checked', true).change();
+                 } else {
+                     $('#iStatus').prop('checked', false).change();
+                 }
+
+                 $('#iNomeEditar').val(data_row.nome);
+                 $('#iDescCanalEditar').val(data_row.descricao);
+                 $('#iEmailEditar').val(data_row.email);
+                 $('#iSiteEditar').val(data_row.site);
+                 $('#iNumeroEditar').val(data_row.numero);
+                 $('#iTokenWhatsAppEditar').val(data_row.tokenWhatsAppBusiness);
+                 $('#iNumeroIdWhatsAppEditar').val(data_row.idNumeroWhatsAppBusiness);
+                 $('#iIdWhatsAppEditar').val(data_row.whatsAppBusinessAccount);
+                 $('#iTokenInstagramEditar').val(data_row.tokenInstagram);
+                 $('#iTokenMessengerEditar').val(data_row.tokenMessenger);
+                 $('#iTokenTelegramEditar').val(data_row.tokenTelegram);
+                 $('#iTokenSkypeEditar').val(data_row.tokenSkype);
+                 $('#iImagemInputEditar').val(data_row.imagem);
+                 $('#iImagemEditar').attr("src", data_row.imagem);
+                 AddSelect("iModeloPadraoEditar", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idModeloPadraoWhatsApp, "@RsBase.SELECIONE", false);
+                 AddSelect("iBotEditar", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idBot, "@RsBase.SELECIONE", false);
+
+             }
+
+
+            $('#datatable_telegram tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable_telegram.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+             $('#datatable_telegram tbody').on('click', 'tr', function () {
+
+                @if (AcessoHelper.TemAcesso(_areas, "192"))
+                {
+                    <text>
+                    if (oDatatable_telegram.row(this).data() != null) {
+
+                        var _id = oDatatable_telegram.row(this).data().id;
+                        var _nome = oDatatable_telegram.row(this).data().nome;
+
+                    }
+                    </text>
+                    }
+                });
+
+
+            $('#datatable_telegram tbody').on('click', 'tr', function () {
+
+                if (oDatatable_telegram.row(this).data() != null) {
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable_telegram').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable_telegram.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable_telegram tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable_telegram tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable_telegram.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable_telegram);
+
+            });
+
+        },
+
+    TableManageButtons_telegram = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons_telegram();
+                    }
+                }
+            }();
+
+    TableManageButtons_telegram.init();
+
+
+        //<!--MESSENGER DATATABLE-->
+    var handleDataTableButtons_messenger = function () {
+        "use strict";
+
+            var nome_lista = "Messenger";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+        var oDatatable_messenger = $("#datatable_messenger").length && $("#datatable_messenger").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: 'auto',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Canal_ComunicacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.tipoCanal = 2;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                     {
+                         data: "id",
+                         title: "@RsCadastros.CODIGO",
+                         render: function (data, type, row, meta) {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '_id" name="' + nome_lista + '[' + meta.row + '].id" type="hidden" value="' + TrataNulo(data) + '">';
+                         return data;
+                         }
+                     },
+
+                    @*{
+                        data: "statusAPI",
+                        title: "@RsCadastros.STATUS_API",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusAPI" name="' + nome_lista + '[' + meta.row + '].statusAPI" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },*@
+                     {
+                            data: "statusNumero",
+                           title: "@RsCadastros.STATUS",
+                           render: function (data, type, row, meta) {
+                               data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusNumero" name="' + nome_lista + '[' + meta.row + '].statusNumero" type="hidden" value="' + TrataNulo(data) + '">';
+                           return data;
+                           }
+                       },
+
+                    {
+                        data: "botVinculado",
+                        title: "@RsCadastros.BOT_VINCULADO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__botVinculado" name="' + nome_lista + '[' + meta.row + '].botVinculado" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "nome",
+                        title: "@RsCadastros.NOME_CANAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__nome" name="' + nome_lista + '[' + meta.row + '].nome" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "detalhes", title: "@RsCadastros.DETALHES",
+                        render: function (data, type, row, meta) {
+                            var _id = row.id;
+
+                            let retorno = '<a href="#" data-toggle="modal" data-target="#modal-editar" class="btnEditarDetalhesMsg ml-2" id="btnEditarDestalhesMsg_' + meta.row + '" editar=' + row.Id + '><i class="far fa-file-alt"></i>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+
+                            @if (AcessoHelper.TemAcesso(_areas, "192") == false)
+                            {
+                                <text>
+                                retorno = `<a href="#" class="aConfig" onclick="Notificar('@RsBase.ATENCAO_','sem acesso','warning')"><i class="far fa-file-alt"></i></a>`;
+                                </text>
+                            }
+
+
+                            return retorno;
+                        }
+                    }
+
+                ]
+        });
+
+              $('#datatable_messenger tbody').on('click', '.btnEditarDetalhesMsg', async function (e) {
+                       e.preventDefault();
+
+                      var id = $(this).data('id'); // pega o id certo
+                      const data_row = oDatatable_messenger.row($(this).closest('tr')).data();
+
+                      preencherModal(data_row);
+
+              });
+
+             function preencherModal(data_row) {
+
+                 $("#divMessengerEditar").show();
+                 $("#divWhatsAppEditar, #divTelegramEditar, #divInstagramEditar, #divSkypeEditar").hide();
+                 idat = data_row.id;
+
+                 $('#iTipoCanalEditar').val(data_row.idTipoCanalComunicacao).change();
+
+                 if (data_row.statusNumero === 'Ativo' || data_row.statusNumero === true) {
+                     $('#iStatus').prop('checked', true).change();
+                 } else {
+                     $('#iStatus').prop('checked', false).change();
+                 }
+                 $('#iNomeEditar').val(data_row.nome);
+                 $('#iDescCanalEditar').val(data_row.descricao);
+                 $('#iEmailEditar').val(data_row.email);
+                 $('#iSiteEditar').val(data_row.site);
+                 $('#iNumeroEditar').val(data_row.numero);
+                 $('#iTokenWhatsAppEditar').val(data_row.tokenWhatsAppBusiness);
+                 $('#iNumeroIdWhatsAppEditar').val(data_row.idNumeroWhatsAppBusiness);
+                 $('#iIdWhatsAppEditar').val(data_row.whatsAppBusinessAccount);
+                 $('#iTokenInstagramEditar').val(data_row.tokenInstagram);
+                 $('#iTokenMessengerEditar').val(data_row.tokenMessenger);
+                 $('#iTokenTelegramEditar').val(data_row.tokenTelegram);
+                 $('#iTokenSkypeEditar').val(data_row.tokenSkype);
+                 $('#iImagemEditar').attr("src", data_row.imagem);
+                 AddSelect("iModeloPadraoEditar", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idModeloPadraoWhatsApp, "@RsBase.SELECIONE", false);
+                 AddSelect("iBotEditar", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idBot, "@RsBase.SELECIONE", false);
+
+             }
+
+
+        $('#datatable_messenger tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+            var rowId = oDatatable_messenger.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+        $('#datatable_messenger tbody').on('click', 'tr', function () {
+
+           @if (AcessoHelper.TemAcesso(_areas, "192"))
+           {
+             <text>
+            if (oDatatable_messenger.row(this).data() != null) {
+
+                        var _id = oDatatable_messenger.row(this).data().id;
+                var _nome = oDatatable_messenger.row(this).data().nome;
+
+             }
+             </text>
+             }
+         });
+
+
+        $('#datatable_messenger tbody').on('click', 'tr', function () {
+
+            if (oDatatable_messenger.row(this).data() != null) {
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+        $('#datatable_messenger').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+        $('thead input[name="select_all"]', oDatatable_messenger.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable_messenger tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable_messenger tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+        oDatatable_messenger.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable_messenger);
+
+            });
+
+        },
+
+        TableManageButtons_messenger = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons_messenger();
+                    }
+                }
+            }();
+
+    TableManageButtons_messenger.init();
+
+
+    //<!-- INSTAGRAM DATATABLE-->
+    var handleDataTableButtons_instagram = function () {
+        "use strict";
+
+            var nome_lista = "Instagram";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+        var oDatatable_instagram = $("#datatable_instagram").length && $("#datatable_instagram").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: 'auto',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Canal_ComunicacaoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.tipoCanal = 3;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                      {
+                        data: "id",
+                        title: "@RsCadastros.CODIGO",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_id" name="' + nome_lista + '[' + meta.row + '].id" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },
+                    @*{
+                        data: "statusAPI",
+                        title: "@RsCadastros.STATUS_API",
+                        render: function (data, type, row, meta) {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusAPI" name="' + nome_lista + '[' + meta.row + '].statusAPI" type="hidden" value="' + TrataNulo(data) + '">';
+                        return data;
+                        }
+                    },*@
+                        {
+                          data: "statusNumero",
+                         title: "@RsCadastros.STATUS_NUMERO",
+                         render: function (data, type, row, meta) {
+                             data = data + ' <input id="' + nome_lista + '_' + meta.row + '_statusNumero" name="' + nome_lista + '[' + meta.row + '].statusNumero" type="hidden" value="' + TrataNulo(data) + '">';
+                         return data;
+                         }
+                     },
+
+                    {
+                        data: "botVinculado",
+                        title: "@RsCadastros.BOT_VINCULADO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__botVinculado" name="' + nome_lista + '[' + meta.row + '].botVinculado" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "nome",
+                        title: "@RsCadastros.NOME_CANAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__nome" name="' + nome_lista + '[' + meta.row + '].nome" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "detalhes", title: "@RsCadastros.DETALHES",
+                        render: function (data, type, row, meta) {
+                            var _id = row.id;
+
+                            let retorno = '<a href="#" data-toggle="modal" data-target="#modal-editar" class="btnEditarDetalhesIns ml-2" id="btnEditarDetalhesIns_' + meta.row + '" editar=' + row.Id + '><i class="far fa-file-alt"></i>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+
+                            @if (AcessoHelper.TemAcesso(_areas, "192") == false)
+                            {
+                                <text>
+                                retorno = `<a href="#" class="aConfig" onclick="Notificar('@RsBase.ATENCAO_','sem acesso','warning')"><i class="far fa-file-alt"></i></a>`;
+                                </text>
+                            }
+
+
+                            return retorno;
+                        }
+                    }
+
+                ]
+        });
+
+        $('#datatable_instagram tbody').on('click', '.btnEditarDetalhesIns', async function (e) {
+            e.preventDefault();
+
+            var id = $(this).data('id'); // pega o id certo
+            const data_row = oDatatable_instagram.row($(this).closest('tr')).data();
+
+            preencherModal(data_row);
+
+        });
+
+         function preencherModal(data_row) {
+
+             $("#divInstagramEditar").show();
+             $("#divWhatsAppEditar, #divTelegramEditar, #divMessengerEditar, #divSkypeEditar").hide();
+             idat = data_row.id;
+
+             $('#iTipoCanalEditar').val(data_row.idTipoCanalComunicacao).change();
+
+             if (data_row.statusNumero === 'Ativo' || data_row.statusNumero === true) {
+                 $('#iStatus').prop('checked', true).change();
+             } else {
+                 $('#iStatus').prop('checked', false).change();
+             }
+
+            $('#iNomeEditar').val(data_row.nome);
+            $('#iDescCanalEditar').val(data_row.descricao);
+            $('#iEmailEditar').val(data_row.email);
+            $('#iSiteEditar').val(data_row.site);
+            $('#iNumeroEditar').val(data_row.numero);
+            $('#iTokenWhatsAppEditar').val(data_row.tokenWhatsAppBusiness);
+            $('#iNumeroIdWhatsAppEditar').val(data_row.idNumeroWhatsAppBusiness);
+            $('#iIdWhatsAppEditar').val(data_row.whatsAppBusinessAccount);
+            $('#iTokenInstagramEditar').val(data_row.tokenInstagram);
+            $('#iTokenMessengerEditar').val(data_row.tokenMessenger);
+            $('#iTokenTelegramEditar').val(data_row.tokenTelegram);
+             $('#iTokenSkypeEditar').val(data_row.tokenSkype);
+             $('#iImagemEditar').attr("src", data_row.imagem);
+            AddSelect("iModeloPadraoEditar", "@CONSTANTES.URLPortal/api/ModeloMensagemApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idModeloPadraoWhatsApp, "@RsBase.SELECIONE", false);
+            AddSelect("iBotEditar", "@CONSTANTES.URLPortal/api/Botapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.idBot, "@RsBase.SELECIONE", false);
+
+         }
+
+        $('#datatable_instagram tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+            var rowId = oDatatable_instagram.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+        $('#datatable_instagram tbody').on('click', 'tr', function () {
+
+          @if (AcessoHelper.TemAcesso(_areas, "192"))
+          {
+           <text>
+            if (oDatatable_instagram.row(this).data() != null) {
+
+                var _id = oDatatable_instagram.row(this).data().id;
+                var _nome = oDatatable_instagram.row(this).data().nome;
+
+            }
+            </text>
+            }
+        });
+
+
+        $('#datatable_instagram tbody').on('click', 'tr', function () {
+
+            if (oDatatable_instagram.row(this).data() != null) {
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+        $('#datatable_instagram').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+        $('thead input[name="select_all"]', oDatatable_instagram.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable_instagram tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable_instagram tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+        oDatatable_instagram.on('draw', function () {
+                // Update state of "Select all" control
+            updateDataTableSelectAllCtrl(oDatatable_instagram);
+
+            });
+
+        },
+
+        TableManageButtons_instagram = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons_instagram();
+                    }
+                }
+            }();
+
+    TableManageButtons_instagram.init();
+
+
+    $("[id^='iAdicionar_Canal']").off("click").on("click", function (e) {
+        let acesso = $(this).data("acesso");
+
+        if (acesso === "negado") {
+            Notificar("Sem Acesso", "Você não possui permissão para adicionar canais.", "warning");
+            return false;
+        }
+            e.preventDefault();
+            e.stopPropagation();
+
+            $('#modal-filter').modal('show');
+
+            $("#divWhatsApp, #divTelegram, #divMessenger, #divInstagram, #divSkype").hide();
+
+            const mapaEnum = {
+                "iAdicionar_Canal": 0,              // WhatsApp
+                "iAdicionar_Canal_Telegram": 1,     // Telegram
+                "iAdicionar_Canal_Messenger": 2,    // Messenger
+                "iAdicionar_Canal_Instagram": 3,    // Instagram
+                "iAdicionar_Canal_Skype": 4         // Skype
+            };
+
+            const idBotao = $(this).attr('id');
+            const valorEnum = mapaEnum[idBotao] ?? 0;
+
+            $("#iTipoCanal").val(valorEnum).prop("disabled", true);
+
+            switch (valorEnum) {
+                case 0: $("#divWhatsApp").show(); break;
+                case 1: $("#divTelegram").show(); break;
+                case 2: $("#divMessenger").show(); break;
+                case 3: $("#divInstagram").show(); break;
+                case 4: $("#divSkype").show(); break;
+            }
+            $('#modal-filter').find("input[type='text'], input[type='file']").val('');
+
+            $("#iModeloPadrao").on("change", function () {
+                if ($('#iModeloPadrao').val()) {
+                    $("#divConsulta").show();
+                } else {
+                    $("#divConsulta").hide();
+                }
+            });
+        });
+
+   function verificaStatusModelo(idCanal) {
+   var url = "@CONSTANTES.URLPortal" + "/api/ModeloMensagemApi/AtualizarStatusModeloMensagem?idCanalComunicacao=" + idCanal;
+   $.ajax({
+       url: url,
+       type: "POST",
+       dataType: "json"
+   })
+       .done(function (data) {
+           if (data && data.ok) {
+           } else {
+               Notificar("@RsBase.ATENCAO_", "Ocorreu um erro ao obter o status do modelo.", "warning");
+           }
+       })
+       .fail(function (jqXHR, textStatus, errorThrown) {
+           Notificar("@RsBase.ATENCAO_", "Ocorreu um erro ao obter o status do modelo.", "warning");
+       });
+   }
+
+    function AlterarStatusObj(Status)
+    {
+
+      var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Canal_ComunicacaoApi/alterarstatus")';
+      $("body").addClass("loading");
+      $.ajax({
+          url: link,
+          type: 'POST',
+          contentType: 'application/json; charset=utf-8',
+          dataType: 'json',
+          data: JSON.stringify({
+              ids: rows_selected,
+              status: Status
+          })
+      })
+          .done(function (data) {
+              if (data.ok) {
+                  Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+
+                  // aguarda 1,5 segundos para o usuário ver a notificação e recarrega
+                  setTimeout(function () {
+                      location.reload();
+                  }, 1500);
+              } else {
+                  Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+              }
+          })
+          .fail(function (xhr, status, error) {
+              Notificar("@RsBase.ERRO", "Erro ao alterar status: " + (xhr.responseText || error), "error");
+          })
+          .always(function () {
+              $("body").removeClass("loading");
+              rows_selected = [];
+          });
+    }
+
+     $("#btnAdicionarEditar").off("click").on("click", async function () {
+    try {
+        let erro = false;
+
+        // === VALIDAÇÕES ===
+        if (!$("#iNomeEditar").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NOME_CANAL)", "warning");
+            erro = true;
+        }
+
+        if ($("#iTipoCanalEditar").val() == 0) {
+            if (!$("#iNumeroEditar").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NUMERO)", "warning");
+                erro = true;
+            }
+
+            if (!$("#iTokenWhatsAppEditar").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_WHATSAPP_BUS)", "warning");
+                erro = true;
+            }
+
+            if (!$("#iNumeroIdWhatsAppEditar").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ID_WHATSAPP_BUSINESS)", "warning");
+                erro = true;
+            }
+        }
+
+        if ($("#iTipoCanalEditar").val() == 1 && !$("#iTokenTelegramEditar").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_TELEGRAM)", "warning");
+            erro = true;
+        }
+
+        if ($("#iTipoCanalEditar").val() == 2 && !$("#iTokenMessengerEditar").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_MESSENGER)", "warning");
+            erro = true;
+        }
+
+        if ($("#iTipoCanalEditar").val() == 3 && !$("#iTokenInstagramEditar").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TOKEN_INSTAGRAM)", "warning");
+            erro = true;
+        }
+
+        if (erro) return false;
+
+        // === MONTA O OBJETO ===
+        const formData = {
+            Id: idat,
+            Nome: $("#iNomeEditar").val(),
+            Descricao: $("#iDescCanalEditar").val(),
+            Email: $("#iEmailEditar").val(),
+            Site: $("#iSiteEditar").val(),
+            IdBot: $("#iBotEditar option:selected").val(),
+            Numero: $("#iNumeroEditar").val(),
+            TokenWhatsAppBusiness: $("#iTokenWhatsAppEditar").val(),
+            IdNumeroWhatsAppBusiness: $("#iNumeroIdWhatsAppEditar").val(),
+            WhatsAppBusinessAccount: $("#iIdWhatsAppEditar").val(),
+            ModeloPadraoWhatsApp: $("#iModeloPadraoEditar option:selected").val(),
+            TokenTelegram: $("#iTokenTelegramEditar").val(),
+            TokenMessenger: $("#iTokenMessengerEditar").val(),
+            TokenInstagram: $("#iTokenInstagramEditar").val(),
+            TokenSkype: $("#iTokenSkypeEditar").val(),
+            Image: $("#iImagemInputEditar").val(),
+            TipoCanalComunicacao: $("#iTipoCanalEditar").val(),
+            Status: $("#iStatus").is(":checked"),
+
+        };
+
+        const payload = {
+            Usuario: "admin",
+            Objeto: formData
+        };
+
+        // === CHAMA A API ===
+        const response = await fetch(baseUrl + "/api/Canal_ComunicacaoApi/Gravar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if ($('#iImagemInputEdt').val()) {
+            let obj = $('#iImagemInputEdt')[0];
+
+            if (obj.files.length > 0) {
+
+                let fileid = idat;
+                var data = new FormData();
+                data.append("UploadedImage", obj.files[0]);
+                data.append("id", fileid);
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Canal_ComunicacaoApi/AdicionarArquivo")' + "?Id=" + idat;
+
+                let resultUploadArquivo = await $.ajax({
+                    url: link,
+                    type: 'POST',
+                    contentType: false,
+                    processData: false,
+                    data: data
+                });
+
+                if (!resultUploadArquivo.ok) {
+                    Notificar("@RsBase.ATENCAO_", resultUploadArquivo.mensagem, "warning");
+                    return false;
+                }
+            }
+        }
+
+        $("#modal-filter").modal("hide");
+
+        // Atualiza página após 1,5s
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+
+        if (erro == false) {
+        Notificar("@RsBase.INFORMACAO", "@RsCadastros.CANAL_ALTERADO", "info");
+        }
+
+        if (erro) {
+            return false;
+        }
+
+    } catch (error) {
+        console.error("Erro ao gravar canal:", error);
+        Notificar("Erro", "Falha ao salvar canal.", "danger");
+    }
+});
+
+
+    function mostrarCamposPorTipo(tipo) {
+        $('#divWhatsApp, #divMessenger, #divTelegram, #divInstagram, #divSkype').hide();
+
+        switch (tipo) {
+            case 'WhatsApp':
+                $('#divWhatsApp').show();
+                break;
+            case 'Messenger':
+                $('#divMessenger').show();
+                break;
+            case 'Telegram':
+                $('#divTelegram').show();
+                break;
+            case 'Instagram':
+                $('#divInstagram').show();
+                break;
+            case 'Skype':
+                $('#divSkype').show();
+                break;
+        }
+        }
+
+        $('#modal-editar').on('shown.bs.modal', function () {
+            // Destroi o toggle atual (caso já tenha sido inicializado)
+            if ($('#iStatus').data('bs.toggle')) {
+                $('#iStatus').bootstrapToggle('destroy');
+            }
+
+            // Recria o toggle corretamente
+            $('#iStatus').bootstrapToggle({
+                on: 'Ativo',
+                off: 'Inativo',
+                onstyle: 'success',
+                offstyle: 'light',
+                width: 90,
+                height: 35
+            });
+        });
+
+
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Configuracao_Canal_Comunicacao", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-auto mr-auto">
+
+                        <h4 class="title-page"><i class="fas fa-project-diagram"></i> Canal de Comunicação</h4>
+
+                        <nav aria-label="breadcrumb" class="mt-25">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>Canal de Comunicação</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                    </div>
+                    <div class="col-auto mb-3">
+                        <div class="row title-page">
+                            <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                @if (AcessoHelper.TemAcesso(_areas, "193"))
+                                {
+                                    <a class="dropdown-item" data-acesso="ok" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                                    <a class="dropdown-item" data-acesso="ok" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                                }
+                                else
+                                {
+                                    <a class="dropdown-item acao-acesso" data-acesso="negado" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                                    <a class="dropdown-item acao-acesso" data-acesso="negado" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!--Nav Tab-->
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="whatsApp-tab" data-toggle="tab" href="#iWhatsApp" role="tab" aria-controls="whatsApp" aria-selected="true"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="telegram-tab" data-toggle="tab" href="#iTelegram" role="tab" aria-controls="telegram" aria-selected="false"><i class="fab fa-telegram-plane"></i> Telegram</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="messenger-tab" data-toggle="tab" href="#iMessenger" role="tab" aria-controls="messenger" aria-selected="false"><i class="fab fa-facebook-messenger"></i> Messenger</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="instagram-tab" data-toggle="tab" href="#iInstagram" role="tab" aria-controls="instagram" aria-selected="false"><i class="fab fa-instagram"></i> Instagram</a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+
+                    <!--WHATSAPP-->
+                    <div role="tabpanel" class="tab-pane active" id="iWhatsApp">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card"><i class="fab fa-whatsapp"></i> Configure o WhatsApp</span>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-sm-6 mr-auto">
+                                            <div class="form-group">
+                                                <label for="iNomeAtendente" style="padding-right: 37px;" class="mr-3">@RsCadastros.NOME_ATENDENTE:</label><br>
+                                                @Html.CheckBoxFor(m => m.MostrarNomeAtendente, new { @class = "form-control", @id = "iNomeAtendente", @name = " iNomeAtendente", @data_toggle = "toggle", @data_off = "Não", @data_on = "Sim", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-3">
+
+                                        <div class="col-sm-6">
+                                            <div class="form-group">
+                                                <label for="iDesconto_Captacao">@RsCadastros.ESCOLHER_EXIBICAO:</label>
+                                                @Html.EnumDropDownListFor(m => m.NomePrincipal, RsBase.SELECIONE, new { @class = "form-control", @id = "iDesconto_Captacao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.NomePrincipal, "", new { @class = "text-danger" })
+                                            </div>
+
+                                            <p>Ou</p>
+
+                                            <div class="form-group">
+                                                @Html.EnumDropDownListFor(m => m.NomeSecundario, RsBase.SELECIONE, new { @class = "form-control", @id = "iNome1", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.NomeSecundario, "", new { @class = "text-danger" })
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Gerenciar e/ou Personalizar Contas</span>
+                                </h5>
+                            </div>
+
+                            <div class="card-body body-card-accord">
+                                @if (AcessoHelper.TemAcesso(_areas, "193"))
+                                {
+                                    <a class="btn btn-success btn-add acao-acesso" title="Adicionar Canal" data-acesso="ok" id="iAdicionar_Canal"><i class="la la-plus" style="color: #fff"></i></a><b> Adicionar Canal</b>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-success btn-add acao-acesso" data-acesso="negado" title="Adicionar Canal" id="iAdicionar_Canal">
+                                        <i class="la la-plus" style="color: #fff"></i>
+                                    </a>
+                                    <b> Adicionar Canal</b>
+                                }
+                                <div class="row">
+                                    <table class="table table-hover nowrap" id="datatable"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--TELEGRAM-->
+                    <div role="tabpanel" class="tab-pane" id="iTelegram">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card"><i class="fab fa-telegram-plane"></i> Configure o Telegram</span>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-sm-6 mr-auto">
+                                            <div class="form-group">
+                                                <label for="iNomeAtendenteTelegram" style="padding-right: 37px;" class="mr-3">@RsCadastros.NOME_ATENDENTE:</label><br>
+                                                @Html.CheckBoxFor(m => m.MostrarNomeAtendenteTelegram, new { @class = "form-control", @id = "iNomeAtendenteTelegram", @name = " iNomeAtendenteTelegram", @data_toggle = "toggle", @data_off = "Não", @data_on = "Sim", @data_onstyle = "success" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Gerenciar e/ou Personalizar Contas</span>
+                                </h5>
+                            </div>
+
+                            <div class="card-body body-card-accord">
+                                @if (AcessoHelper.TemAcesso(_areas, "193"))
+                                {
+                                    <a class="btn btn-success btn-add" title="Adicionar Canal" id="iAdicionar_Canal_Telegram"><i class="la la-plus" style="color: #fff"></i></a><b> Adicionar Canal</b>
+                                }
+                                <div class="row">
+                                    <table class="table table-hover nowrap" id="datatable_telegram"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--MESSENGER-->
+                    <div role="tabpanel" class="tab-pane" id="iMessenger">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-3">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card"><i class="fab fa-facebook-messenger"></i> Configure o Facebook Messenger</span>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-sm-6 mr-auto">
+                                            <div class="form-group">
+                                                <label for="iNomeAtendenteMessenger" style="padding-right: 37px;" class="mr-3">@RsCadastros.NOME_ATENDENTE:</label><br>
+                                                @Html.CheckBoxFor(m => m.MostrarNomeAtendenteMessenger, new { @class = "form-control", @id = "iNomeAtendenteMessenger", @name = " iNomeAtendenteMessenger", @data_toggle = "toggle", @data_off = "Não", @data_on = "Sim", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Gerenciar e/ou Personalizar Contas</span>
+                                </h5>
+                            </div>
+
+                            <div class="card-body body-card-accord">
+                                @if (AcessoHelper.TemAcesso(_areas, "193"))
+                                {
+                                    <a class="btn btn-success btn-add" title="Adicionar Canal" id="iAdicionar_Canal_Messenger"><i class="la la-plus" style="color: #fff"></i></a><b> Adicionar Canal</b>
+
+                                }
+                                <div class="row">
+                                    <table class="table table-hover nowrap" id="datatable_messenger"></table>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!--INSTAGRAM-->
+                    <div role="tabpanel" class="tab-pane" id="iInstagram">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-3">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card"><i class="fab fa-instagram"></i> Configure o Instagram</span>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-sm- mr-auto">
+                                            <div class="form-group">
+                                                <label for="iMostrarNomeAtendenteInstagram" style="padding-right: 37px;" class="mr-3">@RsCadastros.NOME_ATENDENTE:</label><br>
+                                                @Html.CheckBoxFor(m => m.MostrarNomeAtendenteInstagram, new { @class = "form-control", @id = "iMostrarNomeAtendenteInstagram", @name = " iMostrarNomeAtendenteInstagram", @data_toggle = "toggle", @data_off = "Não", @data_on = "Sim", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Gerenciar e/ou Personalizar Contas</span>
+                                </h5>
+                            </div>
+
+                            <div class="card-body body-card-accord">
+                                @if (AcessoHelper.TemAcesso(_areas, "193"))
+                                {
+                                    <a class="btn btn-success btn-add" title="Adicionar Canal" id="iAdicionar_Canal_Instagram"><i class="la la-plus" style="color: #fff"></i></a><b> Adicionar Canal</b>
+
+                                }
+
+                                <div class="row">
+                                    <table class="table table-hover nowrap" id="datatable_instagram"></table>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Configuracao")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+    <!-- MODAL -->
+    <div style="padding: 12px 20px; width: 50%; margin: 8px 0; box-sizing: border-box; outline: none;">
+        <div class="card" style="border:none;">
+            <div class="modal" id="modal-filter">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+
+                        <!-- Cabeçalho -->
+                        <div class="modal-header" style="">
+                            <h4 class="modal-title text-muted  d-flex justify-content-center ">Criando Canal</h4>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 ">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iTipoCanal">Tipo Canal:<span class="text-danger">*</span></label>
+                                    @Html.EnumDropDownListFor(m => m.TipoCanalComunicacao, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @name = "iTipoCanal", @id = "iTipoCanal", @autocomplete = "off", @disabled = "disabled" })
+                                    @Html.ValidationMessageFor(model => model.TipoCanalComunicacao, "", new { @class = "text-danger" })
+                                </div>
+
+                            </div>
+
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="col-sm-6">
+                                <div class="d-flex align-items-center mt-2">
+                                    <div class="border d-flex align-items-center justify-content-center" style="width:120px; height:120px;">
+                                        @Html.Image("iImagem", String.IsNullOrEmpty(Model.Imagem) ? @CONSTANTES.URLPortal+ "/Arquivos/Bot/Default.jpg" : Model.Imagem, Model.Nome, "100", "120")
+                                    </div>
+                                    <div class="ms-3 d-flex flex-column align-items-start">
+                                        <input class="form-control-file" id="iImagemInput" type="file" name="Files[0]" data-index="0" />
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iNome" class="mr-3">@RsCadastros.NOME_CANAL:<span class="text-danger">*</span></label><br>
+                                @Html.TextBoxFor(m => m.Nome, new { @class = "form-control", id = "iNome", maxlength = "100" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iDescCanal" class="mr-3">@RsCadastros.DESCRICAO_CANAL:</label><br>
+                                @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control", id = "iDescCanal", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iEmail" class="mr-3">E-mail:</label><br>
+                                @Html.TextBoxFor(m => m.Email, new { @class = "form-control", id = "iEmail", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iSite" class="mr-3">@RsCadastros.SITE:</label><br>
+                                @Html.TextBoxFor(m => m.Site, new { @class = "form-control", id = "iSite", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3">
+                            <div class="form-group col-sm-6">
+                                <label for="iBot" class="mr-3">@RsCadastros.BOT_VINCULADO:</label><br>
+                                @Html.DropDownListFor(m => m.IdBot, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control", id = "iBot" })
+                            </div>
+                        </div>
+
+                        <div id="divWhatsApp" style="display: none">
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iNumero" class="mr-3">@RsCadastros.NUMERO:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.Numero, new { @class = "form-control", id = "iNumero", maxlength = "20" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenWhatsApp" class="mr-3">@RsCadastros.TOKEN_WHATSAPP_BUS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenWhatsAppBusiness, new { @class = "form-control", id = "iTokenWhatsApp", maxlength = "250" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iNumeroIdWhatsApp" class="mr-3">@RsCadastros.NUMERO_ID_WHATSAPP_BUSINESS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.IdNumeroWhatsAppBusiness, new { @class = "form-control", id = "iNumeroIdWhatsApp", maxlength = "250" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iIdWhatsApp" class="mr-3">@RsCadastros.ID_WHATSAPP_BUSINESS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.WhatsAppBusinessAccount, new { @class = "form-control", id = "iIdWhatsApp" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iModeloPadrao">
+                                        @RsCadastros.MODELO_PADRAO:
+
+                                        <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Modelo Padrão de Mensagem do WhatsApp Business"
+                                           data-content="<div style='font-size: 10px'>
+                                              <span class='p-3'>•	É possível editar somente os modelos com status APROVADO, REJEITADO ou PAUSADO.</span><br />
+                                              <span class='p-3'>•	Os modelos aprovados podem ser editados até 10 vezes dentro de 30 dias ou uma vez dentro de 24 horas. Não há restrição para o número de edições de modelos rejeitados ou pausados.</span><br />
+                                              <span class='p-3'>•	Depois de editar um modelo aprovado ou pausado, ele será aprovado automaticamente, a não ser que seja reprovado na análise do modelo.</span><br />
+                                              <span class='p-3'>•	Este modelo será enviado para o usuário todas as vezes que o atendente assumir a conversa fora do ciclo de 24 horas.</span><br />
+                                              </div>">
+                                          </i>
+                                    </label><br>
+                                    @Html.DropDownListFor(p => p.IdModeloPadraoWhatsApp, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModeloPadrao", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.IdModeloPadraoWhatsApp, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                            <div id="divConsulta" style="display: none">
+                                <div class="row mt-2 mb-2">
+                                    <div class="form-group  col-sm-6" style="padding: 15px;">
+                                        <div class="text-left">
+                                            <button type="button" class="btn btn-success" data-toggle="modal" onclick="verificaStatusModelo(@Model.Id);  return true;" id="iConsulta">Consulta Integração</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divMessenger" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenMessenger" class="mr-3">@RsCadastros.TOKEN_MESSENGER:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenMessenger, new { @class = "form-control", id = "iTokenMessenger", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="divTelegram" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenTelegram" class="mr-3">@RsCadastros.TOKEN_TELEGRAM:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenTelegram, new { @class = "form-control", id = "iTokenTelegram", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="divInstagram" style="display: none">
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenInstagram" class="mr-3">@RsCadastros.TOKEN_INSTAGRAM:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenInstagram, new { @class = "form-control", id = "iTokenInstagram", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divSkype" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenSkype" class="mr-3">@RsCadastros.TOKEN_SKYPE:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenSkype, new { @class = "form-control", id = "iTokenSkype", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Botões finais -->
+                        <div class="form-group col-sm-12 py-3">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-danger" data-dismiss="modal" id="iLimparFiltroModal">Cancelar</button>
+                                <button type="button" class="btn btn-success"  id="btnAdicionarFluxo">Adicionar</button>
+                            </div>
+                        </div>
+
+                    </div> <!-- modal-content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL Editar -->
+    <div style="padding: 12px 20px; width: 50%; margin: 8px 0; box-sizing: border-box; outline: none;">
+        <div class="card" style="border:none;">
+            <div class="modal" id="modal-editar">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+
+                        <!-- Cabeçalho -->
+                        <div class="modal-header" style="">
+                            <h4 class="modal-title text-muted  d-flex justify-content-center ">Detalhes do Canal</h4>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 ">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iTipoCanalEditar">Tipo Canal:<span class="text-danger">*</span></label>
+                                    @Html.EnumDropDownListFor(m => m.TipoCanalComunicacao, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @name = "iTipoCanalEditar", @id = "iTipoCanalEditar", @autocomplete = "off", @disabled = "disabled" })
+                                    @Html.ValidationMessageFor(model => model.TipoCanalComunicacao, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                            <div class="col-sm-6 ">
+                                <div class="form-group">
+                                    <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label><br />
+                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="col-sm-6">
+                                <div class="d-flex align-items-center mt-2">
+                                    <div class="border">
+                                        @Html.Image("iImagemEditar", String.IsNullOrEmpty(Model.Imagem) ? @CONSTANTES.URLPortal + "/Arquivos/Bot/Default.jpg" : Model.Imagem, Model.Nome, "100", "120")
+                                    </div>
+                                    <div class="ms-3">
+                                        <input class="form-control-file" id="iImagemInputEdt" type="file" name="Files[0]" data-index="0" />
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iNomeEditar" class="mr-3">@RsCadastros.NOME_CANAL:<span class="text-danger">*</span></label><br>
+                                @Html.TextBoxFor(m => m.Nome, new { @class = "form-control", id = "iNomeEditar", maxlength = "100" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iDescCanalEditar" class="mr-3">@RsCadastros.DESCRICAO_CANAL:</label><br>
+                                @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control", id = "iDescCanalEditar", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iEmailEditar" class="mr-3">E-mail:</label><br>
+                                @Html.TextBoxFor(m => m.Email, new { @class = "form-control", id = "iEmailEditar", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                            <div class="form-group col-sm-6">
+                                <label for="iSiteEditar" class="mr-3">@RsCadastros.SITE:</label><br>
+                                @Html.TextBoxFor(m => m.Site, new { @class = "form-control", id = "iSiteEditar", maxlength = "100" })
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3">
+                            <div class="form-group col-sm-6">
+                                <label for="iBotEditar" class="mr-3">@RsCadastros.BOT_VINCULADO:</label><br>
+                                @Html.DropDownListFor(m => m.IdBot, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control", id = "iBotEditar" })
+                            </div>
+                        </div>
+
+                        <div id="divWhatsAppEditar" style="display: none">
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iNumeroEditar" class="mr-3">@RsCadastros.NUMERO:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.Numero, new { @class = "form-control", id = "iNumeroEditar", maxlength = "20" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenWhatsAppEditar" class="mr-3">@RsCadastros.TOKEN_WHATSAPP_BUS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenWhatsAppBusiness, new { @class = "form-control", id = "iTokenWhatsAppEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iNumeroIdWhatsAppEditar" class="mr-3">@RsCadastros.NUMERO_ID_WHATSAPP_BUSINESS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.IdNumeroWhatsAppBusiness, new { @class = "form-control", id = "iNumeroIdWhatsAppEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iIdWhatsAppEditar" class="mr-3">@RsCadastros.ID_WHATSAPP_BUSINESS:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.WhatsAppBusinessAccount, new { @class = "form-control", id = "iIdWhatsAppEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iModeloPadraoEditar">
+                                        @RsCadastros.MODELO_PADRAO:
+
+                                        <i class="fas fa-question-circle fa-1x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Modelo Padrão de Mensagem do WhatsApp Business"
+                                           data-content="<div style='font-size: 10px'>
+                                              <span class='p-3'>•	É possível editar somente os modelos com status APROVADO, REJEITADO ou PAUSADO.</span><br />
+                                              <span class='p-3'>•	Os modelos aprovados podem ser editados até 10 vezes dentro de 30 dias ou uma vez dentro de 24 horas. Não há restrição para o número de edições de modelos rejeitados ou pausados.</span><br />
+                                              <span class='p-3'>•	Depois de editar um modelo aprovado ou pausado, ele será aprovado automaticamente, a não ser que seja reprovado na análise do modelo.</span><br />
+                                              <span class='p-3'>•	Este modelo será enviado para o usuário todas as vezes que o atendente assumir a conversa fora do ciclo de 24 horas.</span><br />
+                                              </div>">
+                                          </i>
+                                    </label><br>
+                                    @Html.DropDownListFor(p => p.IdModeloPadraoWhatsApp, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModeloPadraoEditar", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.IdModeloPadraoWhatsApp, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                            <div id="divConsultaEditar" style="display: none">
+                                <div class="row mt-2 mb-2">
+                                    <div class="form-group  col-sm-6" style="padding: 15px;">
+                                        <div class="text-left">
+                                            <button type="button" class="btn btn-success" data-toggle="modal" onclick="verificaStatusModelo(@Model.Id);  return true;" id="iConsulta">Consulta Integração</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divMessenger" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenMessengerEditar" class="mr-3">@RsCadastros.TOKEN_MESSENGER:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenMessenger, new { @class = "form-control", id = "iTokenMessengerEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="divTelegramEditar" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenTelegramEditar" class="mr-3">@RsCadastros.TOKEN_TELEGRAM:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenTelegram, new { @class = "form-control", id = "iTokenTelegramEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="divInstagramEditar" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenInstagramEditar" class="mr-3">@RsCadastros.TOKEN_INSTAGRAM:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenInstagram, new { @class = "form-control", id = "iTokenInstagramEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divSkypeEditar" style="display: none">
+
+                            <div class="row mt-2 mb-2 px-3 mt-2 mb-2 px-3 ">
+                                <div class="form-group col-sm-6">
+                                    <label for="iTokenSkypeEditar" class="mr-3">@RsCadastros.TOKEN_SKYPE:<span class="text-danger">*</span></label><br>
+                                    @Html.TextBoxFor(m => m.TokenSkype, new { @class = "form-control", id = "iTokenSkypeEditar", maxlength = "250" })
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Botões finais -->
+                        <div class="form-group col-sm-12 py-3">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-danger" data-dismiss="modal" id="iLimparFiltroModal">Cancelar</button>
+                                <button type="button" class="btn btn-success"  id="btnAdicionarEditar">Gravar</button>
+                            </div>
+                        </div>
+
+                    </div> <!-- modal-content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+}

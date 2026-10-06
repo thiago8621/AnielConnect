@@ -1,0 +1,206 @@
+﻿
+@model Aniel.Connect.Models.FuncionarioCadastroModel
+
+
+@{
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+
+    @if (ViewBag.Sucesso == true)
+    {
+        <script type="text/javascript">
+            $(document).ready(function () {
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+            });
+        </script>
+    }
+
+
+<script>
+
+    AddSelect("iEquipeVenda", "@CONSTANTES.URLPortal/api/EquipeVendasApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdEquipeVenda", "@RsBase.SELECIONE", false);
+    AddSelect("iParamPreQual", "@CONSTANTES.URLPortal/api/ParametrosConsultaPreQualApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdParamPreQual", "@RsBase.SELECIONE", false);
+     let idFuncionarios;
+
+    @if (Model.Id_Supervisor.HasValue)
+    {
+        <text>
+            $('#iSupervisores').val(@Model.Id_Supervisor);
+        </text>
+    }
+
+     const num_fre = '@Html.Raw(Request.Params["funcionarios"])'
+    $('#iHiddenFuncionarios').val(num_fre);
+
+    @if (Request.QueryString["Sucesso"] == "S")
+    {
+        <text>
+        $(document).ready(async function () {
+
+            try {
+                @if (@Model.Id == 0)
+                {
+                    <text>
+                    @*var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=' + parseInt($("#spnIdFuncionario").val());*@
+                    let idFuncionarios = Request["Id_Funcionario"];
+                    var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=' + idFuncionarios;
+                     </text>
+                }
+                else
+                {
+                    <text>
+                var url = '@String.Concat(CONSTANTES.URLPortal, "/api/FuncionarioApi/verificaUsuario")' + '?Funcionario_Id=@Model.Id';
+                    </text>
+                }
+
+
+                await $.ajax({
+                    url: url,
+                    type: "GET",
+                    dataType: "json"
+                })
+                    .done(function (data) {
+                        if (data.mensagens[0] != undefined) {
+                            Notificar("@RsBase.ATENCAO_", data.mensagens[0].mensagem, "info");
+                        }
+                    });
+
+                parent.dial.dialog('close');
+                Notificar("@RsBase.SALVAR", "Cadastrado com sucesso", "info");
+
+            }
+            catch (ex) {
+                console.log(ex);
+            }
+
+        });
+        </text>
+
+    }
+
+
+    var clicked = false;
+
+    function ValidaSubmit() {
+        var teste = "@ViewBag.E_Supervisor".toLowerCase();
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+        ShowPageLoading();
+        $("#form").submit();
+    }
+
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Funcionario", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.Num_Fre)
+    @Html.HiddenFor(model => model.Funcionarios, new { @id = "iHiddenFuncionarios" })
+    @Html.HiddenFor(model => model.CadastrarEmMassa, new { Value = true })
+
+    @Html.AntiForgeryToken()
+
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+
+            <div id="accordion">
+                <div class="">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <input type="hidden" name="CadastrarEmMassa" value="true" />
+                                        <label for="iMeta">@RsCadastros.META_INDIVIDUAL_PERIODO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Meta, new SelectList(ViewBag.Meta, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMeta", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Meta, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iFaixa">@RsCadastros.TABELA_COMISSIONAMENTO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Comissionamento, new SelectList(ViewBag.Comissionamento, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFaixa", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Comissionamento, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iFaixa">@RsCadastros.FAIXA_COMISSIONAMENTO :</label>
+                                        @Html.DropDownListFor(model => model.Id_Faixa, new SelectList(ViewBag.Faixa_Comissionamento, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFaixa", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Id_Faixa, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+                            </div>
+                            @if (Model.TipoEnum != 2)
+                            {
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iSupervisores">@RsCadastros.SUPERVISOR :</label>
+                                            @Html.DropDownListFor(model => model.Id_Supervisor, ViewBag.Supervisores as SelectList, RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisores", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Id_Supervisor, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iSupervisores">@RsCadastros.EQUIPE_VENDAS :</label>
+                                            @Html.DropDownListFor(model => model.IdEquipeVenda, new SelectList("Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEquipeVenda", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.IdEquipeVenda, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="row">
+                                <div class="col-sm-5">
+                                    <div class="form-group">
+                                        <label for="iParamPreQual">@RsCadastros.PARAM_CONS_CREDITO_PREQUAL:</label>
+                                        @Html.DropDownListFor(m => m.IdParamPreQual, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iParamPreQual", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="form-group col-sm-12" style="padding: 15px;">
+            <div class="text-center">
+                <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+                <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iPesquisar">Salvar</button>
+            </div>
+        </div>
+
+    </div>
+
+}

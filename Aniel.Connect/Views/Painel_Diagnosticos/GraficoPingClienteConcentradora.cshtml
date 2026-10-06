@@ -1,0 +1,471 @@
+﻿@model Aniel.Connect.Models.GraficoPing_Request
+
+@{
+    ViewBag.Title = RsCadastros.GRAFICO_PING_CLIENTE_CONCENTRADOR;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <style>
+        /*Concentradora*/
+        .vis-graph-groupConcentradora {
+            fill: #57b96d !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            /*stroke: #47d200 !important;*/
+            stroke: #28a745 !important;
+        }
+
+        /*Cliente*/
+        .vis-graph-groupCliente {
+            fill: #1e90ff !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #11518f !important;
+        }
+
+        .vis-timeline .vis-fill {
+            fill-opacity: .1 !important;
+            stroke: none !important;
+        }
+    </style>
+}
+
+@section scripts {
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+
+    <script>
+        let model = @Html.Raw(Json.Encode(Model));
+        let objeto;
+        var arrayCliente = [];
+        var arrayConcentradora = [];
+        var dataset = new vis.DataSet();
+        let graph2dCliente;
+        let graph2dConcentradora;
+        let isRunning = false;        
+        const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+
+        let wsCliente;       
+        let wsConcentradora;
+
+        $(document).ready(async function () {           
+            ShowPageLoading();
+            desenharGraficoConcentradora();
+            desenharGraficoCliente();
+        });
+
+        function renderStep(strategy, graph2d) {
+            // move the window (you can think of different strategies).
+            var now = vis.moment();
+            var range = graph2d.getWindow();
+            var interval = range.end - range.start;
+            switch (strategy) {
+              case 'continuous':
+                // continuously move the window
+                graph2d.setWindow(now - interval, now, {animation: false});
+                requestAnimationFrame(renderStep(strategy,graph2d));
+                break;
+
+              case 'discrete':
+                    graph2d.setWindow(moment(now - interval).format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss'), { animation: false });
+                    //setTimeout(renderStep(strategy), 3000);
+                break;
+
+                case 'static':
+                    // move the window 90% to the left when now is larger than the end of the window
+                    if (now > range.end) {
+                  graph2d.setWindow(now - 0.1 * interval, now + 0.9 * interval);
+                }
+                //setTimeout(renderStep, DELAY);
+                break;
+              default: // 'static'
+                graph2d.setWindow(moment(now - interval).format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss'), { animation: false });
+            }           
+          }      
+
+        function stopWebSockets() {
+            wsConcentradora.close();
+            wsCliente.close();
+        }
+
+        function startWSConcentradora() {
+            let websocket_url = "@CONSTANTES.URLPortalWebSocket/api/Relatorio_Conexaoapi/GraficoWebSocket?Tipo_grafico=0";
+            wsConcentradora = new WebSocket(websocket_url);
+
+            wsConcentradora.onopen = function () {
+                console.log("Websocket Concentradora Conectado.");
+                wsConcentradora.send(JSON.stringify({pingConcentradora: true, Id_Login_Radius: model.Id_Login_Radius}));
+            };
+
+            wsConcentradora.onmessage = function (evt) {
+                console.log(evt.data);    
+                if (isRunning) {
+                    objeto = JSON.parse(evt.data)
+                    if (graph2dConcentradora === undefined || graph2dConcentradora === null) {
+                        desenharGraficoConcentradora();
+                        addItemGraficoConcentradora(objeto);
+                    }
+                    else {
+                        addItemGraficoConcentradora(objeto);
+                        //desenharGrafico();
+                    }
+                    renderStep('discrete', graph2dConcentradora);                    
+                }
+            };
+
+            wsConcentradora.onclose = function () {
+                console.log("Websocket Concentradora Desconectado.");  
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');                
+            };       
+
+            wsConcentradora.onerror = function (t) {
+                console.log(t);
+                isRunning = false;
+                stopWebSockets();
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "info");
+            };
+        }           
+
+        function startWSCliente() {
+            let websocket_url = "@CONSTANTES.URLPortalWebSocket/api/Relatorio_Conexaoapi/GraficoWebSocket?Tipo_grafico=0";
+            wsCliente = new WebSocket(websocket_url);
+
+            wsCliente.onopen = function () {
+                console.log("Websocket Cliente Conectado.");
+                wsCliente.send(JSON.stringify({pingConcentradora: false, Id_Login_Radius: model.Id_Login_Radius}));
+            };
+
+            wsCliente.onmessage = function (evt) {
+                console.log(evt.data);    
+                if (isRunning) {
+                    objeto = JSON.parse(evt.data)
+                    if (graph2dCliente === undefined || graph2dCliente === null) {
+                        desenharGraficoCliente();
+                        addItemGraficoCliente(objeto);
+                    }
+                    else {
+                        addItemGraficoCliente(objeto);
+                        //desenharGrafico();
+                    }
+                    renderStep('discrete', graph2dCliente);                    
+                }
+            };
+
+            wsCliente.onclose = function () {
+                console.log("Websocket Cliente Desconectado.");  
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');                
+            };       
+
+            wsCliente.onerror = function (t) {
+                console.log(t);
+                isRunning = false;
+                stopWebSockets();
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "info");
+            };
+        }
+
+        $('#iIniciar').click(function () {           
+            if (!isRunning) {                                                      
+                arrayCliente = [];
+                arrayConcentradora = [];
+                addItemGraficoConcentradora({ dataHoraRequisicao: vis.moment().add(-3, 'seconds').format('YYYY-MM-DD HH:mm:ss'), latencia: 0}); //Adiciona ponto inicial no gráfico e o redesenha.
+                addItemGraficoCliente({ dataHoraRequisicao: vis.moment().add(-3, 'seconds').format('YYYY-MM-DD HH:mm:ss'), latencia: 0});
+
+                isRunning = true;
+                //carregarDados();
+                startWSConcentradora();
+                startWSCliente();
+
+                $('#iIniciar').removeClass('btn-success');
+                $('#iIniciar').text('@RsBase.PARAR');
+                $('#iIniciar').addClass('btn-danger');
+
+            }
+            else {
+                wsConcentradora.close();
+                wsCliente.close();
+                isRunning = false;
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');
+            }
+        });
+
+        function addItemGraficoCliente(value) {
+            if (value != undefined) {
+                arrayCliente.push({ x: moment(value.dataHoraRequisicao), y: (value.latencia), group: 'cliente' });               
+            }
+
+            graph2dCliente.setItems(arrayCliente);
+            graph2dCliente.redraw();
+            console.log(arrayCliente);
+        }
+
+        function addItemGraficoConcentradora(value) {
+            if (value != undefined) {
+                arrayConcentradora.push({ x: moment(value.dataHoraRequisicao), y: (value.latencia), group: 'concentradora' });                
+            }
+
+            graph2dConcentradora.setItems(arrayConcentradora);
+            graph2dConcentradora.redraw();
+            console.log(arrayConcentradora);
+        }
+
+        function desenharGraficoConcentradora() {
+            let hora_start = vis.moment().add(-60, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+            let hora_end = vis.moment().format('YYYY-MM-DD HH:mm:ss');
+
+            arrayConcentradora.push({ x: hora_start, y: 0, group: 'concentradora' });
+            //array.push({ x: hora_start, y: 0, group: 'cliente' });
+
+            var container = document.getElementById('iGraficoConcentradora');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br',
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        range: { min: 0 },
+                        title: { text: "@Html.Raw(RsCadastros.LATENCIA)" },
+                        format: function (value) {
+                            if ((value - Math.floor(value)) == 0)
+                                return value + "ms";
+                            else
+                                return "";                           
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'bottom' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                timeAxis: {
+                    scale: 'second',
+                    step: 2
+                },
+                //autoResize: true,
+                min: hora_start,
+                //max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '300px',
+                maxHeight: '500px',
+                zoomMin: 30000,
+                zoomMax: 180000,
+                //configure: true,
+                showCurrentTime: true,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'concentradora',
+                content: 'Concentradora',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupConcentradora',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });           
+
+            graph2dConcentradora = new vis.Graph2d(container, arrayConcentradora, groups, options);
+
+            graph2dConcentradora.fit();
+            graph2dConcentradora.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+
+        function desenharGraficoCliente() {
+            let hora_start = vis.moment().add(-60, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+            let hora_end = vis.moment().format('YYYY-MM-DD HH:mm:ss');
+
+            arrayCliente.push({ x: hora_start, y: 0, group: 'cliente' });
+            //array.push({ x: hora_start, y: 0, group: 'cliente' });
+
+            var container = document.getElementById('iGraficoCliente');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br',
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        range: { min: 0 },
+                        title: { text: "@Html.Raw(RsCadastros.LATENCIA)" },
+                        format: function (value) {
+                            if ((value - Math.floor(value)) == 0)
+                                return value + "ms";
+                            else
+                                return "";
+                            /*if (isRunning) {
+                                return octetsToKbMbGb(value, model.Unidade_Medida_Velocidade);
+                            }
+                            else {
+                                return octetsToKbMbGb(value, model.Unidade_Medida_Velocidade, true);
+                            }*/
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'bottom' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                timeAxis: {
+                    scale: 'second',
+                    step: 2
+                },
+                //autoResize: true,
+                min: hora_start,
+                //max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 30000,
+                zoomMax: 180000,
+                //configure: true,
+                showCurrentTime: true,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'cliente',
+                content: 'Cliente',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupCliente',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });           
+
+            graph2dCliente = new vis.Graph2d(container, arrayCliente, groups, options);
+
+            graph2dCliente.fit();
+            graph2dCliente.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+
+
+    </script>
+}
+
+<div class="row" style="width:100%">
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iDescLoginRadius">@RsCadastros.LOGIN:</label>
+            @Html.TextBoxFor(model => model.Desc_Login_Radius, new { @class = "form-control", @id = "iDescLoginRadius", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iDescCliente">@RsCadastros.CLIENTE:</label>
+            @Html.TextBoxFor(model => model.Desc_Cliente, new { @class = "form-control", @id = "iDescCliente", disabled = "disabled" })
+        </div>
+    </div>  
+
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iEnderecoIp">@RsCadastros.ENDERECO_IP @RsCadastros.CLIENTE:</label>
+            @Html.TextBoxFor(model => model.Ip_Login_Radius, new { @class = "form-control", @id = "iEnderecoIp", disabled = "disabled" })
+        </div>
+    </div>
+    
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iNas">@RsCadastros.ENDERECO_IP @RsCadastros.CONCENTRADORA:</label>
+            @Html.TextBoxFor(model => model.Ip_Concentradora, new { @class = "form-control", @id = "iNas", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="form-group col-sm-2" style="padding: 15px;">
+        <div class="text-right">
+            <button type="button" class="btn btn-success" id="iIniciar">@RsBase.INICIAR</button>
+        </div>
+    </div>
+</div>
+
+<div class="row" style="width:100%">
+    <div class="col-sm-6">
+        <div class="form-group">
+            <div id="iGraficoCliente"></div>
+        </div>
+    </div>
+
+    <div class="col-sm-6">
+        <div class="form-group">
+            <div id="iGraficoConcentradora"></div>
+        </div>
+    </div>
+</div>
+
+
+
+<!--<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+</table>-->
+
+<head>
+    <title>@ViewBag.Title</title>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.1/moment-with-locales.min.js"></script>
+    <!--<script type="text/javascript" src="~/Scripts/vis-timeline-graph2d.min.js"></script>
+    <script type="text/javascript" src="~/Scripts/moment-with-locales.min.js"></script>-->
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>

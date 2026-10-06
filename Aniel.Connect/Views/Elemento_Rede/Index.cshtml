@@ -1,0 +1,960 @@
+﻿@model Aniel.Connect.Repository.Model.Elemento_RedeListaModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ELEMENTOS_REDE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+<script>
+
+    var [rows_selected, Url] = [[], '@String.Concat(CONSTANTES.URLPortal,"/api/Elemento_RedeApi/AlterarStatus")'];
+    let oDatatable;
+
+    async function SincronizarElementoRede() {
+        let url = "@string.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/ImportarElementoRedebyApi")";
+        let resultado = await $.ajax({
+            url: url,
+            data: {
+                ElementosRede: $("#iNumerosOS").val()
+            },
+            beforeSend: function () {
+                ShowPageLoading();
+            },
+            complete: function () {
+                HidePageLoading();
+            },
+            dataType: "json",
+            type: "POST"
+        });
+
+        if (!resultado.ok) {
+            if (resultado.mensagem != null) {
+                Notificar("@RsBase.ATENCAO_", `${resultado.mensagem}`, "warning")
+            }
+        }
+        else {
+            ShowModalResults(resultado.idObjeto);
+        }
+    }
+
+    function ShowModalResults(result) {
+        $('#modal-resultados').modal('show');
+
+        $('#iShowResults').DataTable({
+            data: result,
+            bPaginate: false,
+            bDestroy: true,
+            ordering: false,
+            columns: [
+                { data: 'elementoRede', title: 'Elemento de Rede', order: false },
+                { data: 'mensagem', title: 'Mensagem', order: false },
+                {
+                    data: 'situacao', title: 'Importado', order: false, render: function (data) {
+                        return data === true ? "Sim" : "Não"
+                    }
+                }
+            ]
+        });
+    }
+
+    $("#iSincronizar").on("click", async function () {
+        await SincronizarElementoRede();
+    });
+
+    let HandleStatusFiltrar = function () {
+        $('#iStatusFiltrar').on('select2:select select2:unselecting', function (e) {
+            let alturaSelect2 = $(".select2-selection--multiple").height();
+            $("#iRowiStatusFiltrar").height(alturaSelect2 + 30);
+
+        });
+    };
+
+    function OSLink(id) {
+
+        console.log(id);
+        var _url = '@Url.Action("Index", "Acompanhamento_Servico")' + id;
+        parent.AddAba(_url, "Acompanhamento de Servico");
+
+    }
+
+    var HandleOLT = function () {
+        $('#iOLTCadastro').on('select2:select select2:unselecting', function (e) {
+            OltSelecionada = e.params.data;
+            $('#iSlotCadastro').val(null).trigger('change');
+            AddSelect("iSlotCadastro", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OltSelecionada.id, null, "@RsBase.SELECIONE", false);
+            return true;
+        });
+    };
+
+    var HandlePON = function () {
+        $('#iSlotCadastro').on('select2:select select2:unselecting', function (e) {
+            SlotSelecionado = e.params.data;
+            $('#iPonCadastro').val(null).trigger('change');
+            AddSelect("iPonCadastro", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, SlotSelecionado.id, null, "@RsBase.SELECIONE", false);
+            return true;
+        });
+    };
+
+
+     function showModalCadastroSlotPon() {
+     $("#modal-cadastrar-pon").modal('show');
+
+     AddSelect("iOLTCadastro", "@CONSTANTES.URLPortal/api/OLTapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleOLT);
+     AddSelect("iSlotCadastro", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandlePON);
+     AddSelect("iPonCadastro", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+
+     $("#iCancelarPon").on('click', function (e) {
+         $("#modal-cadastrar-pon").modal('hide');
+         $("#iOLTCadastro").val("");
+         $("#iSlotCadastro").val("");
+         $("#iPonCadastro").val("");
+     });
+
+     return true;
+    }
+
+    $("#iCadastrarPon").on('click', function () {
+        if (rows_selected.length > 0) {
+            let erro = false
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true;
+                return;
+            }
+
+            ShowPageLoading($("#modal-cadastrar-pon"));
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/VincularOltSlotPonEmMassa")';
+
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    ListIdCaixa: rows_selected,
+                    id_OLT: $("#iOLTCadastro option:selected").val(),
+                    id_Slot: $("#iSlotCadastro option:selected").val(),
+                    id_Pon: $("#iPonCadastro option:selected").val(),
+                }
+            })
+                .done(function (data) {
+                    console.log(data);
+                    $("#modal-cadastrar-pon").modal('hide');
+                    if (data.ok) {
+                        console.log(data.ok);
+                        HidePageLoading();
+
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+
+
+                    }
+                    else {
+
+                        HidePageLoading();
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+
+                })
+                .always(function () {
+                    HidePageLoading();
+                })
+        }
+
+     else {
+     Notificar("@RsCadastros.ATENCAO", "Selecione uma caixa para vincular", "warning");
+    }
+    });
+
+    var HandleContrato = function () {
+
+        $('#iContrato_Filtro').unbind('select2:select select2:unselecting');
+        $('#iContrato_Filtro').on('select2:select select2:unselecting', function (e) {
+
+            ContratoSelecionado = e.params.data
+            if (ContratoSelecionado) {
+                AddSelect("iProjeto_Filtro", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, ContratoSelecionado.id, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                AddSelect("iProjeto_Filtro", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+
+        });
+    }
+
+        $("#modal-filter").on('shown.bs.modal', function (e) {
+            $(`#iStatusFiltrar`).select2({
+                placeholder: "@RsBase.SELECIONE",
+            });
+            let alturaSelect2 = $(".select2-selection--multiple").height();
+            $("#iRowiStatusFiltrar").height(alturaSelect2 + 30);
+        });
+
+        $(document).ready(async function () {
+
+            await AddSelect("iTipoElemento_Filtro", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleStatusFiltrar);
+            AddSelect("iPoste", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboPoste",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null);
+            AddSelect("iCaixa", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null);
+            AddSelect("iCabo", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCabo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null);
+            await AddSelect("iContrato_Filtro", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleContrato);
+            await AddSelect("iProjeto_Filtro", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+
+
+        });
+
+        async function AlterarStatus(Status) {
+            await AlterarStatusObj(Status);
+            $("#modal-status").modal('hide');
+        }
+        //funcao de alterar status de um objeto
+        function AlterarStatusObj(Status) {
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            @*if (Status == 1) // Ativar somente com Certificado
+            {
+                if (oDatatable.rows('.selected').data().toArray().some(p => p.certificado !== 'Sim'))
+                {
+                    Notificar("@RsBase.ATENCAO_", "É necessário certificar o Elemento de Rede para ativar", "warning");
+                    return;
+                }
+            }*@
+
+            $.ajax({
+                url: Url,
+                type: `POST`,
+                dataType: `json`,
+                data: {
+                    ids: rows_selected,
+                    status: Status
+                }
+
+            })
+                .done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw(false);
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+
+                });
+        }
+
+
+$("#btnExcluir").on("click", function () {
+
+    if (rows_selected.length == 0) {
+        Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+        return;
+    }
+
+    Swal.fire({
+        title: 'Atenção! As portas vinculadas a este(s) Elemento(s) serão excluídas. Deseja continuar com a exclusão deste(s) Elemento(s)?',
+        type: 'warning',  // Use 'icon' em vez de 'type' para versões mais recentes do SweetAlert2
+        showCancelButton: true,
+        confirmButtonText: 'Sim',
+        cancelButtonText: 'Não',
+        reverseButtons: true,
+    }).then(function (resultado) {
+        if (resultado.value) { // 'value' é usado para checar se o botão "Sim" foi clicado
+            var UrlExcluir = '@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/Excluir")';
+
+            rows_selected.forEach(function (item) {
+                $.ajax({
+                    url: UrlExcluir,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: { Objeto: item }
+                })
+                .done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw(false);
+                    } else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+            });
+        }
+    });
+});
+
+
+
+     $("#btnPrevisto").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        AlterarStatusObj(2)
+
+    });
+
+    $("#btnConstruir").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        AlterarStatusObj(3)
+
+    });
+
+    $("#btnDiagrama").on("click", () => {
+        let url = "@(Url.Action("DiagramaFusao","Elemento_Rede"))?Id=__id__";
+        url = url.replace("__id__", rows_selected[0]);
+
+        window.location.href = url;
+
+    });
+
+    $("#btnPendenteCertificar").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        AlterarStatusObj(4)
+
+    });
+
+    $("#btnManutencao").on("click", function () {
+
+        if (rows_selected.length == 0) {
+            Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+            return;
+        }
+
+        AlterarStatusObj(5)
+
+    });
+
+        var handleDataTableButtons = function () {
+            "use strict";
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>> Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 1000], [10, 25, 50, 100, 1000]],
+                ajax: {
+                    url: `${baseUrl}/api/Elemento_RedeApi/GetAll`,
+                    type: 'POST',
+                    data: function (data) {
+                        var tipo = param_url(window.location.href.toString(), "IdTipo");
+                        if (tipo !== "erro") {
+                            data.idTipo = tipo;
+                        }
+                        else {
+                            data.idTipo = $('#iTipoElemento_Filtro').val();
+                        }
+
+                        data.contrato = $('#iContrato_Filtro').val();
+                        data.projeto = $('#iProjeto_Filtro').val();
+                        data.poste = $('#iPoste').val();
+                        data.nos = $('#iPoste').val();
+                        data.usuarioCriacao = $('#iPoste').val();
+                        data.dataCriacao = $('#iPoste').val();
+                        data.cabo = $('#iCabo').val();
+                        data.caixa = $('#iCaixa').val();
+                        data.listaStatus = $('#iStatusFiltrar').val();
+                        data.certificado = $('#iCertificado').val();
+
+                    },
+                    error: function (e) {
+                        /*console.log(e);*/
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO" },
+                    { data: "certificado", title: "@RsCadastros.CERTIFICADO" },
+                    { data: "descricao_Tipo", title: "@RsCadastros.TIPO de Elemento" },
+
+                    { data: "latitude", title: "@RsCadastros.LATITUDE" },
+                    { data: "longitude", title: "@RsCadastros.LONGITUDE" },
+                    { data: "situacao", title: "@RsCadastros.SITUACAO" },
+                    { data: "contrato", title: "@RsCadastros.CONTRATO" },
+                    { data: "projeto", title: "@RsCadastros.PROJETO" },
+                    { data: "cabo", title: "@RsCadastros.CABO" },
+                    { data: "poste", title: "@RsCadastros.POSTE" },
+                     { data: "idIntegrador", title: "@RsCadastros.CODIGO_AUXILIAR" },
+                    {
+                        data: "nos",
+                        title: "@RsCadastros.NUMERO_ORDEM_SERVICO",
+                        render: function (data, type, row, meta) {
+                            return `<a href="#" class="noRedirect" onclick="OSLink('${"?CodCt=" + row.codCT + "&Projeto=" + row.projeto + "&Num_Obra=" + row.nos + "&Num_Doc=" + row.numDoc}'); return false;">` + row.nos + "</a>";
+                        }
+                    },
+                    { data: "usuarioCriacao", title: "@RsBase.USUARIO_CRIACAO" },
+                    { data: "dataCriacao", title: "@RsBase.DATA_HORA_CRIACAO" },
+                    { data: "usuarioCertificacao", title: "@RsCadastros.USUARIO_CERTIFICACAO" },
+                    { data: "dataCertificacao", title: "@RsCadastros.DATA_HORA_CERTIFICACAO" },
+
+                     @*
+                    { data: "observacao", title: "@RsCadastros.OBSERVACAO" },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO" },
+                    { data: "projeto", title: "@RsCadastros.PROJETO" },
+                    { data: "uf", title: "@RsCadastros.UF" },
+                    { data: "cep", title: "@RsCadastros.CEP" },
+
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "complemento", title: "@RsCadastros.COMPLEMENTO" },
+                    { data: "contrato", title: "@RsCadastros.CONTRATO" },
+
+                    { data: "endereco", title: "@RsCadastros.ENDERECO" },
+                    { data: "id_POP", title: "@RsCadastros.POP" },
+                    { data: "numero", title: "@RsCadastros.NUMERO" },
+                     *@
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            $("#iLimparFiltros").on("click", function () {
+                $('#txtSearch').val('');
+                $('#iStatusFiltrar').val('');
+                $('#iTipoElemento_Filtro :selected').remove();
+                $('#iContrato_Filtro :selected').remove();
+                $('#iProjeto_Filtro :selected').remove();
+                $('#iPoste :selected').remove();
+                $('#iCabo :selected').remove();
+                $('#iCaixa :selected').remove();
+                $('#iCertificado').val('');
+                oDatatable.search('').draw();
+            });
+
+
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if ($(event.target).hasClass('noRedirect')) {
+                    return; // Não faz o redirecionamento
+                }
+
+                if (oDatatable.row(this).data() != null) {
+
+                    var _id = oDatatable.row(this).data().id;
+
+                    var url = '@Url.Action("Cadastro", "Elemento_Rede", new { id = "__id__" })';
+                    window.location.href = url.replace('__id__', _id);
+                    ShowPageLoading();
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+        }
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+    TableManageButtons.init();
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-sitemap"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+
+
+
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off" style="width:200px;">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "Elemento_Rede")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" id="btnAlterarStatus" data-toggle="modal" data-target="#modal-status" onclick="return false;">Alterar Status</a>
+                    <a class="dropdown-item" href="#" onclick="showModalCadastroSlotPon(); return true">Vincular OLT, SLOT e PON em Massa</a>
+                    <a class="dropdown-item" id="btnExcluir" onclick="return false;">@RsBase.EXCLUIR</a>
+                    <a class="dropdown-item" id="btnConstruir" onclick="return false;">Certificar Elementos</a>
+                    <a class="dropdown-item" id="btnDiagrama" onclick="return false;">@RsCadastros.DIAGRAMA_FUSAO </a>
+                    <a class="dropdown-item" id="btnImportar" onclick="AddAba('@Url.Action("Importacao", "Elemento_Rede")');">@RsCadastros.IMPORTAR_ELEMENTO_REDE</a>
+                    <a class="dropdown-item" id="btnSincronizar" onclick="$('#modal-SincroinzarElementoRede').modal('show')">Importar Elemento de Rede Via Integração</a>
+
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+
+                    @*<a class="dropdown-item" id="btnPendenteCertificar" onclick="return false;">Definir como Aguardando Certificação</a>
+                        <a class="dropdown-item" id="btnManutencao" onclick="return false;">@RsCadastros.MANUTENCAO</a>
+                        <a class="dropdown-item" id="btnPrevisto" onclick="return false;">Definir como Previsto</a>
+                        <a class="dropdown-item" id="btnCadastroManutencao" href="@Url.Action("Index", "Elemento_Rede_porta")">@RsCadastros.CADASTRO_PORTA_REDE</a>*@
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+<div class="modal fade" id="modal-status">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Alterar Status</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="container">
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="iStatusAlterar">@RsCadastros.STATUS</label>
+                            <select id="iStatusAlterar" class="form-control">
+                                <option value="1">@RsCadastros.ATIVO</option>
+                                <option value="2">@RsCadastros.PREVISTO</option>
+                                <option value="3">@RsCadastros.CONSTRUIDO</option>
+                                <option value="4">@RsCadastros.AGUARDANDO_CERTIFICACAO</option>
+                                <option value="5">@RsCadastros.MANUTENCAO</option>
+                                <option value="0">@RsCadastros.INATIVO</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row text-center">
+                        <div class="form-group col-sm-12" style="padding: 15px;">
+                            <div class="text-center">
+                                <button type="button" class="btn btn-success" onclick="AlterarStatus($('#iStatusAlterar').val())">Alterar</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+<!--Modal vincular OLT, SLOT e PON em massa-->
+<div class="modal" id="modal-cadastrar-pon">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Vincular OLT, SLOT e PON em Massa </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.OLT:</label>
+                                    <select class="form-control obrigatorio" id="iOLTCadastro">
+                                        <option value="" selected>@RsBase.SELECIONE</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.SLOT:</label>
+                                    <select class="form-control obrigatorio" id="iSlotCadastro">
+                                        <option value="" selected>@RsBase.SELECIONE</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.PON:</label>
+                                    <select class="form-control obrigatorio" id="iPonCadastro">
+                                        <option value="" selected>@RsBase.SELECIONE</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iCancelarPon">@RsBase.CANCELAR</button>
+                        <button type="button" class="btn btn-success" id="iCadastrarPon">@RsBase.CADASTRAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /.modal-->
+<div class="modal" tabindex="-1" role="dialog" id="modal-SincroinzarElementoRede">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Importar Elemento de Rede via Integração</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="col-xs-12">
+                        <p>Nomenclatura dos Elementos de Rede:</p>
+                        <textarea id="iNumerosOS" rows="5" cols="12" class="form-control" placeholder="Informe os elementos de rede separados por vírgula"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center;">
+                <button type="button" id="iSincronizar" class="btn btn-success btn-primary">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="container">
+                    <div class="row" id="iRowiStatusFiltrar">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iStatusFiltrar">@RsCadastros.STATUS</label>
+                                <select id="iStatusFiltrar" class="form-control" multiple="multiple" placeholder="Selecione">
+                                    <option value="1">@RsCadastros.ATIVO</option>
+                                    <option value="2">@RsCadastros.PREVISTO</option>
+                                    <option value="3">@RsCadastros.CONSTRUIDO</option>
+                                    <option value="4">@RsCadastros.AGUARDANDO_CERTIFICACAO</option>
+                                    <option value="5">@RsCadastros.MANUTENCAO</option>
+                                    <option value="0">@RsCadastros.INATIVO</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iTipoElemento_Filtro">Tipo de Elemento :</label>
+                                @Html.DropDownList("iTipoElemento_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iTipoElemento_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iContrato_Filtro">Contrato :</label>
+                                @Html.DropDownList("iContrato_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iContrato_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iProjeto_Filtro">Projeto :</label>
+                                @Html.DropDownList("iProjeto_Filtro", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iProjeto_Filtro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iPoste">@RsCadastros.POSTE :</label>
+                                @Html.DropDownList("iPoste", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iPoste", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iCabo">@RsCadastros.CABO :</label>
+                                @Html.DropDownList("iCabo", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iCabo", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iCaixa">@RsCadastros.CAIXA :</label>
+                                @Html.DropDownList("iCaixa", new SelectList(new List<Aniel.Connect.Models.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iCaixa", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iCertificado">@RsCadastros.CERTIFICADO :</label>
+                                <select class="form-control" id="iCertificado">
+                                    <option value="">@RsBase.SELECIONE</option>
+                                    <option value="1">@RsBase.SIM</option>
+                                    <option value="0">@RsBase.NAO</option>
+                                </select>
+                            </div>
+                        </div>
+                        @*<div class="col-6">
+                                <div class="form-group">
+                                    <label for="iTipo">@RsCadastros.TIPO @RsCadastros.ELEMENTO_REDE :</label>
+                                    @Html.DropDownList("iTipo", new SelectList(new List<Aniel.Connect.ControllersWebApi.T5.ObjComboResultTipoElemento<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iTipo", @autocomplete = "off" })
+                                </div>
+                            </div>*@
+                    </div>
+
+
+
+                    <div class="row text-center">
+                        <div class="form-group col-sm-12" style="padding: 15px;">
+                            <div class="text-center">
+                                <button id="iPesquisar" type="button" class="btn btn-success" onclick="">@RsCadastros.PESQUISAR</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->
+
+<div class="modal" tabindex="-1" role="dialog" id="modal-resultados">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Log de Importação</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table" id="iShowResults">
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

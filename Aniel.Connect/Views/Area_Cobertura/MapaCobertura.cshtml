@@ -1,0 +1,646 @@
+﻿@model List<Area_CoberturaCadastroModel>
+@using Aniel.Connect.Models.T5
+@using Resources
+
+@{
+    ViewBag.Title = RsCadastros.AREA_COBERTURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+
+    <style>
+        #map {
+            height: 100%;
+        }
+
+        /* Optional: Makes the sample page fill the window. */
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        /*Collapse*/
+        .collapse {
+            visibility: hidden;
+        }
+
+            .collapse.show {
+                visibility: visible;
+                display: block;
+            }
+
+        .collapsing {
+            position: relative;
+            height: 0;
+            overflow: hidden;
+            -webkit-transition-property: height, visibility;
+            transition-property: height, visibility;
+            -webkit-transition-duration: 0.35s;
+            transition-duration: 0.35s;
+            -webkit-transition-timing-function: ease;
+            transition-timing-function: ease;
+        }
+
+            .collapsing.width {
+                -webkit-transition-property: width, visibility;
+                transition-property: width, visibility;
+                width: 0;
+                height: auto;
+            }
+
+        .iLimparFiltro {
+        }
+
+        .icons-bar {
+            color: #999;
+            font-size: 1.3rem;
+        }
+
+        .icons-bar-add {
+            color: #57b96d;
+            font-size: 1.3rem;
+            background-color: #fff;
+        }
+        /*        .float-left {
+            right:20px; top:45px;
+        }*/
+
+
+        .popover-header {
+            color: #357ca5;
+            background-color: transparent;
+            border: none;
+        }
+
+        .save-button {
+            background-color: #57b96d;
+            color: #FFF;
+            border-radius: 50px;
+            text-align: center;
+            box-shadow: 2px 2px 3px #999;
+        }
+    </style>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row mb-1">
+
+        <div class="col-md-8 col-sm-10">
+            <h4 class="title-page mb-0">
+                <i class="fas fa-map-marked-alt"></i>
+                @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb pt-3 pl-2">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Area_Cobertura")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_AREA_COBERTURA</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <div class="form-group row">
+                <strong class="ml-4">Endereço:</strong>
+                <div class="col-sm-10">
+                    <input type="text" placeholder="Digite uma consulta" class="form-control ml-2 mr-1" onclick="setAutoComplete();" id="iPesquisaMap" autocomplete="off" onfocusout=" PesquisaMapa(); return false;">
+                </div>
+                <i class="la la-search la-2x" style="color: #999"></i>
+            </div>
+        </div>
+
+        <div class="col-auto ml-auto justify-content-center align-self-center">
+
+            @{var atualizado = DateTime.Now.Date.ToString("").Replace("00:00", DateTime.Now.Hour.ToString() + ":" + DateTime.Now.Minute.ToString());
+              atualizado.Replace(":00", "");              
+            }
+            
+            <div class="row text-right">
+                <div class="col-sm-12" id="relogioPainel" style="font-size: 12px;">Mapa Atualizado às </div>
+                <div class="col-sm-12" id="relogio" style=" font-size:14px; font-weight: bold">@atualizado</div>
+                <div class="col-sm-12  h-25 d-flex justify-content-end">
+                    <div class="" style="width:40px;border-radius:50px">
+                        <a href="#" class="" onclick="return gravarPoligono();" name="gravar">
+                            <div class="save-button" data-toggle="tooltip" data-placement="left" title="Salvar">
+                                <i class="fas fa-save fa-2x "></i>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+            <div class="row mr-0 mt-4" style="float: right;">
+
+
+
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<!--Collapse arrow right-->
+<!--<div class="row" style="position: absolute; z-index:999; margin-top: 95px;">
+    
+</div>-->
+<!--Mapa-->
+
+
+<div id="map" style=" height: 88vh; width: 100%;"></div>
+
+@section Scripts {
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    
+
+    <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default"></script>
+    <!-- Async script executes immediately and must be after any DOM elements used in callback. -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=@CONSTANTES.TokenGoogleAPI&v=3.64&libraries=places,drawing,geometry"></script>
+
+    <!--GoogleMaps Config-->
+
+    <script>
+
+        let cor = "@ViewBag.Cor";
+       let mapa_area_coberturamodel;
+        var LatlngList = [];
+        var PolygonList = [];
+
+        var listCoordenadas = [];
+        var myStyles = [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            },
+            {
+                featureType: "transit",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            }
+        ];
+        const map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: -22.8365822664385, lng: -43.340056779660614 },
+            zoom: 13,
+            styles: myStyles,
+            mapTypeId: "roadmap",
+        });
+
+        initMap();
+
+        let marcadorAutoComplete;
+        let autocomplete;
+
+        function setAutoComplete() {
+
+            if (!autocomplete) {
+
+                let elementPesquisa = document.getElementById("iPesquisaMap");
+                autocomplete = new google.maps.places.Autocomplete(elementPesquisa);
+            }
+        }
+
+        async function PesquisaMapa() {
+            try {
+
+                let pesquisa = $("#iPesquisaMap").val();
+                var service = new google.maps.places.PlacesService(map);
+
+                var request = {
+                    query: pesquisa,
+                    fields: ['name', 'geometry'],
+                };
+
+                service.findPlaceFromQuery(request, function (results, status) {
+
+
+                    if (marcadorAutoComplete) {
+                        marcadorAutoComplete.setMap(null);
+                    }
+
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                        if (results.length > 0) {
+
+                            let latlng = {
+                                lat: results[0].geometry.location.lat(),
+                                lng: results[0].geometry.location.lng()
+                            };
+
+                            marcadorAutoComplete = new google.maps.Marker({
+                                position: latlng,
+                                map: map,
+                                title: "Resultado da Busca"
+                            });
+
+                            map.setCenter(results[0].geometry.location);
+                        }
+                    }
+                });
+            }
+            catch (e) { console.log(e) }
+        }
+
+        var rows_Selected = [];
+        var odatatableplano = null;
+        var odatatablecaixa = null;
+
+
+        var nome = "Planos Ofertados";
+        odatatableplano = $("#idatatableplano").length && $("#idatatableplano").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            //drawCallBack: function () {
+            //},
+            data: $.ajax({
+                url:"",
+                type:"",
+                dataType:"",
+
+            })
+                .done(function (data) {
+                    Notificar("Sucesso", "Dados recuperados com Sucesso!", "info");
+                }).fail(function (data) {
+                    Notificar("@RsBase.ATENCAO_", "Houston, We Have a Problem", "warning");
+                }),
+            /* dataType: 'json',*/
+            order: [],
+            paging: false,
+            columns: [
+
+                {
+                    data: "Id", title: "Planos", render: function (data, type, row, meta) {
+                        data = `${row.Descricao}
+                                <input id="${nome}_${meta.row}__id" name="${nome}[${meta.row}].Id" type="hidden" value= "${TrataNulo(data)}">`;
+
+                        return data;
+                    }
+                },
+            ]
+        });        
+
+        odatatablecaixa = $("#idatatablecaixa").length && $("#idatatablecaixa").DataTable({
+            dom: "Bfrti",
+            columnDefs: [
+                {
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                }
+            ],
+            //drawCallBack: x,
+            language: traducaoDataTableSimples,
+/*            data: array,*/
+            order: [[1, 'asc']],
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            scroller: {
+                loadingIndicator: true,
+                rowHeight: 40,
+                boundaryScale: 0.5,
+                displayBuffer: 3
+            },
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: `${baseUrl}/api/Area_CoberturaApi/GetAll`,
+                type: "POST"
+            },
+            error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                   // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_Selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+            },
+            buttons: buttonsDataTable,
+            pageLength: 10,
+            columns: [
+                { title: "<input name='select_all' value='1' type='checkbox'>" },
+                { data: "id_Plano", title: "@RsCadastros.ID"},
+                { data: "descricao_Plano", title: "@RsCadastros.DESCRICAO"},
+                { data: "codigo_PlanoProduto", title: "@RsCadastros.PLANO_PRODUTO" },
+
+            ]
+        });
+    //Inicializando o Mapa
+     function initMap() {
+        /*Hide transit and poi*/
+
+         //Retornando Poligonos do Mongo
+
+         @foreach (var item in Model){
+        <text>
+         $.ajax({
+            type: "GET",
+            url: '@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/PoligonosFindById?Id="+item.Id)',
+            dataType: "json"
+         }).done(function (data) {
+             //Lendo de retangulos no mongo
+                 switch (data?.tipo) {
+
+                     case 1:
+                         data.coordenadas.forEach(function (retangulo) {
+
+                             var latlng = [];
+                             for (var i = 0; i < retangulo.length; i++) {
+
+                                 var lat = retangulo[i];
+                                 i = i + 1;
+                                 var lng = retangulo[i];
+
+                                 latlng.push(new google.maps.LatLng(lat, lng));
+
+                             }
+
+                             console.log(latlng);
+
+                             @if (Convert.ToString(ViewBag.Id_Area_Cobertura) == item.Id.ToString()) {
+
+        
+                                <text>
+                                LatlngList.push(retangulo)
+                                 </text>          
+                             }
+
+                             /*construtor*/
+                             const polygon = new google.maps.Polygon({
+                                 strokeColor: data.cor,
+                                 strokeOpacity: 0.8,
+                                 strokeWeight: 2,
+                                 fillColor: data.cor,
+                                 posicao: LatlngList.findIndex(i => i === retangulo),
+                                 fillOpacity: 0.35,
+                                 editable: @(Convert.ToString(ViewBag.Id_Area_Cobertura) == item.Id.ToString() ? "true" : "false"),
+                                 map,
+                                 paths: latlng,
+                             });
+                             console.log(polygon);
+
+                             @if(Convert.ToString(ViewBag.Id_Area_Cobertura) == item.Id.ToString()) {
+                            <text>
+                             // Move o mapa para uma coordenada da área de cobertura que selecionamos pelo cadastro
+                             map.panTo(latlng[0]);
+
+                             PolygonList.push(polygon)
+                             //Editar uma vértice.
+                             google.maps.event.addListener(polygon.getPath(), "set_at", gravarPoligonoL);
+
+                             //criar uma nova vértice.
+                             google.maps.event.addListener(polygon.getPath(), "insert_at", gravarPoligonoL);
+                             </text>
+                            }
+
+                             //click event in shape of polygon em que deixa ele editável
+                             google.maps.event.addListener(polygon, 'click', function (event) {
+                                 console.log("Posicao edicao:" + polygon.posicao);
+                                 polygon.editable == false ? polygon.setEditable(false) : polygon.setEditable(true);
+                             });
+
+                             //evento ao clicar com botão direito no shape
+                             google.maps.event.addListener(polygon, 'rightclick', function (event) {
+
+                                 path = polygon.getPath();
+                                 for (i = 0; i < path.length; i++) {
+                                     if (event.latLng == path.getAt(i)) {
+                                         path.removeAt(i);
+                                     }
+                                 }
+                                @if(Convert.ToString(ViewBag.Id_Area_Cobertura) == item.Id.ToString()) {
+                                <text>
+                                 gravarPoligonoL();
+                                 console.log(path);
+                                </text>
+                                }
+                             });
+
+                             //função que salva a model
+                             function gravarPoligonoL() {
+                                 var latlng = [];
+                                 console.log(polygon)
+                                 var coordinates = polygon.getPath().getArray();
+                                 for (var i = 0; i < coordinates.length; i++) {
+                                     latlng.push(coordinates[i].lat(), coordinates[i].lng());
+                                 };
+
+                                 console.log(latlng);
+
+                                 //salvar Polygon
+                                 mapa_area_coberturamodel = new Object();
+
+                                 mapa_area_coberturamodel.id = "@(Html.Raw(item.Id))";
+                                 mapa_area_coberturamodel.cor = polygon.strokeColor;
+                                 //mapa_area_coberturamodel.coordenadas = JSON.stringify(latlng);
+                                 console.log(LatlngList);
+                                 console.log("Pos antes:" + polygon.posicao);
+                                 LatlngList.splice(polygon.posicao, 1, latlng);
+                                 PolygonList.splice(polygon.posicao, 1, polygon);
+
+
+                                // LatlngList.push(latlng);
+                                 var pos = LatlngList.findIndex(i => i === latlng);
+                                 console.log("Pos depois:"+ pos);
+                                 polygon.posicao = pos;
+                                 mapa_area_coberturamodel.tipo = 1;
+                                 //console.log("Posicao:"+polygon.posicao)
+                             };
+                         });
+                         break; /*polygon*/
+
+                  //default: alert("anomalia");
+
+                 }
+         });
+         </text>
+         }
+
+        //Inicializa as ferramentas de desenho
+        initDrawing(map)
+
+    }
+
+    // This example adds a search box to a map, using the Google Place Autocomplete
+    // feature. People can enter geographical searches. The search box will return a
+    // pick list containing a mix of places and predicted search terms.
+    // This example requires the Places library. Include the libraries=places
+    // parameter when you first load the API. For example:
+    // <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places">
+
+        function initDrawing(map) {
+
+            const image =
+                "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png";
+
+            let drawingManager = new google.maps.drawing.DrawingManager({
+                map: map,
+                drawingMode: google.maps.drawing.OverlayType.MARKER,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_DOWN,
+                    drawingModes: ['marker', 'polygon'],
+                },
+
+                markerOptions: {
+                    icon: image,
+                    visible: false,
+                },
+
+                polygonOptions: {  /*area de cobertura*/
+                    strokeColor: cor,
+                    fillColor: cor,
+                    fillOpacity: "0.15",
+                    strokeWeight: 3,
+                    tipo: 1,
+                },
+
+            });
+            //mãozinha (parar de desenhar
+
+            //drawingManager.setDrawingMode('polygon');
+            //drawingManager.setDrawingMode('marker');
+
+            drawingManager.setDrawingMode(null);
+            $("#Poligono").on("click", function () {
+                drawingManager.setDrawingMode('polygon');
+
+            });
+
+
+            //aciona assim que completar o poligono
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon) => {
+                drawingManager.setDrawingMode(null);
+                polygon.setEditable(true);
+                //Pegando as coordenadas em array
+                var latlng = [];
+                var coordinates = (polygon.getPath().getArray());
+                for (var i = 0; i < coordinates.length; i++) {
+                    latlng.push(coordinates[i].lat(), coordinates[i].lng());
+
+                }
+
+                console.log(latlng);
+                mapa_area_coberturamodel = new Object();
+
+                //Preenchendo o obj mapa_area_coberturamodel
+                mapa_area_coberturamodel.id = "@ViewBag.Id_Area_Cobertura";
+                mapa_area_coberturamodel.cor = polygon.strokeColor;
+                //mapa_area_coberturamodel.coordenadas = JSON.stringify(latlng);
+                console.log("Pos antes:" + polygon.posicao);
+                //LatlngList.splice(polygon.posicao, 1, latlng);
+                LatlngList.push(latlng);
+                var pos = LatlngList.findIndex(i => i === latlng);
+                polygon.posicao = pos;
+                console.log("Pos depois:" + pos);
+                /*consultar o enumerado Tipo_Poligono*/
+                mapa_area_coberturamodel.tipo = polygon.tipo;
+
+                console.log(mapa_area_coberturamodel)
+                console.log(JSON.stringify(mapa_area_coberturamodel))
+                PolygonList.splice(polygon.posicao, 1, polygon);
+
+                //Enviando PoligonoRetangulo
+
+            });
+        };
+
+        //função que envia da model para o banco
+        function gravarPoligono() {
+
+            LatlngList = [];
+            mapa_area_coberturamodel = new Object();
+            mapa_area_coberturamodel.id = "@ViewBag.Id_Area_Cobertura";
+
+            for (let polygon of PolygonList){
+
+                var latlng = [];
+                var coordinates = polygon.getPath().getArray();
+                for (var i = 0; i < coordinates.length; i++) {
+                    latlng.push(coordinates[i].lat(), coordinates[i].lng());
+                };
+
+                mapa_area_coberturamodel.cor = polygon.strokeColor;
+                LatlngList.push(latlng);
+                var pos = LatlngList.findIndex(i => i === latlng);
+                console.log("Pos depois:"+ pos);
+                polygon.posicao = pos;
+                mapa_area_coberturamodel.tipo = 1;
+            }
+
+            if (!mapa_area_coberturamodel) {
+                mapa_area_coberturamodel = new Object();
+
+                //Preenchendo o obj mapa_area_coberturamodel
+                mapa_area_coberturamodel.id = "@ViewBag.Id_Area_Cobertura";
+                mapa_area_coberturamodel.cor = cor;
+                mapa_area_coberturamodel.tipo = 1;
+            }
+
+            mapa_area_coberturamodel.coordenadas = JSON.stringify(LatlngList);
+            $.ajax({
+                    type: "POST",
+                    url: '@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/GravarCoordenadas")',
+                    data: mapa_area_coberturamodel,
+                    dataType: "json"
+                }).done(function (data) {
+                    if (data.ok) {
+
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        ShowPageLoading();
+                        window.location = "@Url.Action("Cadastro", "Area_Cobertura", new { Id = ViewBag.Id_Area_Cobertura})";
+                        //listCoordenadas = [];
+                        //LatlngList = [];
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                }
+            );
+        }
+
+    </script>
+}

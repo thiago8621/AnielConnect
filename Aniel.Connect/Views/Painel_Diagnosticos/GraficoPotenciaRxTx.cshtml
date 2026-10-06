@@ -1,0 +1,314 @@
+﻿@model Aniel.Connect.Models.GraficoPotenciaRxTxModel
+
+@{
+    ViewBag.Title = RsCadastros.GRAFICO_POTENCIA_RX_TX;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <style>
+        /*Potencia Tx*/
+        .vis-graph-groupTx {            
+            fill: #28a745 !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #28a745 !important;           
+        }
+
+        /*Potencia Rx*/
+        .vis-graph-groupRx {           
+            fill: #ff0000 !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #f24646 !important;           
+        }
+
+        .vis-timeline .vis-fill {
+            fill-opacity: .1 !important;
+            stroke: none !important;
+        }
+    </style>
+}
+
+@section scripts {  
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+
+    <script>
+        let model = @Html.Raw(Json.Encode(Model));               
+        var dataset = new vis.DataSet();
+        let graph2d;                        
+
+        $(document).ready(async function () {                   
+            ShowPageLoading();
+            await carregarDados();            
+            //console.log(objeto); 
+            $('#iPeriodoConsumo').trigger('change');
+        });        
+
+         $('#iPeriodoConsumo').change(function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == "3") {
+                $('#divPeriodo').show();
+                $('#iDataInicial').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+                $('#iDataFinal').val("@DateTime.Now.ToString("dd/MM/yyyy")");
+            }
+            else {
+                $('#divPeriodo').hide()
+                $('#iDataInicial').val('');
+                $('#iDataFinal').val('');
+            }
+        });
+
+        $('#iPesquisar').click(function () {
+            var periodo = $('#iPeriodoConsumo').val();
+
+            if (periodo == undefined || periodo === null || (periodo == "3" && (!$('#iDataInicial').val() || !$('#iDataFinal').val()))) {
+                Notificar("@RsBase.ATENCAO_", "É necessário selecionar um período de consumo", "info");
+                return false;
+            }
+
+            if (periodo != "3") {
+                model.Data_Inicial_String = null;
+                model.Data_Fim_String = moment().format('DD/MM/YYYY HH:mm:ss');
+            }
+            else {
+                model.Data_Inicial_String = $('#iDataInicial').val();
+                model.Data_Fim_String = $('#iDataFinal').val();
+            }
+
+            model.Periodo_Consumo = periodo;
+
+            carregarDados();
+        });
+
+        async function carregarDados() {            
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/Relatorio_Conexaoapi/GetGraficoPotenciaRxTx",
+                type: "POST",
+                data: {
+                    periodo_Consumo: model.Periodo_Consumo,
+                    id_Login_Radius: model.Id_Login_Radius,
+                    data_Inicial: model.Data_Inicial,
+                    data_Inicial_String: model.Data_Inicial_String,
+                    data_Fim: model.Data_Fim,
+                    data_Fim_String: model.Data_Fim_String
+                }
+            })
+                .done(function (data) {
+                    if (data.ok) {
+                        if (data.objeto.listaPotenciaRxTx.length <= 0) {
+                            Notificar("@RsBase.ATENCAO_", "Não existem registros de potência para a data informada.", "info");
+                        }
+                        //desenharGrafico(data.objeto);
+                      
+                        //addItemGrafico(data.objeto);                                                                                                                                       
+                    }
+                    else {
+                        HidePageLoading();
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                    }
+
+                    //Sempre vai desenhar o gráfico
+                    //Caso haja erro na API ela retorna um objeto default com dados para preencher 
+                    
+                    if (graph2d === undefined || graph2d === null) {
+                        desenharGrafico(data.objeto);
+                    }
+                    else {
+                        graph2d.destroy();
+                        desenharGrafico(data.objeto);
+                    }
+                    
+                    
+                    
+                });       
+        }                      
+
+        function desenharGrafico(objeto) {            
+            let array = [];
+            let hora_start = objeto.dataHora_Inicio != undefined && objeto.dataHora_Inicio != null && objeto.dataHora_Inicio.length > 0 ? objeto.dataHora_Inicio : "";
+            let hora_end = objeto.dataHora_Fim != undefined && objeto.dataHora_Fim != null && objeto.dataHora_Fim.length > 0 ? objeto.dataHora_Fim : "";
+
+            //array.push({ x: hora_start, y: 0, group: 'rx' });            
+            //array.push({ x: hora_start, y: 0, group: 'tx' });      
+
+            objeto.listaPotenciaRxTx.forEach(function (item) {
+                array.push({ x: moment(item.dataHoraConsulta), y: item.potencia_Rx, group: 'rx' });     
+                array.push({ x: moment(item.dataHoraConsulta), y: item.potencia_Tx, group: 'tx' });
+            });
+
+            console.log("Lista potência Rx/Tx:");
+            console.log(array);
+
+            var container = document.getElementById('iGrafico');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br', 
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        //range: { min: -50, max: 50 },      
+                        title: { text: "@Html.Raw(RsCadastros.POTENCIA)" },
+                        format: function (value) {
+                            return value + " dBm";                     
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'zero' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                /*timeAxis: {
+                    scale: 'day',
+                    step: 1
+                },*/
+                autoResize: true,
+                min: hora_start,
+                max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 18000000, //5 horas em milisegundos
+                zoomMax: 691200000, //8 dias em milisegundos
+                //configure: true,
+                showCurrentTime: false,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'rx',
+                content: 'Potência Rx',
+                options: {
+                    drawPoints: {
+                        style: 'circle' // square, circle
+                    },                    
+                    shaded: {
+                        orientation: 'zero' // top, bottom
+                    },                   
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupRx',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });           
+
+            groups.add({
+                id: 'tx',
+                content: 'Potência Tx',
+                options: {
+                    drawPoints: {
+                        style: 'circle' // square, circle
+                    },                    
+                    shaded: {
+                        orientation: 'zero' // top, bottom
+                    },
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupTx',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });  
+
+            graph2d = new vis.Graph2d(container, array, groups, options);
+
+            graph2d.fit();
+            graph2d.on('changed', function() {
+              HidePageLoading();
+            });
+        }                
+    </script>
+}
+
+<div class="row" style="width:100%">
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDescLoginRadius">@RsCadastros.ONU:</label>
+            @Html.TextBoxFor(model => model.Desc_Onu, new { @class = "form-control", @id = "iDescOnu", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iDescCliente">@RsCadastros.MAC:</label>
+            @Html.TextBoxFor(model => model.MAC, new { @class = "form-control", @id = "iMac", disabled = "disabled" })
+        </div>
+    </div>    
+
+    <div class="form-group col-sm-5" style="padding-top: 15px; padding-bottom: 15px;">
+        <div class="text-right">
+            <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+        </div>
+    </div>
+</div>
+
+<div class="row" style="width:100%">
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iPeriodoConsumo">@RsCadastros.PERIODO_CONSUMO:</label>
+            @Html.EnumDropDownListFor(m => m.Periodo_Consumo, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iPeriodoConsumo", @autocomplete = "off" })
+        </div>
+    </div>
+
+    <div id="divPeriodo" class="col-sm-5">
+        <div class="form-group form-inline" style="height:100%; vertical-align:middle;">
+
+            <label for="iDataInicial">@RsCadastros.PERIODO:</label>
+            @Html.TextBoxFor(model => model.Data_Inicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataInicial", @autocomplete = "off" })
+
+            <span>@RsBase.A</span>
+
+            @Html.TextBoxFor(model => model.Data_Fim, new { @tabindex = "2", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDataFinal", @autocomplete = "off" })
+        </div>
+    </div>
+</div>
+
+
+<div class="row" style="width:100%">
+    <div class="col-sm-12">
+        <div class="form-group">
+            <div id="iGrafico"></div>
+        </div>
+    </div>   
+</div>
+
+
+
+
+
+<!--<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+</table>-->
+
+<head>
+    <title>@ViewBag.Title</title>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.1/moment-with-locales.min.js"></script>
+    <!--<script type="text/javascript" src="~/Scripts/vis-timeline-graph2d.min.js"></script>
+    <script type="text/javascript" src="~/Scripts/moment-with-locales.min.js"></script>-->
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>

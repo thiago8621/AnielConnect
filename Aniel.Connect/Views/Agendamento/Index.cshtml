@@ -1,0 +1,1073 @@
+﻿@model Aniel.Connect.Models.AgendamentoCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models
+@using Aniel.T5.Model.enumerado
+@using Aniel.Connect.Model.enumerado
+@using Aniel.Connect.ControllersWebApi
+@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Repository.Model;
+@using System.Globalization
+@using Aniel.Connect.Core
+@using Newtonsoft.Json;
+@{
+    ViewBag.Title = RsCadastros.AGENDAMENTO_REAGENDAMENTO_SERVICOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+    System.Web.Script.Serialization.JavaScriptSerializer serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+    serializer.MaxJsonLength = Int32.MaxValue;
+
+
+}
+
+@section scripts{
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&callback=initMap&libraries=places,geometry"
+            async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+
+    @if (Model != null && Model.Objetos != null && Model.Objetos.Count() == 0)
+    {
+        <text>
+            <script type="text/javascript">
+                $(document).ready(function () {
+                    Notificar("Atenção", "Não existem datas disponíveis para os próximos 7 dias", "warning");
+
+                    @if (Request.Params["pagina"] == "Criacao_OS")
+                    {
+                        <text>
+                        Notificar("@RsBase.INFORMACAO", "OS criada com sucesso", "info");
+                        </text>
+                    }
+                });
+            </script>
+        </text>
+    }
+
+
+
+    <script type="text/javascript">
+
+    let tmpHora;
+    let tmpData;
+    let tmpFlexivel;
+
+    var lista = @Html.Raw(JsonConvert.SerializeObject(Model.Objetos));
+        function findData(data) {
+
+            return $.grep(lista, function (item) {
+                return item.Data == data;
+            });
+    };
+
+    function VoltarTempo()
+    {
+        let momento = moment($(`#iDataInicial`).val(), "DD-MM-YYYY").add(-14, 'days');
+
+        momentoAtual = moment();
+
+        if (momento.isBefore(momentoAtual)) {
+            momento = momentoAtual;
+        }
+
+        $(`#iDataInicial`).val(momento.format('DD/MM/YYYY'));
+        $(`#iDataInicial`).trigger('change');
+    }
+    function AvancarTempo()
+    {
+        let momento = moment($(`#iDataInicial`).val(), "DD-MM-YYYY").add(14, 'days');
+        momentoAtual = moment();
+
+        if (momento.isBefore(momentoAtual)) {
+            momento = momentoAtual;
+        }
+
+        $(`#iDataInicial`).val(momento.format('DD/MM/YYYY'));
+        $(`#iDataInicial`).trigger('change');
+    }
+
+        function update_query_parameters(key, val) {
+
+          
+                uri = window.location.href
+                    .replace(RegExp("([?&]" + key + "(?=[=&#]|$)[^#&]*|(?=#|$))"), "&" + key + "=" + encodeURIComponent(val))
+                    .replace(/^([^?&]+)&/, "$1?");
+                return uri;
+            
+        }
+
+        $(document).ready(function () {
+            $(`#iDataInicial`).change(function () {
+                var FormatoData = /^\d{2}\/\d{2}\/\d{4}$/;
+
+                if (FormatoData.test($(`#iDataInicial`).val())) {
+                    if (window.location.href != update_query_parameters('DataInicial', $(`#iDataInicial`).val())) {
+                        window.location.href = update_query_parameters('DataInicial', $(`#iDataInicial`).val());
+                    }
+                    else {
+                        window.location.reload();
+                    }
+
+                    ShowPageLoading();
+                }
+            });
+        });
+
+        function findHora(Horas, hora) {
+
+            return $.grep(Horas, function (item) {
+                return item.Display == hora;
+            });
+        };
+
+        $('.AgendamentoOption').click(function () {
+            // codigo comentado apos a implantação na MAXTELECOM, renato pediu para tirar essa parte de esconder o botao de agendamento no dia atual
+            //const moment_agendamento = moment($(this).attr('data-dia'),'DD/MM/YYYY');
+            //const moment_dia_atual = moment(moment().format('DD/MM/YYYY'),'DD/MM/YYYY');
+
+            //const diff = moment_agendamento.diff(moment_dia_atual, 'days');
+
+            //if (diff > 0)
+            //    $('#iAgendar_Div').show();
+            //else
+            //    $('#iAgendar_Div').hide();
+        })
+
+    var clicked = false;
+
+        function ValidaSubmitArea(roteirizar = false) {
+            if ($("input[name='hora']:checked").length == 0) {
+                Notificar("Atenção", "Informe Horário", "warning");
+                return;
+            }
+            $('#iRoteirizar').val(roteirizar);
+
+            var data_hora = $("input[name='hora']:checked")[0].id;
+            var data = data_hora.substring(0, 10);
+            var hora = data_hora.replace(data, "");
+
+            let pergunta_instalação = "@Model.Documento.Exige_Pagamento_Instalacao" == "1" ? "Cliente ainda não efetuou o pagamento da instalação." : "";
+            let pergunta_roteirizar = '' + pergunta_instalação + 'Deseja realmente agendar e roteirizar o serviço <b>@Model.Documento.Numero_OS</b> para dia <b>' + data + '</b> às <b>' + hora + '</b>  ?';
+            @if(ViewBag.Considerar_Agendamento_Periodo) { <text> pergunta_roteirizar = pergunta_roteirizar.replace('às', 'no período da'); </text> }
+
+            if (clicked) {
+                return false;
+            }
+            Swal.fire({
+                title: '',
+                html: (roteirizar ? pergunta_roteirizar : pergunta_roteirizar.replace('e roteirizar', '')),
+                type: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                cancelButtonText: 'Nao',
+                confirmButtonText: 'Sim'
+            }).then((result) => {
+                if (result.value) {
+                    if (@Model.ConfirmaEndereco.ToString().ToLower()) {
+                        confirmaEndereco();
+                    }
+                    else {
+                        Envia();
+                    }
+                }
+                clicked = true;
+
+                tmpData = data;
+                tmpHora = hora;
+                tmpFlexivel = false;
+
+                var sNumObra = "@Html.Raw(Model.Documento.Num_Obra)";
+                var sNumDoc = "@Html.Raw(Model.Documento.Num_Doc)";
+                var sProjeto = "@Html.Raw(Model.Documento.Projeto)";
+                var sCodCt = "@Html.Raw(Model.Documento.CodCt)";
+
+                const link = '@String.Concat(CONSTANTES.URLPortal, "/api/Agendamento_Equipeapi/GetVerificaAgendamento")' + `?num_obra=${sNumObra}&codCt=${sCodCt}&projeto=${sProjeto}&num_Doc=${sNumDoc}`;
+
+                $.ajax({
+                    url: link,
+                    type: 'GET',
+                    dataType: 'json',
+                    beforeSend: function () {
+                        ShowPageLoading();
+                    }
+                }).done(function (data) {
+                    if (data.ok) {
+                        HidePageLoading();
+                        abrirModalMotivo();
+                        clicked = false;
+                    }
+                    else {
+                        SubmitIncluirAgenda();
+                    }
+                });
+
+            });
+        }
+
+        function ValidaSubmit(roteirizar = false)
+        {
+            if ($("input[name='hora']:checked").length == 0) {
+                Notificar("Atenção", "Informe Horário", "warning");
+                return;
+            }
+
+            if ("@Model.Documento.Exige_Pagamento_Instalacao" == "1" ) {
+                Notificar("@RsBase.ATENCAO_", "Não é possível agendar este serviço, pois o cliente ainda não realizou o pagamento da instalação", "warning");
+                return;
+            }
+
+            $('#iRoteirizar').val(roteirizar);
+
+            var data_hora = $("input[name='hora']:checked")[0].id;
+            var data = data_hora.substring(0, 10);
+            var hora = data_hora.replace(data, "");
+
+            @*if ("@Model.Exige_Pagamento_Instalacao" == "1" ||"@Model.Exige_Pagamento_Instalacao" == 1) {
+                Notificar("@RsBase.ATENCAO_", "Não é possível agendar este serviço, pois o cliente ainda não realizou o pagamento da instalação", "warning");
+                return false;
+             }*@
+
+
+            if (clicked) {
+                return false;
+            }
+
+            var pergunta_roteirizar = 'Deseja realmente agendar e roteirizar o serviço <b>@Model.Documento.Numero_OS</b> para dia <b>' + data + '</b> às <b>' + hora + '</b>  ?';
+            @if(ViewBag.Considerar_Agendamento_Periodo) { <text> pergunta_roteirizar = pergunta_roteirizar.replace('às', 'no período da'); </text> }
+
+            Swal.fire({
+                title: '',
+                html: (roteirizar ? pergunta_roteirizar : pergunta_roteirizar.replace('e roteirizar','')),
+                type: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                cancelButtonText: 'Nao',
+                confirmButtonText: 'Sim'
+            }).then((result) => {
+                if (result.value) {
+                    if (@Model.ConfirmaEndereco.ToString().ToLower()) {
+                        confirmaEndereco();
+                    }
+                    else {
+                        Envia();
+                    }
+                }
+
+            });
+
+        }
+
+    </script>
+
+    <script>
+
+        var mapConfirmacao;
+        var iniciando = true;
+        var marcadorAutoCompleteConfirmacao;
+
+        function showPosition(position) {
+            let latlng = { lat: position.coords.latitude, lng: position.coords.longitude };
+            map.setCenter(latlng);
+        }
+
+        function abrirModalMotivo() {
+            var permitirMotivoReagendamento = @ViewBag.PermitirMotivoReagendamento.ToString().ToLower();
+            if (permitirMotivoReagendamento) {
+                $('#modal-motivo-reagendamento').modal("show");
+                AddSelect("iMotivo_ReagendamentoM", "@CONSTANTES.URLPortal/api/MotivosReagendamentosapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null);
+            } else {
+                SubmitIncluirAgenda();
+            }
+        }
+
+        async function initMap() {
+            var myStyles = [
+                {
+                    featureType: "poi",
+                    elementType: "labels",
+                    stylers: [
+                        { visibility: "off" }
+                    ]
+                },
+                {
+                    featureType: "transit",
+                    elementType: "labels",
+                    stylers: [
+                        { visibility: "off" }
+                    ]
+                }
+            ];
+
+            mapConfirmacao = new google.maps.Map(document.getElementById("mapConfirmacao"), {
+                center: { lat: -22.8690004, lng: -43.4790957 },
+                zoom: 15,
+                styles: myStyles,
+                disableDefaultUI: false,
+            });
+
+            if (iniciando) {
+                getLocation();
+                iniciando = false;
+            }
+        }
+
+        var latAntigo;
+        var longAntigo;
+
+        function getLocation() {
+            if ($('#iLatitudeConfirmacao').val() && $('#iLongitudeConfirmacao').val())
+            {
+                let latlng = { lat: Number($('#iLatitudeConfirmacao').val()), lng: Number($('#iLongitudeConfirmacao').val()) };
+
+                mapConfirmacao.setCenter(latlng);
+                marcadorAutoCompleteConfirmacao = new google.maps.Marker({
+                    position: latlng,
+                    map: mapConfirmacao,
+                    draggable: true,
+                    title: "Resultado da Busca"
+                });
+
+                latAntigo = latlng.lat;
+                longAntigo = latlng.lng;
+
+                marcadorAutoCompleteConfirmacao.addListener('dragend', handleDragEndConfirmacao);
+            }
+            else {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(showPosition);
+                } else {
+                    Notificar("@RsBase.ATENCAO_", "Geolocation is not supported by this browser", "warning");
+                }
+            }
+        }
+
+        function handleDragEndConfirmacao(event) {
+            Swal.fire({
+                title: 'Deseja alterar o endereço de acordo com o mapa?',
+                showDenyButton: false,
+                showCancelButton: true,
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: `Cancelar`,
+                icon: 'question',
+                reverseButtons: true,
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    //pega info do novo endereço selecionado
+                    fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${event.latLng.lat()},${event.latLng.lng()}&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`)
+                        .then((response) => {
+                            return response.json();
+                        })
+                        .then((data) => {
+                            atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+                            var latlng = new google.maps.LatLng(parseFloat(event.latLng.lat()), parseFloat(event.latLng.lng()));
+                            mapConfirmacao.setCenter(latlng)
+                        })
+
+                } else {
+                    var latlng = new google.maps.LatLng(parseFloat(latAntigo), parseFloat(longAntigo));
+                    mapConfirmacao.setCenter(latlng)
+                    marcadorAutoCompleteConfirmacao.setPosition(latlng);
+                }
+            })
+        }
+
+        function Envia() {
+            clicked = true;
+
+            var data_hora = $("input[name='hora']:checked")[0].id;
+            var data = data_hora.substring(0, 10);
+            var hora = data_hora.replace(data, "");
+
+            var sNumObra = "@Html.Raw(Model.Documento.Num_Obra)";
+            var sNumDoc = "@Html.Raw(Model.Documento.Num_Doc)";
+            var sProjeto = "@Html.Raw(Model.Documento.Projeto)";
+            var sCodCt = "@Html.Raw(Model.Documento.CodCt)";
+
+            tmpData = data;
+            tmpHora = hora;
+            tmpFlexivel = true;
+
+            const link = '@String.Concat(CONSTANTES.URLPortal, "/api/Agendamento_Equipeapi/GetVerificaAgendamento")' + `?num_obra=${sNumObra}&codCt=${sCodCt}&projeto=${sProjeto}&num_Doc=${sNumDoc}`;
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                }
+            }).done(function (data) {
+                if (data.ok) {
+                    abrirModalMotivo();
+                } else {
+                    SubmitIncluirAgenda();
+                }
+            });
+        }
+
+    function SubmitIncluirAgenda() {
+        var data = tmpData;
+        var hora = tmpHora;
+        var flexivel = tmpFlexivel;
+
+        var objData = findData(data);
+        var objHora = findHora(objData[0].HorasTurno.length > 0 ? objData[0].HorasTurno : objData[0].Horas, hora);
+
+        $("#iData").val(data);
+        $("#iHora").val(hora);
+
+        if (flexivel) {
+            $("#iFlexivel").val($("#iFlexivelCheck").is(":checked"));
+        }
+
+        $("#iHora_Inicio").val(objHora[0].Hora_InicioStr);
+        $("#iHora_Final").val(objHora[0].Hora_FinalStr);
+        $("#iTurno").val(objHora[0].Turno);
+        $("#iDeslocamento").val(objHora[0].Deslocamento);
+        $("#iEquipe_Tmp").val(objHora[0].Equipe_Tmp);
+        $("#iEquipeTmpComLimite").val(objHora[0].EquipeTmpComLimite);
+        $("#iLimiteAgendamentoUltrapassado").val(objHora[0].LimiteAgendamentoUltrapassado);
+        $("#iLista_Forca_Trabalho").val(objHora[0].Lista_Forca_Trabalho);
+        $("#iLista_Ja_Agendados").val(objHora[0].Lista_Ja_Agendados);
+
+        ShowPageLoading();
+
+        $('#form').submit();
+
+    }
+
+        function confirmaEndereco() {
+            $('#confirmacaoEndereco').modal('show')
+
+            var center = mapConfirmacao.getCenter();
+            google.maps.event.trigger(mapConfirmacao, 'resize');
+            mapConfirmacao.setCenter(center);
+        }
+
+        async function PesquisaMapaConfirmacao() {
+            try {
+
+                let pesquisa = `${$("#iLogradouroConfirmacao").val()} ${$("#iNumeroConfirmacao").val()} ${$("#iCidadeConfirmacao").val()} ${$("#iUFConfirmacao").val()} ${$("#iPaisConfirmacao").val()}`;
+                var service = new google.maps.places.PlacesService(mapConfirmacao);
+
+                var request = {
+                    query: pesquisa,
+                    fields: ['name', 'geometry'],
+                };
+
+                service.findPlaceFromQuery(request, function (results, status) {
+
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                        if (results.length > 0) {
+
+                            let latlng = {
+                                lat: results[0].geometry.location.lat(),
+                                lng: results[0].geometry.location.lng()
+                            };
+
+                            marcadorAutoCompleteConfirmacao = new google.maps.Marker({
+                                position: latlng,
+                                map: mapConfirmacao,
+                                draggable: true,
+                                title: "Resultado da Busca"
+                            });
+
+                            latAntigo = results[0].geometry.location.lat();
+                            longAntigo = results[0].geometry.location.lng();
+
+                            marcadorAutoCompleteConfirmacao.addListener('dragend', handleDragEndConfirmacao);
+
+                            mapConfirmacao.setCenter(results[0].geometry.location);
+
+                            fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${results[0].geometry.location.lat()},${results[0].geometry.location.lng()}&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`)
+                                .then((response) => {
+                                    return response.json();
+                                })
+                                .then((data) => {
+                                    atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+                                })
+
+
+                        } else {
+                            Notificar("@RsBase.ATENCAO_", "Não foi possível localizar endereço", "warning");
+                        }
+                    }
+                });
+            }
+            catch (e) { console.log(e) }
+        }
+
+    function FecharModalReagendamento() {
+        var verificaMotivo = false;
+        if ($("#iMotivo_ReagendamentoM").val()) {
+            verificaMotivo = true;
+        }
+
+        if (verificaMotivo) {
+            $('#modal-motivo-reagendamento').modal("hide");
+            SubmitIncluirAgenda();
+        }
+        else {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MOTIVO_REAGENDAMENTO)", "warning");
+        }
+    }
+
+    $('#iMotivo_ReagendamentoM').change(function (e) {
+        var id = e.target.value;
+        if (id == "0") {
+            $('#iMotivoReagendamentoOutros').removeClass('d-none');
+        } else {
+            $('#iMotivoReagendamentoOutros').addClass('d-none');
+        }
+    });
+
+        function getAddressObject(address_components) {
+            var ShouldBeComponent = {
+                home: ["street_number"],
+                postal_code: ["postal_code"],
+                street: ["street_address", "route"],
+                region: [
+                    "administrative_area_level_1",
+                ],
+                city: [
+                    "administrative_area_level_2",
+                ],
+                country: ["country"]
+            };
+
+            var address = {
+                home: "",
+                postal_code: "",
+                street: "",
+                region: "",
+                city: "",
+                country: ""
+            };
+            address_components.forEach(component => {
+                for (var shouldBe in ShouldBeComponent) {
+                    if (ShouldBeComponent[shouldBe].indexOf(component.types[0]) !== -1) {
+                        if (shouldBe === "region") {
+                            address[shouldBe] = component.short_name;
+                        } else {
+                            address[shouldBe] = component.long_name;
+                        }
+                    }
+                }
+            });
+            return address;
+        }
+
+        function atualizaCamposConfirmacao(endereco) {
+            $("#iCidadeConfirmacao").val(endereco.city);
+            $("#iPaisConfirmacao").val(endereco.country);
+            $("#iNumeroConfirmacao").val(endereco.home);
+            $("#iCEPConfirmacao").val(endereco.postal_code);
+            $("#iUFConfirmacao").val(endereco.region);
+            $("#iLogradouroConfirmacao").val(endereco.street);
+
+            $("#iLatitudeConfirmacao").val(marcadorAutoCompleteConfirmacao.position.lat());
+            $("#iLongitudeConfirmacao").val(marcadorAutoCompleteConfirmacao.position.lng());
+        }
+
+        var HandleGrupoConfirmacao = function () {
+            $('#iGrupoAreaConfirmacao').on('select2:select select2:unselecting', function (e) {
+
+                GrupoSelecionado = e.params.data
+                if (GrupoSelecionado) {
+                    AddSelect("iAreaConfirmacao", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $('#iGrupoAreaConfirmacao').val(), null, "@RsBase.SELECIONE", false, HandleAreaConfirmacao);
+                    AddSelect("iLocalidadeConfirmacao", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+                else {
+                    AddSelect("iAreaConfirmacao", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleAreaConfirmacao);
+                    AddSelect("iLocalidadeConfirmacao", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+        var HandleAreaConfirmacao = function () {
+            $('#iAreaConfirmacao').on('select2:select select2:unselecting', function (e) {
+
+                AreaSelecionada = e.params.data
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidadeConfirmacao", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoAreaConfirmacao').val(), String(AreaSelecionada.id) , null, "@RsBase.SELECIONE", false);
+                }
+                else {
+                    AddSelect("iLocalidadeConfirmacao", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+        $(document).ready(async function () {
+
+            await AddSelect("iTipoImovelConfirmacao", "@CONSTANTES.URLPortal/api/Tipo_ImovelAnielapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Documento.Id_Tipo_Imovel", "@RsBase.SELECIONE", false);
+            await AddSelect("iGrupoAreaConfirmacao", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Documento.Cod_Grupo_Area", "@RsBase.SELECIONE", false, HandleGrupoConfirmacao);
+
+            async function initMap() {
+                var myStyles = [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [
+                            { visibility: "off" }
+                        ]
+                    },
+                    {
+                        featureType: "transit",
+                        elementType: "labels",
+                        stylers: [
+                            { visibility: "off" }
+                        ]
+                    }
+                ];
+
+                mapConfirmacao = new google.maps.Map(document.getElementById("mapConfirmacao"), {
+                    center: { lat: -22.8690004, lng: -43.4790957 },
+                    zoom: 15,
+                    styles: myStyles,
+                    disableDefaultUI: false,
+                });
+
+                if (iniciando) {
+                    getLocation();
+                    iniciando = false;
+                }
+            }
+
+        })
+
+    </script>
+}
+
+@section styles {
+
+    <style>
+        .btn-outline-secondary:not(:disabled):not(.disabled).active {
+            color: #fff;
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+
+        label.AgendamentoOption {
+            display: block;
+            word-break: break-all;
+            white-space: initial;
+            width: 125px !important;
+        }
+
+        .btn-outline-secondary:not(:disabled):not(.disabled):hover {
+            color: #fff;
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+    </style>
+
+}
+
+@using (Html.BeginForm("Index", "Agendamento", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @Html.AntiForgeryToken()
+
+    if (Request.Params["pagina"] == "acompanhamento")
+    {
+        <text>
+            @Html.HiddenFor(m => m.Pagina)
+        </text>
+    }
+
+
+    @Html.HiddenFor(p => p.CodCt)
+    @Html.HiddenFor(p => p.Projeto)
+    @Html.HiddenFor(p => p.Num_Obra)
+    @Html.HiddenFor(p => p.Num_Doc)
+
+    @Html.HiddenFor(m => m.Roteirizar, new { @id = "iRoteirizar" })
+    @Html.HiddenFor(m => m.Data, new { @id = "iData" })
+    @Html.HiddenFor(m => m.Hora, new { @id = "iHora" })
+
+    @Html.HiddenFor(p => p.Hora_Inicio, new { @id = "iHora_Inicio" })
+    @Html.HiddenFor(p => p.Hora_Final, new { @id = "iHora_Final" })
+    @Html.HiddenFor(p => p.Turno, new { @id = "iTurno" })
+    @Html.HiddenFor(p => p.Deslocamento, new { @id = "iDeslocamento" })
+    @Html.HiddenFor(p => p.Equipe_Tmp, new { @id = "iEquipe_Tmp" })
+    @Html.HiddenFor(p => p.EquipeTmpComLimite, new { @id = "iEquipeTmpComLimite" })
+    @Html.HiddenFor(p => p.LimiteAgendamentoUltrapassado, new { @id = "iLimiteAgendamentoUltrapassado" })
+    @Html.HiddenFor(p => p.Lista_Forca_Trabalho, new { @id = "iLista_Forca_Trabalho" })
+    @Html.HiddenFor(p => p.Lista_Ja_Agendados, new { @id = "iLista_Ja_Agendados" })
+    @Html.HiddenFor(p => p.Flexivel, new { @id = "iFlexivel" })
+
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-tasks"></i> @ViewBag.Title
+                        </h4>
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Painel_Servicos")" style="color:#367fa9" onclick="ShowPageLoading(true); return true;">@RsCadastros.PAINEL_SERVICOS</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Acompanhamento_Servico", new { CodCt = Model.CodCt,Projeto = Html.Raw(Model.Projeto),Num_Obra = Model.Num_Obra,Num_Doc = Model.Num_Doc})" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ACOMPANHAMENTO_SERVICO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>Agendamento</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                    </div>
+                </div>
+                @if (Model != null && Model.Documento != null)
+                {
+                    <div id="accordion">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <span class="text-bold-card">Dados do Serviço:</span>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.ORDEM_SERVICO:</label>
+                                            <span>@Model.Documento.Numero_OS</span>
+                                        </div>
+                                        <div class="col-sm-8">
+                                            <label for="inputState">@RsCadastros.CLIENTE:</label>
+                                            <span>@Model.Documento.Nome_Cliente</span>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.STATUS_OS:</label>
+                                            <span>@Model.Documento.Status_OS</span>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.TELEFONEFIXO:</label>
+                                            <span>@Model.Documento.Telefone_Principal_Cliente</span>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.TIPO_SERVICO:</label>
+                                            <span>@Model.Documento.Tipo_Servico</span>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.GRUPO_AREA:</label>
+                                            <span>@Model.Documento.Grupo_Area</span>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.AREA:</label>
+                                            <span>@Model.Documento.Area</span>
+                                        </div>
+                                        <div class="col-sm-4">
+                                            <label for="inputState">@RsCadastros.LOCALIDADE:</label>
+                                            <span>@Model.Documento.Localidade</span>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <label for="inputState">@RsCadastros.ENDERECO:</label>
+                                            <span>@Model.Documento.GetEndereco()</span>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (Model != null && Model.Objetos != null && Model.Objetos.Count() > 0)
+                {
+
+
+                    <div id="accordion2">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <div class="container-fluid">
+                                    <div class="row">
+                                        <div class="col-auto mr-auto" style="padding-top: 5px;margin-left: -5px;">
+                                            <h5>
+                                                <span class="text-bold-card">Criar Agendamento:</span>
+                                            </h5>
+                                        </div>
+                                        @if (AcessoHelper.TemAcesso(_areas, "281"))
+                                        {
+                                            <div class="col-auto" id="iAgendar_Div">
+                                                <button type="button" name="cadastrar" class="btn btn-success" onclick="return ValidaSubmitArea();">@RsCadastros.AGENDAR</button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+
+                                            <div class="col-auto" id="iAgendar_Div">
+                                                <button type="button" name="cadastrar" class="btn btn-success" onclick="return ValidaSubmit();">@RsCadastros.AGENDAR</button>
+                                            </div>
+                                        }
+
+
+                                        @if (ViewBag.UtilizaRoteirizacao)
+                                        {
+                                            if (AcessoHelper.TemAcesso(_areas, "305"))
+                                            {
+                                                if (AcessoHelper.TemAcesso(_areas, "281"))
+                                                {
+                                                    <div class="col-auto" id="iAgendar_RoteirizarDiv">
+                                                        <button type="button" name="cadastrar" class="btn btn-success" onclick="return ValidaSubmitArea(true);">@RsCadastros.AGENDAR_E_ROTERIZAR</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="col-auto" id="iAgendar_RoteirizarDiv">
+                                                        <button type="button" name="cadastrar" class="btn btn-success" onclick="return ValidaSubmit(true);">@RsCadastros.AGENDAR_E_ROTERIZAR</button>
+                                                    </div>
+                                                }
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                <div class="card-body body-card-accord">
+                                    <input type="checkbox" id="iFlexivelCheck"> Flexivel
+                                    <div class="container">
+                                        <div class="row mb-3 justify-content-center">
+                                            @if (Model.Data != DateTime.Today.ToString("dd/MM/yyyy"))
+                                            {
+                                                <i title="Anterior" id="iIconVoltarTempo" onclick="VoltarTempo()" class="fas fa-arrow-left fa-2x mr-5 ml-2"></i>
+                                            }
+                                            <label class="mr-1 ml-1" for="iDataInicial">Data Inicial:</label><br />
+                                            @Html.TextBoxFor(m => m.Data, new { @class = "form-control datepicker-period", @data_startdate = DateTime.Today.ToString("dd/MM/yyyy"), @data_provide = "datepicker", @id = "iDataInicial", @autocomplete = "off" })
+                                            <i title="@RsCadastros.PROXIMO" onclick="AvancarTempo()" class="fas fa-arrow-right fa-2x mr-2 ml-5"></i>
+
+                                        </div>
+                                        <div class="row mb-2" data-toggle="buttons">
+                                            @foreach (AgendamentoDiaModel dia in Model.Objetos)
+                                            {
+                                                TimeSpan Tempo = TimeSpan.Parse(ViewBag.Tempo_Min ?? "0");
+                                                Boolean IncluiDia = false;
+
+                                                foreach (AgendamentoHorasDisponiveis hora in (dia.HorasTurno.Count > 0 ? dia.HorasTurno : dia.Horas))
+                                                {
+                                                    DateTime HoraAgendamento = hora.Hora_Inicio;
+                                                    if (HoraAgendamento >= DateTime.Now.Add(Tempo))
+                                                    {
+                                                        IncluiDia = true;
+                                                    }
+                                                }
+
+                                                DateTime DiaAgendamento = DateTime.ParseExact(dia.Data, "dd/MM/yyyy", CultureInfo.GetCultureInfo("pt-BR"));
+                                                if (DiaAgendamento >= DateTime.Now.Add(Tempo).Date && IncluiDia)
+                                                {
+                                                    <text>
+                                                        <div class="card col-lg-2 col-md-3 col-sm-1">
+                                                            <div class="card-header" style="background-color: inherit;">
+                                                                <h5 class="m-0">
+                                                                    <span class="text-bold-card"><i class="far fa-calendar-alt"></i> @dia.Data</span>
+                                                                </h5>
+                                                            </div>
+                                                            <div class="card-body btn-group-toggle m-0">
+
+                                                                @foreach (AgendamentoHorasDisponiveis hora in (dia.HorasTurno.Count > 0 ? dia.HorasTurno : dia.Horas))
+                                                                {
+                                                                    DateTime HoraAgendamento = hora.Hora_Inicio;
+
+                                                                    if (HoraAgendamento >= DateTime.Now.Add(Tempo))
+                                                                    {
+                                                                        if (hora.LimiteAgendamentoUltrapassado && hora.AptosPorLimite <= 0)
+                                                                        {
+                                                                            <text>
+                                                                                <label data-dia="@dia.Data" class="btn AgendamentoOption btn-outline-secondary disabled mb-2" title="Aptos: @hora.Aptos">
+                                                                                    <input type="radio" name="hora" id="@dia.Data@hora.Display" autocomplete="off" disabled><i class="far fa-clock"></i> @hora.Display
+                                                                                </label>
+                                                                            </text>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <text>
+                                                                                <label data-dia="@dia.Data" class="btn AgendamentoOption btn-outline-secondary mb-2" title="Aptos: @hora.Aptos">
+                                                                                    <input type="radio" name="hora" id="@dia.Data@hora.Display" autocomplete="off"><i class="far fa-clock"></i> @hora.Display
+                                                                                </label>
+                                                                            </text>
+                                                                        }
+                                                                    }
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </text>
+                                                }
+                                            }
+
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmacaoEndereco" class="modal text-center" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+
+            <div class="modal-content">
+
+                <div class="modal-header text-center">
+                    <h4 align="center" class="modal-title text-muted">Confirmar endereço</h4>
+                </div>
+
+                <div class="modal-body">
+                    <div class="ml-3">
+                        <div class="row">
+                            <div class="col-4 text-left">
+                                <span>Cidade:</span>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Cidade, new { @class = "form-control", @id = "iCidadeConfirmacao" })
+                            </div>
+                            <div class="col-3 text-left">
+                                <span>Bairro:</span>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Bairro, new { @class = "form-control", @id = "iBairroConfirmacao" })
+                            </div>
+                            <div class="col-2 text-left">
+                                <span>UF:</span>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_UF, new { @class = "form-control", @id = "iUFConfirmacao" })
+                            </div>
+                            <div class="col-2 text-left">
+                                <span>País:</span>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Pais, new { @class = "form-control", @id = "iPaisConfirmacao" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-4 text-left">
+                                <label>@RsCadastros.LOGRADOURO: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Logradouro, new { @class = "form-control", @id = "iLogradouroConfirmacao" })
+                            </div>
+
+                            <div class="col-3 text-left">
+                                <label>@RsCadastros.NUMERO: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Numero, new { @class = "form-control", @id = "iNumeroConfirmacao" })
+                            </div>
+
+                            <div class="col-4 text-left">
+                                <label>Tipo imóvel: </label>
+                                @Html.DropDownListFor(model => model.Documento.Id_Tipo_Imovel, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control ", @id = "iTipoImovelConfirmacao" })
+                            </div>
+
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-4 text-left">
+                                <label>@RsCadastros.CEP: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_CEP, new { @class = "form-control", @id = "iCEPConfirmacao" })
+                            </div>
+
+                            <div class="col-4 text-left">
+                                <label>@RsCadastros.COMPLEMENTO: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Complemento, new { @class = "form-control" })
+                            </div>
+                            <div class="col-3 text-left">
+                                <label>@RsCadastros.PONTOREFERENCIA: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_PontoReferencia, new { @class = "form-control" })
+                            </div>
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-4 text-left">
+                                <label>@RsCadastros.GRUPO_AREA: </label>
+                                @Html.DropDownListFor(model => model.Documento.Cod_Grupo_Area, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iGrupoAreaConfirmacao" })
+                            </div>
+
+                            <div class="col-4 text-left">
+                                <label>@RsCadastros.AREA: </label>
+                                @Html.DropDownListFor(model => model.Documento.Cod_Area, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iAreaConfirmacao" })
+                            </div>
+                            <div class="col-3 text-left">
+                                <label>@RsCadastros.LOCALIDADE: </label>
+                                @Html.DropDownListFor(model => model.Documento.Cod_Localidade, new SelectList(new List<ObjBusca<string>>(), "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iLocalidadeConfirmacao" })
+                            </div>
+                            <a href="#" onclick="PesquisaMapaConfirmacao();" class="mt-4"><i class="la la-search la-2x" style="color: #999"></i></a>
+                        </div>
+
+                        <div class="row mt-2">
+                            <div class="col-2 text-left">
+                                <label>@RsCadastros.LATITUDE: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Latitude, new { @class = "form-control", @id = "iLatitudeConfirmacao" })
+                            </div>
+
+                            <div class="col-2 text-left">
+                                <label>@RsCadastros.LONGITUDE: </label>
+                                @Html.TextBoxFor(x => x.Documento.Endereco_Longitude, new { @class = "form-control", @id = "iLongitudeConfirmacao" })
+                            </div>
+                        </div>
+
+                        <input type="text" class="form-control ml-2 mr-1 d-none" id="iPesquisaMapConfirmacao" autocomplete="off">
+                    </div>
+                    <div id="mapConfirmacao" class="mt-4" style="height: 25rem">map</div>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="button" onclick="Envia()" class="btn btn-primary ">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="modal fade" id="modal-motivo-reagendamento">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">Informe o motivo de reagendamento</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-12" style="align-content:center;">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group" id="exibirMotivoReagendamento">
+                                        <label for="iMotivo_Desistencia_VendaM" class="mr-3">@RsCadastros.MOTIVO_REAGENDAMENTO:</label><br>
+                                        @Html.DropDownListFor(model => model.CodMotivoReagendamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iMotivo_ReagendamentoM", @autocomplete = "off", required = "required" })
+                                    </div>
+                                    <div class="form-group d-none" id="iMotivoReagendamentoOutros">
+                                        <div><label>Informe o Motivo:</label></div>
+                                        @Html.TextAreaFor(model => model.ObsMotivoReagendamento, new { @class = "form-control", @id = "iMotivo_Reagendamento_Outros", @autocomplete = "off", required = "required" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-success" onclick="FecharModalReagendamento();" id="iEditarAtividades">OK</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

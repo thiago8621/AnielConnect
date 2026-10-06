@@ -1,0 +1,281 @@
+﻿@model Aniel.Connect.Models.LogGenericoParamListModel
+
+@using Resources
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Core
+
+@{
+    ViewBag.Title = RsCadastros.VISUALIZAR_LOG;
+    ViewBag.Sessao = RsCadastros.HISTORICO_ALTERACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+
+    <script>
+        var rows_selected = [];
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",              
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                processing: true,
+                ordering: false,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                autoWidth: false,
+                scrollY: '61vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/PerfilAgendamentoApi/GetLogVincularPerfil',
+                    type: 'POST',
+                    data: function (data) {
+                      
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 5,
+                order: [],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "usuarioAlteracao", title: "@RsBase.USUARIO_ALTERACAO", orderable: false },
+                    { data: "dataHoraAlteracao", title: "@RsBase.DATA_HORA_ALTERACAO", orderable: false },
+                    { data: "tipoAlteracao", title: "Tipo Alteração", orderable: false },
+                    { data: "tecnico", title: "@RsCadastros.TECNICO", orderable: false },
+                    { data: "valorAnterior", title: "@RsBase.VALOR_ANTERIOR", orderable: false },
+                    { data: "valorAtual", title: "@RsBase.VALOR_ATUAL", orderable: false }
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                //$(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                //if (this.checked) {
+                //    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                //} else {
+                //    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                //}
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltros").unbind("click");
+            $("#iLimparFiltroModal, #iLimparFiltros").on("click", function () {
+                rows_selected = [];
+
+                oDatatable.search($('#txtSearch').val()).draw(false);
+            });
+
+            $("#iPesquisar").unbind("click");
+            $("#iPesquisar").on("click", function () {
+                    rows_selected = [];
+                    oDatatable.search($('#txtSearch').val()).draw();
+                    $("#modal-filter").modal('hide');
+
+                return true;
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-history"></i> @ViewBag.Title</h4>
+
+            <nav class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao", new { Id = Request.Params["Id"] })" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("VincularPerfil", "PerfilAgendamento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.VINCULAR_PERFIL_TECNICO</a>
+                    </li>                  
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+                @*<button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>*@
+                <button class="btn btn-default btn-add" type="button" title="Opções" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;">@RsBase.EXPORTARPDF</a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row border_radius">
+                            <div class="col-sm-12 form-group m-0">
+                                <label>@RsFinanceiro.PERIODO</label>
+                            </div>
+                            <div class="col-sm-12">
+                                <div class="form-group" style="height:100%; vertical-align:middle;">
+                                    @Html.TextBoxFor(m => m.DataIni, new { @id = "iDataInicial", @class = "form-control datepicker", @placeholder = "00/00/0000" })
+                                    <span>@RsBase.A</span>
+                                    @Html.TextBoxFor(m => m.DataFim, new { @id = "iDataFinal", @class = "form-control datepicker", @placeholder = "00/00/0000" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="form-group m-0">
+                            <label for="iConta">@RsFinanceiro.ID_CONTA</label>
+                            <div class="form-group">
+                                <input type="text" class="form-control" id="iConta" name="iConta" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="form-group m-0">
+                            <label for="iTipoOperacao">@RsBase.TIPOOPERACAO</label>
+                            <div class="form-group">
+                                @*@Html.DropDownList("iTipoOperacao", (List<SelectListItem>)ViewBag.TiposOperacao, RsBase.SELECIONE, new { @id = "iTipoOperacao", @class = "form-control", @style = "width: 100%" })*@
+                          
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="form-group m-0">
+                            <label for="iCampo">@RsBase.CAMPO</label>
+                            <div class="form-group">
+                                <input type="text" class="form-control" id="iCampo" name="iCampo" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12 mt-2" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

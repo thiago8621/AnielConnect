@@ -1,0 +1,697 @@
+﻿@model  Aniel.Connect.Models.OLTListaModel
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_OLT;
+    ViewBag.Sessao = RsCadastros.OLT;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @*@Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")*@
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+    <script>
+
+        var rows_selected = [];
+        var oDatatable
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/OLTapi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                .done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti" ,
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',                
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + '/api/OLTapi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+
+                        var olt_id = $("#iOLT option:selected").val();
+
+                        var tipo_olt = $("#iMarcaModelo option:selected").val();
+
+                        var ip = $("#iIp option:selected").val();
+                        var empresa = $("#iEmpresa option:selected").val();
+                        var filial = $("#iFilial option:selected").val();
+                        var status = $("#iStatusFiltro option:selected").val();
+
+                        if ($("#iOLT option:selected").val() == "Selecione")
+                            olt_id = null;
+                        if ($("#iMarcaModelo option:selected").val() == "Selecione")
+                            tipo_olt = null;
+                        if ($("#iIp option:selected").val() == "Selecione")
+                            ip = null;
+                        if ($("#iEmpresa option:selected").val() == "Selecione")
+                            empresa = null;
+                        if ($("#iFilial option:selected").val() == "Selecione")
+                            filial = null;
+                        if (!$("#iStatusFiltro option:selected").val())
+                            status = null;
+
+                        data.Id_Olt = olt_id;
+                        data.Id_Empresa = empresa;
+                        data.Id_Filial = filial;
+                        data.Tipo_Olt = tipo_olt;
+                        data.Ip = ip;
+                        data.Status_Filtro = status;
+                        data.search.option = $("#optionSearch").val();
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                     if($.inArray(rowId, rows_selected) !== -1){
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.ID" },
+                    { data: "descricao", title: "@RsCadastros.OLT" },
+                    { data: "numOLT", title: "@RsCadastros.NUM_OLT" },
+                    { data: "tipo", title: "@RsCadastros.MARCA_MODELO" },
+                    { data: "ip", title: "@RsCadastros.IP" },
+                    { data: "situacao", title: "@RsCadastros.SITUACAO" }
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+                $("#iOLT").val("");
+                $("#iMarcaModelo").val("");
+                $("#iIp").val("");
+                $("#iEmpresa").val("");
+                $("#iFilial").val("");
+                $("#iStatusFiltro").val("");
+
+
+                $('#txtSearch').val("");
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            });
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+           $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+
+           $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/OLTapi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        rows_selected = [];
+                        oDatatable.draw();
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+            });
+
+             // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+                 @if (AcessoHelper.TemAcesso(_areas, "102"))
+                  {
+                  <text>
+                      if (oDatatable.row(this).data() != null) {
+
+                          var _id = oDatatable.row(this).data().id;
+
+                          var url = '@Url.Action("Cadastro", "OLT", new { id = "__id__" })';
+                          window.location.href = url.replace('__id__', _id);
+                          ShowPageLoading();
+                      }
+                  </text>
+                  }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        function showModalCadastroSlotPon() {
+            $("#modal-cadastrar-slotpon").modal('show');
+
+            if (rows_selected.length == 1) {
+                $("#iOLTCadastroSlotPon").val(rows_selected[0]);
+            }
+
+            $("#iCancelarSlotPon").off('click').on('click', function (e) {
+                $("#modal-cadastrar-slotpon").modal('hide');
+                $("#iOLTCadastroSlotPon").val("");
+                $("#iSlotInicial").val("");
+                $("#iSlotFinal").val("");
+                $("#iPonInicial").val("");
+                $("#iPonFinal").val("");
+                $("#iVlanPonInicial").val("");
+                $("#iVlanPonIncremento").val("");
+            });
+
+            $("#iCadastrarSlotPon").off('click').on('click', function (e) {
+                let erro = false
+
+                if (ValidaCamposObrigatorios(erro)) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                    erro = true;
+                    return;
+                }
+                
+                ShowPageLoading($("#modal-cadastrar-slotpon"));
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/OLTApi/CriarSlotsEPONsEmMassa")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        id_OLT: $("#iOLTCadastroSlotPon option:selected").val(),
+                        num_Slot_Inicial: $("#iSlotInicial").val(),
+                        num_Slot_Fim: $("#iSlotFinal").val(),
+                        num_PON_Inicial: $("#iPonInicial").val(),
+                        num_PON_Fim: $("#iPonFinal").val(),
+                        vlan_PON_Inicial: $("#iVlanPonInicial").val(),
+                        vlan_PON_Incremento: $("#iVlanPonIncremento").val(),
+                    }
+                })
+                .done(function (data) {
+
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        HidePageLoading();
+                        oDatatable.draw();
+                        $("#modal-cadastrar-slotpon").modal('hide');
+                        $("#iOLTCadastroSlotPon").val("");
+                        $("#iSlotInicial").val("");
+                        $("#iSlotFinal").val("");
+                        $("#iPonInicial").val("");
+                        $("#iPonFinal").val("");
+                        $("#iVlanPonInicial").val("");
+                        $("#iVlanPonIncremento").val("");
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        HidePageLoading();
+                        oDatatable.draw();
+                    }
+                  
+                })
+            });
+            return true;
+        }
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>*@
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">                
+                <div class="form-inline pl-4 pr-2">
+                    <select class="form-control" id="optionSearch">
+                        <option value="olt">@RsCadastros.OLT</option>
+                        <option value="ip">@RsCadastros.ENDERECO_IP</option>
+                    </select>
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui para busca rápida" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                @if (AcessoHelper.TemAcesso(_areas, "102"))
+                {
+                    <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "OLT")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" onclick="$('#txtSearch').val('');oDatatable.search('').draw();" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                    @if (AcessoHelper.TemAcesso(_areas, "113"))
+                    {
+                        <a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                        <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                        <a class="dropdown-item" id="btnImportar" onclick="AddAba('@Url.Action("Importacao", "OLT")');">@RsCadastros.IMPORTAR_OLT</a>
+
+                        <a class="dropdown-item" id="btnCadastroSlotPon" href="#" onclick="showModalCadastroSlotPon(); return true">Cadastrar Slots/PONs em Massa</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Filtros OLT </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row">
+                            <div class="col-sm-6">
+
+
+                                <div class="form-group">
+                                    <label>Olt:</label>
+                                    @Html.HiddenFor(m => m.Id, new { @id = "iIdOLTHidden" })
+
+                                    @Html.DropDownListFor(m => m.Id, new SelectList(ViewBag.OLT, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control", @id = "iOLT", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.MARCA_MODELO:</label>
+                                    @Html.EnumDropDownListFor(m => m.Marca_Modelo, RsBase.SELECIONE, new { @class = "form-control", @id = "iMarcaModelo", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                    </div>
+
+                </div>
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Ip:</label>
+                                    @Html.HiddenFor(m => m.Ip, new { @id = "iIdIpHidden" })
+
+                                    @Html.DropDownListFor(m => m.Ip, new SelectList(ViewBag.IP, "Ip", "Ip"), RsBase.SELECIONE, new { @class = "form-control", @id = "iIp", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Empresa:</label>
+                                    @Html.HiddenFor(m => m.Id_Empresa, new { @id = "iIdEmpresaHidden" })
+
+                                    @Html.DropDownListFor(m => m.Id_Empresa, new SelectList(ViewBag.Empresa, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEmpresa", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                    </div>
+
+                </div>
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Filial:</label>
+                                    @Html.HiddenFor(m => m.Id_Filial, new { @id = "iIdFilialHidden" })
+
+                                    @Html.DropDownListFor(m => m.Id_Filial, new SelectList(ViewBag.Filial, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFilial", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>Situação:</label>
+                                    @Html.EnumDropDownListFor(m => m.Status, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusFiltro", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                    </div>
+
+                </div>
+
+
+
+
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+</div>
+<!-- /.modal-->
+<!--Modal Criar Slots/PONs em massa-->
+<div class="modal" id="modal-cadastrar-slotpon">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Cadastrar Slots/PONs em Massa </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.OLT:</label>
+                                    @Html.DropDownListFor(m => m.Id, new SelectList(ViewBag.OLT, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iOLTCadastroSlotPon", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.NUM_SLOT_INICIAL:</label>
+                                    @Html.TextBox("iSlotInicial", String.Empty, null, new { @class = "form-control obrigatorio", @id = "iSlotInicial", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.NUM_SLOT_FINAL:</label>
+                                    @Html.TextBox("iSlotFinal", String.Empty, null, new { @class = "form-control", @id = "iSlotFinal", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.NUM_PON_INICIAL:</label>
+                                    @Html.TextBox("iPonInicial", String.Empty, null, new { @class = "form-control  obrigatorio", @id = "iPonInicial", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label>@RsCadastros.NUM_PON_FINAL:</label>
+                                    @Html.TextBox("iPonFinal", String.Empty, null, new { @class = "form-control", @id = "iPonFinal", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iVlanPon">@RsCadastros.VLAN_UPLINK_INICIAL:</label>
+                                    @Html.TextBox("iVlanPon", null, null, new { @class = "form-control", @type = "number", @id = "iVlanPonInicial", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label for="iVlanPon">@RsCadastros.INCREMENTO_VLAN_UPLINK:</label>
+                                    @Html.TextBox("iVlanPon", null, null, new { @class = "form-control", @type = "number", @id = "iVlanPonIncremento", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iCancelarSlotPon">@RsBase.CANCELAR</button>
+                        <button type="button" class="btn btn-success" id="iCadastrarSlotPon">@RsBase.CADASTRAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /.modal-->

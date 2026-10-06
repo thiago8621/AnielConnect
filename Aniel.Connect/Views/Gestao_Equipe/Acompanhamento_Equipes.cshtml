@@ -1,0 +1,1548 @@
+﻿@model Aniel.Connect.Models.Acompanhamento_Equipes
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+@using Aniel.Connect.Models.T5
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_ACOMPANHAMENTO_EQUIPE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+
+    var monitor = ViewBag.Monitor;
+    var supervisor = ViewBag.Supervisor;
+    var secao = ViewBag.Secao_Connect;
+    var tipo_usuario = ViewBag.Tipo_Usuario_Connect;
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+
+    <link href="~/Content/animate.min.css" rel="stylesheet" />
+
+    <style>
+
+        .legend-color-ocupado-fora {
+            color: #652E80;
+            vertical-align: middle;
+            font-size: 16px;
+            margin-top: -3px;
+        }
+
+        .legend-color-fora-horario-trabalho {
+            color: #FF00B8;
+            vertical-align: middle;
+            font-size: 16px;
+            margin-top: -3px;
+        }
+
+        body {
+            width: 98%;
+        }
+
+        table#datatableOS td {
+            padding-top: 15px !important;
+        }
+
+        .table-responsive {
+            border: none;
+        }
+
+        .bg-clickrow {
+            background-color: #00000013;
+        }
+
+        #datatable td, #datatable th {
+            vertical-align: top;
+            border-top: 1px solid #dee2e6;
+            padding-right: 10px;
+            padding-left: 10px;
+            padding-bottom: 0px;
+            padding-top: 2px;
+        }
+
+        .toggle.btn {
+            min-width: 3.7rem !important;
+            min-height: 1.7rem !important;
+        }
+
+        .rotate-45 {
+            -webkit-transform: rotate(90deg);
+            -moz-transform: rotate(90deg);
+            -ms-transform: rotate(90deg);
+            -o-transform: rotate(90deg);
+            transform: rotate(90deg);
+        }
+
+        /*Hidden Ghost Line*/
+        /*#datatable > thead > tr {
+            display: none;
+        }*/
+
+        /*Datatable OS*/
+        table#datatableOS {
+            margin-bottom: 0 !important;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        th.sorting_disabled {
+            border-top: 1px solid #dee2e6;
+            border-bottom: none;
+            padding-right: 10px;
+            padding-left: 10px;
+            padding-bottom: 0px;
+            padding-top: 2px;
+        }
+
+        #datatable td {
+            padding-right: 10px;
+            padding-left: 10px;
+            padding-bottom: 0px;
+            padding-top: 2px;
+        }
+
+        #datatableOS td {
+            padding-right: 10px;
+            padding-left: 10px;
+            padding-bottom: 0px;
+            padding-top: 2px;
+        }
+
+        .table-bordered td, .table-bordered th {
+            border: none;
+            /*border-bottom: 1px solid #dee2e6;*/
+        }
+        /*#datatable > tbody > .even {
+            background-color : #ddd;
+        }
+
+
+        .datatableOS tbody tr td,
+        .datatableOS thead tr th {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        tr {
+            cursor: default !important;
+        }
+
+        /*Borda Modal Detalhes Equipe*/
+        .ui-widget-header {
+            border-bottom: solid 2px #6c757d;
+        }
+
+        span#ui-id-3 {
+            padding-left: 10px;
+        }
+
+        .no-sort::after {
+            display: none !important;
+        }
+
+        .no-sort {
+            pointer-events: none !important;
+            cursor: default !important;
+        }
+
+        .ui-dialog-title {
+            font-size: 14px;
+        }
+
+        /*.sorting, .sorting_asc, .sorting_desc {
+            display: none !important;
+        }*/
+        /*th {
+            display: none !important;
+        }*/
+        .ui-dialog {
+            z-index: 1020 !important;
+        }
+    </style>
+
+}
+
+
+
+@section scripts
+{
+
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+
+
+<script>
+
+        //$('[data-toggle="tooltip"]').tooltip();
+
+        var oDatatable = null;
+        var realizaAgendamento = @Json.Encode(ViewBag.RealizaAgendamento);
+        var timerAtualizacaoTecnico = @Json.Encode(ViewBag.TimerAtualizacaoTecnico);
+        let pageScrollPos = 0;
+        let refreshBool = false;
+
+
+         $('input[name=SupervisorMonitor]').change(function () {
+
+             if($('#iRadioSupervisor').is(':checked')){
+
+                 $('#idMonitor').prop('disabled', true);
+                 $('#idMonitor').val(null).trigger('change');
+
+                 $('#idSupervisor').prop('disabled', false);
+             }
+             if($('#iRadioMonitor').is(':checked')){
+                 $('#idSupervisor').prop('disabled', true);
+                 $('#idSupervisor').val(null).trigger('change');
+
+
+                 $('#idMonitor').prop('disabled', false);
+             }
+
+         });
+
+
+            "use strict";
+
+        function Relogio() {
+            var currentTime = new Date();
+            var currentHours = currentTime.getHours();
+            var currentMinutes = currentTime.getMinutes();
+
+            var currentDay = currentTime.getDate();
+            if (currentDay < 10)
+                currentDay = "0" + currentDay;
+
+            var currentMonth = currentTime.getMonth() + 1;
+            if (currentMonth < 10)
+                currentMonth = "0" + currentMonth;
+
+            var currentYear = currentTime.getFullYear();
+
+            var currentDate = currentDay + "/" + currentMonth + "/" + currentYear;
+
+
+            if (currentMinutes < 10)
+                currentMinutes = "0" + currentMinutes;
+
+            // Compose the string for display
+            var currentTimeString = currentDate + " " + currentHours + ":" + currentMinutes;
+
+
+            $("#relogio").html(currentTimeString);
+
+        }
+
+        function RelogioPainel() {
+            var currentTime = new Date();
+            var currentHours = currentTime.getHours();
+            var currentMinutes = currentTime.getMinutes();
+
+            if (currentMinutes < 10)
+                currentMinutes = "0" + currentMinutes;
+
+            // Compose the string for display
+            var currentTimeString = currentHours + ":" + currentMinutes;
+            var currentTimeString = 'Painel Atualizado às ' + currentTimeString;
+
+            $("#relogioPainel").text(currentTimeString);
+
+        }
+
+        var handleselect = function (e) {
+
+                 $("#" + e.id).on("select2:select select2:unselecting", function (e) {
+                    oDatatable.draw();
+                })
+
+
+        }
+
+        $(document).ready(async function () {
+            $(function () {
+                $('[data-toggle="popover"]').popover();
+            });
+
+            await AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false,handleselect(idSupervisor));
+            await AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboUsuarioMonitorEquipe", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false,handleselect(idMonitor));
+
+            $('#iRadioSupervisor').prop('checked', true);
+            $("#iTecnico_Ativos").prop("checked", true);
+            $("#iTecnico_Ativos").trigger("change")
+            $('input[name=SupervisorMonitor]').trigger('change');
+            setInterval('Relogio()', 1000);
+
+
+            //PreencheOSs();
+            //GetTotaisVisitas();
+            await GetPerfilUsuarioLogado();
+
+        });
+
+        function ProtocoloLink(id) {
+
+            var _url = `@Url.Action("Cadastro", "Atendimento")?Id=${id}`;
+            parent.AddAba(_url, "Cadastro");
+
+        };
+
+        async function GetPerfilUsuarioLogado() {
+
+            @if (!AcessoHelper.TemAcesso(_areas, "176"))
+            {
+                if (monitor)
+                {
+                    <text>
+                    await AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, "@User.Identity.GetUserId()", "@RsBase.SELECIONE", true, handleselect("@User.Identity.GetUserId()"));
+                    $('#iRadioMonitor').prop('checked', true);
+                    DisableSelect("idSupervisor")
+                    DisableSelect("idMonitor")
+                    </text>
+                }
+
+                else if (supervisor)
+                {
+                    <text>
+                    await AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, "@ViewBag.num_fre_usuario", "@RsBase.SELECIONE", true, handleselect("@ViewBag.num_fre_usuario"));
+                    $('#iRadioSupervisor').prop('checked', true);
+                    DisableSelect("idSupervisor")
+                    DisableSelect("idMonitor")
+                    </text>
+
+                }
+
+                else if (!monitor && !supervisor)
+                {
+                    <text>
+                    $("#datatable").hide();
+                    Notificar("@RsBase.ATENCAO_", "Este usuário não possui perfil de supervisor ou monitor e também não tem área de acesso para visualizar todos os técnicos.", "warning");
+                    DisableSelect("idSupervisor")
+                    DisableSelect("idMonitor")
+                    </text>
+                }
+
+                else if (monitor && supervisor)
+                {
+                    <text>
+
+                    AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, "@User.Identity.GetUserId()", "@RsBase.SELECIONE", true, handleselect("@User.Identity.GetUserId()"));
+                    $('#iRadioMonitor').prop('checked', true);
+                    DisableSelect("idSupervisor")
+                    DisableSelect("idMonitor")
+                    </text>
+
+                }
+
+                <text>
+                    $('input[name=SupervisorMonitor]').unbind('click').click(function () {
+                        return false;
+                    });
+                </text>
+
+            }
+
+        }
+
+
+        @*
+        function GetTotaisVisitas() {
+
+                        var link = baseUrl + '/api/EquipeApi/GetAllAcompanhamentoEquipe';
+                            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    Area: null,
+                    GrupoArea: null,
+                    Id_Natureza: null,
+                    Localidade: null,
+                    Monitor: null,
+                    Supervisor: null,
+                    Tecnico_Ativos: null,
+                    Tecnico_Em_Execucao: null,
+                    columns: [{ data: '0', name: null, orderable: false, search: [{ regex: false, value: null }], searchable: false }],
+                    draw: 1,
+                    length: 10,
+                    order: [{ column: 1, dir: 'asc' }],
+                    recordsTotal: 0,
+                    search: { regex: false, value: null },
+                    start: 0,
+
+                }
+            })
+                .done(function (data) {
+
+                    var totalVisitas = 0; var totalVisitasProdutivas = 0; var totalVisitasImprodutivas = 0;
+                    var totalVisitasProdutivasPercentual = 0;var totalVisitasImprodutivasPercentual = 0;
+
+                    if (data.data != undefined) {
+                        for (var i = 0; i < data.data.length; i++) {
+                            totalVisitas = totalVisitas + parseInt(data.data[i].totalVisitas);
+                            totalVisitasProdutivas = totalVisitasProdutivas + parseInt(data.data[i].baixadasProdutivas);
+                            totalVisitasImprodutivas = totalVisitasImprodutivas + parseInt( data.data[i].baixadasImprodutivas );
+                        }
+                        $('#spnTotalVisitas').text(totalVisitas);
+                        $('#spnTotalVisitasProdutivas').text(totalVisitasProdutivas);
+                        $('#spnTotalVisitasImprodutivas').text(totalVisitasImprodutivas);
+
+                        totalVisitasProdutivasPercentual = (totalVisitasProdutivas / totalVisitas) * 100;
+                        totalVisitasImprodutivasPercentual = (totalVisitasImprodutivas / totalVisitas) * 100;
+
+                        if (!isNaN(totalVisitasProdutivasPercentual)) {
+                            var num = totalVisitasProdutivasPercentual
+                            $('#spnTotalVisitasProdutivasPercentual').text(totalVisitasProdutivasPercentual.toFixed(2));
+                        }
+                        else {
+                            $('#spnTotalVisitasProdutivasPercentual').text(0);
+                        }
+
+                        if (!isNaN(totalVisitasImprodutivasPercentual)) {
+                            var num = totalVisitasProdutivasPercentual
+                            $('#spnTotalVisitasImprodutivasPercentual').text(totalVisitasImprodutivasPercentual.toFixed(2));
+                        }
+                        else {
+                            $('#spnTotalVisitasImprodutivasPercentual').text(0);
+                        }
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                })
+
+
+        }
+        *@
+
+        function atualizaTotais(data) {
+            var totalVisitas = 0; var totalVisitasProdutivas = 0; var totalVisitasImprodutivas = 0;
+            var totalVisitasProdutivasPercentual = 0; var totalVisitasImprodutivasPercentual = 0;
+
+            if (data != undefined) {
+                for (var i = 0; i < data.length; i++) {
+                    totalVisitas = totalVisitas + parseInt(data[i].totalVisitas);
+                    totalVisitasProdutivas = totalVisitasProdutivas + parseInt(data[i].baixadasProdutivas);
+                    totalVisitasImprodutivas = totalVisitasImprodutivas + parseInt(data[i].baixadasImprodutivas);
+                }
+                $('#spnTotalVisitas').text(totalVisitas);
+                $('#spnTotalVisitasProdutivas').text(totalVisitasProdutivas);
+                $('#spnTotalVisitasImprodutivas').text(totalVisitasImprodutivas);
+
+                totalVisitasProdutivasPercentual = (totalVisitasProdutivas / totalVisitas) * 100;
+                totalVisitasImprodutivasPercentual = (totalVisitasImprodutivas / totalVisitas) * 100;
+
+                if (!isNaN(totalVisitasProdutivasPercentual)) {
+                    var num = totalVisitasProdutivasPercentual * 100
+                    $('#spnTotalVisitasProdutivasPercentual').text(totalVisitasProdutivasPercentual.toFixed(2));
+                }
+                else {
+                    $('#spnTotalVisitasProdutivasPercentual').text(0);
+                }
+
+                if (!isNaN(totalVisitasImprodutivasPercentual)) {
+                    var num = totalVisitasImprodutivasPercentual * 100
+                    $('#spnTotalVisitasImprodutivasPercentual').text(totalVisitasImprodutivasPercentual.toFixed(2));
+                }
+                else {
+                    $('#spnTotalVisitasImprodutivasPercentual').text(0);
+                }
+            }
+        }
+
+        $("#iDescMonitor").autocomplete({
+            source: "@(CONSTANTES.URLPortal + "/api/IdentityUserapi/busca")",
+            dataType: "json",
+            minLength: 2,
+            focus: function () { return false; },
+            open: function () {
+                setTimeout(function () {
+                    $('.ui-autocomplete').css('z-index', 99999999999999);
+                }, 0);
+            },
+            select: function (event, ui) {
+                var obj = ui.item;
+                $("#idMonitor").val(obj.value);
+                $("#iDescMonitor").val(obj.label);
+                oDatatable.draw();
+
+                return false;
+            },
+            change: function (event, ui) {
+                if (!ui.item) {
+                    $("#idMonitor").val(null);
+                    $("#iDescMonitor").val(null);
+                    oDatatable.draw();
+                }
+                return false;
+            }
+        });
+
+        $("#iDescSupervisor").autocomplete({
+            source: "@(CONSTANTES.URLPortal + "/api/FuncionarioAnielapi/buscaSupervisor")",
+            dataType: "json",
+            minLength: 2,
+            focus: function () { return false; },
+            open: function () {
+                setTimeout(function () {
+                    $('.ui-autocomplete').css('z-index', 99999999999999);
+                }, 0);
+            },
+            select: function (event, ui) {
+                var obj = ui.item;
+                $("#idSupervisor").val(obj.value);
+                $("#iDescSupervisor").val(obj.label);
+                oDatatable.draw();
+
+                //GetTotaisVisitas();
+                return false;
+            },
+            change: function (event, ui) {
+                if (!ui.item) {
+                    $("#idSupervisor").val(null);
+                    $("#iDescSupervisor").val(null);
+                    oDatatable.draw();
+                    //GetTotaisVisitas();
+                }
+                return false;
+            }
+        });
+
+
+
+        function ExibeMapa(equipe) {
+
+            @*ShowDialog(true, true, 'Mapa', '@Url.Action("Equipes", "Mapa")' + '?Equipe=' + equipe, 'mapa', 800, 500, 'iframeMapa');*@
+
+            var tempdate = new $('#iDataEncerradosFim').val();
+            var partesData = tempdate.split("/");
+            var tempdate = partesData[1] + '/' + partesData[0] + "/" + partesData[2];
+
+            var url = "@Url.Action("Mapa_Equipes", "Gestao_Equipe")" + "?Equipe=" + equipe + "&Pagina=Acompanhamento&data=" + tempdate;
+
+            window.location = url;
+
+            return false;
+        }
+
+
+        function DetalhesEquipe(equipe, nome) {
+            ShowDialog(true, true, nome, '@Url.Action("EquipeStatus", "Equipe")' + '?Equipe=' + equipe, 'equipe', 700, 330, 'iframeEquipe', function () {
+                HidePageLoading();
+                return true;
+            });
+        }
+
+    oDatatable = $("#datatable").length && $("#datatable").DataTable({
+        dom: "Bfrti",
+        columnDefs: [
+            {
+                targets: 0,
+                sortable: false,
+                searchable: false,
+                orderable: false,
+                width: '1%',
+                className: 'dt-body-center',
+                render: function (data, type, full, meta) {
+                    return "";
+                }
+            }
+        ],
+        select: {
+            style: 'multi'
+        },
+        order: [],
+        serverSide: true,
+        searching: true,
+        ordering: false,
+        paging: false,
+        processing: true,
+        deferRender: true,
+        scrollY: '82vh',
+        //scroller: {
+        //    loadingIndicator: true
+        //},
+        scrollX: true,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+        ajax: {
+            url: baseUrl + '/api/EquipeApi/GetAllAcompanhamentoEquipe',
+            type: 'POST',
+            data: function (data) {
+                data.Supervisor = $("#idSupervisor").val();
+                data.Monitor = $("#idMonitor").val();
+
+                var tecnico_ativos = $("#iTecnico_Ativos").val();
+                var tecnico_execucao = $("#iTecnico_Execucao").val();
+
+                if (!$("#iTecnico_Ativos").is(':checked'))
+                    tecnico_ativos = null;
+                if (!$("#iTecnico_Execucao").is(':checked'))
+                    tecnico_execucao = null;
+
+                data.Tecnico_Ativos = tecnico_ativos;
+                data.Tecnico_Em_Execucao = tecnico_execucao;
+                data.DataAbertoIni = $("#iDataAbertoIni").val();
+                data.DataAbertoFim = $("#iDataAbertoFim").val();
+                data.DataParalisadosIni = $("#iDataParalisadosIni").val();
+                data.DataParalisadosFim = $("#iDataParalisadosFim").val();
+                data.DataEncerradosIni = $("#iDataEncerradosIni").val();
+                data.DataEncerradosFim = $("#iDataEncerradosFim").val();
+                data.Situacao = $("#iSituacao option:selected").val();
+
+            },
+            error: function (ex) {
+                $("#datatable_processing").hide();
+                Notificar("@RsBase.ATENCAO_", ex.responseJSON.exceptionMessage, "warning");
+            },
+            dataSrc: function (d) {
+                atualizaTotais(d.data);
+                return d.data;
+            }
+        },
+        infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+            var str = "@RsCadastros.INFODATATABLE";
+            if (iTotal == 0) { iEnd = 0; iStart = 0; }
+            str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+            $("#dtLegend").html(str);
+
+            return "";
+        },
+        pageLength: 10,
+        preDrawCallback: function (settings) {
+            pageScrollPos = $(".dataTables_scrollBody").scrollTop();
+        },
+        drawCallback: function (settings) {
+            if (refreshBool && pageScrollPos != 0) {
+                setTimeout(function () {
+                    $(".dataTables_scrollBody").scrollTop(pageScrollPos);
+                    refreshBool = false;
+                    console.log(`refresh`);
+                }, 10);
+            }
+
+            if (oDatatableOS != null)
+            {
+                oDatatableOS.draw(false);
+            }
+
+            RelogioPainel();
+        },
+        language: traducaoDataTableSimples,
+        buttons: buttonsDataTable,
+        columns: [
+            {
+                title: "<!--<input name='select_all' value='1' type='checkbox'>-->",
+                orderable: false
+            },
+            {
+                data: "equipe",
+                title: "@RsCadastros.COLABORADOR",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+
+                        //return '<div class="container-fluid pl-0 pr-0" style="font-size: 12px;">' +
+                        //    '<div class="row">' +
+                        //    '<div class="col-sm-3 border-bottom divColaborador">' +
+                        //    '<div class="pb-0 text-center"><b>Colaborador</b></div>' +
+                        //    '<div class="pl-2 pr-2 text-truncate">' +
+                        //    '<i class="fas fa-circle" style="vertical-align: middle; font-size: 16px; margin-top: -2px;color:' + row.cor_StatusEquipe + '"></i> ' +
+                        //    '<a href="#iLink' + meta.row + '" style="color: #367fa9" data-toggle="tooltip" data-placement="top" title="Técnico no Mapa" onclick="return ExibeMapa(\'' + row.equipe + '\');">' +
+                        //    '<i class="icofont-tack-pin" style="vertical-align: middle; font-size: 20px;"></i>' +
+                        //    '</a > ' +
+                        //    '<a href="#iLink' + meta.row + '" style="color: #367fa9" data-toggle="tooltip" data-placement="top" title="Ver Mais Detalhes do Técnico"  onclick="return DetalhesEquipe(\'' + row.equipe + '\',\'' + row.nome + '\');">' +
+                        //    '<i class="icofont-plus-square" style="vertical-align: middle; font-size: 20px; "></i>' +
+                        //    '</a > ' +
+                        //    '<span>' + row.nome + '</span>' +
+                        //    '</div>' +
+                        //    '</div>' +
+                        //    '<div class="col-sm-9 border-bottom d-inline-flex pl-0 iDivTotais"> ' +
+                        //    '<div class="pl-3 pr-2">' +
+                        //    '<div><b>Bateria</b></div>' +
+                        //    '<img style="margin-top: -2px" src="../../Images/battery_png/' + row.icone_Bateria + '.png"/>' +
+                        //    '<span class="pt-0 pl-1">' + row.bateria + '</span>' +
+                        //    '</div>' +
+                        //    '<div class="pl-3 pr-2">' +
+                        //    "<span><b>Total OS's</b></span>" +
+                        //    '<div class="pt-0 text-center">' + row.totalVisitas + '</div>' +
+                        //    '</div>' +
+                        //    '<div class="pl-2 pr-2">' +
+                        //    '<span><b>Baixadas Prod.</b></span>' +
+                        //    '<div class="pt-0 text-center">' + row.baixadasProdutivas + '</div>' +
+                        //    '</div>' +
+                        //    '<div class="pl-2 pr-2">' +
+                        //    '<span><b>Baixadas Improd.</b></span>' +
+                        //    '<div class="pt-0 text-center">' + row.baixadasImprodutivas + '</div>' +
+                        //    '</div>' +
+                        //    '<div class="pl-2 pr-2">' +
+                        //    "<span><b>OS's Restantes</b></span>" +
+                        //    '<div class="pt-0 text-center">' + row.restantes + '</div>' +
+                        //    '</div>' +
+                        //    '<div class="pl-2 pr-2">' +
+                        //    '<span><b>Pontos Prev.</b></span>' +
+                        //    '<div class="pt-0 text-center">' + row.pontos_Previstos + '</div>' +
+                        //    '</div>' +
+                        //    '<div class="pl-2 pr-2">' +
+                        //    '<span><b>Pontos Realiz.</b></span>' +
+                        //    '<div class="pt-0 text-center">' + row.pontos_Realizados + '</div>' +
+                        //    '</div>' +
+                        //    '</div>' +
+
+                        //    '</div>' + //Fim div table-responsive
+
+                        //    '</div>' + //Fim col-sm-9
+                        //    '</div>'; //Fim  row
+                        //'</div>'; // Fim container
+
+
+
+                    return '<div class="divColaborador"><div class="pl-2 pr-2 text-truncate">' +
+                        '<i class="fas fa-circle" style="vertical-align: middle; font-size: 16px; margin-top: -2px;color:' + row.cor_StatusEquipe + '"></i> ' +
+                        '<a href="#iLink' + meta.row + '" style="color: #367fa9" data-toggle="tooltip" data-placement="top" title="Técnico no Mapa" onclick="return ExibeMapa(\'' + row.equipe + '\');">' +
+                        '<i class="icofont-tack-pin" style="vertical-align: middle; font-size: 20px;"></i>' +
+                        '</a > ' +
+                        '<a href="#iLink' + meta.row + '" style="color: #367fa9" data-toggle="tooltip" data-placement="top" title="Ver Mais Detalhes do Técnico"  onclick="return DetalhesEquipe(\'' + row.equipe + '\',\'' + row.nome + '\');">' +
+                        '<i class="icofont-plus-square" style="vertical-align: middle; font-size: 20px; "></i>' +
+                        '</a > ' +
+                        '<span>' + row.nome + '</span>' +
+                        '</div></div>';
+
+                }
+
+            },
+            {
+                data: "bateria",
+                title: "@RsCadastros.BATERIA",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return '<img style="margin-top: -2px" src="../../Images/battery_png/' + row.icone_Bateria + '.png"/>' +
+                        '<span class="pt-0 pl-1">' + row.bateria + '</span>';
+
+                }
+
+            },
+            {
+                data: "totalVisitas",
+                title: "Total OS's",
+                orderable: false,
+                className: "text-center",
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            },
+            {
+                data: "baixadasProdutivas",
+                title: "Baixadas Prod.",
+                className: "text-center",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            },
+            {
+                data: "baixadasImprodutivas",
+                title: "Baixadas Improd.",
+                className: "text-center",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            },
+            {
+                data: "restantes",
+                title: "OS's Restantes",
+                className: "text-center",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            },
+            {
+                data: "pontos_Previstos",
+                title: "Pontos Prev.",
+                className: "text-center",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            },
+            {
+                data: "pontos_Realizados",
+                title: "Pontos Realiz.",
+                className: "text-center",
+                orderable: false,
+                render: function (data, type, row, meta) {
+
+                    return data;
+
+                }
+
+            }
+
+        ]
+    });
+
+        $("#btnAtualizar").on('click', function () {
+            oDatatable.draw();
+        });
+
+        $("#iLimparFiltros").on('click', function () {
+
+            $("#idSupervisor").val("");
+            $("#iDescSupervisor").val("");
+            $('#idMonitor').val(null).trigger('change');
+
+            $("#idMonitor").val("");
+            $("#iDescMonitor").val("");
+            $('#idSupervisor').val(null).trigger('change');
+
+
+            oDatatable.draw();
+        });
+
+        $('#datatable tbody tr').css('cursor', 'initial');
+
+        $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+                rows_selected = [];
+
+
+            oDatatable.draw();
+
+                return true;
+        });
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+            $("#iTecnico_Ativos").prop("checked", false);
+            $("#iTecnico_Ativos").trigger("change")
+
+            $("#iTecnico_Execucao").prop("checked", false);
+            $("#iTecnico_Execucao").trigger("change")
+
+            $('#iSituacao').val("");
+            $('#iSituacao').val(null).trigger('change');
+
+            $("#modal-filter").modal('hide');
+                 rows_selected = [];
+               oDatatable.draw();
+        });
+
+
+
+
+
+
+        //Troca botão de expansão + por -
+        if ($("#btn-expand").on('click', function () {
+
+            //Tooltip Expandir
+            $('#btn-expand').tooltip('hide');
+
+
+            //expandir
+            if (this.value === '<') {
+                $("#btn-expand").html('<i class="fas fa-chevron-right" style="vertical-align: middle; font-size: 20px; "></i>');
+                $(".iDivTotais").removeClass('d-inline-flex');
+                $(".iDivTotais").hide();
+
+                $('#divdatatable').removeClass('col-sm-8');
+                $('#divdatatableOS').removeClass('col-sm-4');
+                $('#divdatatable').addClass('col-sm-3');
+                $('#divdatatableOS').addClass('col-sm-9');
+
+                //$(".divColaborador").removeClass('col-sm-3');
+                //$(".divColaborador").addClass('col-sm-9');
+
+                $("#iLink").hide();
+                //Transiction
+                $("#datatableOS").show();
+                $("#datatableOS").removeClass('animate__animated animate__bounceOut');
+                $("#datatableOS").addClass('animate__animated animate__backInRight');
+
+                $("#divdatatable").removeClass('animate__animated animate__fadeInLeft');
+                $("#divdatatable").addClass('animate__animated animate__fadeInRight');
+
+                for (var i = 0; i < oDatatable.columns().nodes().length; i++) {
+                    if (i != 0 && i != 1)
+                        oDatatable.column(i).visible(false)
+                }
+
+                this.value = '>';
+
+                //retrair
+            } else {
+                $("#btn-expand").html('<i class="fas fa-chevron-left" style="vertical-align: middle; font-size: 20px; "></i>');
+
+                $(".iDivTotais").addClass('d-inline-flex');
+
+                //$(".divColaborador").removeClass('col-sm-9');
+                //$(".divColaborador").addClass('col-sm-3');
+
+                $('#divdatatable').removeClass('col-sm-3');
+                $('#divdatatableOS').removeClass('col-sm-9');
+                $('#divdatatable').addClass('col-sm-8');
+                $('#divdatatableOS').addClass('col-sm-4');
+
+
+                //Transiction
+                $("#divdatatable").removeClass('animate__animated animate__fadeInRight');
+                $("#divdatatable").addClass('animate__animated animate__fadeInLeft');
+
+
+                for (var i = 0; i < oDatatable.columns().nodes().length; i++) {
+                    if (i != 0 && i != 1)
+                        oDatatable.column(i).visible(true)
+                }
+
+                this.value = '<';
+            }
+        }));
+
+
+        $('#datatable tbody').on('click', 'tr', function () {
+
+            //$('.btn-expand').tooltip('hide');
+            if ($('#datatable tbody tr').hasClass('bg-clickrow')) {
+                $('#datatable tbody tr').removeClass('bg-clickrow')
+            }
+
+            var $row = $(this).closest('tr').addClass('bg-clickrow');
+
+            if (oDatatable.row($row).data() != null) {
+
+                var equipe = oDatatable.row($row).data().equipe;
+
+
+                PreencheOSs(equipe);
+
+            }
+        });
+
+        function ExibirMotivoParalizacao(numObra, codCt, contrato, projeto, tecnico) {
+
+                var titulo = '@Html.Raw(RsCadastros.MOTIVO_PARALIZACAO)';
+                var url = '@Url.Action("GetMotivoParalizacao", "Documento_Producao")' + `?numObra=${numObra}&codCt=${codCt}&contrato=${contrato}&projeto=${projeto}&tecnico=${tecnico}`;
+                ShowDialog(true, true, titulo, url, 'divMotivoParalizacao', '100%', 450, 'iframeMotivoParalizacao',
+                    function () {
+                        HidePageLoading();
+                        return true;
+                    }
+                );
+
+        }
+
+        let oDatatableOS = null;
+        //INICIO DATA TABLE DADOS OS
+        function PreencheOSs(Id) {
+
+            if (oDatatableOS) {
+                $('#datatableOS').dataTable().fnDestroy();
+                $('#datatableOS').empty();
+                oDatatableOS = null;
+            }
+
+            oDatatableOS = $("#datatableOS").DataTable({
+                    dom: "Bfrti",
+                    select: {
+                        style: 'multi'
+                    },
+                    columnDefs: [
+                        {
+                            targets: 0,
+                            searchable: false,
+                            orderable: false,
+                            //style: 'padding-left: 10px',
+                            width: '1%',
+                            className: 'dt-body-center',
+                            render: function (data, type, row, meta) {
+
+                                var url = '"@Url.Action("Index", "Agendamento")" +"?CodCt=' + row.codCt + '&Pagina=acompanhamento' + '&Projeto=' + row.projeto + '&Num_Obra=' + row.numero_Os + '&Num_Doc=' + row.numero_Doc +'"';
+                                var titulo = '"Agendamento"';
+
+                                if (realizaAgendamento && ['@Html.Raw(RsCadastros.ABERTA_AGUARD_ATENDIMENTO)', '@Html.Raw(RsCadastros.OS_EM_DESLOCAMENTO)', '@Html.Raw(RsCadastros.ATENDIMENTO_PARALIZADO)'].includes(row.status_Execucao))
+                                    return "<a href='#' data-toggle='tooltip' data-placement='top' title='Reagendar Serviço' onclick='AddAba(" + url + ", " + titulo + ");'><i class='far fa-calendar-alt'></i><a>";
+                                else
+                                    return "";
+                            }
+                        }
+                    ],
+                    order: [[1, 'asc']],
+                    serverSide: true,
+                    searching: true,
+                    processing: true,
+                    autoWidth: false,
+                    ordering: false,
+                    paging: false,
+                    deferRender: true,
+                    stateSave: true,
+                    //stateDuration: -1,
+                    //scrollY: '100%',
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/Documento_ProducaoApi/GetOSsAcompamentoEquipe',
+                        type: 'POST',
+                        data: function (data) {
+                            data.Equipe = Id;
+                            //data.Data = $("#iData_Busca").val();
+                            data.Situacao = $("#iSituacao option:selected").val();
+
+                            data.DataAbertoIni = $("#iDataAbertoIni").val();
+                            data.DataAbertoFim = $("#iDataAbertoFim").val();
+                            data.DataParalisadosIni = $("#iDataParalisadosIni").val();
+                            data.DataParalisadosFim = $("#iDataParalisadosFim").val();
+                            data.DataEncerradosIni = $("#iDataEncerradosIni").val();
+                            data.DataEncerradosFim = $("#iDataEncerradosFim").val();
+
+                        },
+                        error: function (e) {
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+
+                            return d.data;
+                        }
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+                        return "";
+                    },
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTable,
+                    columns: [
+                        { title: "<!--<input name='select_all' value='1' type='checkbox'>-->" },
+                        @*{
+                            title: "@RsCadastros.CHAT",
+                            render: function (data, type, row, meta) {
+                                return "<a href='#' class='buttons'><i class='fa-solid fa-messages'></i></a>";
+                            }
+                        },*@
+
+                        {
+                            data: "chat",
+                            title: "@RsCadastros.CHAT",
+                            render: function (dta, type, row, meta) {
+
+                                var url = '"@Url.Action("Painel_Chat", "Chat")"+"?num_Os=' + row.numero_Os + '"';
+                                var titulo = '"@RsCadastros.PAINEL_CONVERSAS_CHAT"';
+
+                                return "<a href='#' data-toggle='tooltip' data-placement='top' title='" + "@RsCadastros.PAINEL_CONVERSAS_CHAT" + "' onclick='AddAba(" + url + ", " + titulo + ");'><i class='fa fa-comments' aria-hidden='true'></i><a>"
+                            }
+                        },
+                        {
+                            data: "numero_Os_Original",
+                            title: "@RsConfiguracao.NUMERO_OS",
+                            render: function (data, type, row, meta) {
+
+                                var vnumero = row.numero_Os;
+
+                                var url = '"@Url.Action("Index", "Acompanhamento_Servico")" +"?CodCt=' + row.codCt + '&Pagina=acompanhamento' + '&Projeto=' + row.projeto + '&Num_Obra=' + row.numero_Os + '&Num_Doc=' + row.numero_Doc +'"';
+                                var titulo = '"@RsCadastros.GESTAO_EQUIPES"';
+
+                                if (['@RsCadastros.ABERTA_AGUARD_ATENDIMENTO', '@RsCadastros.OS_EM_DESLOCAMENTO', '@RsCadastros.ATENDIMENTO_PARALIZADO'].includes(row.status_Execucao))
+                                    return "<a href='#' data-toggle='tooltip' data-placement='top' title='" + "@RsCadastros.ACOMPANHAMENTO_SERVICO" + "' onclick='AddAba(" + url + ", " + titulo + ");'>" + data +"<a>";
+                                else
+                                    return "<a href='#' data-toggle='tooltip' data-placement='top' title='" + "@RsCadastros.ACOMPANHAMENTO_SERVICO" + "' onclick='AddAba(" + url + ", " + titulo + ");'>" + data +"<a>";
+                            }
+                        },
+                        { data: "data_Agendamento", title: "@RsConfiguracao.DATA_AGENDAMENTO" },
+                        { data: "periodo", title: "@RsCadastros.PERIODO" },
+                        { data: "tipo_Servico", title: "@RsConfiguracao.TIPO_SERVICO" },
+                        {
+                            data: "slA_Servicos",
+                            title: "@RsConfiguracao.SLA_SERVICOS",
+                            render: function (data, type, row, meta) {
+
+                                switch (data) {
+                                    case "Dentro do Prazo":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: dodgerblue'></i></div>";
+                                        break;
+                                    case "Atenção":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: #ffd700'></i></div>";
+                                        break;
+                                    case "Próximo do Vencimento":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: #FFA500'></i></div>";
+                                        break;
+                                    case "Risco de Perda do Prazo":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: hotpink'></i></div>";
+                                        break;
+                                    case "Prazo Vencido":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: #B22222'></i></div>";
+                                        break;
+                                    case "Prazo Cumprido":
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: limegreen'></i></div>";
+                                        break;
+                                    default:
+                                        return "<div data-toggle='tooltip' data-placement='top' class='text-center' title='" + data + "'>" + "<i class='fas fa-flag mr-1' style='color: gray'></i></div>";
+                                }
+
+                               // return "<span title='" + row.dataHora_Indicador + "'>" + "<i class='fas fa-flag mr-1'></i>" + data +"</span>";
+                            }
+                        },
+                        {
+                            data: "status_Execucao",
+                            title: "@RsConfiguracao.STATUS_EXECUCAO",
+                            render: function (data, type, row, meta) {
+
+                                switch (data) {
+                                    case "Aberta Aguardando Agendamento":
+                                        return "<div style='background-color: #848284;color: #FFFFFF;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Aberta Aguardando Responsável":
+                                        return "<div style='background-color: #D6D3CE;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Aberta Aguardando Atendimento":
+                                        return "<div style='background-color: #FFFFFF;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "OS com Técnico em Deslocamento":
+                                        return "<div style='background-color: #A5CBF7;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Atendimento Iniciado":
+                                        return "<div style='background-color: #00FFFF;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Atendimento Pausado":
+                                        return "<div style='background-color: #FFFF00;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Reiniciado Atendimento":
+                                        return "<div style='background-color: #00FFFF;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Atendimento Finalizado":
+                                        return "<div style='background-color: #08246B;color: #FFFFFF;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Cancelado":
+                                        return "<div style='background-color: #ED1C24;color: #FFFFFF;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Fechada Produtiva":
+                                        return "<div style='background-color: #008200;color: #FFFFFF;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Fechada Improdutiva":
+                                        return "<div style='background-color: #FF9A42;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    case "Interromper Deslocamento":
+                                        return "<div style='background-color: #FFFFFF;color: #000000;padding-left: 5px;padding-right: 5px;'>" + data + "</div>";
+                                        break;
+                                    default: "Erro no nome do Status SLA Serviços"
+                                }
+                            }
+
+                        },
+                        {
+                            data: "motivo_Pausa",
+                            title: "@RsCadastros.MOTIVO_PAUSA",
+                            render: function (data, type, row, meta) {
+                                return `<button onclick='ExibirMotivoParalizacao("${row.numero_Os}","${row.codCt}", ${row.numero_Doc}, "${row.projeto}", "${row.tecnico}")' ><i class="far fa-comment-alt"></i></button>`;
+                            }
+
+                        },
+                        {
+                            data: "recebido_Tecnico",
+                            title: "@RsConfiguracao.RECEBIDO_TECNICO",
+                            render: function (data, type, row, meta) {
+                                return '<div class="text-center">' + data + '</div>';
+                            }
+                        },
+                        { data: "assinante", title: "@RsConfiguracao.ASSINANTE" },
+                        { data: "endereco", title: "@RsCadastros.ENDERECO" },
+                        { data: "numero", title: "@RsCadastros.NUMERO" },
+                        { data: "endereco_Bairro", title: "@RsCadastros.BAIRRO" },
+                        { data: "endereco_Tipo", title: "@RsCadastros.CIDADE" },
+                        {
+                            data: "numero_Atendimento",
+                            title: "@RsCadastros.NUMERO_ATENDIMENTO",
+                            render: function (data, type, row, meta) {
+                                var numAtendimento = row.numAtendimento;
+                                var tituloAt = '"@RsCadastros.ATENDIMENTO"';
+                                var urlat = '"@Url.Action("Cadastro", "Atendimento")" +"?Numero_Protocolo=' + row.numero_Atendimento + '"';
+                                return "<a href='#' data-toggle='tooltip' data-placement='top' title='" + "@RsCadastros.ATENDIMENTO" + "' onclick='AddAba(" + urlat + ", " + tituloAt + ");'>" + data +"<a>";
+                            }
+                        },
+                        ////{ data: "numero_Atendimento", title: "@RsCadastros.NUMERO_ATENDIMENTO" },
+
+                        { data: "deslocamento", title: "@RsConfiguracao.DESLOCAMENTO" },
+                        { data: "inicio_Atendimento", title: "@RsConfiguracao.INICIO_ATENDIMENTO" },
+                        { data: "fim_Atendimento", title: "@RsConfiguracao.FIM_ATENDIMENTO" },
+                        { data: "tempo_Execucao", title: "@RsConfiguracao.TEMPO_EXECUCAO" },
+                        { data: "tempo_Paralizacoes", title: "@RsConfiguracao.TEMPO_PARALIZACAO" },
+                        { data: "duracao_Total_Visita", title: "@RsConfiguracao.DURACAO_TOTAL_VISITA" },
+                        { data: "pontos_Previstos", title: "@RsConfiguracao.PONTOS_PREVISTOS" },
+                        { data: "pontos_Realizados", title: "@RsConfiguracao.PONTOS_REALIZADOS" }
+
+
+                    ]
+
+            });
+
+        };
+
+        refresh();
+
+    //Atualiza o painel de técnicos conforme definido em configurações gerais
+    function refresh() {
+
+        @if(ViewBag.timerAtualizacaoTecnico > 0) {
+            <text>
+                let timer = @(ViewBag.timerAtualizacaoTecnico ?? 0) * 60000; // 1 min = 60000 miliseg.
+                setInterval(function () {
+                    refreshBool = true;
+                    oDatatable.search('').draw(false);
+                }, timer);
+            </text>
+        }
+    }
+
+
+</script>
+
+
+}
+
+
+<div>
+
+    <!--main-->
+    <div class="row" style="padding-top: 10px;">
+        <div class="col main-title">
+            <h4 class="title-page">
+                <i class="fas fa-users"></i> @ViewBag.Title
+            </h4>
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a>@RsCadastros.PAINEL_ACOMPANHAMENTO_EQUIPE</a>
+                    </li>
+
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+
+        </div>
+
+        <div class="col">
+
+            <div class="form-inline" style="float: right;">
+                <div class="ml-3">
+                    <a class="btn btn-success btn-add mr-3" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-placement="bottom" title="@RsBase.CRIAR">
+                        <i class="la la-plus" style="color: #fff"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                        <a class="dropdown-item" href="@Url.Action("Criar_Ordem_Servico", "Painel_Servicos")" onclick="ShowPageLoading(); return true;">@RsCadastros.CRIAR_ORDEM_SERVICO</a>
+                    </div>
+                    <a class="btn btn-success btn-add-2" href="#" id="btnAtualizar" title="Atualizar" return true;">
+                        <i class="fas fa-sync-alt" style="color: #fff"></i>
+                    </a>
+
+                    <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                </div>
+                <!--Info-->
+                <div class="form-group col-sm-push-1 pl-2">
+                    <i class="fas fa-question-circle fa-2x" style="color: #2092EC; cursor: pointer;" data-toggle="popover" data-html="true" title="Legenda dos status de acompanhamento de técnicos"
+                       data-content="<div style='font-size: 10px'>
+
+                        <span class='p-3'><i class='fas fa-circle legend-color-disp'></i> Disponível</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-aus'></i> Ausente</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-ocup'></i> Em Atendimento</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-sem-agenda'></i> Sem Agenda</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-desl'></i> Em Deslocamento</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-indisp'></i> Indisponível</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-ocupado-fora'></i> Em atendimento fora do horário de trabalho</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-fora-horario-trabalho'></i> Fora do horário de trabalho</span><br />
+
+                        <span class='p-3'></span><br />
+                    </div>"></i>
+                </div>
+
+            </div>
+
+            <div style="float: right">
+                <h4 id="relogio" style="font-size:14px; text-align: center;"></h4>
+                <p id="relogioPainel">Painel Atualizado às </p>
+            </div>
+
+        </div>
+
+
+    </div>
+    
+
+
+
+    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+        <div class="card-body body-card-accord pt-2 pb-0">
+
+
+
+            <!--Totais Visitas-->
+            <div class="row mb-3" id="Opcao_Trabalha_Feriado">
+
+                <div class="col-sm-2">
+                    <div class="form-inline" style="margin-top: 20px; margin-left: 30px; border: 1px solid #a29a9a; border-radius: 5px;">
+
+
+                        <div class="form-group col-sm-push-1 ml-2 mt-1">
+                            @RsCadastros.TOTAL_VISITAS: <span style="font-size:11px" id="spnTotalVisitas" class="pl-2"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-3">
+                    <div class="form-inline" style="margin-top: 20px; border: 1px solid #a29a9a; border-radius: 5px;">
+
+                        <div class="form-group col-sm-push-1 ml-2 mt-1">
+                            @RsCadastros.TOTAL_VISITAS_PRODUTIVAS: <span style="font-size:11px" id="spnTotalVisitasProdutivas" class="pl-2"></span> &nbsp; - &nbsp; <span style="font-size:11px" class="percent" id="spnTotalVisitasProdutivasPercentual"></span> <span style="font-size:11px">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-sm-3">
+                    <div class="form-inline" style="margin-top: 20px; border: 1px solid #a29a9a; border-radius: 5px;">
+
+                        <div class="form-group col-sm-push-1 ml-2 mt-1">
+                            @RsCadastros.TOTAL_VISITAS_IMPRODUTIVAS: <span style="font-size:11px" id="spnTotalVisitasImprodutivas" class="pl-2"></span> &nbsp; - &nbsp; <span style="font-size:11px; border:none" class="percent" id="spnTotalVisitasImprodutivasPercentual"></span> <span style="font-size:11px">%</span>
+
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!--Refresh Data definido do timer-->
+            <div id="div_refresh"></div>
+
+
+
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-sm-8 border" id="divdatatable">
+                        <div class="text-right sticky-top bg-white">
+                            <button id="btn-expand" class="btn btn-link text-secondary" value="<" data-toggle="tooltip" data-placement="top" title="Expandir"><i class="fas fa-chevron-left" style="vertical-align: middle; font-size: 20px;"></i></button>
+                            @*<div class="row" style="padding-right: 10px; padding-left: 10px; padding-bottom: 0px; padding-top: 2px;"><div class="col-sm-3 divColaborador"><div class="pb-0 text-center"><b>Colaborador</b></div><div class="pl-2 pr-2 text-truncate"> <i class="fas fa-circle" style="vertical-align: middle; font-size: 16px; margin-top: -2px;color:#38761d"></i>  </div></div><div class="col-sm-9 d-inline-flex pl-0 iDivTotais"> <div class="pl-3 pr-2"><div><b>Bateria</b></div></div><div class="pl-3 pr-2"><span><b>Total OS's</b></span></div><div class="pl-2 pr-2"><span><b>Baixadas Prod.</b></span></div><div class="pl-2 pr-2"><span><b>Baixadas Improd.</b></span></div><div class="pl-2 pr-2"><span><b>OS's Restantes</b></span></div><div class="pl-2 pr-2"><span><b>Pontos Prev.</b></span></div><div class="pl-2 pr-2"><span><b>Pontos Realiz.</b></span></div></div></div>*@
+                        </div>
+                        <table class="table table-hover display nowrap" id="datatable" style="width:100% !important">
+                        </table>
+                    </div>
+                    <div class="col-sm-4 border bg-white" id="divdatatableOS">
+                        <div class="table-bordered table-responsive sticky-top" style="display: inline-flex;" id="table-responsive' + row.equipe + '">
+                            <table class="datatableOS animate__backInRight dataTable no-footer animate__animated" style="margin-top: 40px !important; margin-bottom: 10px !important;" id="datatableOS" role="grid" aria-describedby="datatableOS_info">
+                                <thead>
+                                    <tr role="row">
+                                        <th class="sorting_disabled dt-body-center" rowspan="1" colspan="1" style="width: 1%;"><!--<input name='select_all' value='1' type='checkbox'>--></th>
+                                        @*<th class="sorting_disabled" rowspan="1" colspan="1">Chat</th>*@
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Número OS</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Data Agendamento</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Período</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Tipo Serviço</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">SLA Serviços</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Status</th>''
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Recebido pelo Técnico</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Assinante</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Endereço</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Número</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Bairro</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Cidade</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Número Atendimento</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Deslocamento</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Inicio Atendimento</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Fim Atendimento</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Tempo Execução</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Tempo Paralisação</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Duração Total da Visita</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Pontos Previstos</th>
+                                        <th class="sorting_disabled" rowspan="1" colspan="1">Pontos Realizados</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="odd"><td valign="top" colspan="17" class="dataTables_empty">Nenhum registro encontrado</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+<div id="mapa"></div>
+<div id="equipe"></div>
+
+<!--Modal Filters-->
+<div class="modal" id="modal-filter">
+
+    <div class="modal-dialog">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Filtros Acompanhamento de Técnicos </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <div class="row">
+
+                    <div class="col-sm-12">
+
+                        <div class="row mb-3" id="Opcao_Trabalha_Feriado">
+                            <div class="col">
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" id="iRadioSupervisor" type="radio" name="SupervisorMonitor" value="Supervisor">
+                                    <label class="form-check-label ml-2" for="iRadioSupervisor" style="margin-right:5%"><b>@RsCadastros.SUPERVISOREQUIPE:</b></label>
+                                </div>
+                                <div class="input-group-append">
+                                    @Html.DropDownList("select2Supervisor", new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idSupervisor", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+                            <div class="col">
+                                <div class="form-check mb-1">
+
+                                    <input class="form-check-input" id="iRadioMonitor" type="radio" name="SupervisorMonitor" value="Monitor">
+                                    <label class="form-check-label ml-2" for="iRadioMonitor" style="margin-right:5%"><b>@RsCadastros.MONITOREQUIPE:</b></label>
+                                </div>
+                                <div class="input-group-append">
+                                    @Html.DropDownList("select2Monitor", new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idMonitor", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="form-group col-sm-4" style="font-weight: bold;">
+                                        <label for="iAssunto" class="mr-3">@RsCadastros.SERVICOS_EM_ABERTO:</label>
+                                    </div>
+                                    <div class="row pl-3 form-group col-sm-8" id="divDatas">
+                                        @Html.TextBoxFor(m => m.DataAbertoIni, new { @tabindex = "7", @class = "form-control datepicker mr-2", @data_provide = "datepicker", @id = "iDataAbertoIni", @autocomplete = "off" }) @RsBase.A
+                                        @Html.TextBoxFor(m => m.DataAbertoFim, new { @tabindex = "7", @class = "form-control datepicker ml-2", @data_provide = "datepicker", @id = "iDataAbertoFim", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="form-group col-sm-4" style="font-weight: bold;">
+                                        <label for="iAssunto" class="mr-3">@RsCadastros.SERVICOS_PARALISADOS:</label>
+                                    </div>
+                                    <div class="row pl-3 form-group col-sm-8" id="divDatas">
+                                        @Html.TextBoxFor(m => m.DataParalisadosIni, new { @tabindex = "7", @class = "form-control datepicker mr-2", @data_provide = "datepicker", @id = "iDataParalisadosIni", @autocomplete = "off" }) @RsBase.A
+                                        @Html.TextBoxFor(m => m.DataParalisadosFim, new { @tabindex = "7", @class = "form-control datepicker ml-2", @data_provide = "datepicker", @id = "iDataParalisadosFim", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="form-group col-sm-4" style="font-weight: bold;">
+                                        <label for="iAssunto" class="mr-3">@RsCadastros.SERVICOS_ENCERRADOS:</label>
+                                    </div>
+                                    <div class="row pl-3 form-group col-sm-8" id="divDatas">
+                                        @Html.TextBoxFor(m => m.DataEncerradosIni, new { @tabindex = "7", @class = "form-control datepicker mr-2", @data_provide = "datepicker", @id = "iDataEncerradosIni", @autocomplete = "off" }) @RsBase.A
+                                        @Html.TextBoxFor(m => m.DataEncerradosFim, new { @tabindex = "7", @class = "form-control datepicker ml-2", @data_provide = "datepicker", @id = "iDataEncerradosFim", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row p-3 justify-content-start mt-1 mb-1">
+                            <span class="form-check-label text-muted" style="font-size:11px !important">*Todos os filtros de período referem-se a data de agendamento do serviço.</span>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 form-group">
+                                <label>Situação:</label>
+                                <div class="form-group" style="height:100%; vertical-align:middle;">
+                                    <select class="form-control" id="iSituacao" style="width: 40%">
+                                        <option value="">Todos</option>
+                                        <option value="1">Em Andamento</option>
+                                        <option value="2">Encerrado Produtivo</option>
+                                        <option value="3">Encerrado Improdutivo</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label> Visualizar apenas técnicos ativos </label>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    @Html.CheckBoxFor(m => m.Tecnico_Ativos, new { @class = "form-control", @id = "iTecnico_Ativos", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Nao", @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    <label> Visualizar apenas técnicos com serviços agendados</label>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="form-group">
+                                    @Html.CheckBoxFor(m => m.Tecnico_Em_Execucao, new { @class = "form-control", @id = "iTecnico_Execucao", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Nao", @data_onstyle = "success", @data_offstyle = "light" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+</div>
+
+<div id="divMotivoParalizacao">
+
+</div>
+
+<!-- /.modal-->

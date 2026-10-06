@@ -1,0 +1,773 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@model  Aniel.Connect.Models.RelatorioMesmaVendaEnderecoViewModel
+@{
+    ViewBag.Title = RsCadastros.RELATORIO_VENDAS_MESMO_END;
+    ViewBag.Sessao = RsCadastros.RELATORIO_VENDAS_MESMO_END;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/bin/Content/connect.css")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+    <style>
+        #divDatas {
+            border: solid;
+            border-radius: 10px;
+            border-color: rgba(0, 0, 0, 0.1);
+            padding: 10px 7px 10px 7px;
+        }
+
+        #iStatusVendaWorkflow {
+            margin-left: 15px;
+        }
+
+        #iEmitidoPor {
+            font-size: 13px;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        th.dt-center, td.dt-center {
+            text-align: center;
+        }
+
+        table.dataTable td {
+            white-space: nowrap;
+        }
+
+        table.dataTable td {
+            word-break: break-word;
+        }
+
+        #divTable {
+            margin-right: 20px;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+            margin-top: 5px;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+        var oDatatable = null;
+        var motivosAdicionados = [];
+
+        $(document).ready(function () {
+            $('#iCEP').mask('00000-000');
+            $("#iStatusVendaPadrao").prop("checked", true).trigger("change");
+            $("#iDataVenda").prop("checked", true).trigger("change");
+
+            AddSelect("iPais", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPaisAtreladoVenda",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handlePais);
+            AddSelect("iCampanha", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCampanhaAtreladaVenda",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelectMulti('iMotivoVenda', '@CONSTANTES.URLPortal/api/Motivo_Desistencia_VendaApi/GetComboMotivos', @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false)
+
+            DisableSelect('iUF');
+            DisableSelect('iCidade');
+            DisableSelect('iBairro');
+
+            $("#iDataInicial").val("@DateTime.Now.AddDays(-30).Date.ToString("dd/MM/yyyy")");
+            $("#iDataFinal").val("@DateTime.Now.Date.ToString("dd/MM/yyyy")");
+            $("#modal-filter").modal('show');
+        });
+
+        $("#iTipoEndereco").on("change", function () {
+            let tipoEnd = $("#iTipoEndereco option:selected").val();
+            if (tipoEnd == '1') {
+                $(".divCondPredio").show();
+                AddSelect("iCondominioPredio", "@CONSTANTES.URLPortal/api/CondominioPredioapi/GetComboEndereco",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                $(".divCondPredio").hide();
+            }
+        });
+
+        $("#iQtdeMesmoEnd").on("change", function () {
+            let valorSelecionado = $("#iQtdeMesmoEnd option:selected").val();
+            if (valorSelecionado == '1') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor:");
+                $(".divValorEntre").hide();
+                $(".divValor").show();
+            }
+            else if (valorSelecionado == '2') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor:");
+                $(".divValorEntre").hide();
+                $(".divValor").show();
+            }
+            else if (valorSelecionado == '3') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor:");
+                $(".divValorEntre").hide();
+                $(".divValor").show();
+            }
+            else if (valorSelecionado == '4') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor:");
+                $(".divValorEntre").hide();
+                $(".divValor").show();
+            }
+            else if (valorSelecionado == '5') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor:");
+                $(".divValorEntre").hide();
+                $(".divValor").show();
+            }
+            else if (valorSelecionado == '6') {
+                $("#iValorLabel").text("");
+                $("#iValorLabel").text("Valor Inicial:");
+                $(".divValor").show();
+                $(".divValorEntre").show();
+            }
+            else {
+                $(".divValor").hide();
+                $(".divValorEntre").hide();
+            }
+        });
+
+        $("input[name='iTipoStatus']").on("change", function () {
+
+            let valorSelecionado = $("input[name='iTipoStatus']:checked").val();
+
+            if (valorSelecionado == "0") {
+                $(".divSelect").empty();
+                $(".divSelect").append(`<select id="iStatus" class="form-control">`);
+                $("#iStatus").append(`<option value="">Todos</option>`);
+                $("#iStatus").append(`<option value="6">Venda Aprovada</option>`);
+                $("#iStatus").append(`<option value="4">Venda Cancelada</option>`);
+                $("#iStatus").append(`<option value="0">Análise Cliente</option>`);
+                $("#iStatus").append(`<option value="5">Aguardando Avaliação Comercial</option>`);
+                $("#iStatus").append(`<option value="8">Aguardando Liberação</option>`);
+                $("#iStatus").append(`<option value="99">Vendas Instaladas</option>`);
+                $(".divSelect").append(` </select>`);
+            }
+            else {
+                $("#iStatus").empty();
+                AddSelect('iStatus', baseUrl + '/api/Atividade_StatusVendaApi/GetCombo',@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false)
+            }
+        });
+
+        const handlePais = function () {
+            $("#iPais").on("select2:select select2:unselecting", function (e) {
+                const paisSelecionado = e.params.data
+                if (paisSelecionado) {
+                    EnableSelect('iUF');
+                    AddSelect("iUF", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUFAtreladoVenda", @CONSTANTES.PaginacaoRegistros, null, paisSelecionado.id, null, "@RsBase.SELECIONE", false, handleUfCli);
+                }
+                else {
+                    $("#iUF").val(null).trigger('change');
+                    $("#iCidade").val(null).trigger('change');
+                    $("#iBairro").val(null).trigger('change');
+                    DisableSelect('iUF');
+                    DisableSelect('iCidade');
+                    DisableSelect('iBairro');
+                }
+            })
+        }
+
+        const handleUfCli = function () {
+            $("#iUF").on("select2:select select2:unselecting", function (e) {
+                const ufSelecionado = e.params.data
+                if (ufSelecionado) {
+                    EnableSelect('iCidade');
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadeAtreladoVenda",@CONSTANTES.PaginacaoRegistros, null, ufSelecionado.id, null, "@RsBase.SELECIONE", false, handleCidade);
+                }
+                else {
+                    $("#iCidade").val(null).trigger('change');
+                    $("#iBairro").val(null).trigger('change');
+                    DisableSelect('iCidade');
+                    DisableSelect('iBairro');
+                }
+            })
+        }
+
+        const handleCidade = function () {
+            $("#iCidade").on("select2:select select2:unselecting", function (e) {
+                const cidadeSelecionada = e.params.data
+                if (cidadeSelecionada) {
+                    EnableSelect('iBairro');
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboBairroAtreladoVenda",@CONSTANTES.PaginacaoRegistros, null, cidadeSelecionada.id, null,"@RsBase.SELECIONE", false);
+                }
+                else {
+                    $("#iBairro").val(null).trigger('change');
+                    DisableSelect('iBairro');
+                }
+            })
+        }
+    var handleDataTableButtons = function () {
+        "use strict";
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Blfprti",
+                select: {
+                    style: 'multi'
+                },
+                columnDefs: [
+                    { "className": "dt-center", "targets": "_all" }
+                ],
+                serverSide: true,
+                searching: true,
+                processing: true,
+                ordering: false,
+                destroy: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                autoWidth: false,
+                scrollY: '79vh',
+                scrollX: true,
+                layout: {
+                    bottomEnd: {
+                        paging: {
+                            firstLast: false
+                        }
+                    }
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/relatorioapi/RelatorioVendasMesmoEndereco',
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.tipoData = $("input[name='iData']:checked").val();
+                        data.dataInicio = $("#iDataInicial").val();
+                        data.dataFim = $("#iDataFinal").val();
+                        data.tipoStatus = $("input[name='iTipoStatus']:checked").val();
+                        data.status = $("#iStatus option:selected").val();
+                        data.enderecoPor = $("#iTipoEndereco option:selected").val();
+                        data.idCondomioPredio = $("#iCondominioPredio option:selected").val();
+                        data.CEP = $("#iCEP").val();
+                        data.pais = $("#iPais option:selected").val();
+                        data.uF = $("#iUF option:selected").val();
+                        data.cidade = $("#iCidade option:selected").val();
+                        data.bairro = $("#iBairro option:selected").val();
+                        data.campanha = $("#iCampanha option:selected").val();
+                        data.valor = $("#iValor").val();
+                        data.valorFinal = $("#iValorFinal").val();
+                        data.qtdeVendasMesmoEndereco = $("#iQtdeMesmoEnd option:selected").val();
+                        data.idsMotivos = $("#iMotivoVenda").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        if ($('#Count_listing').length === 0)
+                            $('.dataTables_length').append($('<label id="Count_listing"></label>'))
+
+                        $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                      Total de Registros encontrados : <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                      </div> `
+                        );
+
+                        TagFilter("FiltrosUtilizados", filter_state());
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                initComplete: dataTableInitComplete,
+                language: traducaoDataTableSimples,
+                columns: [
+                    { data: "enderecoPor", title: "Endereço Por", orderable: false },
+                    { data: "endereco", title: "Endereço", orderable: false },
+                    { data: "qtdeVendasMesmoEndCliente", title: "Qtde. Vendas no Mesmo Endereço", orderable: false },
+                    { data: "cliente", title: "Cliente", orderable: false },
+                    { data: "dataCriacaoString", title: "Data Criação", orderable: false },
+                    { data: "dataVendaString", title: "Data Venda", orderable: false },
+                    { data: "statusVenda", title: "Status da Venda", orderable: false },
+                    { data: "motivoJustificativaVenda", title: "Motivo/Justificativa da Venda", orderable: false },
+                ],
+                 buttons: buttonsDataTableRelatorio({
+                    title: "@Html.Raw(ViewBag.Title)",
+                    pageSize: "A3"
+                 }),
+                responsive: true,
+            });
+        },
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+            $("#iDataInicial").val("@DateTime.Now.AddDays(-90)").trigger("change");
+            $("#iDataFinal").val("@DateTime.Now").trigger("change");
+            $("#iDataVenda").prop("checked", true).trigger("change");
+            $("#iStatusVendaPadrao").prop("checked", true).trigger("change");
+            $("#iStatus").val("").trigger("change");
+            $("#iTipoEndereco").val("").trigger("change");
+            $("#iCEP").val("").trigger("change");
+            $("#iPais").val(null).trigger("change");
+            $("#iUF").val(null).trigger("change");
+            $("#iCidade").val(null).trigger("change");
+            $("#iBairro").val(null).trigger("change");
+            $("#iCondominioPredio").val(null).trigger("change");
+            $("#iCampanha").val(null).trigger("change");
+            $("#iQtdeMesmoEnd").val(null).trigger("change");
+            $("#iValorFinal").val("").trigger("change");
+            $("#iMotivoVenda").val(null).trigger("change");
+            $("#iCEP").text("");
+            $("#iPais").text("");
+            $("#iUF").text("");
+            $("#iCidade").text("");
+            $("#iBairro").text("");
+            $("#iCondominioPredio").text("");
+            $("#iCampanha").text("");
+            $("#iQtdeMesmoEnd").text("");
+            $("#iValorFinal").text("");
+            $("#iMotivoVenda").text("");
+
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        });
+
+        $("#iPesquisar").on("click", function () {
+
+            if ($("#iDataInicial").val() == "" || $("#iDataInicial").val() == undefined || $("#iDataInicial").val() == null ||
+                $("#iDataFinal").val() == "" || $("#iDataFinal").val() == undefined || $("#iDataFinal").val() == null) {
+                Notificar("@RsBase.ATENCAO_", "Informe os campos de datas", "warning");
+                return false;
+            }
+
+            if (DataMaior('iDataInicial', 'iDataFinal')) {
+                Notificar("@RsBase.ATENCAO_", "Atenção! Por favor, filtrar um período válido”", "warning");
+                return false;
+            }
+
+            if (DateDiff($("#iDataInicial").val(), $("#iDataFinal").val()) > 90) {
+                Notificar("@RsBase.ATENCAO_", "Atenção! Por favor filtrar um período válido (menor que 90 dias)", "warning");
+                return false;
+            }
+
+            if ($("#iQtdeMesmoEnd option:selected").val()) {
+                let valorSelecionado = $("#iQtdeMesmoEnd option:selected").val();
+
+                if (valorSelecionado == "6") {
+                    if (!$("#iValor").val() && !$("#iValorFinal").val()) {
+                        Notificar("@RsBase.ATENCAO_", "Informe o Valor Inicial e Valor Final", "warning");
+                        return false;
+                    }
+                }
+            }
+
+            $("#modal-filter").modal('hide');
+
+            if ($.fn.DataTable.isDataTable("#datatable")) {
+                $("#datatable").DataTable().clear().destroy();
+                TableManageButtons.init();
+            }
+            else {
+                TableManageButtons.init();
+            }
+
+            return true;
+        });
+
+        var filter_state = function () {
+             return {
+                 iDataVenda: {
+                     label: "Data da Venda",
+                     getDisplay: () => { return Boolean($('#iDataVenda').is(':checked')) ? "" : "" },
+                     onclick: () => {
+                         $('#iDataVenda').prop('checked', false).trigger("change");
+                         $("#iPesquisar").trigger("click");
+                     }
+                 },
+                 iDataCriacao: {
+                     label: "Data de Criação",
+                     getDisplay: () => { return Boolean($('#iDataCriacao').is(':checked')) ? "" : "" },
+                     onclick: () => {
+                         $('#iDataCriacao').prop('checked', false).trigger("change");
+                         $("#iPesquisar").trigger("click");
+                     }
+                 },
+                 iStatusVendaPadrao: {
+                     label: "Status Venda Padrão",
+                     getDisplay: () => { return Boolean($('#iStatusVendaPadrao').is(':checked')) ? "" : "" },
+                     onclick: () => {
+                         $('#iStatusVendaPadrao').prop('checked', false).trigger("change");
+                         $("#iPesquisar").trigger("click");
+                     }
+                 },
+                 iStatusVendaWorkflow: {
+                     label: "Status Venda Workflow",
+                     getDisplay: () => { return Boolean($('#iStatusVendaWorkflow').is(':checked')) ? "Status Venda Workflow" : "" },
+                     onclick: () => {
+                         $('#iStatusVendaPadrao').prop('checked', false).trigger("change");
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iStatus: {
+                     label: "Status",
+                     getDisplay: () => { return Boolean($('#iStatus option:selected').val()) ? $('#iStatus option:selected').text() : "Todos" },
+                     onclick: () => {
+                         $('#iStatus').val('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iTipoEndereco : {
+                     label: "Endereco Por",
+                     getDisplay: () => { return Boolean($('#iTipoEndereco option:selected').val()) ? $('#iTipoEndereco option:selected').text() : "Todos" },
+                     onclick: () => {
+                         $('#iTipoEndereco').val('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iCEP: {
+                     label: "CEP",
+                     getDisplay: () => { return Boolean($('#iCEP').val()) ? $('#iCEP').text() : "" },
+                     onclick: () => {
+                         $('#iCEP').val('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iPais: {
+                     label: "País",
+                     getDisplay: () => { return Boolean($('#iPais option:selected').val()) ? $('#iPais option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iPais').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iUF: {
+                     label: "UF",
+                     getDisplay: () => { return Boolean($('#iUF option:selected').val()) ? $('#iUF option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iUF').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iCidade: {
+                     label: "Cidade",
+                     getDisplay: () => { return Boolean($('#iCidade option:selected').val()) ? $('#iCidade option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iUF').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iBairro: {
+                     label: "Bairro",
+                     getDisplay: () => { return Boolean($('#iBairro option:selected').val()) ? $('#iBairro option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iBairro').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iCondominioPredio: {
+                     label: "Condomínio/Prédio",
+                     getDisplay: () => { return Boolean($('#iCondominioPredio option:selected').val()) ? $('#iCondominioPredio option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iCondominioPredio').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iCampanha: {
+                     label: "Campanha",
+                     getDisplay: () => { return Boolean($('#iCampanha option:selected').val()) ? $('#iCampanha option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iCampanha').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iQtdeMesmoEnd: {
+                     label: "Qtde. Vendas no Mesmo Endereço",
+                     getDisplay: () => { return Boolean($('#iQtdeMesmoEnd option:selected').val()) ? $('#iQtdeMesmoEnd option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iQtdeMesmoEnd').val('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iValor: {
+                     label: "Valor",
+                     getDisplay: () => { return Boolean($('#iValor').val()) ? $('#iValor').val() : "" },
+                     onclick: () => {
+                         $('#iValor').val('').trigger("change")
+                         $('#iValor').text('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+
+                 },
+                 iValorFinal: {
+                     getDisplay: () => { return Boolean($('#iValorFinal').val()) ? $('#iValorFinal').text() : "" },
+                     onclick: () => {
+                         $('#iValorFinal').val('').trigger("change")
+                         $('#iValorFinal').text('').trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+
+                 },
+                 iMotivoVenda: {
+                     label: "Motivo/Justificativa Venda",
+                     getDisplay: () => { return Boolean($('#iMotivoVenda').val()) ? $('#iBanco option:selected').text() : "" },
+                     onclick: () => {
+                         $('#iBanco').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+                 iPeriodo: {
+                     label: "Período",
+                     getDisplay: () => { return Boolean($('#iDataInicial').val() && $('#iDataFinal').val()) ? $('#iDataInicial').val() + ` a ` + $('#iDataFinal').val(): "" },
+                     onclick: () => {
+                         $('#iBanco').val(null).trigger("change")
+                         $("#iPesquisar").trigger("click")
+                     }
+                 },
+             }
+         };
+    </script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+
+    <div class="row" style="padding-top: 10px;">
+        <div class="col-sm-6" style="margin-top: -10px">
+            <h4 class="title-page"><i class="fas fa-road"></i> @ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" style="font-size:12px">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                        <a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a>
+                    </li>
+                    <li class="breadcrumb-item" style="margin-top:-18px">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+        <div class="col-sm-6" style="text-align:end">
+
+            <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+            <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+            <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+            </button>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-csv"></i>@RsBase.EXPORTAREXCEL</a>
+                <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+            </div>
+
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <div id="divSubTitle" style="max-width: 1000px;">
+                <div id="FiltrosUtilizados" class="mr-2 ml-2"></div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-auto">
+            <span class="text-muted ml-3" id="iEmitidoPor">Emitido por @User.Identity.Name.ToUpper() em @DateTime.Now.ToString("dd/MM/yyyy 'às' HH:mm") pelo sistema Aniel Connect</span>
+        </div>
+    </div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Filtros</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="divDatas">
+                    <div class="row d-flex" style="text-align:center;">
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <input type="radio" name="iData" id="iDataVenda" value="0" />
+                                <label for="iDataVenda" style="margin-left:3px">Data Venda</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <input type="radio" name="iData" id="iDataCriacao" value="1" />
+                                <label for="iDataCriacao" style="margin-left:3px">Data de Criação</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row d-flex" style="text-align:center">
+                        <div class="col-sm-12">
+                            <input type="text" class="form-control datepicker" id="iDataInicial" /> <label>a</label> <input type="text" class="form-control datepicker" id="iDataFinal" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-3" style="text-align:center">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <input type="radio" name="iTipoStatus" id="iStatusVendaPadrao" value="0" /> <label for="iStatusVendaPadrao" style="margin-left:3px;">Status Venda Padrão</label>
+                            <input type="radio" name="iTipoStatus" id="iStatusVendaWorkflow" value="1" /> <label for="iStatusVendaWorkflow" style="margin-left:3px;">Status Venda Workflow</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-1">
+                    <div class="col-sm-12">
+                        <div class="form-group divSelect">
+                            <select id="iStatus" class="form-control">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iTipoEndereco">Endereço Por:</label> <br />
+                            <select id="iTipoEndereco" class="form-control">
+                                <option value="">Todos</option>
+                                <option value="0">Endereço/Logradouro</option>
+                                <option value="1">Condomínio/Prédio</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iCEP">CEP:</label> <br />
+                            <input type="text" id="iCEP" placeholder="00000-000" class="form-control" maxlength="9" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iPais">País:</label> <br />
+                            <select id="iPais" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iUF">UF:</label> <br />
+                            <select id="iUF" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iCidade">Cidade:</label> <br />
+                            <select id="iCidade" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iBairro">Bairro:</label> <br />
+                            <select id="iBairro" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-6 divCondPredio" style="display:none">
+                        <div class="form-group">
+                            <label for="iCondominioPredio">Nome do Condomínio/Prédio:</label> <br />
+                            <select id="iCondominioPredio" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iCampanha">Campanha:</label> <br />
+                            <select id="iCampanha" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label for="iQtdeMesmoEnd">Qtde. Vendas no Mesmo Endereço:</label> <br />
+                            <select id="iQtdeMesmoEnd" class="form-control">
+                                <option value="">Todos</option>
+                                <option value="1">Maior que</option>
+                                <option value="2">Menor que</option>
+                                <option value="3">Maior e/ou Igual</option>
+                                <option value="4">Menor e/ou Igual</option>
+                                <option value="5">Igual</option>
+                                <option value="6">Entre</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-sm-3 divValor" style="display:none">
+                        <div class="form-group">
+                            <label id="iValorLabel" for="iValor">Valor:</label> <br />
+                            <input type="text" class="form-control" id="iValor" />
+                        </div>
+                    </div>
+                    <div class="col-sm-3 divValorEntre" style="display:none">
+                        <div class="form-group">
+                            <label for="iValorFinal">Valor Final:</label> <br />
+                            <input type="text" class="form-control" id="iValorFinal" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row d-flex mt-1">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iMotivoVenda">Motivo/Justificativa Venda:</label> <br />
+                            <select id="iMotivoVenda" class="form-control">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group col-sm-12" style="padding: 15px; margin-top: 10px;">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                    <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,320 @@
+﻿@model Aniel.Connect.Models.Fotos_ArquivosListaModel
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.FOTOS_ARQUIVOS;
+    ViewBag.Sessao = RsCadastros.FOTOS_ARQUIVOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        function exibirFotoArquivo(id, tabela) {
+
+            var _url = "@CONSTANTES.URLPortal" + "/api/Fotos_ArquivosApi/ExibirFotoArquivo?Id=" + id + "&Tabela=" + tabela;
+
+            $.ajax({
+
+               url: _url,
+               type: "GET",
+               dataType: "json"
+            })
+            .done(function (data) {
+
+                if (data.ok) {
+
+                    window.open(data.objeto.foto, "_blank");
+                }
+            })
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Fotos_ArquivosApi/alterarstatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+            }
+
+            //"Blfrtip"
+
+            //if ($("#datatable").length != null && $("#datatable").length < 1) {
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Fotos_ArquivosApi/Get_Fotos_Arquivos',
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.CodCt = "@Html.Raw(Model.Cod_ct)";
+                        data.Projeto = "@Html.Raw(Model.Projeto)";
+                        data.Num_Obra = "@Html.Raw(Model.Num_Obra)";
+                        data.Num_Doc = "@Html.Raw(Model.Num_doc)";
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                rowId : "id",
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO", width: '35%' },
+                    { data: "tabela", title: "@RsCadastros.FOTOS_ARQUIVOS", width: '35%' },
+                    { data: "tipo", title: "@RsCadastros.TIPO_ARQUIVO", width: '30%' },
+                    {
+                        render: function (data, type, row, meta) {
+
+                            var input = `<a onclick="exibirFotoArquivo('${row.id}','${row.tabela.replace(/\s/g, "")}')"><i class='far fa-eye'></i></a>`;
+                            return input;
+                        }
+                    },
+                    {
+                        render: function (data, type, row, meta) {
+
+                            var _url = "@CONSTANTES.URLPortal" + "/api/Fotos_ArquivosApi/GetFotoArquivo?Id=" + row.id + "&Tabela=" + row.tabela;
+                            return "<a href='" + _url + "'><i class='fas fa-download'></i></a>";
+
+                        }
+                    },
+                    {
+                        render: function (data, type, row, meta) {
+
+                            return `<a onclick="excluirArquivo('${row.id}','${row.tabela}')"><i class='fas fa-trash'></i></a>`;
+
+                        }
+                    },
+                    ]
+                });
+
+           $('#txtSearch').val(oDatatable.search());
+           $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                 if (rows_selected.length == 0) {
+                     Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                     return;
+                 }
+
+                 //Alterando para Inativo
+                 AlterarStatusObj(1);
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+
+                rows_selected = [];
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        $("#iAdicionarArquivo").click(function () {
+
+            parent.mostraNomeArquivo = function mostraNomeArquivo() {
+                var nome = parent.document.getElementById('inputArquivo').files.item(0).name;
+
+                parent.$("#nomeArquivo").html("<i class='fas fa-file-upload'></i> " + nome);
+                parent.$("#nomeArquivo").show();
+            };
+
+            parent.Swal.fire({
+                title: 'Anexar Arquivos/Fotos',
+                html:
+                    '<div class="text-left m-10">' +
+                    '<br/><form method="POST" enctype="multipart/form-data" action="@Url.Action("UploadAquivo","Acompanhamento_Servico")" class="form-group" id="formArquivo">' +
+                    '<input type="file" onchange="mostraNomeArquivo()" multiple style="display : none" id="inputArquivo" name="arquivos"/>' +
+                    '<label><strong>Descrição</strong></label><br/><br/>' +
+                    '<input type="text" placeholder="(Obrigatório)" class="form-control" required name="descricao" id="iDescricao">' +
+                    '<br/><p class="bold" id="nomeArquivo" style="display : none"></p>' +
+                    '</form><br/>' +
+                    '<a class="btn btn-info text-white" onclick="$(`#inputArquivo`).click();" id="iAdicionarArquivoSwal">Escolher arquivo</a>' +
+                    '</div><br/><br/>',
+                showCancelButton: true,
+                cancelButtonText: 'Cancelar',
+                cancelButtonColor: '#ff0000',
+                confirmButtonText: 'Adicionar',
+                confirmButtonColor: '#2b8700',
+                showCloseButton: true,
+                focusConfirm: false,
+            })
+            .then(async (okay )=> {
+
+                if (parent.$("#iDescricao").val()) {
+
+                    if (parent.$("#inputArquivo").val()) {
+
+                        if (okay.value) { //btn adicionar
+
+                            var data = new FormData();
+                            var file = parent.$('#inputArquivo')[0].files[0];
+                            data.append('file', file);
+                            data.append('num_Obra', '@Html.Raw(Model.Num_Obra)');
+                            data.append('num_doc', '@Html.Raw(Model.Num_doc)');
+                            data.append('cod_Ct', '@Html.Raw(Model.Cod_ct)');
+                            data.append('projeto', '@Html.Raw(Model.Projeto)');
+                            data.append('descricao', parent.$('#iDescricao').val());
+
+                            var retorno = JSON.parse(await $.ajax({
+                                url: '@Url.Action("UploadAquivo","Acompanhamento_Servico")',
+                                processData: false,
+                                contentType: false,
+                                data: data,
+                                type: 'POST'
+                            }));
+
+                            if (retorno.Ok) {
+                                oDatatable.draw();
+                                Notificar("@Html.Raw(RsBase.ATENCAO_)", "Arquivo enviado com sucesso", "warning");
+                            }
+                            else
+                                Notificar("@Html.Raw(RsBase.ATENCAO_)", "Erro ao gravar arquivo", "warning");
+
+
+                            //$("#formArquivo").submit();
+                        }
+                    }
+                    else {
+                        Notificar("@Html.Raw(RsBase.ATENCAO_)", "Escolha um arquivo antes de enviar", "warning");
+                    }
+                }
+                else {
+                    Notificar("@Html.Raw(RsBase.ATENCAO_)", "Campo descrição é obrigatório", "warning");
+                }
+            });
+
+
+
+        });
+
+
+
+        function excluirArquivo(id,tabela) {
+
+            $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Fotos_ArquivosApi/ExcluirArquivo")',
+                data: { id: id, origem : tabela },
+            })
+            .done(function (data) {
+                $("#" + data).remove();
+                Notificar("@Html.Raw(RsBase.ATENCAO_)", "Arquivo excluido com sucesso", "warning");
+            });
+
+        }
+
+</script>
+}
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;height:auto;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+
+            <div id="divExibirFotoArquivo"></div>
+
+            <br /><a href="#" class="btn btn-success" id="iAdicionarArquivo">Anexar Arquivos/Fotos</a>
+
+            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                <thead class="tb-head">
+
+                </thead>
+            </table>
+
+        </div>
+    </div>
+</div>

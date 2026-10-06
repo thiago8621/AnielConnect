@@ -1,0 +1,298 @@
+﻿@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.LIMITE_AGENDAMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        #divTable {
+            margin-right: 20px;
+            padding-top: 13px;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+        let oDatatable;
+
+        const handleGrupoArea = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+                const grupoArea = e.params.data
+
+                if (grupoArea)
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoArea.id), null, "@RsBase.SELECIONE", false);
+                else
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            });
+        };
+
+        $(document).ready(function () {
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleGrupoArea);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iNatureza", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+            $("#modal-filter").modal("show");
+        });
+
+        const handleDataTableButtons = function () {
+            "use strict";
+
+            //"Blfrtip"
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                serverSide: true,
+                searching: false,
+                ordering: false,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollX: true,
+                scrollY: '66vh',
+                stateSave: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/LimiteAgendamentoApi/GetAll',
+                    type: 'POST',
+                    data: function (data) {
+                        data.CodEscritorio = $("#iGrupoArea").val();
+                        data.CodArea = $("#iArea").val();
+                        data.IdNatureza = $("#iNatureza").val();
+
+                        data.DataInicio = $("#iDataInicio").val();
+                        data.DataFim = $("#iDataFim").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "grupoArea", title: "@RsCadastros.GRUPO_AREA" },
+                    { data: "area", title: "@RsCadastros.AREA" },
+                    { data: "natureza", title: "@RsCadastros.NATUREZA" },
+                    { data: "data", title: "@RsCadastros.DATA" },
+                    { data: "percentual", title: "@RsCadastros.PERCENTUAL" },
+                ]
+            });
+
+            $('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    const rowData = oDatatable.row(this).data();
+
+                    var url = `@Url.Action("Cadastro", "LimiteAgendamento")?codEscritorio=${rowData.codEscritorio}&codArea=${rowData.codArea}&data=${rowData.data}`;
+                    window.location.href = url;
+                    ShowPageLoading();
+                }
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        $("#iLimparFiltro").on("click", function () {
+            $("#iGrupoArea").val(null).trigger("change");
+            $("#iArea").val(null).trigger("change");
+            $("#iNatureza").val(null).trigger("change");
+
+            $("#iDataInicio").val("");
+            $("#iDataFim").val("");
+        });
+
+        $("#iLimparFiltroModal").on("click", function () {
+            $("#iGrupoArea").val(null).trigger("change");
+            $("#iArea").val(null).trigger("change");
+            $("#iNatureza").val(null).trigger("change");
+
+            $("#iDataInicio").val("");
+            $("#iDataFim").val("");
+
+            oDatatable.draw();
+        });
+
+        $("#iPesquisar").click(function () {
+            let erro = false;
+
+            if (!$("#iDataInicio").val() || !$("#iDataFim").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO)", "warning");
+                erro = true;
+            }
+            else if (DateDiff($("#iDataInicio").val(), $("#iDataFim").val()) < 0) {
+                Notificar("@RsBase.ATENCAO_", "Informe um período válido", "warning");
+                erro = true;
+            }
+            else if (DateDiff($("#iDataInicio").val(), $("#iDataFim").val()) > 30) {
+                Notificar("@RsBase.ATENCAO_", "Informe um período de até 30 dias", "warning");
+                erro = true;
+            }
+
+            if (!erro) {
+                $("#modal-filter").modal("hide");
+
+                if (oDatatable === undefined) {
+                    TableManageButtons.init();
+                }
+                else {
+                    oDatatable.draw();
+                }
+            }
+        });
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-users"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <a class="btn btn-success btn-add" href="@Url.Action("Cadastro", "LimiteAgendamento")" title="@RsBase.INCLUIR" onclick="ShowPageLoading(); return true;"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable" class="ml-20">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="col">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iGrupoArea">@RsCadastros.GRUPO_AREA</label>
+                                <select class="form-control" id="iGrupoArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iArea">@RsCadastros.AREA</label>
+                                <select class="form-control" id="iArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iNatureza">@RsCadastros.NATUREZA</label>
+                                <select class="form-control" id="iNatureza">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group mt-2">
+                                <label>@RsCadastros.PERIODO:</label>
+                                <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataInicio" />
+                                <span>@RsBase.A</span>
+                                <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataFim" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltrosModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>

@@ -1,0 +1,457 @@
+﻿@model Aniel.Connect.Models.Configuracao_Envio_MensagensCadastroModel
+@using Aniel.Connect.Model.enumerado;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsConfiguracao.CONFIGURACAO_ENVIO_MENSAGENS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<String> Variaveis = Enum.GetNames(typeof(VariaveisConfigEnvioMensagens)).ToList();
+}
+@section styles
+    {
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        .popover-body {
+            background-color: #357CA5;
+            color: white;
+        }
+
+        #listVariaveis {
+            overflow-y: auto;
+            padding-left: 15px;
+            margin: 0;
+            height: 240px;
+        }
+
+            #listVariaveis li {
+                list-style: none;
+                cursor: pointer;
+            }
+
+                #listVariaveis li:hover {
+                    font-weight: bold;
+                    color: dodgerblue;
+                }
+
+        .bold {
+            font-weight: bold;
+        }
+    </style>
+}
+
+@section scripts
+{
+    <script src="https://cdn.tiny.cloud/1/5cd306b14gcnqz5xzm9ekr2ekz3far2tsel7sfe91nytmkt8/tinymce/5/tinymce.min.js" referrerpolicy="origin"></script>
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script>    
+
+        const scriptVars = $("#listVariaveis li").toArray().map(elem => $(elem).text())
+        let ultimo_elemento_em_foco;
+
+        $("#listVariaveis li").on("click", function () {            
+
+            const variavel = $(this).text()
+
+            if ($("#iUtilizaSMS").prop('checked')) {
+                if (document.getElementById('iMensagemSMS') === ultimo_elemento_em_foco) {
+                    const mensagemSMS = $("#iMensagemSMS").val()
+                    $("#iMensagemSMS").val(mensagemSMS + " " + variavel)
+                }
+            }
+
+            if ($("#iUtilizaEmail").prop('checked')) {
+                if (document.getElementById('iAssuntoEmail') === ultimo_elemento_em_foco) {
+                    const assuntoEmail = $('#iAssuntoEmail').val()
+                    $('#iAssuntoEmail').val(assuntoEmail + " " + variavel)
+                }
+
+                if (document.getElementById('iMensagemCorpoEmail') === ultimo_elemento_em_foco) {
+                    const corpoEmail = $('#iMensagemCorpoEmail').val()
+                    $('#iMensagemCorpoEmail').val(corpoEmail + " " + variavel)
+                }
+            }
+
+            $(this).addClass("bold")
+        })
+
+        $("#iMensagemSMS").on("input", function (event) {
+            const textoSMS = $('#iMensagemSMS').val()
+
+            for (var variavel of scriptVars) {
+                if (!textoSMS.includes(variavel)) {
+                    const elemVar = $("#listVariaveis li").toArray().filter(p => $(p).text() === variavel)[0]
+                    $(elemVar).removeClass("bold")
+                }
+            }
+
+            // Update do campo em base64
+            $("#Mensagem_SMS").val(btoa((textoSMS)))
+        })
+
+        $("#iAssuntoEmail").on("input", function (event) {
+            const assuntoEmail = $('#iAssuntoEmail').val()
+
+            for (var variavel of scriptVars) {
+                if (!assuntoEmail.includes(variavel)) {
+                    const elemVar = $("#listVariaveis li").toArray().filter(p => $(p).text() === variavel)[0]
+                    $(elemVar).removeClass("bold")
+                }
+            }
+
+            // Update do campo em base64
+            $("#Assunto_Email").val(btoa((assuntoEmail)))
+        })
+
+        $("#iMensagemCorpoEmail").on("input", function (event) {
+            const corpoEmail = $('#iMensagemCorpoEmail').val()
+
+            for (var variavel of scriptVars) {
+                if (!corpoEmail.includes(variavel)) {
+                    const elemVar = $("#listVariaveis li").toArray().filter(p => $(p).text() === variavel)[0]
+                    $(elemVar).removeClass("bold")
+                }
+            }
+
+            // Update do campo em base64
+            $("#Mensagem_Corpo_Email").val(btoa((corpoEmail)))
+        })
+
+        $("#iUtilizaSMS").change(function () {
+            if (this.checked) {
+                //$('#iMensagemSMS').prop('disabled', false);
+                $('#iMensagemSMS').show();
+            }
+            else {
+                //$('#iMensagemSMS').prop('disabled', true);
+                $('#iMensagemSMS').hide();
+            }
+        });
+
+        $("#iUtilizaEmail").change(function () {
+            if (this.checked) {               
+                $('#iAssuntoEmail').show();
+                $('#iMensagemCorpoEmail').show();
+             
+            }
+            else {               
+                $('#iAssuntoEmail').hide();
+                $('#iMensagemCorpoEmail').hide();
+               
+            }
+        });
+
+        $("#iMensagemSMS").on("click", function () {
+            ultimo_elemento_em_foco = document.activeElement;
+        });
+
+        $("#iAssuntoEmail").on("click", function () {
+            ultimo_elemento_em_foco = document.activeElement;
+        });
+
+        $("#iMensagemCorpoEmail").on("click", function () {
+            ultimo_elemento_em_foco = document.activeElement;
+        });
+
+        $(document).ready(async function () {
+
+            $("#iEnviarMsgCliente").trigger('change');
+            $("#iUtilizaSMS").trigger('change');
+            $("#iUtilizaEmail").trigger('change');            
+
+            if ($("#iMensagem_SMS64").val() != "") {
+
+                let scriptLogin = atob(btoa($("#iMensagemSMS").val()))
+                $("#iMensagemSMS").val(scriptLogin);
+            }
+            $("#iMensagemSMS").trigger("mouseup");
+            if ($("#iMensagemSMS_Ultimo").val() != "") {
+                let scriptSenha = atob(btoa($("#Mensagem_SMS").val()))
+                $("#iPadrao_Login_Ultimo").val(scriptSenha);
+            }
+            $("#iMensagemSMS_Ultimo").trigger("mouseup");
+        });
+
+        let clicked = false
+        let erro = false
+        function ValidaSubmit() {
+
+            //Remover a cada submit
+            $(".msginvalid").html("")
+            $("#iMensagemSMS").trigger("mouseup").trigger("keyup")
+
+            if ($("#iUtilizaSMS").prop('checked') && !$('#iMensagemSMS').val()) {
+                Notificar("@RsBase.ATENCAO_", 'É obrigatório o preenchimento da mensagem de texto do SMS.', "warning");
+                erro = true;
+            }
+
+            if ($("#iUtilizaEmail").prop('checked') && (!$('#iAssuntoEmail').val() || !$('#iMensagemCorpoEmail').val())) {
+                Notificar("@RsBase.ATENCAO_", 'É obrigatório o preenchimento dos campos assunto/corpo do e-mail.', "warning");
+                erro = true;
+            }
+
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+         tinymce.init({
+            selector: '#iMensagemCorpoEmai',
+            language: 'pt_BR',
+            paste_data_images: true,
+            plugins: [
+                'advlist lists image print',
+                'visualblocks code fullscreen',
+                'paste'
+            ],
+            toolbar: 'insertfile undo redo | styleselect | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image',
+            file_picker_types: 'image',
+            file_picker_callback: function (cb, value, meta) {
+                var input = document.createElement('input');
+                input.setAttribute('type', 'file');
+                input.setAttribute('accept', 'image/*');
+
+                input.onchange = function () {
+                    var file = this.files[0];
+
+                    var reader = new FileReader();
+                    reader.onload = function () {
+                        
+                        var id = 'blobid' + (new Date()).getTime();
+                        var blobCache = tinymce.activeEditor.editorUpload.blobCache;
+                        var base64 = reader.result.split(',')[1];
+                        var blobInfo = blobCache.create(id, file, base64);
+                        blobCache.add(blobInfo);
+
+                        cb(blobInfo.blobUri(), { title: file.name });
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                input.click();
+            }
+
+
+        });
+    </script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Configuracao_Envio_Mensagens", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fa-solid fa-inbox-out"></i> @ViewBag.Title</h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao_Envio_Mensagens")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_CONFIGURACAO_ENVIO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="usuarios-tab" data-toggle="tab" href="#iTabDescricao" role="tab" aria-controls="Descricao" aria-selected="true"><i class="far fa-file-alt"></i> Descricao</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="categorias-tab" data-toggle="tab" href="#iTabSms" role="tab" aria-controls="sms" aria-selected="false"><i class="far fa-comments"></i> Modelo de SMS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="categorias-tab" data-toggle="tab" href="#iTabEmail" role="tab" aria-controls="email" aria-selected="false"><i class="far fa-envelope"></i> Modelo de E-mail</a>
+                    </li>
+
+                </ul>
+
+                <div class="tab-content">
+
+                    @*Descrição*@
+                    <div role="tabpanel" class="tab-pane active" id="iTabDescricao">
+                        <div class="card div-card-accord mb-3">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                        <span class="text-bold-card">@ViewBag.Title</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+
+                                    <div class="row">
+                                        <div class="col-sm-4 mr-auto">
+                                            <div class="form-group">
+                                                <label for="iUsuario">@RsCadastros.DESCRICAO:</label>
+                                                @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="form-group">
+                                                <label for="iStatus">@RsFinanceiro.STATUS:</label><br>
+                                                @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @name = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        }
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @*Modelo Envio*@
+
+                    <div role="tabpanel" class="tab-pane" id="iTabSms">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                        <span class="text-bold-card">@RsCadastros.SERVICOS</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <!--Sms-->
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-sm-5">
+
+                                            <div class="row">
+                                                <div class="col">
+                                                    <label class="form-check-label ml-1" for="iUtilizaSMS">@RsCadastros.SMS:</label>
+                                                    <div class="form-group">
+                                                        @Html.CheckBoxFor(model => model.Utiliza_Envio_SMS, new { @class = "form-control cadastro", @id = "iUtilizaSMS", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_height = "28", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row">
+                                                <div class="col-sm-10">
+                                                    <div class="form-group">
+                                                        @Html.TextAreaFor(model => model.Mensagem_SMS, new { @class = "form-control", @rows = "8", id = "iMensagemSMS", placeholder = RsCadastros.CORPO_SMS })
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                            
+                                        <!--Variáveis-->
+                                        <div class="col-sm-4">
+                                            <label for="listVariaveis" style="font-weight:bold">Variáveis:</label>
+                                            <ul id="listVariaveis">
+                                                @foreach (var variavel in Enum.GetValues(typeof(VariaveisConfigEnvioMensagens)))
+                                                {
+                                                    <li>@(HtmlEnumExtensions.GetEnumDescription(variavel))</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--E-mail-->
+                    <div role="tabpanel" class="tab-pane" id="iTabEmail">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-2">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                        <span class="text-bold-card">@RsCadastros.SERVICOS</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                   
+                                    <div class="row">
+                                        <div class="col">
+                                            <label class="form-check-label ml-1" for="iUtilizaEmail">@RsCadastros.EMAIL:</label>
+                                            <div class="form-group">
+                                                @Html.CheckBoxFor(model => model.Utiliza_Envio_Email, new { @class = "form-control cadastro", @id = "iUtilizaEmail", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_height = "28", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-9">
+                                            <div class="row" >
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        @Html.TextBoxFor(model => model.Assunto_Email, new { @class = "form-control ml-input", @id = "iAssuntoEmail", @autocomplete = "off", @required = true, @Maxlength = 100, @placeholder = RsCadastros.ASSUNTO_EMAIL })
+                                                        @Html.ValidationMessageFor(model => model.Assunto_Email, "", new { @class = "text-danger" })                                                        
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row" >
+                                                <div class="col-sm-12">
+                                                    <div class="form-group">
+                                                        <form method="post">                                                            
+                                                            @Html.TextAreaFor(model => model.Mensagem_Corpo_Email, new { @class = "form-control", @rows = "10", id = "iMensagemCorpoEmail", placeholder = RsCadastros.CORPO_EMAIL })
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <label for="listVariaveis" style="font-weight: bold; font-size: 12px;">Variáveis:</label>
+                                            <ul id="listVariaveis" style="font-weight: bold; font-size: 10px;">
+                                                @foreach (var variavel in Enum.GetValues(typeof(VariaveisConfigEnvioMensagens)))
+                                                {
+                                                    <li>@(HtmlEnumExtensions.GetEnumDescription(variavel))</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!--Button Float-->
+            <a href="@Url.Action("Index", "Configuracao")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+                <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                    <i class="fas fa-times fa-2x"></i>
+                </div>
+            </a>
+
+            <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+                <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                    <i class="fas fa-save fa-2x"></i>
+                </div>
+            </a>
+
+        </div>
+    </div>
+        
+
+}

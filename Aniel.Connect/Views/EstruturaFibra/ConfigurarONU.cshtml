@@ -1,0 +1,843 @@
+﻿@using Microsoft.AspNet.Identity
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+
+@model Sinapse.Integracao.Ativacao.Models.ConfigurarONUModel
+
+@{
+    ViewBag.Title = RsCadastros.CONFIGURAR_ONU;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    <style>
+        #listVariaveis, #listVariaveisONU {
+            overflow-y: auto;
+            padding-left: 15px;
+            margin: 0
+        }
+
+        #listVariaveis li, #listVariaveisONU li {
+            list-style: none
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/maskip")
+
+<script>
+
+        let carregandoAddSelect, ip, statusOnu, statusOnuStr, dataHoraUltimaAtualizacaoOnu, bloquearCampos;
+
+        $("#iDiagnosticoONU").on("click", function () {
+            ShowDialog(true, true, '@Html.Raw(RsCadastros.DIAGNOSTICO_ONU)', '@Url.Action("Status_Onu_Informacoes_Basicas", "EstruturaFibra")?Id_ONU=@Model.Id', 'divDiagnosticoONU', 900, 600, 'iframeDiagnosticoONU');
+        })
+
+        //#region StatusOnu
+        function atualizaStatusOnu() {
+            $("#iBtnAtualizaStatusOnuElement").addClass("fa-spin");
+            document.getElementById("iCirculoStatusOnu").style.color = "gray";
+            document.getElementById("iStatusOnu").style.color = "gray";
+            document.getElementById("iStatusOnu").innerHTML = "Consultando...";
+            document.getElementById("iUltimaAtualizacaoStatusOnu").innerHTML = "-";
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/IntegracaoAtivacaoApiController/GetStatusONUById?IdOnu="+Model.Id)';
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',                
+            })
+            .done(function (data) {
+
+                if (data.ok) {
+                    Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");                                        
+                }
+                else {
+                    let mensagemTratada = data.mensagem;
+                    if (data.innerException) {
+                        mensagemTratada += '\n Motivo:' + data.innerException;
+                    }
+
+                    Notificar("@RsBase.ATENCAO_", mensagemTratada, "warning");                    
+                }
+
+                if (data.objeto) {
+                    statusOnu = data.objeto.status;
+                    statusOnuStr = data.objeto.statusStr;
+                    dataHoraUltimaAtualizacaoOnu = data.objeto.dataHoraUltimaAtualizacaoStr;
+                }
+                refreshCamposStatusOnu();
+                $("#iBtnAtualizaStatusOnuElement").removeClass("fa-spin");
+            });
+        }
+
+        function refreshCamposStatusOnu() {
+            document.getElementById("iStatusOnu").innerHTML = statusOnuStr;
+            document.getElementById("iUltimaAtualizacaoStatusOnu").innerHTML = dataHoraUltimaAtualizacaoOnu;
+            //document.getElementById("iStatusOnu").style.fontWeight = 'bold'
+
+            if (statusOnu == 0) {                
+                document.getElementById("iCirculoStatusOnu").style.color = "green"; //Online                                
+                document.getElementById("iStatusOnu").style.color = "green"; //Online                                
+            }
+            else if (statusOnu == 2) {                
+                document.getElementById("iCirculoStatusOnu").style.color = "gray"; //Indisponivel                               
+                document.getElementById("iStatusOnu").style.color = "gray"; //Indisponivel                               
+            }
+            else {               
+                document.getElementById("iCirculoStatusOnu").style.color = "red"; //Offline / Erro                                
+                document.getElementById("iStatusOnu").style.color = "red"; //Offline / Erro                                
+            }
+        }
+        //#endregion
+
+        //#region Script
+
+        $("#iScriptOLT, #iModeloScriptOLT").on("mouseup", function() {
+
+            const scriptHeight = Number($("#iScriptOLT").css("height").replace("px", ""))
+            const modeloScriptHeight = Number($("#iModeloScriptOLT").css("height").replace("px", ""))
+
+            const newHeight = scriptHeight + modeloScriptHeight + 26
+
+            $("#listVariaveis").css("height", newHeight + "px")
+        })
+
+        $("#iScriptONU, #iModeloScriptONU").on("mouseup", function () {
+
+            const scriptHeight = Number($("#iScriptONU").css("height").replace("px", ""))
+            const modeloScriptHeight = Number($("#iModeloScriptONU").css("height").replace("px", ""))
+
+            const newHeight = scriptHeight + modeloScriptHeight + 26
+
+            $("#listVariaveisONU").css("height", newHeight + "px")
+        })
+
+        $("#iScriptOLT").on("keyup", function () {
+            var scriptOLT = $(this).val()
+
+            const script = scriptOLT
+                              .replace("GABINETE", $("#iGabinete").val() != "" ? $("#iGabinete").val() : "GABINETE")
+                              .replace("GEM_PORT", $("#iGemPort").val() != "" ? $("#iGemPort").val() : "GEM_PORT")
+                              .replace("IP_GERENCIA", ip.getIp() != "" ? ip.getIp() : "IP_GERENCIA")
+                              .replace("LOGIN_ONU_CLIENTE", $("#iLoginONU").val() != "" ? $("#iLoginONU").val() : "LOGIN_ONU_CLIENTE")
+                              .replace("NOME", $("#iNome").val() != "" ? $("#iNome").val() : "NOME")
+                              .replace("OLT_DOWNLOAD", $("#iDownload").val() != "" ? $("#iDownload").val() : "OLT_DOWNLOAD")
+                              .replace("OLT_UPLOAD", $("#iUpload").val() != "" ? $("#iUpload").val() : "OLT_UPLOAD")
+                              .replace("OLT_IP", $("#iIpOLT").val() != "" ? $("#iIpOLT").val() : "OLT_IP")
+                              .replace("OLT_ID", $("#iOLT").val() != "" ? $("#iOLT").val() : "OLT_ID")
+                              .replace("ONU_MAC", $("#iMAC").val() != "" ? $("#iMAC").val() : "ONU_MAC")
+                              .replace("ONU_TIPO", $("#iDescricao").val() != "" ? $("#iDescricao").val() : "ONU_TIPO")
+                              .replace("PLANO_CLIENTE", $("#iPlano").text() != "" ? $("#iPlano").text() : "PLANO_CLIENTE")
+                              .replace("SLOT_ID", $("#iSlot").val() != "" ? $("#iSlot").val() : "SLOT_ID")
+                              .replace("PON_ID", $("#iPON").val() != "" ? $("#iPON").val() : "PON_ID")
+                              .replace("PORTA_TELNET_ONU", $("#iPortaTelnet").val() != "" ? $("#iPortaTelnet").val() : "PORTA_TELNET_ONU")
+                              .replace("VLAN_UPLINK", $("#iVlanUplink").val() != "" ? $("#iVlanUplink").val() : "VLAN_UPLINK")
+                              //.replace("PPPOE_LOGIN", $("#i").val() != "" ? $("#iPortaTelnet").val() : "PORTA_TELNET_ONU")
+
+            $("#iModeloScriptOLT").val(script)
+
+            // Update do campo em base64
+            $("#iScriptOLTBase64").val(btoa(scriptOLT))
+        })
+
+        /*$("#iScriptONU").on("keyup", function () {
+            const scriptONU = $(this).val()
+
+            const script = scriptONU
+                              .replace("GABINETE", $("#iGabinete").val() != "" ? $("#iGabinete").val() : "GABINETE")
+                              .replace("GEM_PORT", $("#iGemPort").val() != "" ? $("#iGemPort").val() : "GEM_PORT")
+                              .replace("IP_GERENCIA", ip.getIp() != "" ? ip.getIp() : "IP_GERENCIA")
+                              .replace("LOGIN_ONU_CLIENTE", $("#iLoginONU").val() != "" ? $("#iLoginONU").val() : "LOGIN_ONU_CLIENTE")
+                              .replace("NOME", $("#iNome").val() != "" ? $("#iNome").val() : "NOME")
+                              .replace("OLT_DOWNLOAD", $("#iDownload").val() != "" ? $("#iDownload").val() : "OLT_DOWNLOAD")
+                              .replace("OLT_UPLOAD", $("#iUpload").val() != "" ? $("#iUpload").val() : "OLT_UPLOAD")
+                              .replace("OLT_IP", $("#iIpOLT").val() != "" ? $("#iIpOLT").val() : "OLT_IP")
+                              .replace("OLT_ID", $("#iOLT").val() != "" ? $("#iOLT").val() : "OLT_ID")
+                              .replace("ONU_MAC", $("#iMAC").val() != "" ? $("#iMAC").val() : "ONU_MAC")
+                              .replace("ONU_TIPO", $("#iDescricao").val() != "" ? $("#iDescricao").val() : "ONU_TIPO")
+                              .replace("PLANO_CLIENTE", $("#iPlano").text() != "" ? $("#iPlano").text() : "PLANO_CLIENTE")
+                              .replace("SLOT_ID", $("#iSlot").val() != "" ? $("#iSlot").val() : "SLOT_ID")
+                              .replace("PON_ID", $("#iPON").val() != "" ? $("#iPON").val() : "PON_ID")
+                              .replace("PORTA_TELNET_ONU", $("#iPortaTelnet").val() != "" ? $("#iPortaTelnet").val() : "PORTA_TELNET_ONU")
+                              .replace("VLAN_UPLINK", $("#iVlanUplink").val() != "" ? $("#iVlanUplink").val() : "VLAN_UPLINK")
+                              //.replace("PPPOE_LOGIN", $("#i").val() != "" ? $("#iPortaTelnet").val() : "PORTA_TELNET_ONU")
+
+            $("#iModeloScriptONU").val(script)
+
+            // Update do campo em base64
+            $("#iScriptONUBase64").val(btoa(scriptONU))
+        })*/
+
+        //#endregion
+        let primeiraVez = true;
+        $(document).ready(async function () {
+            $("#iUsuario").val("@User.Identity.GetUserId()")            
+
+            @if(Model.Id != 0)
+            {
+                <text>
+                    bloquearCampos = true;
+                    statusOnu = @(Model.StatusOnu.HasValue ? (int)Model.StatusOnu : (int)Sinapse.Model.enumerados.StatusONU.Indisponivel);
+                    statusOnuStr = "@Html.Raw(Model.StatusOnu.HasValue ? Model.StatusOnu.Value.ToString() : RsCadastros.INDISPONIVEL)";
+                    dataHoraUltimaAtualizacaoOnu = "@Html.Raw(Model.UltimaAtualizacaoStatus)";
+                    $('#divAtualizacaoStatusOnu').show();
+                    refreshCamposStatusOnu();
+                    $('#iOLT').prop('disabled', true);
+                    $('#iSlot').prop('disabled', true);
+                    $('#iPON').prop('disabled', true);
+                    $('#iCliente').prop('disabled', true);
+                    $('#iPlano').prop('disabled', true);
+                    $('#iLogin').prop('disabled', true);
+
+                </text>
+            }
+            else
+            {
+                <text>
+                    bloquearCampos = false;
+                    $('#divAtualizacaoStatusOnu').hide();
+                </text>
+            }
+
+            ip = $('#iIp').ipInput();
+            ip.setIp('@Model.IpGerencia');
+
+            function toggleFields() {
+                var idValue = $("#iId").val();
+                var isIdZero = parseInt(idValue) === 0;
+
+
+                $("#iMAC, #iSerial, #iOntID, #iMarcaModelo").prop("disabled", !isIdZero);
+
+            }
+
+
+            toggleFields();
+
+
+            $("#iId").on("change", toggleFields);
+
+            carregandoAddSelect = true;
+
+            const HandleOLT = function () {
+                $('#iOLT').on('select2:select select2:unselecting', function (e) {
+                    const OLTSelecionada = e.params.data;
+
+                    $("#iIpOLT").val(OLTSelecionada.ip)
+                    $("#iGabinete").val(OLTSelecionada.gabinete)
+
+                    if (!carregandoAddSelect) {
+                        if ($('#iSlot').val()) {
+                            AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, $("#iSlot").val(), "@RsBase.SELECIONE", false);
+                        }
+                        else {
+                            AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, OLTSelecionada.id, null, "@RsBase.SELECIONE", false);
+                        }
+                    }
+
+                    $(".select2-selection").addClass("outlineNone")
+
+                    return true;
+                });
+            }
+
+            const HandleCliente = function () {
+                $('#iCliente').on('select2:select select2:unselecting', function (e) {
+                    const clienteSelecionado = e.params.data;
+
+                    $("#iNome").val(clienteSelecionado.cpf)
+
+                    if (!carregandoAddSelect) {
+                        AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboVinculoONUCliente", @CONSTANTES.PaginacaoRegistros, null, clienteSelecionado.id, null, "@RsBase.SELECIONE", false);
+                        $(".select2-selection").addClass("outlineNone")
+                    }
+
+                    return true;
+                });
+            }
+
+            const HandlePlano = function () {
+                $('#iPlano').on('select2:select', function (e) {
+                    const data = e.params.data;
+
+                    $("#iUpload").val(data.upload)
+                    $("#iDownload").val(data.download)
+                })
+            }
+
+            const HandlePerfilAtivacao = function () {
+                $("#iPerfilAtivacao").on("select2:select", function (e) {
+                    if (!$("#iScriptONU").val() && !$("#iScriptOLT").val()) {
+                        const data = e.params.data
+
+                        $("#iScriptOLT").val(data.scriptAtivacao)
+                        $("#iScriptONU").val(data.scriptONU)
+
+                        $("#iScriptOLT").trigger("mouseup").trigger("keyup")
+                        $("#iScriptONU").trigger("mouseup").trigger("keyup")
+                    }
+                })
+            }
+
+            const HandleCaixaFTTH = function () {
+
+            $('#iCaixa_FTTH').on('select2:select select2:unselecting', function (e) {
+                if (primeiraVez && e.params.data != undefined) {
+                    e.params.data = undefined;
+                    primeiraVez = false;
+                }
+
+                if (e.params.data != undefined) {
+                    AddSelect("iPorta_FTTH", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPortaDisponivel", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);                    
+                }
+               
+                return true
+            });
+
+        };
+
+            Promise.all([
+                AddSelect("iOLT", "@CONSTANTES.URLPortal/api/OLTapi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, null, "@Model.IdOLT", "@RsBase.SELECIONE", false, HandleOLT),
+                AddSelect("iSlot", "@CONSTANTES.URLPortal/api/Slotapi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, "@Model.IdOLT", "@Model.IdSlot", "@RsBase.SELECIONE", false),
+
+                AddSelect("iPON", "@CONSTANTES.URLPortal/api/PONApi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, null, "@Model.IdPon", "@RsBase.SELECIONE", false),
+
+                AddSelect("iCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, null, "@Model.IdCliente", "@RsBase.SELECIONE", false, HandleCliente),
+                AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoApi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, "@Model.IdCliente", "@Model.IdPlano", "@RsBase.SELECIONE", false, HandlePlano),
+
+                AddSelect("iLogin", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, null, "@Model.IdLogin", "@RsBase.SELECIONE", false),
+                AddSelect("iPerfilAtivacao", "@CONSTANTES.URLPortal/api/PerfilAtivacaoApi/GetCombo", "@CONSTANTES.PaginacaoRegistros", null, null, "@Model.IdPerfilAtivacao", "@RsBase.SELECIONE", false, HandlePerfilAtivacao),
+                AddSelect("iCaixa_FTTH", "@CONSTANTES.URLPortal/api/Elemento_RedeApi/GetComboCaixa", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdCaixaFTTH", "@RsBase.SELECIONE", false, HandleCaixaFTTH),
+                AddSelect("iPorta_FTTH", "@CONSTANTES.URLPortal/api/Elemento_Rede_PortaApi/GetComboPortaDisponivel", @CONSTANTES.PaginacaoRegistros, null, "@Model.IdCaixaFTTH", "@Model.IdPortaFTTH", "@RsBase.SELECIONE", false),
+            ]).then(function () {
+
+                carregandoAddSelect = false;
+
+                /*if ($("#iScriptONUBase64").val() != "") {
+                    let scriptONU = atob($("#iScriptONUBase64").val())
+                    $("#iScriptONU").val(scriptONU);
+                }*/
+
+                if ($("#iScriptOLTBase64").val() != "") {
+                    let scriptOLT = atob($("#iScriptOLTBase64").val())
+                    $("#iScriptOLT").val(scriptOLT);
+                }
+
+                $("#iScriptOLT").trigger("mouseup").trigger("keyup")
+                $("#iScriptONU").trigger("mouseup").trigger("keyup")
+            })
+        })
+
+        var clicked = false;
+        function ValidaSubmit() {
+
+            const ipVal = ip.getIp()
+            $("#iHiddenIp").val(ipVal)
+
+            if (clicked) {
+                return false
+            }
+
+            clicked = true
+
+            let erro = false
+
+            if (ValidaCamposObrigatorios(erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if ($("#iCaixa_FTTH option:selected").val() && !$('#iPorta_FTTH option:selected').val()) {
+                Notificar("@RsBase.ATENCAO_", "Obrigatório preencher Porta FTTH pois foi informada Caixa FTTH", "warning")
+                erro = true;
+            }
+
+            ValidaCampoIP(ip, "iIp")
+
+            if (erro) {
+                clicked = false
+                return false
+            }
+
+            ShowPageLoading()
+            $('#form').submit()
+
+            parent.dial.dialog('close')
+        }
+</script>
+}
+
+@using (Html.BeginForm("ConfigurarONU", "EstruturaFibra", FormMethod.Post, new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.Usuario, new { id = "iUsuario" })
+    //@Html.HiddenFor(m => m.Descricao, new { id = "iDescricao" })
+
+    <input type="hidden" id="iUpload" />
+    <input type="hidden" id="iDownload" />
+    <input type="hidden" id="iNome" />
+    <input type="hidden" id="iIpOLT" />
+    <input type="hidden" id="iGabinete" />
+
+    <div style="padding: 15px">
+        <div class="row">
+            <div class="col-auto mr-auto main-title">
+                <h4 class="title-page">
+                    <i class="fas fa-calendar-alt"></i> @ViewBag.Title
+                </h4>
+                <nav>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("ListagemONU", "EstruturaFibra")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_ONU</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <span>@ViewBag.Title</span>
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a id="iDiagnosticoONU" class="dropdown-item" href="#">@RsCadastros.DIAGNOSTICO_ONU</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion" id="accordion_1">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_1">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                            <span class="text-bold-card">@RsCadastros.CONFIGURAR_ONU</span>
+                        </a>
+                    </h5>
+                </div>
+
+                <div id="collapse_1" class="collapse show" aria-labelledby="heading_1" data-parent="#accordion_1">
+                    <div class="card-body body-card-accord">
+
+                        <div class="row">
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for="iId_OLT">@RsCadastros.ID:</label>
+                                    @Html.TextBoxFor(m => m.Id, new { @class = "form-control obrigatorio", @id = "iId", @readonly = "readonly" })
+                                </div>
+                            </div>
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label for="iOntID">@RsCadastros.ONTID:</label>
+                                    @Html.TextBoxFor(m => m.OntID, new { @class = "form-control obrigatorio", @id = "iOntID" })
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="form-group">
+                                    <label for="iMarcaModelo">@RsCadastros.MARCA_MODELO:</label>
+                                    @Html.EnumDropDownListFor(m => m.MarcaModelo, RsBase.SELECIONE, new { @class = "form-control", @id = "iMarcaModelo" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iSerial">@RsCadastros.SERIAL:</label>
+                                    @Html.TextBoxFor(m => m.Serial, new { @class = "form-control obrigatorio", @id = "iSerial" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iMAC">@RsCadastros.MAC:</label>
+                                    @Html.TextBoxFor(m => m.Mac, new { @class = "form-control", @id = "iMAC" })
+                                </div>
+                            </div>
+
+                            @*<div id="divAtualizacaoStatusOnu" class="col-sm-auto" style="text-align: end;">
+            <div class="col-sm-2">
+                <div class="row">
+                        <div class="form-group" style="display:flex">
+                            <label>@RsCadastros.STATUS_ONU:</label>
+                            <b id="iStatusOnu" class="ml-1"></b>
+                        </div>
+                </div>
+
+                <div class="row">
+                        <div class="form-group">
+                            <label>Última atualização:</label>
+                            @Html.DisplayTextFor(m => m.UltimaAtualizacaoStatus)
+                        </div>
+                </div>
+            </div>
+
+            <div class="col-sm-auto">
+                <a class="btn btn-success btn-add-2" href="#" id="btnAtualizaStatusOnu" title="Atualizar Status" onclick="ShowPageLoading();">
+                    <i class="fas fa-sync-alt" style="color: #fff; align-items: center"></i>
+                </a>
+            </div>
+        </div>*@
+
+                            <div id="divAtualizacaoStatusOnu" class="col-sm-auto ml-auto" style="text-align: end;">                                
+                                <div class="row">
+                                    <div class="col-sm-auto">
+                                        <div class="form-group" style="display:flex">
+                                            <label class="text-bold-card">@RsCadastros.STATUS_ONU:</label>
+                                            <b id="iCirculoStatusOnu" class="fas fa-circle mt-1 ml-1"></b>
+                                            <b id="iStatusOnu" class="ml-1 text-bold-card"></b>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col">
+                                        <div class="form-group">
+                                            <a class="btn btn-success btn-add-2" href="#" id="btnAtualizaStatusOnu" title="Atualizar Status" onclick="atualizaStatusOnu();">
+                                                <i id="iBtnAtualizaStatusOnuElement" class="fas fa-sync-alt" style="color: #fff; align-items: center"></i>
+                                            </a>
+                                        </div>
+                                    </div>                                   
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-sm-auto">
+                                        <div class="form-group">
+                                            <label class="text-bold-card">Última atualização:</label>
+                                            <b id="iUltimaAtualizacaoStatusOnu" class="ml-1 text-bold-card"></b>                                            
+                                        </div>
+                                    </div>                                    
+                                </div>                                                                
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iOLT">@RsCadastros.OLT:</label>
+                                    @Html.DropDownListFor(m => m.IdOLT, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iOLT", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iSlot">@RsCadastros.SLOT:</label>
+                                    @Html.DropDownListFor(m => m.IdSlot, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iSlot", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iPON">@RsCadastros.PON:</label>
+                                    @Html.DropDownListFor(m => m.IdPon, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iPON", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iDescricao">@RsCadastros.DESCRICAO:</label>
+                                    @Html.TextBoxFor(m => m.Descricao, new { @class = "form-control obrigatorio", @id = "iDescricao", @placeholder = "Informe a descrição da ONU", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iCliente">@RsCadastros.CLIENTE:</label>
+                                    @Html.DropDownListFor(m => m.IdCliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iCliente", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iPlano">@RsCadastros.PLANO_PRODUTO:</label>
+                                    @Html.DropDownListFor(m => m.IdPlano, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iPlano", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iLogin">@RsCadastros.LOGIN:</label>
+                                    @Html.DropDownListFor(m => m.IdLogin, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iLogin", @class = "form-control obrigatorio" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iPerfilAtivacao">@RsCadastros.PERFIL_ATIVACAO:</label>
+                                    @Html.DropDownListFor(m => m.IdPerfilAtivacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iPerfilAtivacao", @class = "form-control" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <div class="form-group">
+                                    <label for="iCaixa_FTTH">@RsCadastros.CAIXA_FTTH:</label>
+                                    @Html.DropDownListFor(m => m.IdCaixaFTTH, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iCaixa_FTTH", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="form-group">
+                                    <label for="iPorta_FTTH">@RsCadastros.PORTA_FTTH:</label>
+                                    @Html.DropDownListFor(m => m.IdPortaFTTH, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { id = "iPorta_FTTH", @class = "form-control" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label>@RsCadastros.GEM_PORT</label>
+                                    @Html.TextBoxFor(m => m.GemPort, new { id = "iGemPort", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label>@RsCadastros.SERVICE_PORT</label>
+                                    @Html.TextBoxFor(m => m.ServicePort, new { id = "iServicePort", @class = "form-control" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label>@RsCadastros.SENOR_ID</label>
+                                    @Html.TextBoxFor(m => m.SenorId, new { id = "iSenorId", @class = "form-control" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion" id="accordion_2">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_2">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_2" aria-expanded="true" aria-controls="collapse_2">
+                            <span class="text-bold-card">@RsCadastros.PARAMETROS_ONU_CLIENTE</span>
+                        </a>
+                    </h5>
+                </div>
+
+                <div id="collapse_2" class="collapse show" aria-labelledby="heading_2" data-parent="#accordion_2">
+                    <div class="card-body body-card-accord">
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iIp">@RsCadastros.IP</label>
+                                    @Html.HiddenFor(m => m.IpGerencia, new { id = "iHiddenIp" })
+                                    <div id="iIp" class="ip-input">
+                                        <div class="ip-input-container form-control">
+                                            <input type="text" class="ip-input-item" value="">
+                                            <i class="ip-input-dot"></i>
+                                            <input type="text" class="ip-input-item" value="">
+                                            <i class="ip-input-dot"></i>
+                                            <input type="text" class="ip-input-item" value="">
+                                            <i class="ip-input-dot"></i>
+                                            <input type="text" class="ip-input-item" value="">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label>@RsCadastros.LOGIN</label>
+                                    @Html.TextBoxFor(m => m.Login, new { id = "iLoginONU", @class = "form-control" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label>@RsCadastros.SENHA</label>
+                                    @Html.TextBoxFor(m => m.Senha, new { type = "password", id = "iSenhaONU", @class = "form-control" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label>@RsCadastros.PORTA_TELNET</label>
+                                    @Html.TextBoxFor(m => m.PortaTelnet, new { id = "iPortaTelnet", @class = "form-control", @type = "number" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-1">
+                                <div class="form-group">
+                                    <label>@RsCadastros.PORTA_HTTP</label>
+                                    @Html.TextBoxFor(m => m.PortaHttp, new { id = "iPortaHttp", @class = "form-control", @type = "number" })
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion" id="accordion_3">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_3">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_3" aria-expanded="true" aria-controls="collapse_3">
+                            <span class="text-bold-card">VLANs</span>
+                        </a>
+                    </h5>
+                </div>
+
+                <div id="collapse_3" class="collapse show" aria-labelledby="heading_3" data-parent="#accordion_3">
+                    <div class="card-body body-card-accord">
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanUplink">@RsCadastros.VLAN_UPLINK:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_Uplink, new { @class = "form-control", @type = "number", @id = "iVlanUplink", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanPPPOE">@RsCadastros.VLAN_PPPOE:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_PPPOE, new { @class = "form-control", @type = "number", @id = "iVlanPPPOE", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanDHCP">@RsCadastros.VLAN_DHCP:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_DHCP, new { @class = "form-control", @type = "number", @id = "iVlanDHCP", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanIPTV">@RsCadastros.VLAN_IPTV:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_IPTV, new { @class = "form-control", @type = "number", @id = "iVlanIPTV", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanVOIP">@RsCadastros.VLAN_VOIP:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_VOIP, new { @class = "form-control", @type = "number", @id = "iVlanVOIP", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanTR69">@RsCadastros.VLAN_TR69:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_TR69, new { @class = "form-control", @type = "number", @id = "iVlanTR69", @autocomplete = "off" })
+                                </div>
+                            </div>
+                            <div class="col-sm-2">
+                                <div class="form-group">
+                                    <label for="iVlanOutros">@RsCadastros.VLAN_OUTROS:</label>
+                                    @Html.TextBoxFor(m => m.VLAN_Outros, new { @class = "form-control", @type = "number", @id = "iVlanOutros", @autocomplete = "off" })
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--Ocultado pois não está mais funcional (Confirmar se o recurso deve existir neste cadastro)-->
+        @*<div class="accordion" id="accordion_4" style="display:none">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_4">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_4" aria-expanded="true" aria-controls="collapse_4">
+                            <span class="text-bold-card">@RsCadastros.VISUALIZAR_SCRIPT_OLT</span>
+                        </a>
+                    </h5>
+                </div>
+
+                <div id="collapse_4" class="collapse show" aria-labelledby="heading_4" data-parent="#accordion_4">
+                    <div class="card-body body-card-accord">
+                        <div class="row">
+                            <div class="col-sm-10">
+                                <div class="form-group">
+                                    <label for="iScriptOLT">@RsCadastros.SCRIPT_OLT</label>
+                                    <textarea id="iScriptOLT" class="form-control"></textarea>
+                                    @Html.HiddenFor(m => m.ScriptOLT, new { id = "iScriptOLTBase64" })
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="iModeloScriptOLT">Modelo do script com dados</label>
+                                    <textarea id="iModeloScriptOLT" class="form-control" readonly></textarea>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <label for="listVariaveis">Variáveis</label>
+                                <ul id="listVariaveis">
+                                    @foreach (var variavel in Enum.GetValues(typeof(VariaveisScriptOLT)))
+                                    {
+                                        <li>@HtmlEnumExtensions.GetEnumDescription(variavel)</li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>*@
+
+        <!--Ocultado pois não está mais funcional (Confirmar se o recurso deve existir neste cadastro)-->
+        @*<div class="accordion" id="accordion_5" style="display:none">
+            <div class="card div-card-accord mb-3">
+                <div class="card-header title-card" id="heading_5">
+                    <h5 class="mb-0">
+                        <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                            <span class="text-bold-card">@RsCadastros.VISUALIZAR_SCRIPT_ONU</span>
+                        </a>
+                    </h5>
+                </div>
+
+                <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#accordion_5">
+                    <div class="card-body body-card-accord">
+                        <div class="row">
+                            <div class="col-sm-10">
+                                <div class="form-group">
+                                    <label for="iScriptONU">@RsCadastros.SCRIPT_ONU</label>
+                                    <textarea id="iScriptONU" class="form-control"></textarea>
+                                    @Html.HiddenFor(m => m.ScriptONU, new { id = "iScriptONUBase64" })
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="iModeloScriptONU">Modelo do script com dados</label>
+                                    <textarea id="iModeloScriptONU" class="form-control" readonly></textarea>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <label for="listVariaveisONU">Variáveis</label>
+                                <ul id="listVariaveisONU">
+                                    @foreach (var variavel in Enum.GetValues(typeof(VariaveisScriptOLT)))
+                                    {
+                                        <li>@HtmlEnumExtensions.GetEnumDescription(variavel)</li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>*@
+    </div>
+
+    <div id="divDiagnosticoONU"></div>
+
+    <!--Button Float-->
+    <a class="float-cancel" onclick="parent.dial.dialog('close')">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+}

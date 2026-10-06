@@ -1,0 +1,621 @@
+﻿@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@model Aniel.Connect.Models.Condominio_PredioListaModel
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_CONDOMINIO_PREDIO;
+    ViewBag.Sessao = RsCadastros.CONDOMINIO_PREDIO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+
+    <script>       
+        var [PaisSelecionado, UfSelecionado, CidadeSelecionado] = [null, null, null];
+        $(document).ready(async function () {
+            await AddSelect("iPais", "@CONSTANTES.URLPortal/api/Paisapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandlePais);
+            AddSelect("iUF", "@CONSTANTES.URLPortal/api/Ufapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandleUf);
+            AddSelect("iCidade", "@CONSTANTES.URLPortal/api/Cidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandleCidade);
+            AddSelect("iBairro", "@CONSTANTES.URLPortal/api/Bairroapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+
+            AddSelect("iEnderecoLogradouro", "@CONSTANTES.URLPortal/api/EnderecoLogradouroapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false);
+
+        });
+        $('#btnLog').on('click', function () {
+
+            let _url = `@Url.Action("Index", "LogGenerico")?Modelo=9`;
+
+            AddAba(_url, "@( String.Format(RsFinanceiro.LOGDE, RsCadastros.CONDOMINIO_PREDIO) )");
+        });
+
+
+        $("#iCep").mask("99999-999");
+        $("#iCep").attr('placeholder', '00000-000');
+    
+        var HandlePais = function () {
+            $('#iPais').on('select2:select select2:unselecting', function (e) {
+                PaisSelecionado = e.params.data;
+
+                if (PaisSelecionado == undefined) {
+                    AddSelect("iPais", "@CONSTANTES.URLPortal/api/Paisapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandlePais);
+
+                } else {
+
+
+                    AddSelect("iUF", "@CONSTANTES.URLPortal/api/Ufapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, PaisSelecionado.id, null, "@RsBase.TODOS", false, HandleUf);
+                }
+            });
+        }
+       
+        var HandleUf = function () {
+            $('#iUF').on('select2:select select2:unselecting', function (e) {
+                UfSelecionado = e.params.data;
+
+                if (UfSelecionado == undefined) {
+                    AddSelect("iUF", "@CONSTANTES.URLPortal/api/Ufapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandleUf);
+
+                } else {
+
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/Cidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, UfSelecionado.id, null, "@RsBase.TODOS", false, HandleCidade);
+
+                }
+            });
+        }
+      
+        var HandleCidade = function () {
+            $('#iCidade').on('select2:select select2:unselecting', function (e) {
+                CidadeSelecionado = e.params.data;
+
+                if (CidadeSelecionado == undefined) {
+                    AddSelect("iCidade", "@CONSTANTES.URLPortal/api/Cidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.TODOS", false, HandleCidade);
+
+                } else {
+
+                    AddSelect("iBairro", "@CONSTANTES.URLPortal/api/Bairroapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, CidadeSelecionado.id, null, "@RsBase.TODOS", false);
+
+                }
+            });
+        }
+
+        let rows_selected = [];
+        let oDatatable;
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            function AlterarStatusObj(Status) {
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/CondominioPredioapi/AlterarStatus")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected,
+                        status: Status
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            if (Status == 0) {
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Condomínio/Prédio Inativado", "info");
+                            } else {
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "Condomínio/Prédio Ativado", "info");
+                            }
+                                rows_selected = [];
+                            oDatatable.draw();
+
+
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                });
+
+                rows_selected = [];
+            }
+
+
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable", {
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 1,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center'
+                }],
+                select: 'multi',
+                order: [[2, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '79vh',
+                /*stateSave: true,*/
+                scrollX: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                ajax: {
+                    url: baseUrl + "/api/CondominioPredioapi/GetAll",
+                    type: 'POST',
+                    data: function (data) {
+                        var [pais, status, uf, bairro, cidade, cep, tipo, endereco_logradouro] = [$('#iPais :selected').val(), $("#iStatus_Filtro").val(), $('#iUF').text(), $('#iBairro').text(), $("#iCidade").text(),
+                                                                                                  $("#iCep").val(), $("#iTipo").val(), $("#iEnderecoLogradouro").val()];
+
+                        if ($("#iEnderecoLogradouro option:selected").val() == 'Todos')
+                            endereco_logradouro = null;
+
+                        if ($("#iTipo option:selected").val() == 'Todos')
+                            tipo = null;
+
+                        if ($("#iCep").val().length != 9)
+                            cep = null;
+
+                        if ($("#iCidade option:selected").text() == 'Todos')
+                            cidade = null;
+
+                        if ($("#iUF option:selected").text() == 'Todos')
+                            uf = null;
+
+                        if ($("#iPais option:selected").val() == "Todos")
+                            pais = null;
+
+                        if ($("#iStatus_Filtro option:selected").val() == "Todos")
+                            status = null;
+
+                        if ($("#iBairro option:selected").text() == 'Todos')
+                            bairro = null;
+
+                        data.UF = uf;
+                        data.Status_Filtro = status;
+                        data.Pais = pais;
+                        data.Cidade = cidade;
+                        data.Bairro = bairro;
+                        data.Cep = cep;
+                        data.Tipo_Endereco_Logradouro = tipo;
+                        data.Endereco_Logradouro = endereco_logradouro;
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                preDrawCallback: function () {
+
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+
+                    HidePageLoading();
+                },
+                rowCallback: function(row, data, dataIndex){
+                     // Get row ID
+                     var rowId = data.id;
+
+                     // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1)
+                    {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                     }
+                },
+                pageLength: 10,
+                language: traducaoDataTable,
+                buttons: buttonsDataTable,
+                columns: [
+                    {   title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "id", title: "@RsCadastros.CODIGO" },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO_CONDOMINIO" },
+                    { data: "cep", title: "@RsCadastros.CEP" },
+                    { data: "tipo_Endereco_Logradouro", title: "@RsCadastros.TIPO" },
+                    { data: "endereco_Logradouro", title: "@RsCadastros.ENDERECO_LOGRADOURO" },
+                    { data: "numero", title: "N°" },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO" },
+                    { data: "cidade", title: "@RsCadastros.CIDADE" },
+                    { data: "uf", title: "@RsCadastros.UF" },
+                    { data: "pais", title: "@RsCadastros.PAIS" },
+                    { data: "status", title: "@RsCadastros.STATUS" }
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            $("#iPesquisar").on("click", function () {
+                $("#modal-filter").modal('hide');
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+
+                return true;
+            });
+
+            $("#iLimparFiltros").on("click", function () {
+                $('#txtSearch').val('');
+                oDatatable.search('').draw();
+            });
+
+
+            $("#btnInativar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(0);
+
+            });
+
+            $("#btnAtivar").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                //Alterando para Inativo
+                AlterarStatusObj(1);
+            });
+
+            $("#btnCadastrar").on("click", function () {
+
+                if (@Json.Encode(AcessoHelper.TemAcesso(_areas, "251"))) {
+                    window.location.href = '@Url.Action("Cadastro", "Condominio_Predio")';
+                }
+                else {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEMACESSO_251, "251")", "warning");
+                    return false;
+                }
+            })
+
+            $("#btnExcluir").on("click", function () {
+
+                if (rows_selected.length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                    return;
+                }
+
+                var link = '@String.Concat(CONSTANTES.URLPortal, "/api/CondominioPredioapi/excluirlista")';
+
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        ids: rows_selected
+                    }
+                })
+                    .done(function (data) {
+
+                        if (data.ok) {
+                            Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                            rows_selected = [];
+                            oDatatable.draw();
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+
+                rows_selected = [];
+
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr', function () {
+                @if (AcessoHelper.TemAcesso(_areas, "256"))
+                {
+                <text>
+                    if (oDatatable.row(this).data() != null) {
+
+                        var _id = oDatatable.row(this).data().id;
+
+                        var url = '@Url.Action("Cadastro", "Condominio_Predio", new { id = "__id__" })';
+                        window.location.href = url.replace('__id__', _id);
+                        ShowPageLoading();
+                    }
+                </text>
+                }
+                else {
+                <text>
+                   Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.USUARIO_SEMACESSO_256, "256")", "warning");
+                </text>
+                }
+            });
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+    </script>
+}
+
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="far fa-building"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.DESCRICAO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+               
+                <a class="btn btn-success btn-add" href="#" id="btnCadastrar" title="@RsBase.INCLUIR"><i class="la la-plus" style="color: #fff"></i></a>
+
+                <button type="button" class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltros" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+
+
+
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAREXCEL</a>
+
+                    <a class="dropdown-item" id="btnLog" href="#">@RsBase.LOG_ALTERACOES</a>
+
+                        <a class="dropdown-item" id="btnInativar" href="#" onclick="return false;">@RsBase.INATIVAR</a>
+                        <a class="dropdown-item" id="btnAtivar" href="#" onclick="return false;">@RsBase.ATIVAR</a>
+                    
+                    <a class="dropdown-item" href="@Url.Action("Importacao", "Condominio_Predio")" onclick="ShowPageLoading(); return true;">Importar Cond./Predios</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+        <thead class="tb-head">
+        </thead>
+    </table>
+</div>
+
+<!--./Filter-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="container">
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iStatus_Filtro">@RsCadastros.STATUS :</label>
+                                @Html.EnumDropDownListFor(m => m.Status_Filtro, RsBase.TODOS, new { @class = "form-control", @id = "iStatus_Filtro" })
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iCep">@RsCadastros.CEP:</label>
+                                @Html.TextBoxFor(m => m.Cep, new { @class = "form-control obrigatorio", @id = "iCep", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iTipo">@RsCadastros.TIPO :</label>
+                                @Html.EnumDropDownListFor(m => m.Tipo_Endereco_Logradouro_Filtro, RsBase.TODOS, new { @class = "form-control", @id = "iTipo" })
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iEnderecoLogradouro">@RsCadastros.ENDERECO_LOGRADOURO :</label>
+                                @Html.DropDownList("iEnderecoLogradouro", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iEnderecoLogradouro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iPais">@RsCadastros.PAIS :</label>
+                                @Html.DropDownList("iPais", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iPais", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iUf">@RsCadastros.UF :</label>
+                                @Html.DropDownList("iUF", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iUF", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iCidade">@RsCadastros.CIDADE :</label>
+                                @Html.DropDownList("iCidade", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iCidade", @autocomplete = "off" })
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="iBairro">@RsCadastros.BAIRRO :</label>
+                                @Html.DropDownList("iBairro", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.TODOS, new { @class = "form-control", @id = "iBairro", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <div class="row text-center">
+                        <div class="form-group col-sm-12" style="padding: 15px;">
+                            <div class="text-center">
+                                <button id="iPesquisar" type="button" class="btn btn-success" onclick="">@RsCadastros.PESQUISAR</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

@@ -1,0 +1,400 @@
+﻿@model  Sinapse.Util.ExcelServiceLog<Aniel.Connect.Models.Cliente_ProspectoImportacao>
+
+@{
+    ViewBag.Title = RsCadastros.IMPORTAR_PROSPECTOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    ViewBag.Modelo = CONSTANTES.URLPortal + @"/Arquivos/Cliente_Prospecto/Modelo_Padrao_Importacao_Prospectos.xlsx";
+}
+
+@section styles
+{
+    @Styles.Render("~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+    <style>
+        .popover{
+            max-width: 45%; /* Max Width of the popover (depending on the container!) */
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.Render("~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+
+    <script>
+
+        let datatableExportMuni
+        var oDatatable = undefined
+
+        //Download Planilha UF Sistema
+        $("#iPlanilha_Sistema").click(function () {
+            ShowPageLoading()
+            $.ajax({
+                url: '@CONSTANTES.URLPortal/api/enderecoapi/PlanilhaEstadosMunicipios',
+                type: 'GET',
+                dataType: 'json',
+
+            }).done(function (data) {
+
+
+                //DataTable
+                if (oDatatable != undefined) {
+                    oDatatable.destroy();
+                    $("#datatable").empty();
+                }
+
+                oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                    dom: "Bfrti",
+                    data: data,
+                    buttons: buttonsDataTableRelatorio({
+                        sheet_name: "Estados e Municípios",
+                        title: "Tabela de Estados e Municípios"
+                    }),
+                    columns: [
+                        { data: "uf", title: "@RsCadastros.UF" },
+                        { data: "descricao", title: "@RsCadastros.MUNICIPIO" }
+                    ]
+                });
+
+                oDatatable.buttons(0).trigger()
+                HidePageLoading()
+
+              });
+
+        });
+        //Fim Planilha UF Sistema
+
+        $('#iArquivo').on('change', function () {
+
+            var myfile = $(this).val();
+            var ext = myfile.split('.').pop();
+            if (!(ext == "xls" || ext == "xlsx")) {
+
+                Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                $(this).val("");
+            }
+            else {
+
+                var arquivo = $(this)[0].files[0];
+
+                var fileName = arquivo.name;
+                $(this).next('.custom-file-label').html(fileName);
+            }
+        });
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            var erro = false;
+
+            myfile= $("#iArquivo").val();
+            if (!myfile) {
+
+                if ($('#iArquivo').next('.custom-file-label').html() == '') {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ARQUIVO)", "warning");
+                    erro = true;
+                }
+                else {
+
+                    var ext = $('#iArquivo').next('.custom-file-label').html().split('.').pop();
+                    if (!(ext == "xlsx" || ext == "xls")) {
+
+                        Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                        erro = true;
+                    }
+                }
+            }
+            else {
+
+                var ext = myfile.split('.').pop();
+                if (!(ext == "xlsx" || ext == "xls")) {
+
+                    Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                    erro = true;
+                }
+            }
+
+            if (erro) {
+
+                clicked = false;
+                return false;
+            }
+
+            $("#divProgress").show();
+
+            $('#form').submit();
+        }
+
+        $(document).ready(function () {
+              $('[data-toggle="popover"]').popover()
+
+            var sucesso = "@Html.Raw(ViewBag.Sucesso)";
+            if (sucesso == "S") {
+                Notificar("@RsCadastros.INFORMACAO", "@RsCadastros.IMPORTACAO_PROSPECTO_FINALIZADA", "info");
+            }
+
+        });
+
+    </script>
+
+
+    @if (Model.Log.Count() > 0)
+    {
+        <text>
+            <script>
+
+           var array = @Html.Raw(Json.Encode(Model.Log));
+           var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                scrollX: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '30vh',
+                drawCallback: function (settings) {
+                    $('.switchToggle').bootstrapToggle('state', true);
+                },
+                columns: [
+                    {
+                        data: "Chave",
+                        title: "@Html.Raw(RsCadastros.IDENTIFICACAO_CLIENTE)",
+                    },
+                    {
+                        data: "Erro",
+                        title: "Mensagem"
+                    }
+                ]
+            });
+            </script>
+        </text>
+    }
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col">
+
+            <h4 class="title-page"><i class="fas fa-file-download"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Cliente_Prospecto")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_PROSPECTO</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+
+                </ol>
+            </nav>
+        </div>
+
+
+
+
+
+    </div>
+    <!--./main-->
+</div>
+
+<div class="container-fluid">
+
+    <div class="accordion" id="accordion_5">
+        <div class="card div-card-accord mb-3">
+            <div class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+                <div class="card-body pb-0">
+
+
+                    <div class="row mb-3">
+                        <div class="col-10">
+                            <label>Para importar prospects siga os seguintes passos:</label>
+                        </div>
+                        <div class="col text-right">
+                            <a tabindex="0" class="btn text-right" role="button" data-toggle="popover" data-html="true" data-placement="left" data-trigger="focus" title="Informação"
+                            data-content="
+                                <ul>
+                                    <li><b>Id Cliente</b> -  <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 255 caracteres.Deve ser único para cada cliente/prospect.</li>
+                                    <li><b>Nome Completo</b> -  <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 255 caracteres.</li>
+                                    <li><b>Sexo</b> - <span class='text-danger'>Obrigatório</span> - informar M para Masculino e F para Feminino.</li>
+                                    <li><b>Estado Civil</b> -  Não Obrigatório - informar 0 para Solteiro; 1 para Casado; 2 para Víuvo; 3 para Divorciado; 4 para União Estável.</li>
+                                    <li><b>Porte</b> -  Não Obrigatório - informar 0 para Pequeno; 1 para Médio; 3 para Grande.</li>
+                                    <li><b>Nacionalidade</b> - Não Obrigatório - Campo alfanumérico de até 25 caracteres.</li>
+                                    <li><b>Grau de Instrucao</b> - Não Obrigatório - informar 0 para Analfabeto; 1 para Ensino Fundamental; 2 para Ensino Médio; 3 para Educação Superior; 4 para Mestrado; 5 para Doutorado.</li>
+                                    <li><b>Mãe</b> - Não Obrigatório - Campo alfanumérico de até 50 caracteres.</li>
+                                    <li><b>Pai</b> - Não Obrigatório - Campo alfanumérico de até 50 caracteres.</li>
+                                    <li><b>Profissão</b> - Não Obrigatório - Campo alfanumérico de até 25 caracteres.</li>
+                                    <li><b>Nacionalidade</b> - Não Obrigatório - Campo alfanumérico de até 25 caracteres.</li>
+                                    <li><b>CPF</b> - Não Obrigatório - Informar 11 caracteres numéricos, sem pontos nem traços.</li>
+                                    <li><b>Data de Nascimento</b> - <span class='text-danger'>Obrigatório</span> - Informar dia/mês/ano (formato ##/##/####).</li>
+                                    <li><b>RG</b> - Não Obrigatório - Informar até 20 caracteres numéricos, sem pontos nem traços.</li>
+                                    <li><b>Orgão Emissor de RG</b> - Não Obrigatório - Informar até 18 caracteres alfanumérico, sem pontos nem traços.</li>
+                                    <li><b>Data de Emissão de RG</b> - Não Obrigatório - Informar dia/mês/ano (formato ##/##/####).</li>
+                                    <li><b>CNPJ</b> - Não Obrigatório - Informar 18 caracteres numéricos, sem pontos nem traços.</li>
+                                    <li><b>Nome Fantasia</b> -  <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 255 caracteres.</li>
+                                    <li><b>Razão Social</b> -  <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 255 caracteres.</li>
+                                    <li><b>Inscricao Estadual</b> - Não Obrigatório - Informar até 15 caracteres alfanuméricos, sem pontos nem traços.</li>
+                                    <li><b>Inscricao Municipal</b> - Não Obrigatório - Informar até 15 caracteres alfanuméricos, sem pontos nem traços.</li>
+                                    <li><b>Ramo de Atividade</b> - Não Obrigatório - Informar até 100 caracteres alfanuméricos, sem pontos nem traços.</li>
+                                    <li><b>Responsável</b> - Não Obrigatório - Informar até 18 caracteres alfanuméricos, sem pontos nem traços.</li>
+                                    <li><b>CPF do Responsável</b> - Não Obrigatório - Informar até 18 caracteres numéricos, sem pontos nem traços.</li>
+                                    <li><b>Cargo do Responsável</b> - Não Obrigatório - Informar até 30 caracteres alfanumérico, sem pontos nem traços.</li>
+                                    <li><b>Data de Abertura</b> - Não Obrigatório - Informar dia/mês/ano (formato ##/##/####).</li>
+                                    <li><b>Código Categoria</b> -  <span class='text-danger'>Obrigatório</span> - O valor deve estar cadastrado. Informar somente números.</li>
+                                    <li><b>Código Meio de Captação</b> - Não Obrigatório -  O valor deve estar cadastrado. Campo alfanuméricos de até 5 caracteres;</li>
+                                    <li><b>Telefone Fixo</b> - Não Obrigatório - Informar até 18 caracteres alfanuméricos</li>
+                                    <li><b>Telefone Celular</b> - Não Obrigatório - Informar até 18 caracteres alfanuméricos</li>
+                                    <li><b>Telefone Recado</b> - Não Obrigatório - Informar até 18 caracteres alfanuméricos</li>
+                                    <li><b>Pessoa Recado</b> - Não Obrigatório - Informar até 30 caracteres alfanuméricos</li>
+                                    <li><b>Email</b> - Não Obrigatório - Informar até 50 caracteres numéricos, sem pontos nem traços.</li>
+                                    <li><b>UF</b> - <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 2 caracteres. Ex: SP, RJ...</li>
+                                    <li><b>Cidade</b> - <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 20 caracteres. O nome deverá ser escrito igual ao que consta na planilha de Estados e Municípios.</li>
+                                    <li><b>Bairro</b> - <span class='text-danger'>Obrigatório</span> - Campo alfanumérico de até 30 caracteres.</li>
+                                    <li><b>CEP</b> - <span class='text-danger'>Obrigatório</span> - 8 caracteres numéricos, sem traços e pontos.</li>
+                                    <li><b>Número</b> - <span class='text-danger'>Obrigatório</span> - Informar apenas números, sem pontos.</li>
+                                    <li><b>País</b> - <span class='text-danger'>Obrigatório</span> - Informar 1 para Brasil.</li>
+                                    <li><b>Ponto de Referência</b> - Não Obrigatório - Informar até 50 caracteres alfanuméricos</li>
+                                    <li><b>Código Tipo de Imóvel</b> - Não Obrigatório -  O valor deve estar cadastrado. Campo alfanumérico de até 5 caracteres</li></li>
+
+                                </ul>
+                            ">
+                            <i class="fas fa-info-circle icofont-1dot5x ml-2" style="color:#486B91;"></i>
+                            </a>
+                        </div>
+                        <div class="col-12">
+                            <label>1 - Faça o download da planilha padrão;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>2 - A primeira linha da planilha está preenchida com um exemplo para auxiliá-lo no preenchimento;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>3 - Apague o exemplo e preencha a planilha com os dados dos prospects que deseja importar para o cadastro;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>
+                                4 - Verifique a nomenclatura dos <a href="#" id="iPlanilha_Sistema">Estados e Municípios </a> cadastrados no sistema para o preenchimento correto;
+                            </label>
+                        </div>
+                        <div class="col-12">
+                            <label>5 - Para saber mais informações sobre os campos, clique no ícone informativo no canto superior direito da tela;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>6 - Ao preencher a planilha, salve em seu computador e faça o upload do arquivo;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>7 - Ao final do processo será exibido um log de registros importados e não importados.</label>
+                        </div>
+                    </div>
+                    <div class="row mb-1">
+                        <div class="form-group col-sm-12" style="padding: 15px;" id="teste3">
+                            <div class="form-group">
+                                <a href="@ViewBag.Modelo" type="button" class="btn btn-primary" id="iLimparFiltroModal" data-dismiss="modal"><i class="fas fa-download"></i> @RsPontoEletronico.DOWNLOADPLANILHAPADRAO</a>
+                                <button type="button" data-toggle="modal" data-target="#modal-filter" class="btn btn-success" id="iPesquisar"><i class="fas fa-upload"></i> @RsCadastros.UPLOADPLANILHAPROSPECTOS</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@if (Model.Log.Count() > 0)
+{
+    <text>
+        <div class="container-fluid">
+            <div class="accordion" id="accordion_5">
+                <div class="card div-card-accord mb-3">
+
+                    <div class="card-header title-card mb-0" id="heading_5">
+                        <h5 class="mb-0">
+                            <span class="text-bold-card">Log de Importação de Prospects</span>
+                        </h5>
+                    </div>
+                    <div class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+                        <table class="table table-hover nowrap table-responsive" id="datatable">
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </text>
+}
+@using (Html.BeginForm("Importacao", "Cliente_Prospecto", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @*@Html.AntiForgeryToken()*@
+
+    <!--Modal Filters-->
+    <div class="modal" id="modal-filter">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsCadastros.UPLOADPLANILHAPROSPECTOS</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row">
+
+                        <div class="col-sm-12">
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label><strong>@RsCadastros.ARQUIVO</strong></label>
+                                        <div class="input-group mb-3">
+                                            <input type="file" class="custom-file-input" name="Arquivo" id="iArquivo" />
+                                            <label for="Arquivo" id="arquivoi" class="custom-file-label"><i class="fas fa-upload"></i> @RsBase.ESCOLHAUMARQUIVO</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" id="iLimparFiltroModal" data-dismiss="modal">@RsBase.CANCELAR</button>
+                            <button type="button" class="btn btn-success" id="iImportar" onclick="return ValidaSubmit();">@RsBase.IMPORTAR</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+
+<table id="datatable" class="d-none"></table>

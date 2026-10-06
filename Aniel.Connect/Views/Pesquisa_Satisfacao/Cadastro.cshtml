@@ -1,0 +1,921 @@
+﻿@model Aniel.Connect.Models.Pesquisa_SatisfacaoCadastroModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Sinapse.Model.enumerados
+
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_PESQUISA_SATISFACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    <style>
+        .bootstrap-tagsinput input {
+            width: 95%;
+        }
+
+        .popover-body {
+            background-color: #357CA5;
+            color: white;
+        }
+    </style>
+
+
+
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+        $("#iTemCaixaTexto").on("change", function () {
+
+            if ($("#iTemCaixaTexto").is(":checked")) {
+                $("#divTipoCaixa").show();
+            }
+            else {
+                $("#divTipoCaixa").hide();
+            }
+        });
+
+        function checkValue(id)
+        {
+            $("#" + id).val($("#" + id).is(":checked"));
+            return true;
+        }
+
+        $(document).ready(function () {
+            $("#iStatusPesquisaPergunta").prop("checked", true).change()
+        })
+
+        @if (Model.PesquisaJaEnviada)
+        {
+            <text>
+            $(document).ready(function () {
+
+                $("#iTemCaixaTexto").bootstrapToggle('disable');
+                $("#iTipoCaixaTexto").addClass('readonly');
+            })
+            </text>
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Perguntas));
+            var qtderegistros = array.length;
+
+            var nome_lista = "Perguntas";//Nome_utilizado para enganar o razor
+
+            var tipos_resposta = @(Html.GetArrayEnum<Pesquisa_Tipo_Resposta>());
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                paging: false,
+                ordering: false,
+                columnDefs: [{
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '100px',
+                    className: 'dt-body-center'
+                }],
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            var retorno = ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Tipo_Resposta" name="' + nome_lista + '[' + meta.row + '].Tipo_Resposta" type="hidden" value="' + TrataNulo(row.Tipo_Resposta) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Respostas_Possiveis" name="' + nome_lista + '[' + meta.row + '].Respostas_Possiveis" type="hidden" value="' + TrataNulo(row.Respostas_Possiveis) + '">' + 
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Escala_Emoticos" name="' + nome_lista + '[' + meta.row + '].Escala_Emoticos" type="hidden" value="' + TrataNulo(row.Escala_Emoticos) + '">';
+
+                        @if (!Model.PesquisaJaEnviada) {
+                                <text>
+                            retorno = retorno + '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+
+                            if (meta.row != 0) {
+                                retorno = retorno + '<a href="#" class="btnUp" id="btnUp_' + meta.row + '" valor="' + row.Descricao + '"><i class="fas fa-arrow-up" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            }
+
+                            if (meta.row != (qtderegistros - 1)) {
+                                retorno = retorno + '<a href="#" class="btnDown" id="btnDown_' + meta.row + '" valor="' + row.Descricao + '"><i class="fas fa-arrow-down" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            }
+                                </text>
+                            }
+                            else
+                        {
+                                <text>
+                            if (meta.row != 0) {
+                                retorno = retorno + '<a href="#" class="btnUp readonly" id="btnUp_' + meta.row + '" valor="' + row.Descricao + '"><i class="fas fa-arrow-up" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            }
+
+                            if (meta.row != (qtderegistros - 1)) {
+                                retorno = retorno + '<a href="#" class="btnDown readonly" id="btnDown_' + meta.row + '" valor="' + row.Descricao + '"><i class="fas fa-arrow-down" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            }
+                                </text>
+                            }
+
+                            return retorno;
+                        }
+                    },
+                    {
+                        data: "Ordem",
+                        orderable: false,
+                        title: "@RsCadastros.ORDEM",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + 'º <input id="' + nome_lista + '_' + meta.row + '__Ordem" name="' + nome_lista + '[' + meta.row + '].Ordem" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                            AtualizarOrdem();
+                        }
+                    },
+                    {
+                        data: "Descricao",
+                        title: "@RsCadastros.PERGUNTA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = TrataNulo(data) + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Tipo_Resposta",
+                        title: "@RsCadastros.TIPO_RESPOSTA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = tipos_resposta[data] + ' <input id="' + nome_lista + '_' + meta.row + '__Tipo_Resposta" name="' + nome_lista + '[' + meta.row + '].Tipo_Resposta" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Obrigatorio",
+                        title: "@RsCadastros.OBRIGATORIO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+
+                            @if (!Model.PesquisaJaEnviada)
+                                {
+                                    <text>
+                                var func = "return checkValue('" + nome_lista + "_" + meta.row + "__Obrigatorio');";
+                                data = ' <input onclick="' + func + '" id="' + nome_lista + '_' + meta.row + '__Obrigatorio" name="' + nome_lista + '[' + meta.row + '].Obrigatorio" type="checkbox" ' + (data === true ? 'checked' : '') + ' value="' + data + '"/>';
+                                    </text>
+                                }
+                                else
+                            {
+                                    <text>
+                                var func = "return checkValue('" + nome_lista + "_" + meta.row + "__Obrigatorio');";
+                                data = ' <input onclick="' + func + '" id="' + nome_lista + '_' + meta.row + '__Obrigatorio" class="readonly" name="' + nome_lista + '[' + meta.row + '].Obrigatorio" type="checkbox" ' + (data === true ? 'checked' : '') + ' value="' + data + '"/>';
+                                    </text>
+                                }
+
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Status_Pesquisa_Pergunta",
+                        title: "@RsCadastros.ATIVO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+
+                            @if (!Model.PesquisaJaEnviada)
+                                {
+                                    <text>
+                                var func = "return checkValue('" + nome_lista + "_" + meta.row + "__Status_Pesquisa_Pergunta');";
+                                data = ' <input onclick="' + func + '" id="' + nome_lista + '_' + meta.row + '__Status_Pesquisa_Pergunta" name="' + nome_lista + '[' + meta.row + '].Status_Pesquisa_Pergunta" type="checkbox" ' + (data === true ? 'checked' : '') + ' value="' + data + '">';
+                                    </text>
+                                }
+                                else
+                            {
+                                    <text>
+                                var func = "return checkValue('" + nome_lista + "_" + meta.row + "__Status_Pesquisa_Pergunta');";
+                                data = ' <input onclick="' + func + '" id="' + nome_lista + '_' + meta.row + '__Status_Pesquisa_Pergunta" class="readonly" name="' + nome_lista + '[' + meta.row + '].Status_Pesquisa_Pergunta" type="checkbox" ' + (data === true ? 'checked' : '') + ' value="' + data + '">';
+                                    </text>
+                                }
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Escala_Linear_Ini",
+                        title: "@RsCadastros.ESCALA_LINEAR_INI",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = TrataNulo(data) + ' <input id="' + nome_lista + '_' + meta.row + '__Escala_Linear_Ini" name="' + nome_lista + '[' + meta.row + '].Escala_Linear_Ini" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Escala_Linear_Fin",
+                        title: "@RsCadastros.ESCALA_LINEAR_FIN",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = TrataNulo(data) + ' <input id="' + nome_lista + '_' + meta.row + '__Escala_Linear_Fin" name="' + nome_lista + '[' + meta.row + '].Escala_Linear_Fin" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Escala_Emoticos",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = TrataNulo(data) + ' <input id="' + nome_lista + '_' + meta.row + '__Escala_Emoticos" name="' + nome_lista + '[' + meta.row + '].Escala_Emoticos" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        },
+                        visible: false
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/pesquisa_PerguntaApi/Excluir?id=")' + idArquivo;
+
+                        $.ajax({
+                        url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                qtderegistros -= 1;
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                            .fail(function () {
+
+                        })
+                            .always(function () {
+
+                        });
+                    }
+
+                });
+
+                $(".btnUp").unbind('click');
+                $(".btnUp").click(function (e) {
+                    e.preventDefault();
+
+                    var trLinkButton = $(this).parents('tr');
+                    moveRow(oDatatable, trLinkButton, 'up');
+
+                    handleExcluir();
+
+                    AtualizarOrdem();
+                });
+
+                $(".btnDown").unbind('click');
+                $(".btnDown").click(function (e) {
+                    e.preventDefault();
+
+                    var trLinkButton = $(this).parents('tr');
+                    moveRow(oDatatable, trLinkButton, 'down');
+
+                    handleExcluir();
+
+                    AtualizarOrdem();
+                });
+
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+
+                if (!$("#iDescricao").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TITULO)", "warning");
+                    erro = true;
+                }
+
+                if ($("#iTipo_Resposta").val() == "2") {
+                    if (!$("#iEscala_Linear_Ini").val()) {
+
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ESCALA_LINEAR_INI)", "warning");
+                        erro = true;
+                    }
+                    else if (!($("#iEscala_Linear_Ini").val() >= 0 && $("#iEscala_Linear_Ini").val() <= 1)) {
+
+                        Notificar("@RsBase.ATENCAO_", "A escala linear deve começar em 0 ou 1", "warning")
+                        erro = true
+                    }
+
+                    if (!$("#iEscala_Linear_Fin").val()) {
+
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ESCALA_LINEAR_FIN)", "warning");
+                        erro = true;
+                    }
+                    else if (!($("#iEscala_Linear_Fin").val() >= 5 && $("#iEscala_Linear_Fin").val() <= 10)) {
+
+                        Notificar("@RsBase.ATENCAO_", "A escala linear deve terminar em um número de 5 a 10", "warning")
+                        erro = true
+                    }
+                }
+                else if ($("#iTipo_Resposta").val() == 0 || $("#iTipo_Resposta").val() == 1) {
+
+                    if (!$("#iRespostas_Possiveis").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.RESPOSTAS_POSSIVEIS)", "warning");
+                        erro = true;
+                    }
+                }
+
+                if ($("#iDescricao").val().length > 300) {
+
+                     Notificar("@RsBase.ATENCAO_", "Informe uma descrição da pergunta de até 300 caracteres", "warning")
+                     erro = true
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+
+                var obg = false;
+                var StatusPesPerg = false;
+
+
+                if ($("#iObrigatorio").parent().hasClass("toggle btn btn-success")) {
+                    obg = true;
+                    $("#iObrigatorio").parent().toggleClass("toggle btn btn-success toggle btn btn-light off");
+                }
+                else if ($("#iObrigatorio").parent().hasClass("toggle btn btn-light off")) {
+                    obg = false;
+                }
+
+                if ($("#iStatusPesquisaPergunta").parent().hasClass("toggle btn btn-success")) {
+                    StatusPesPerg = true;
+                    $("#iStatusPesquisaPergunta").parent().toggleClass("toggle btn btn-success toggle btn btn-light off");
+                }
+                else if ($("#iStatusPesquisaPergunta").parent().hasClass("toggle btn btn-light off")) {
+                    StatusPesPerg = false;
+                }
+
+                qtderegistros += 1;
+
+                oDatatable.row.add({
+                Id: 0,
+                    Descricao: $("#iDescricao").val(),
+                    Status_Pesquisa_Pergunta: StatusPesPerg,
+                    Ordem: 0,
+                    Obrigatorio: obg,
+                    Escala_Linear_Ini: $("#iEscala_Linear_Ini").val(),
+                    Escala_Linear_Fin: $("#iEscala_Linear_Fin").val(),
+                    Tipo_Resposta: $("#iTipo_Resposta option:selected").val(),
+                    Respostas_Possiveis: $('#iRespostas_Possiveis').val() ? $('#iRespostas_Possiveis').tagsinput('items').join(";") : "",
+                    Escala_Emoticos: $("#iEscala_Emoticos").val()
+                }).draw(false);
+
+                oDatatable.column(0).cells().invalidate().render();
+                AtualizarOrdem();
+
+                $("#iDescricao").val("");
+                $("#iStatusPesquisaPergunta").val(true).trigger("change");
+                $("#iObrigatorio").val(true);
+                $("#iEscala_Linear_Ini").val("");
+                $("#iEscala_Linear_Fin").val("");
+                $("#iTipo_Resposta").val("0").trigger("change");
+                $('#iRespostas_Possiveis').tagsinput('removeAll');
+                $("#iEscala_Emoticos").val("");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtons = function () {
+            "use strict";
+            return {
+            init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        TableManageButtons.init();
+
+        function AtualizarOrdem() {
+            $.each($('#datatable tr td:nth-child(2)'), function (index, val) {
+                    var ordem = index + 1;
+                    $(this).html(ordem + "º"+ '<input id="Perguntas_' + index + '__Ordem" name="Perguntas[' + index + '].Ordem" type="hidden" value="' + ordem + '">');
+                });
+        }
+
+    $("#iTipo_Resposta").on("change", function () {
+            if ($("#divRespostas_Possiveis .bootstrap-tagsinput").length) {
+                $("#iRespostas_Possiveis").tagsinput('destroy');
+            }
+
+
+        if ($(this).val() == "2") { // Escala Linear
+            $("#divRespostas_Possiveis").hide();
+            $("#iDiv_Esc_Ini").show();
+            $("#iDiv_Esc_Fin").show();
+            $("#iDiv_Emotico").hide();
+            $("#divTexto").hide();
+            $("#iEscala_Linear_Ini").val("1");
+            $("#iEscala_Linear_Fin").val("10");
+        }
+        else if ($(this).val() == "3") { // Emoticons
+            $("#divRespostas_Possiveis").hide();
+            $("#iDiv_Esc_Ini").hide();
+            $("#iDiv_Esc_Fin").hide();
+            $("#iDiv_Emotico").show();
+            $("#divTexto").hide();
+            $("#iEscala_Emoticos").show();
+            $("#iEscala_Linear_Ini").val(null);
+            $("#iEscala_Linear_Fin").val(null);
+        }
+            else if ($(this).val() == "1" || $(this).val() == "0") {
+                const $input = $('#iRespostas_Possiveis');
+                $input.tagsinput({
+                    confirmKeys: [13],
+                    delimiter:';',
+                    trimValue: true
+                });
+
+                $input.on('keypress', function (e) {
+                    if (e.key === ',' || e.key === ';') {
+                        e.stopPropagation(); // impede quebra
+                    }
+                });
+
+            $("#divRespostas_Possiveis").show();
+            $("#iDiv_Esc_Ini").hide();
+            $("#iDiv_Esc_Fin").hide();
+            $("#iDiv_Emotico").hide();
+            $("#divTexto").hide();
+            $("#iEscala_Linear_Ini").val(null);
+            $("#iEscala_Linear_Fin").val(null);
+        }
+		else if ($(this).val() == "4") { // Texto
+
+            $("#divRespostas_Possiveis").hide();
+            $("#iDiv_Esc_Ini").hide();
+            $("#iDiv_Esc_Fin").hide();
+            $("#iDiv_Emotico").hide();
+            $("#divTexto").show();
+            $("#iEscala_Linear_Ini").val(null);
+            $("#iEscala_Linear_Fin").val(null);
+        }
+
+            else {
+                $("#iDiv_Esc_Ini").hide();
+                $("#iDiv_Esc_Fin").hide();
+                $("#iDiv_Emotico").hide();
+                $("#iEscala_Linear_Ini").val(null);
+                $("#iEscala_Linear_Fin").val(null);
+            }
+    });
+
+    $("#iTeEnviarMsgEmailSms").change(function () {
+
+        if ($("#iTeEnviarMsgEmailSms").is(':checked')) {
+                 $('#modeloenvio').show();
+             }
+              else {
+                    $('#modeloenvio').hide();
+                   }
+                   });
+
+        $(document).ready(function () {
+
+            somenteNumeros('iEscala_Linear_Ini');
+            somenteNumeros('iEscala_Linear_Fin');
+            $('#iTeEnviarMsgEmailSms').trigger('change');
+
+            $("#iTemCaixaTexto").trigger("change");
+
+            $('#iEnviarMsgEmailSms').tagsinput({
+                //tagClass: 'tagChips',
+                confirmKeys: [13],
+                delimiter: ';'
+            });
+            $("#iTipo_Resposta").trigger('change');
+            AddSelect("iModelo_Envio", "@CONSTANTES.URLPortal/api/Configuracao_Envio_Mensagensapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Modelo_Envio", "@RsBase.SELECIONE", false);
+        });
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            var erro = false
+
+            if (clicked) {
+                return false;
+            }
+
+            if (!$("#iQuemPreenche").val()) {
+
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.QUEM_PREENCHE_)", "warning")
+                erro = true
+            }
+
+            if (!$("#iDisparoAutomatico").val()) {
+
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DISPARO_AUTOMATICO_)", "warning")
+                erro = true
+            }
+
+            if (!$("#iNome").val()) {
+
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TITULO)", "warning")
+                erro = true
+            }
+
+            if ($("#iNome").val().length > 100) {
+
+                Notificar("@RsBase.ATENCAO_", "Informe um título com até 100 caracteres", "warning")
+                erro = true
+            }
+
+            if ($("#iDescricao_Pesquisa").val().length > 200) {
+
+                Notificar("@RsBase.ATENCAO_", "Informe uma descrição com até 200 caracteres", "warning")
+                erro = true
+            }
+
+            if ($("#iTemCaixaTexto").prop('checked')) {
+                if (!$("#iTipoCaixaTexto").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_CAIXATEXTO)", "warning")
+                    erro = true
+                }
+            }
+            
+            if (!erro) {
+
+                @if (!Model.PesquisaJaEnviada)
+                {
+                    <text>
+                    clicked = true;
+
+                    ShowPageLoading();
+                    $('#form').submit();
+                    </text>
+                }
+                else
+                {
+                    <text>
+                    Swal.fire({
+                        type: "warning",
+                        text: "Você está tentando alterar dados de uma pesquisa que já foi enviada para alguns clientes. Deseja alterar mesmo assim?",
+                        showConfirmButton: true,
+                        showCancelButton: true,
+                        cancelButtonText: 'Cancelar'
+                    }).then(function (result) {
+
+                        if (result.value) {
+
+                            clicked = true;
+
+                            ShowPageLoading();
+                            $('#form').submit();
+                        }
+                    })
+                    </text>
+                }
+            }
+        }
+
+
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Pesquisa_Satisfacao", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-headset"></i> @ViewBag.Title
+                        </h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a></li>
+                                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Pesquisa_Satisfacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_PESQUISA_SATISFACAO</a></li>
+                                <li class="breadcrumb-item"><span>@ViewBag.Title</span></li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                <div class="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iNome">@RsCadastros.TITULO:</label>
+                                        @Html.TextBoxFor(model => model.Titulo_Da_Pesquisa, new { @class = "form-control", @id = "iNome", @autocomplete = "off" })
+                                        @*@Html.ValidationMessageFor(model => model.Titulo_Da_Pesquisa, "", new { @class = "text-danger" })*@
+
+                                    </div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iQuemPreenche">@RsCadastros.QUEM_PREENCHE_:</label>
+                                        @Html.EnumDropDownListFor(m => m.QuemPreenche, RsBase.SELECIONE, new { @class = "form-control", @id = "iQuemPreenche", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iDisparoAutomatico">@RsCadastros.TIPO_DISPARO:</label>
+                                        @Html.EnumDropDownListFor(m => m.DisparoAuto, RsBase.SELECIONE, new { @class = "form-control", @id = "iDisparoAutomatico", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <label for="iStatus_Pesquisa_Satisfacao">@RsCadastros.STATUS:</label>
+                                            <br />
+                                            @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus_Pesquisa_Satisfacao", @name = " iStatus_Pesquisa_Satisfacao", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                        }
+
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iDescricao_Pesquisa">@RsCadastros.DESCRICAO:</label>
+                                        @Html.TextBoxFor(model => model.Descricao_Pesquisa, new { @class = "form-control", @id = "iDescricao_Pesquisa", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                            <!--
+                                 objBanco.Tem_Caixa_Texto = view.Tem_Caixa_Texto;
+                                 objBanco.TipoCaixaTexto = view.TipoCaixaTexto;
+                                 objBanco.CategoriaCaixaTexto = view.CategoriaCaixaTexto;-->
+                            <div class="row" id="divAdicionarCaixaTexto">
+                                <div class="col-sm-3">
+                                    <div class="form-group">
+                                        <label for="iTemCaixaTexto">@RsCadastros.PERMITIR_COMENTARIO_CLIENTE</label>
+                                        <br />
+                                        @Html.CheckBoxFor(m => m.Tem_Caixa_Texto, new { @class = "form-control", @id = "iTemCaixaTexto", @name = "iTemCaixaTexto", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-3" id="divTipoCaixa">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.TIPO_CAIXATEXTO:</label>
+                                        @Html.EnumDropDownListFor(m => m.TipoCaixaTexto, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoCaixaTexto", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iTeEnviarMsgEmailSms">@RsCadastros.ENVIARO_MODELO_EMAIL_SMS</label><br>
+                                            @Html.CheckBoxFor(model => model.Envia_Msg_Emai_Sms, new { @class = "form-control cadastro", @id = "iTeEnviarMsgEmailSms", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_height = "28", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    </div>
+                                
+                             
+                                    <div class="col-sm-3" id="modeloenvio">
+                                        <label for="iModelo_Envio">@RsCadastros.MODELO_EMAIL_SMS:</label>
+                                        <div class="input-group">
+                                            @Html.DropDownListFor(model => model.Modelo_Envio, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModelo_Envio" })
+                                            @Html.ValidationMessageFor(model => model.Modelo_Envio, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                              
+                            </div>
+
+                        </div>
+                    </div>
+
+
+                    <div class="row mt-2 mb-2">
+                        <div id="accordion" class="col-sm-5">
+                            <div class="card div-card-accord">
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-sm-12">
+                                                <div class="form-group">
+                                                    <label for="iPergunta">@RsCadastros.PERGUNTA:</label>
+                                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <div class="form-group">
+                                                    <label for="iStatusPesquisaPergunta">@RsCadastros.STATUS:</label>
+                                                    @Html.CheckBoxFor(m => m.Status_Pesquisa_Pergunta, new { @class = "form-control", @id = "iStatusPesquisaPergunta", @name = "iStatusPesquisaPergunta", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <div class="form-group">
+                                                    <label for="iExplicacao_Operador">@RsCadastros.OBRIGATORIO:</label>
+
+                                                    @Html.CheckBoxFor(m => m.Obrigatorio, new { @class = "form-control", @id = "iObrigatorio", @name = "iObrigatorio", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-12">
+                                                <div class="form-group">
+                                                    <label for="iTipo_Resposta">@RsCadastros.TIPO_RESPOSTA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Tipo_Resposta, RsBase.SELECIONE,
+                                                        new { @class = "form-control", @id = "iTipo_Resposta", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+
+                                            <!-- Campo de Resposta Livre (só aparece se Tipo=Texto) -->
+                                            <div class="col-sm-12" id="divTexto" style="display:none;">
+                                                <div class="form-group">
+                                                    <label for="RespostaTexto">@RsCadastros.AVALIACAO_TEXTO :</label>
+                                                    @*<textarea id="RespostaTexto" name="RespostaTexto"
+                                                              class="form-control" rows="3"
+                                                              placeholder="Digite o texto para a avaliação. Ex: Digite sua avaliação"></textarea>*@
+                                                </div>
+                                            </div>
+
+                                            <!-- Bloco de respostas possíveis (esconde quando Texto) -->
+                                            <div class="col-sm-12 mt-3" id="divRespostas_Possiveis">
+                                                <div class="form-group">
+                                                    <label class="d-flex justify-content-between align-items-center">
+                                                        @RsCadastros.RESPOSTAS_POSSIVEIS:
+                                                        <i class=" ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="As opções não podem conter o caractere ponto e vírgula ( ; )"></i>
+                                                    </label>
+                                                    <div class="row">
+                                                        <div class="col-12">
+                                                            @Html.TextBoxFor(model => model.Respostas_Possiveis,
+                                                                new
+                                                                     {
+                                                                         @class = "form-control",
+                                                                         @id = "iRespostas_Possiveis",
+                                                                      @autocomplete = "off",
+                                                                         @required = true,
+                                                                      @placeholder = "Pressione enter para adicionar mais respostas"
+                                                                     })
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!--Aded-->
+                                            <div class="col-sm-6">
+                                                <div class="form-group" id="iDiv_Esc_Ini" style="display:none;">
+                                                    <label for="iEscala_Linear_Ini">@RsCadastros.ESCALA_LINEAR_INI:</label>
+                                                    @Html.TextBoxFor(model => model.Escala_Linear_Ini, new { @class = "form-control", @id = "iEscala_Linear_Ini", @autocomplete = "off" })
+                                                    @*@Html.ValidationMessageFor(model => model.Escala_Linear_Ini, "", new { @class = "text-danger" })*@
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-6">
+                                                <div class="form-group" id="iDiv_Esc_Fin" style="display:none;">
+                                                    <label for="iEscala_Linear_Fin">@RsCadastros.ESCALA_LINEAR_FIN:</label>
+                                                    @Html.TextBoxFor(model => model.Escala_Linear_Fin, new { @class = "form-control", @id = "iEscala_Linear_Fin", @autocomplete = "off" })
+                                                    @*@Html.ValidationMessageFor(model => model.Escala_Linear_Fin, "", new { @class = "text-danger" })*@
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <div class="form-group" id="iDiv_Emotico" style="display:none;">
+                                                    <label class="disp-in-blo" for="iEscala_Emoticos">@RsCadastros.AVALIACAO_EMOTICONS:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Escala_Emoticos, RsBase.SELECIONE, new { @class = "form-control", @id = "iEscala_Emoticos", @autocomplete = "off" })
+                                                    @*<div class="btn-group">
+                                                            <button type="button" class="btn btn-outline-danger">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-angry" viewBox="0 0 16 16">
+                                                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                                                    <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683zm6.991-8.38a.5.5 0 1 1 .448.894l-1.009.504c.176.27.285.64.285 1.049 0 .828-.448 1.5-1 1.5s-1-.672-1-1.5c0-.247.04-.48.11-.686a.502.502 0 0 1 .166-.761l2-1zm-6.552 0a.5.5 0 0 0-.448.894l1.009.504A1.94 1.94 0 0 0 5 6.5C5 7.328 5.448 8 6 8s1-.672 1-1.5c0-.247-.04-.48-.11-.686a.502.502 0 0 0-.166-.761l-2-1z" />
+                                                                </svg>
+                                                                <span class="visually-hidden"></span>
+                                                            </button>
+                                                            <button type="button" class="btn btn-outline-warning">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-frown" viewBox="0 0 16 16">
+                                                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                                                    <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z" />
+                                                                </svg>
+                                                                <span class="visually-hidden"></span>
+                                                            </button>
+                                                            <button type="button" class="btn btn-outline-primary">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-neutral" viewBox="0 0 16 16">
+                                                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                                                    <path d="M4 10.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5zm3-4C7 5.672 6.552 5 6 5s-1 .672-1 1.5S5.448 8 6 8s1-.672 1-1.5zm4 0c0-.828-.448-1.5-1-1.5s-1 .672-1 1.5S9.448 8 10 8s1-.672 1-1.5z" />
+                                                                </svg>
+                                                                <span class="visually-hidden"></span>
+                                                            </button>
+                                                               <button type="button" class="btn btn-outline-info">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-smile" viewBox="0 0 16 16">
+                                                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"></path>
+                                                                    <path d="M4.285 9.567a.5.5 0 0 1 .683.183A3.498 3.498 0 0 0 8 11.5a3.498 3.498 0 0 0 3.032-1.75.5.5 0 1 1 .866.5A4.498 4.498 0 0 1 8 12.5a4.498 4.498 0 0 1-3.898-2.25.5.5 0 0 1 .183-.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z"></path>
+                                                                </svg>
+                                                                <span class="visually-hidden"></span>
+                                                            </button>
+                                                               <button type="button" class="btn btn-outline-success">
+                                                                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-emoji-laughing" viewBox="0 0 16 16">
+                                                                       <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                                                       <path d="M12.331 9.5a1 1 0 0 1 0 1A4.998 4.998 0 0 1 8 13a4.998 4.998 0 0 1-4.33-2.5A1 1 0 0 1 4.535 9h6.93a1 1 0 0 1 .866.5zM7 6.5c0 .828-.448 0-1 0s-1 .828-1 0S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 0-1 0s-1 .828-1 0S9.448 5 10 5s1 .672 1 1.5z" />
+                                                                   </svg>
+                                                                <span class="visually-hidden"></span>
+                                                            </button>
+
+                                                        </div>*@
+
+                                                    @*@Html.TextBoxFor(model => model.Escala_Emoticos, new { @class = "form-control", @id = "iEscala_Emoticos", @autocomplete = "off" })*@
+                                                    @*@Html.ValidationMessageFor(model => model.Escala_Linear_Fin, "", new { @class = "text-danger" })*@
+                                                </div>
+                                            </div>
+
+
+                                            @if (!Model.PesquisaJaEnviada)
+                                            {
+                                                <div class="col-sm-12 text-right mt-3">
+                                                    <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="col-sm-12 text-right mt-3">
+                                                    <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-light readonly" style="background-color: #D1D1D1" />
+                                                </div>
+                                            }
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div id="accordion" class="col-sm-7">
+                            <div class="card div-card-accord">
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body">
+
+                                        <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                            <thead class="tb-head">
+
+                                            </thead>
+                                        </table>
+
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "Pesquisa_Satisfacao")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+
+
+
+}

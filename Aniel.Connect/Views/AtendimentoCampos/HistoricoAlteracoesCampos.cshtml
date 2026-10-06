@@ -1,0 +1,419 @@
+﻿@using Aniel.Connect.Model.enumerado
+@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = "Histórico de Alteração";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/bin/Content/connect.css")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+    <style>
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #divTable {
+            margin-right: 20px;
+            padding-top: 13px;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+            margin-top: 12px;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script>
+        var oDatatable = null;
+        var rows_selected;
+
+        let HandleGrupo = function () {
+            $('#iEncerramento').on('select2:select select2:unselecting', function (e) {
+
+                Encerramento = e.params.data
+                if (Encerramento) {
+                    $('#iEncerramentoCodCt').val(Encerramento.codCt);
+                }
+                else {
+                    $('#iEncerramentoCodCt').val(null);
+                }
+            });
+        };
+
+
+        function carregaSelect2() {
+            AddSelect("iUsuario", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("IdCampoPersonalizado", "@CONSTANTES.URLPortal/api/AtendimentoCamposApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false,null,null,null,null,false);
+        }
+
+        var filter_state = {
+            periodo: {
+                label: "@RsFinanceiro.PERIODO", getDisplay: () => {
+
+                    return Boolean($('#iDataInicio').val()) ? ($('#iDataInicio').val() + " a " + $('#iDataFim').val()) : ""
+
+                },
+                removable: false, onclick: () => { $('#modal-filter').modal('show') }
+            },
+            tipoOperacao: {
+                label: "Tipo de Operação",
+                getDisplay: () => { $('#iTipoOperacao option:selected').text()},
+                onclick: () => {
+                    $('input[name="iStatus[]"]:checked').map(function () {
+                        return $(this).prop("checked", false);
+                    }).get();
+                    oDatatable.draw()
+                }
+            },
+            usuario: {
+                label: "@RsCadastros.USUARIO",
+                getDisplay: () => { return Boolean($('#iUsuario').val()) ? $('#iUsuario option:selected').text() : "" },
+                onclick: () => {
+                    $('#iUsuario').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            }
+        }
+
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+            $("#iDataInicio").val(null);
+            $("#iDataInicio").text("");
+            $("#iDataFim").val(null);
+            $("#iDataFim").text("");
+            $("#iTipoOperacao").val("");
+            $('input[name="iStatus[]"]:checked').map(function () {
+                return $(this).prop("checked", false);
+            }).get();
+
+            $('input[name="periodo"]:checked').map(function () {
+                return $(this).prop("checked", false);
+            }).get();
+
+            $('#iDataInicio').removeClass('obrigatorio');
+            $('#iDataFim').removeClass('obrigatorio');
+            tipoData = '';
+
+            carregaSelect2();
+            oDatatable.draw();
+        })
+
+        $(document).ready(async () => {
+            carregaSelect2()
+
+            $("#modal-filter").modal("show");
+        })
+
+        colunasDatatable = [
+            { data: "usuario", className: "text-center", title: "Usuário", orderable: false },
+            { data: "nomeUsuario", className: "text-center", title: "Nome Usuário", orderable: false },
+            { data: "dataHora", className: "text-center", title: "Data/Hora Alteração", orderable: false },
+            { data: "operacao", className: "text-center", title: "Operação", orderable: false },
+            { data: "campo", className: "text-center", title: "Campo", orderable: false },
+            { data: "codigoCampo", className: "text-center", title: "Código do Campo Personalizado", orderable: false },
+            { data: "valorAntes", className: "text-center", title: "Valor Antes", orderable: false },
+            { data: "valorDepois", className: "text-center", title: "Valor Depois", orderable: false },
+        ];
+
+        var handleDataTableButtons = function () {
+                "use strict";
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                    dom: 'plBfrti',
+                    select: {
+                        style: 'multi'
+                    },
+                    order: [[1, 'asc']],
+                    serverSide: true,
+                    searching: true,
+                    processing: true,
+                    ordering: true,
+                    destroy: true,
+                    paging: true,
+                    deferRender: true,
+                    scrollResize: true,
+                    autoWidth: false,
+                    scrollY: '79vh',
+                    scrollX: true,
+                    layout: {
+                        bottomEnd: {
+                            paging: {
+                                firstLast: false
+                            }
+                        }
+                    },
+                    lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                    ajax: {
+                        url: baseUrl + '/api/AtendimentoCamposApi/GetHistoricoAtendimentoCampos',
+                        type: 'POST',
+                        async: true,
+                        data: function (data) {
+                            data.DataInicial = $('#iDataInicio').val();
+                            data.DataFim = $('#iDataFim').val();
+                            data.TipoOperacao = $('iTipoOperacao option:selected').val();
+                            data.Usuario = $('#iUsuario option:selected').val();
+                            data.IdCampoPersonalizado = $('#IdCampoPersonalizado option:selected').val();
+                        },
+                        error: function (e) {
+                            console.log(e);
+                        },
+                        dataSrc: function (d) {
+                            //Mostrar o Total de Ordens de Serviços encontradas
+                            if ($('#Count_listing').length === 0)
+                                $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                            $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                                 Total de Registros encontrados : <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                                 </div> `
+                            );
+
+                            return d.data;
+                        }
+                    },
+                    preDrawCallback: function () {
+                        ShowPageLoading();
+                    },
+                    drawCallback: function () {
+                        HidePageLoading();
+                    },
+                    infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+                        var str = "@RsCadastros.INFODATATABLE";
+                        if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                        str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                        $("#dtLegend").html(str);
+
+                        return "";
+                    },
+                    language: traducaoDataTableSimples,
+                    buttons: buttonsDataTableRelatorioPaginado({
+                        title: "@Html.Raw(ViewBag.Title)",
+                        pageSize: GetPageSizePDF(colunasDatatable)
+                    }),
+                    layout: {
+                        bottomEnd: {
+                            paging: {
+                                firstLast: false
+                            }
+                        }
+                    },
+                    pageLength: 10,
+                    initComplete: dataTableInitComplete,
+                    columns: colunasDatatable
+                });
+
+                // Handle table draw event
+                oDatatable.on('draw', function () {
+                    // Update state of "Select all" control
+                    rows_selected = [];
+                });
+            },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        function oDatatableFunction() {
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            if (!$('#iDataInicio').val() || !$('#iDataFim').val()) {
+                Notificar("@RsBase.ATENCAO_", "Informe os períodos corretamente.", "warning");
+                return false;
+            }
+
+            if ($('#iDataInicio').val() && $('#iDataFim').val()) {
+
+                const momentInicio = moment($('#iDataInicio').val(),"DD/MM/YYYY")
+                const momentFinal = moment($('#iDataFim').val(), "DD/MM/YYYY")
+
+                if ((momentFinal.diff(momentInicio, 'days') + 1) > 90) {
+                    Notificar("@RsBase.ATENCAO_", "Periodo deve atender limite de 90 dias", "warning");
+                    return false
+                }
+                else if ((momentFinal.diff(momentInicio, 'days') + 1) < 1) {
+                        Notificar("@RsBase.ATENCAO_", "Periodo de data inicial deve ser anterior ao final", "warning");
+                    return false;
+                }
+            }
+
+            if (oDatatable == null) {
+                TableManageButtons.init();
+            }
+            else {
+                oDatatable.draw()
+            }
+
+            $('#modal-filter').modal('hide')
+        }
+
+        var tipoData = "";
+
+        $('input[name="periodo"]').on('change', function () {
+            if ($(this).is(':checked')) {
+                tipoData = $(this).val();
+                if (tipoData > $("#iDataFim").val()) {
+                    Notificar("@RsBase.ATENCAO_","Data precisa estar dentro de um período válido ","warning");
+                    $('#iDataInicio').val("");
+                    $('#iDataFim').val("");
+                }
+                $('#iDataInicio').addClass('obrigatorio');
+                $('#iDataFim').addClass('obrigatorio');
+
+            }
+        });
+    </script>
+
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-history"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "AtendimentoCampos")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">Listagem de Campos Personalizados</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 form-inline"></div>
+        <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+    </div>
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <text style="font-size: small" class="mt-2"><b>@RsCadastros.PERIODO:</b></text>
+                <div class="row d-flex" style="font-size: smaller">
+                    <div class="col-sm-4">
+                        <label for="iDataInicio">Data Início</label>
+                        <input class="form-control datepicker-period mb-1"
+                               id="iDataInicio"
+                               type="text"
+                               data-enddate="@(DateTime.Today.ToString("dd/MM/yyyy"))"
+                               data-startdate="@(DateTime.Now.ToString("01/01/0001"))"
+                               autocomplete="off"
+                               placeholder="00/00/0000" value="@DateTime.Now.AddDays(-7).ToString("dd/MM/yyyy")" />
+                    </div>
+                    <div class="col-sm-4">
+                        <label for="iDataFim">Data Fim:</label>
+                        <input class="form-control datepicker-period  mb-1"
+                               id="iDataFim"
+                               type="text"
+                               data-enddate="@(DateTime.Today.ToString("dd/MM/yyyy"))"
+                               data-startdate="@(DateTime.Now.ToString("01/01/0001"))"                              
+                               autocomplete="off"
+                               placeholder="00/00/0000" value="@DateTime.Now.ToString("dd/MM/yyyy")"/>
+                    </div>
+                </div>
+
+
+                <text style="font-size: small"><b>Tipo de Operação:</b></text>
+                <div class="row justify-content-center" style="font-size: smaller">
+                    <div class=" col-sm">
+                        <select class="form-control" id="iTipoOperacao">
+                            <option value="" /> @RsBase.TODOS
+                            <option value="1" /> Inserção
+                            <option value="2" /> Alteração
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="iUsuario"><b>Usuário:</b></label>
+                            <select class="form-control" id="iUsuario"></select>
+                        </div>
+                    </div>
+                </div>                
+                
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="IdCampoPersonalizado"><b>Campo Personalizado:</b></label>
+                            <select class="form-control" id="IdCampoPersonalizado"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction(); $('#modal-filter').modal('hide');" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

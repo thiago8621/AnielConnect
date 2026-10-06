@@ -1,0 +1,297 @@
+﻿@model  Sinapse.Util.ExcelServiceLog<Aniel.Connect.Models.Perfil_Ativacao_Vinculo_Importacao>
+
+@{
+    ViewBag.Title = RsCadastros.VINCULAR_PERFIL_ATIVACAO_EM_MASSA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    ViewBag.Modelo = CONSTANTES.URLPortal + @"/Arquivos/Perfil_Ativacao/Modelo_Padrao_Vinculo_Perfil_Ativacao.xlsx";
+}
+
+@section styles
+{
+    @Styles.Render("~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+    <style>
+        .popover{
+            max-width: 45%; /* Max Width of the popover (depending on the container!) */
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+
+@section  scripts
+{
+    @Scripts.Render("~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+
+    <script>
+
+        let datatableExportMuni
+        var oDatatable = undefined        
+
+        $('#iArquivo').on('change', function () {
+
+            var myfile = $(this).val();
+            var ext = myfile.split('.').pop();
+            if (!(ext == "xls" || ext == "xlsx")) {
+
+                Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                $(this).val("");
+            }
+            else {
+
+                var arquivo = $(this)[0].files[0];
+
+                var fileName = arquivo.name;
+                $(this).next('.custom-file-label').html(fileName);
+            }
+        });
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            var erro = false;
+
+            myfile= $("#iArquivo").val();
+            if (!myfile) {
+
+                if ($('#iArquivo').next('.custom-file-label').html() == '') {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.ARQUIVO)", "warning");
+                    erro = true;
+                }
+                else {
+
+                    var ext = $('#iArquivo').next('.custom-file-label').html().split('.').pop();
+                    if (!(ext == "xlsx" || ext == "xls")) {
+
+                        Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                        erro = true;
+                    }
+                }
+            }
+            else {
+
+                var ext = myfile.split('.').pop();
+                if (!(ext == "xlsx" || ext == "xls")) {
+
+                    Notificar("@RsCadastros.ATENCAO", "@RsCadastros.PERMITIDO_XLS_XLSX", "warning");
+                    erro = true;
+                }
+            }
+
+            if (erro) {
+
+                clicked = false;
+                return false;
+            }
+
+            $("#divProgress").show();
+
+            $('#form').submit();
+        }
+
+        $(document).ready(function () {
+              $('[data-toggle="popover"]').popover()
+
+            var sucesso = "@Html.Raw(ViewBag.Sucesso)";
+            if (sucesso == "S") {
+                Notificar("@RsCadastros.INFORMACAO", "@RsCadastros.IMPORTACAO_VINCULO_PERFIL_ATIVACAO_FINALIZADA", "info");
+            }
+
+            @if (ViewBag.Erro == "S")
+            {                
+                <text>
+                Notificar("Operação Finalizada", "Importação concluida com sucesso, verifique os logs para mais informações.", "info");
+                </text>                
+            }
+
+        });
+
+    </script>    
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col">
+
+            <h4 class="title-page"><i class="fas fa-file-download"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "PerfilAtivacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_PERFIL_ATIVACAO</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col mt-4 text-right">
+            <a class="btn btn-info" href="@Url.Action("LogImportacaoVinculosPerfilAtivacao", "PerfilAtivacao")"><i class="fas fa-clipboard-list"></i> <span class="pl-2">Log</span></a>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div class="container-fluid">
+
+    <div class="accordion" id="accordion_5">
+        <div class="card div-card-accord mb-3">
+            <div class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+                <div class="card-body pb-0">
+
+
+                    <div class="row mb-3">
+                        <h4 class="col-10">
+                            <label>Para importar vínculos de Perfil de Ativação siga os seguintes passos:</label>
+                        </h4>
+                        <div class="col text-right">
+                            <a tabindex="0" class="btn text-right" role="button" data-toggle="popover" data-html="true" data-placement="left" data-trigger="focus" title="Informação"
+                            data-content="
+                            <ul>
+                            <li><b>Código Material</b> - <span class='text-danger'>Obrigatório</span> - O valor deve estar cadastrado. Campo alfanumérico de até 12 caracteres.</li>
+                            <li><b>Id OLT</b> -  <span class='text-warning'>Obrigatório se preencher S no campo Utiliza Provisionamento Connect ou não informar Código Auxiliar OLT</span> - O valor deve estar cadastrado. Identificador da OLT cadastrada em sistema.</li>
+                            <li><b>Código Auxiliar OLT</b> -  <span class='text-warning'>Obrigatório se não informar Id OLT</span> - O valor deve estar cadastrado. Identificador de Integração da OLT cadastrada em sistema.</li>
+                            <li><b>Id Perfil de Ativação</b> - <span class='text-danger'>Obrigatório</span> - Identificador do Perfil de Ativacão (script) cadastrado em sistema ou da integração.</li>
+                            <li><b>Id Perfil de Ativação Onu</b> - <span class='text-warning'>Necessário se o equipamento depende de script exclusivo para configuração da ONU</span> - Identificador do Perfil de Ativacão (script) de ONU cadastrado em sistema ou da integração.</li>
+                            <li><b>Utiliza Provisionamento Connect</b> - Preencher S quando o provisionamento é realizado pelo Connect. Caso o provisionamento seja realizado por meio de integrações (IXC, Integrator, etc), preencher N ou deixar em branco.</li>
+                            </ul>
+                            ">
+                            <i class="fas fa-info-circle icofont-1dot5x ml-2" style="color:#486B91;"></i>
+                            </a>
+                        </div>
+                        <div class="col-12">
+                            <label>1 - Faça o download da planilha padrão;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>2 - A primeira linha da planilha está preenchida com um exemplo para auxiliá-lo no preenchimento;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>3 - Apague o exemplo e preencha a planilha com os dados necessários para importar os vínculos entre Perfil de Ativação e Produto/OLT;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>4 - Para saber mais informações sobre os campos, clique no ícone informativo no canto superior direito da tela;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>5 - Ao preencher a planilha, salve em seu computador e faça o upload do arquivo;</label>
+                        </div>
+                        <div class="col-12">
+                            <label>6 - Aguarde o processo realizado pelo sistema, e após conclusão, para mais informações acesse o log de importação no canto superior direito.</label>
+                        </div>                                               
+
+                        <div class="col-12">
+                            <label><br> A importação <b>não prosseguirá</b> caso:</label>
+                        </div>
+
+                        <div class="col-12">
+                            <p> - Estiver faltando na planilha Excel colunas que estão definidas no modelo de planilha padrão.</p>
+                        </div>
+                    </div>
+                    <div class="row mb-1">
+                        <div class="form-group col-sm-12" style="padding: 15px;" id="teste3">
+                            <div class="form-group">
+                                <a href="@ViewBag.Modelo" type="button" class="btn btn-primary" id="iLimparFiltroModal" data-dismiss="modal"><i class="fas fa-download"></i> @RsPontoEletronico.DOWNLOADPLANILHAPADRAO</a>
+                                <button type="button" data-toggle="modal" data-target="#modal-filter" class="btn btn-success" id="iPesquisar"><i class="fas fa-upload"></i> @RsCadastros.UPLOAD_PLANILHA_VINCULOS_PERFIL_ATIVACAO</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@using (Html.BeginForm("ImportacaoVinculosPerfilAtivacao", "PerfilAtivacao", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+    @*@Html.AntiForgeryToken()*@
+
+    <!--Modal Filters-->
+    <div class="modal" id="modal-filter">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsCadastros.UPLOAD_PLANILHA_VINCULOS_PERFIL_ATIVACAO</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="row">
+
+                        <div class="col-sm-12">
+
+                            <div class="row">
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label><strong>@RsCadastros.ARQUIVO</strong></label>
+                                        <div class="input-group mb-3">
+                                            <input type="file" class="custom-file-input" name="Arquivo" id="iArquivo" />
+                                            <label for="Arquivo" id="arquivoi" class="custom-file-label"><i class="fas fa-upload"></i> @RsBase.ESCOLHAUMARQUIVO</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-danger" id="iLimparFiltroModal" data-dismiss="modal">@RsBase.CANCELAR</button>
+                            <button type="button" class="btn btn-success" id="iImportar" onclick="return ValidaSubmit();">@RsBase.IMPORTAR</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>
+
+<table id="datatable" class="d-none"></table>

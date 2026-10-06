@@ -1,0 +1,299 @@
+﻿@model Aniel.Connect.Models.MetaCadastroModel
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+
+
+@{
+    ViewBag.Title = RsCadastros.META;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+
+
+        @if (ViewBag.Sucesso == true)
+        {
+
+            <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+            </script>
+        }
+
+
+
+        <script>
+
+        $(document).ready(function () {
+
+        AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Filial", "@RsBase.SELECIONE", false)
+
+
+            $('body').on('focusout paste', '#iAno', function () {
+
+                var quantity = $("#iAno").val().length;
+                if (quantity > 4) {
+                    var oldStr = $("#iAno").val();
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.ANO_DEVE_TER_4_DIGITOS_EX + " " + DateTime.Now.Year)", "warning");
+                    $('#iAno').val('');
+                }
+            });
+
+        });
+
+
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+
+            var erro = false;
+
+            if (!$("#iFilial").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.FILIAL)", "warning");
+                erro = true;
+            }
+
+            if (!$("#iDescricao").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DESCRICAO)", "warning");
+                erro = true;
+            }
+
+            if ($("#iAno").val() == "" || $("#iAno").val().length < 4 ||  isNaN($("#iAno").val())) { @*parseInt($("#iAno").val()) < @DateTime.Now.Year ||*@
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.ANO_INVALIDO)", "warning");
+                erro = true;
+            }
+
+            var meses = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+            for (var i = 0; i < meses.length; i++) {
+
+                if ($("#iAno" + meses[i]).val() == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.META_MENSAL_INVALIDA)", "warning");
+                    erro = true;
+                }
+            }
+
+
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $("#form").submit();
+
+
+
+        }
+
+        </script>
+    }   
+
+    @using (Html.BeginForm("Cadastro", "Meta", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+    {
+
+        @Html.AntiForgeryToken()
+
+        <div style="padding:10px">
+            <div class="card" style="border:none;">
+
+                @Html.HiddenFor(p => p.Id)
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                            <div class="card-body">
+
+                                <div class="row">
+
+                                    <div class="col-sm-4">
+                                        <div class="form-group">
+                                            <label for="iDescricao"><strong>@RsCadastros.DESCRICAO</strong></label>
+                                            @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-1">
+                                        <div class="form-group">
+                                            <label for="iAno"><strong>@RsBase.ANO</strong></label>
+                                            @if (Model.Id != 0)
+                                            {
+
+                                                @Html.TextBoxFor(model => model.Ano, new { @class = "form-control", @id = "iAno", @style = "min-width: 52px;", @disabled = "true", @autocomplete = "off" })
+                                            }
+                                            else
+                                            {
+                                                @*@Html.TextBoxFor(model => model.Ano, new { @class = "form-control", @id = "iAno", @Value = "", @autocomplete = "off", @min = "2019", @max = "2019" })*@
+                                                @Html.TextBoxFor(model => model.Ano, new { @class = "form-control", @style = "min-width: 52px;", @id = "iAno", @autocomplete = "off" })
+                                                @*@Html.ValidationMessageFor(model => model.Ano, "", new { @class = "text-danger" })*@
+
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label> @RsCadastros.FILIAL :</label>
+                                        @Html.DropDownListFor(m => m.Id_Filial, new SelectList(new List<ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFilial", @autocomplete = "off" })
+                                    </div>
+                                    <div class="col-sm-3 pt-3">
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="form-group">
+                                                <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label>
+                                                @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @style = "min-width: 52px;", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="row">
+
+                                    <div class="col-sm-12">
+                                        <div class="form-group">
+
+                                            <div class="" style="display: flex;">
+
+                                                <div class="col-sm-1">
+                                                    <label for="iJaneiro" style="margin-left: -15px">@RsBase.JANEIRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Janeiro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iJaneiro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iFevereiro" style="margin-left: -15px">@RsBase.FEVEREIRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Fevereiro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iFevereiro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iMarco" style="margin-left: -15px">@RsBase.MARCO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Marco, new { @class = "form-control", @style = "min-width: 52px;", @id = "iMarco", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iAbril" style="margin-left: -15px">@RsBase.ABRIL</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Abril, new { @class = "form-control", @style = "min-width: 52px;", @id = "iAbril", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iMaio" style="margin-left: -15px">@RsBase.MAIO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Maio, new { @class = "form-control", @style = "min-width: 52px;", @id = "iMaio", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iJunho" style="margin-left: -15px">@RsBase.JUNHO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Junho, new { @class = "form-control", @style = "min-width: 52px;", @id = "iJunho", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iJulho" style="margin-left: -15px">@RsBase.JULHO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Julho, new { @class = "form-control", @style = "min-width: 52px;", @id = "iJulho", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iAgosto" style="margin-left: -15px">@RsBase.AGOSTO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Agosto, new { @class = "form-control", @style = "min-width: 52px;", @id = "iAgosto", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iSetembro" style="margin-left: -15px">@RsBase.SETEMBRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Setembro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iSetembro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iOutubro" style="margin-left: -15px">@RsBase.OUTUBRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Outubro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iOutubro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iNovembro" style="margin-left: -15px">@RsBase.NOVEMBRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Novembro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iNovembro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-sm-1">
+                                                    <label for="iDezembro" style="margin-left: -15px">@RsBase.DEZEMBRO</label>
+                                                    <div style="margin-left: -15px">
+                                                        @Html.TextBoxFor(m => m.Dezembro, new { @class = "form-control", @style = "min-width: 52px;", @id = "iDezembro", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+
+
+                                            </div>
+
+                                        </div>
+                                    </div>
+
+                                </div>
+                                <br />
+                                @*<div class="row">
+                                        <div class="col-sm-4">
+                                            <label for="iFilial" ><strong> @RsCadastros.FILIAL  </strong> </label>
+
+                                            @Html.DropDownListFor(m => m.Id_Filial, new SelectList(ViewBag.Filiais, "Id", "Nome"), RsBase.SELECIONE, new { @class = "form-control", @id = "iFilial", @autocomplete = "off", @required = true })
+                                        </div>
+                                    </div>*@
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!--Button Float-->
+            <a href="#" class="float-cancel" onclick="parent.dial.dialog('close'); return false;">
+                <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                    <i class="fas fa-times fa-2x"></i>
+                </div>
+            </a>
+
+            <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+                <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                    <i class="fas fa-save fa-2x"></i>
+                </div>
+            </a>
+
+        </div>
+
+    }

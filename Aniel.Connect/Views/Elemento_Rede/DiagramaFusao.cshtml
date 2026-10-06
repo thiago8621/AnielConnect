@@ -1,0 +1,394 @@
+﻿@model Aniel.Connect.Models.T5.DiagramaFusaoConexoesModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.DIAGRAMA_FUSAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    //if (Model.Id == 0 || Model.Id == null)
+    //{
+    //    Model.Situacao = Sinapse.Model.enumerados.Status_Elemento.Ativo;
+    //}
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/visjsPackage")
+    <script src="~/Scripts/vis-network.js"></script>
+    <script>
+        const container = $('#visNetwork')[0];
+
+        @*/////////////////////////////////
+            Registros presentes na model
+          //////////////////////////////// *@
+        const listagemCaixas = @(Html.Raw(Json.Encode(Model.listagem_Caixas))),
+              @*listagemLoose = @(Html.Raw(Json.Encode(Model.listagem_Tubo_Loose))),*@
+            listagemPortas = @(Html.Raw(Json.Encode(Model.listagem_Portas))),
+            listagemOlts = @(Html.Raw(Json.Encode(Model.listagem_Olts))),
+            listagePON = @(Html.Raw(Json.Encode(Model.listagem_PON))),
+            listagemConexoes =@(Html.Raw(Json.Encode(Model.listagem_Conexoes))),
+            listagemCabos = @(Html.Raw(Json.Encode(Model.listagem_Cabos)));
+        
+        let Ids = 0,
+            network = null;
+
+
+        // Called when the Visualization API is loaded.
+        function draw() {
+            @* Create a data table with nodes.*@
+            let nodes = [],
+                @*Create a data table with links.*@
+                edges = [],
+                @*get Nodes Ids*@
+                looses = [];
+
+            let CountItens = [];
+
+            try {
+
+                listagemCabos.forEach((objeto,index) => {
+
+                    CountItens.push(index);                    
+                    objeto.listagem_Tubo_Loose.forEach(loose => {
+
+                        let urlLoose = useTemplate(loose.Cor, `Loose ${loose.Id}`),
+                            exampleValue = CountItens.length == 1 ? 0 : CountItens[CountItens.length-1];
+                        nodes.push({
+
+                            id: ++Ids,
+                            label: `Loose ${loose.Id}`,
+                            image: urlLoose,
+                            group: "",
+                            shape: 'image',
+                            level: exampleValue,/*x: exampleValue, y: exampleValue * ++index*/
+
+                        });
+                        looses.push(Ids);
+
+                        loose.Fibras.forEach(fibra => {
+
+                            let reference_Id = looses.findLast(p => { return p; }),
+                                urlFibra = useTemplate(fibra.Cor, `Fibra ${fibra.NumeroFibra}`);
+
+                            nodes.push({
+
+                                id: ++Ids,
+                                label: `Fibra ${fibra.NumeroFibra}`,
+                                image: urlFibra, group: reference_Id,
+                                shape: 'image',
+                                level: exampleValue + 1
+
+                            });
+
+                            edges.push({
+
+                                from: Ids,
+                                to: reference_Id,
+                                length: 300
+
+                            });
+
+                        })
+                    })
+                });
+
+                listagemCaixas.forEach(caixa => {
+                    let urlCaixa = useTemplate("blue", `Caixa${caixa.Id}`);
+                    CountItens.push((CountItens[CountItens.length - 1] + 2));
+
+                    nodes.push({
+
+                        id: ++Ids,
+                        label: `${caixa.Descricao}`,
+                        image: urlCaixa,
+                        group: "reference_Id",
+                        level: CountItens[CountItens.length - 1],
+                        x: 0, y: 300,
+                        shape: 'image'
+
+                    });
+                });
+
+            }
+            catch (Exception) {
+                console.log(`Erro ao renderizar: ${Exception}`);
+            }
+            //Incluir texto dinamicamente aqui.
+
+            // create a network
+            let data = {
+                nodes: nodes,
+                edges: edges,
+            };
+            let options = {
+                physics: {
+                    enabled: false, stabilization: true,
+                },
+
+                layout: {                  
+                    //randomSeed: '0.6506283204401688: 1669127826006',
+                },
+                edges: { smooth: false },
+            };
+            network = new vis.Network(container, data, options);
+
+            return { elementos: nodes, conexoes: edges };
+        }
+
+
+        function useTemplate(color, descricao) {
+            let svgTemplate =
+                `<svg xmlns="http://www.w3.org/2000/svg" width="390" height="65">
+            <rect x="0" y="0" width="100%" height="100%" fill="${color}" stroke-width="20" stroke="#ffffff" ></rect>
+            <foreignObject x="15" y="10" width="100%" height="100%">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size:40px">
+            <span style="color:white; text-shadow:0 0 20px #000000;">
+            ${descricao}</span>"
+            "</div>"
+            "</foreignObject>"
+            "</svg>`;
+
+            let url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgTemplate);
+            return url;
+        }
+
+        let handleNetWork = function () {
+            "use strict";
+            return {
+                init: function () {
+                    draw();
+                    reorder(@Html.Raw(Json.Encode(Model.Json_order)));
+                }
+            }
+        }();
+
+        handleNetWork.init();
+
+        function storePositions(visCallBack) {
+            let parsedVis = JSON.parse(visCallBack);
+
+            let arrayProperties = Object.getOwnPropertyNames(parsedVis);
+            let array = [];
+
+            for (let item of arrayProperties) {
+
+                if (item != 'length') {
+                    array.push({ id: item, x: parsedVis[item].x, y: parsedVis[item].y });
+                }
+            }
+            return array;
+        }
+
+        function reorder(positionNodes = "") {
+
+            if (positionNodes.length == 0) {
+                return;
+            }
+
+            const positions = storePositions(positionNodes);
+
+            for (let node of positions) {
+                network.moveNode(node.id, node.x, node.y);
+            }
+        }
+
+        //function resize(width, height) {
+
+        //    let cadastro = $("#cadastro"),
+
+        //        alturacadastro = Number(cadastro.css("width").replace("px", "")),
+        //        larguracadastro = Number(cadastro.css("height").replace("px", ""));
+
+        //    if (larguracadastro < height || alturacadastro < width) {
+        //        cadastro.css("width", `${width}px`);
+        //        cadastro.css("height",`${height}px`);
+        //    }
+        //    network.setSize(width, height);
+        //}
+
+    function generateImage() {
+
+            let mime = "image/png",
+                informationBase = $('canvas')[0].toDataURL(mime, 1.0).split(",");
+
+            return {
+                base64: `${informationBase[1]}`,
+                base64context: `${informationBase[0]}`,
+                extensao: mime.split("/")[1]
+            };
+    }
+
+
+    async function ValidaSubmit() {
+
+        let doc = generateImage(),
+            posicoes = storePositions( JSON.stringify(network.getPositions()) );
+
+        await $.post({
+            url: "@String.Concat(CONSTANTES.URLPortal, "/api/Elemento_RedeApi/SaveDiagram")",
+            type: "POST",
+            dataType: "json",
+            data: {
+                Id: @Model.Id_Elemento,
+                Descricao: "Diagrama_Fusao",
+                Base64Image: doc.base64,
+                Context: doc.base64context,
+                Extensao: "pdf",
+                Altura: `${document.querySelector('canvas').height}`,
+                Largura: `${document.querySelector('canvas').width}`,
+                OrderElements: JSON.stringify(posicoes),
+            },
+        })
+            .done(function (data) {
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", data.mensagem, "info");
+            });
+
+        }
+
+
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-pencil-alt"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Elemento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_ELEMENTOS_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+    </div>
+    <div class="row">
+        <div class="col d-flex justify-content-end"><span>Recursos</span></div>
+        <div class="col-sm " id="ioptionsVis">
+            <div id="iEditarNode">
+                <i class="fas fa-user-edit" style="color: #2092EC" id="IconEditNode" data-placement="bottom" data-toggle="tootltip" title="Editar Node">
+
+                </i>
+            </div>
+
+            <div class="mr-4" id="iExcluirNode ">
+                <i class="fas fa-info-circle" id="iconExcludeNode" style="color: #2092EC" data-toggle="popover" data-placement="bottom"
+                   data-content="Defina aqui as opções de recursos a implementar no diagrama de fusão como por exemplo:
+                   1: Editar Node
+                   2: Criar Edge(Conexão) a node específico
+                   3: Excluir Node">
+
+                </i>
+            </div>
+        </div>
+
+    </div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        @*<li class="nav-item">
+                <a class="nav-link active" id="cadastro-tab" data-toggle="tab" href="#iTabCadastro" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @ViewBag.Title</a>
+            </li>*@
+        @*<li class="nav-item">
+                <a class="nav-link " id="arquivo-tab" data-toggle="tab" href="#iTabArquivo" role="tab" aria-controls="foto" aria-selected="false"><i class="fas fa-file-alt"></i> @RsCadastros.FOTOS_ARQUIVOS </a>
+            </li>*@
+    </ul>
+
+</div>
+<!--./main-->
+@*@Html.HiddenFor(model => model.Id)*@
+@*@Html.HiddenFor(model => model.Coordenadas)*@
+
+<div style="padding:10px">
+    <div class="tab-content">
+
+        <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+            <div class="card div-card-accord">
+                <div class="card-header title-card" id="heading-1">
+                    <h5 class="mb-0">
+                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                            <span class="text-bold-card">@ViewBag.Title</span>
+                        </a>
+                    </h5>
+                </div>
+                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                    <div id="cadastro" class="card-body body-card-accord">
+                        <div id="visNetwork" class=" border-dark " style="height:70vh">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*<div role="tabpanel" class="tab-pane" id="iTabArquivo">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.FOTOS_ARQUIVOS</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <button onclick="$(`#iAnexo`).click()" type="button" class="btn btn-success" id="iArquivo">
+                                            <span>&ensp;</span>
+                                            <span>Anexar @RsCadastros.FOTOS_ARQUIVOS</span>
+                                        </button>
+                                        <input type="file" multiple name="Files" style="display:none" id="iAnexo" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatableArquivos" style="width:100%"></table>
+
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>*@
+
+    </div>
+</div>
+
+@*Button-Float*@
+<a href="@Url.Action("Index", "Elemento_Rede")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data - toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+

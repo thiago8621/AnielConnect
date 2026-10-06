@@ -1,0 +1,57 @@
+Gráfico 8
+- Não separar miscelanea de serial.
+- Filtros: Base criada
+
+Legenda = Fisico, Móvel
+X = Mat. Sem Giro 30 a 60 Dias, ...
+
+Giro Estoque = RM
+Giro Volante = Aplicacao
+
+Segundo grafico de porcentagem é quantidade de produtos contidos
+
+Incluir gráfico de acompanhamento de seriais
+
+**************************************************************************
+
+Não precisa identificar o material Sem Giro, pois o material que não gira a mais de 120 dias já pode ser considerado como sem giro.
+
+Os valores em reais você irá somar o valor em estoque dos materiais que compreendem aquele grupo.
+
+Não esquece que é só produtos de instalação que não sejam código exclusivo = "SIM".
+
+Os que são código exclusivo = "SIM" (correspondem aos produtos com serial) você irá tratar em outro gráfico que irá apresentar da seguinte maneira:
+
+- Legenda = 0 a 30 dias, 31 a 60 dias, 61 a 90 dias, 91 a 120 dias e Maior que 120 dias.
+- X = Será apresentado os status: Estoque Físico, Estoque Móvel e Perdido.
+- O modelo do gráfico deverá ser em barras verticais uma ao lado da outra e não uma em cima da outra como está no gráfico do print.
+
+**************************************************************************
+
+SELECT CODEMPRESA, EMPRESA, CODFILIAL, RAZAO_SOCIAL,
+     CODCT, PROJETO, CODMAT, VALOR, DIAS_ULT_RM
+FROM (
+    SELECT B.CODEMPRESA, D.EMPRESA, B.CODFILIAL, D.RAZAO_SOCIAL,
+         A.CODCT, A.PROJETO, A.CODMAT, SUM(A.VALOR) VALOR,
+         DATEDIFF(DAY FROM CAST(COALESCE((
+               SELECT MAX(Y.DATA) FROM TB_MOVIMENTO_RMDM Z
+               INNER JOIN TB_SEQUENCIA_RMDM Y ON (Z.CODCT = Y.CODCT
+                     AND Z.PROJETO = Y.PROJETO AND Z.SEQRMDM = Y.SEQRMDM)
+               WHERE A.CODCT = Z.CODCT AND A.PROJETO = Z.PROJETO
+                 AND A.CODMAT = Z.CODMAT), '01.01.2000') AS DATE)
+                 TO CURRENT_DATE) AS DIAS_ULT_RM
+    FROM(
+         SELECT A.CODCT, A.PROJETO, A.CODMAT,
+             ((SUM(A.ENTRADA) - SUM(A.SAIDA)) * B.VALOR) AS VALOR
+         FROM TB_ESTOQUE A
+         INNER JOIN TB_MATERIAL B ON(A.CODMAT = B.CODMAT AND B.CLASSIFICACAO = 'I'
+                                  AND COALESCE(B.SUBCOD_EXCLUSIVO, 'N') = 'N')
+         WHERE A.ID_INV_FISICO IS NULL
+         GROUP BY A.CODCT, A.PROJETO, A.CODMAT, B.VALOR
+         HAVING(SUM(A.ENTRADA) - SUM(A.SAIDA)) <> 0) A
+    LEFT JOIN TB_CONTRATO B ON(A.CODCT = B.CODCT)
+    LEFT JOIN TB_FILIAL C ON(B.CODEMPRESA = C.CODEMPRESA AND B.CODFILIAL = C.CODFILIAL)
+    LEFT JOIN TB_EMPRESA D ON(B.CODEMPRESA = D.CODEMPRESA)
+    GROUP BY B.CODEMPRESA, D.EMPRESA, B.CODFILIAL, D.RAZAO_SOCIAL,
+         A.CODCT, A.PROJETO, A.CODMAT)
+WHERE DIAS_ULT_RM > 30

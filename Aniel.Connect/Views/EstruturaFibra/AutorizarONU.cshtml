@@ -1,0 +1,686 @@
+﻿@model Aniel.Connect.Models.OLTListaModel
+
+@using Resources
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.AUTORIZAR_ONU;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+        var rows_selected = [];
+        var oDatatable
+
+        $(document).ready(function () {
+            AddSelect("iOLT", "@CONSTANTES.URLPortal/api/OLTapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        })
+
+    function CarregaDataTable() {
+        ShowPageLoading();
+
+        if (oDatatable != null) {
+            oDatatable.destroy();
+        }
+        //TODO: Manter datatable serverside = true e fazer lógica do botão de vincular cliente funcionar com o serverside
+        $("#divTable").show();
+        var nome_lista = "Onus"; //Nome_utilizado para enganar o razor
+
+        // Desativa alertas automáticos
+        $.fn.dataTable.ext.errMode = 'none';
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "Bfrti",
+            columnDefs: [
+                {
+                    targets: 0,
+                    searchable: false,
+                    orderable: false,
+                    width: '1%',
+                    className: 'dt-body-center',
+                    render: function (data, type, full, meta) {
+                        return "<input type='checkbox'></input>";
+                    }
+                },
+                {
+                    targets: 7,
+                    //visible: false,
+                    searchable: false
+                }
+            ],
+            select: {
+                style: 'multi'
+            },
+            order: [[1, 'asc']],
+            serverSide: false,
+            searching: true,
+            ordering: true,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '73vh',
+            scroller: {
+                loadingIndicator: true,
+                rowHeight: 40,
+                boundaryScale: 0.5,
+                displayBuffer: 3
+            },
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/IntegracaoAtivacaoApiController/ONUsPendentesRegistro',
+                type: 'POST',
+                data: function (data) {
+                    data.IdOLT = $("#iOLT").val();
+                    return data;
+                },
+                error: function (xhr, status, error) {
+                    let mensagemErro = "Erro ao carregar dados da tabela.";
+
+                    // Tenta extrair mensagem mais específica do servidor
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        mensagemErro += " Detalhes: " + xhr.responseJSON.message;
+                    } else if (xhr.responseText) {
+                        mensagemErro += " Detalhes: " + xhr.responseText;
+                    }
+
+                    // Exibe notificação personalizada
+                    Notificar("@RsBase.ATENCAO_", mensagemErro, "warning");
+
+                    // Log para desenvolvedores
+                    console.error("Erro DataTable:", xhr, status, error);
+                },
+                dataSrc: function (d) {
+                    if (d.error) {
+                        Notificar("@RsBase.ATENCAO_", "Erro ao carregar dados: " + d.error, "warning");
+                        console.error("Erro retornado da API:", d.error);
+                        return [];
+                    }
+
+                    if (!Array.isArray(d.data)) {
+                        Notificar("@RsBase.ATENCAO_", "Formato de dados inválido.", "danger");
+                        console.error("Data inválida:", d);
+                        return [];
+                    }
+
+                    return d.data;
+                }
+            },
+            drawCallback: function (e) {
+                HidePageLoading()
+            },
+            rowCallback: function (row, data, dataIndex) {
+                // Get row ID
+                var rowId = data.id;
+
+                // If row ID is in the list of selected row IDs
+                if ($.inArray(rowId, rows_selected) !== -1) {
+                    $(row).find('input[type="checkbox"]').prop('checked', true);
+                    $(row).addClass('selected');
+                }
+            },
+            pageLength: 10,
+            language: traducaoDataTableSimples,
+            buttons: buttonsDataTable,
+            columns: [
+                { title: "<input name='select_all' value='1' type='checkbox'>" },
+                { data: "id", title: "@RsCadastros.ID" },
+                { data: "desc_OLT", title: "@RsCadastros.OLT" },
+                { data: "desc_Slot", title: "@RsCadastros.SLOT" },
+                { data: "desc_PON", title: "@RsCadastros.PON" },
+                { data: "mac_Serial", title: "@RsCadastros.MAC_SERIAL" },
+                { data: "posicao_Estoque", title: "@RsCadastros.POSICAO_ESTOQUE" },
+                {
+                    data: "pode_Autorizar_Sem_OS",
+                    title: "@RsCadastros.POSSUI_VINCULO_CLIENTE?",
+                    orderable: false,
+                    visible: true,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            if (data == true && row.id_Cliente_Plano_Produto == '0') {
+                                return '<a class="vincularClientePlanoProd" >' + 'Não' + '<i class="fas fa-edit icofont-1dot5x ml-1"></i></a>';
+                            }
+                            else {
+                                return "Sim";
+                            }
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__pode_Autorizar_Sem_OS" name="' + nome_lista + '[' + meta.row + '].pode_Autorizar_Sem_OS" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                        return '-';
+                    }
+                },
+                { data: "informacao", title: "@RsCadastros.INFORMACAO_ADICIONAL" },
+
+            ]
+        });
+
+        $('#txtSearch').val(oDatatable.search());
+        $('#txtSearch').keyup(function () {
+            rows_selected = [];
+            oDatatable.search($(this).val()).draw(false);
+        });
+
+        $("#iPesquisar").on("click", function () {
+            $("#modal-filter").modal('hide');
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw(false);
+
+            return true;
+        });
+
+        $("#iLimparFiltroModal, #iLimparFiltro").on("click", function () {
+
+            $("#iOLT").val("");
+            $("#iTipoOLT").val("");
+            $("#iIp").val("");
+            $("#iEmpresa").val("");
+            $("#iFilial").val("");
+            $("#iStatusFiltro").val("");
+
+
+            $('#txtSearch').val("");
+            rows_selected = [];
+            oDatatable.search($('#txtSearch').val()).draw();
+        });
+
+
+        var HandleClienteContrato = function () {
+            // Carrega os Planos/Produtos do Cliente
+            $('#iModal_Cliente').on('select2:select select2:unselecting', function (e) {
+                if (e.params && e.params.data) {
+                    AddSelect("iModal_Contrato", "@CONSTANTES.URLPortal/api/clienteapi/GetComboContratoCliente", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false, HandleCliente);
+                }
+
+
+                $(".select2-selection").addClass("outlineNone")
+
+                return true;
+            });
+        };
+
+
+
+        var HandleCliente = function () {
+            // Carrega os Planos/Produtos do Contrato do Cliente
+            $('#iModal_Contrato').on('select2:select select2:unselecting', function (e) {
+                if (e.params && e.params.data) {
+                    AddSelect("iModal_ClientePlanoProd", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, e.params.data.id, null, null, "@RsBase.SELECIONE", false, HandleLoginRadius);
+
+                }
+
+                $(".select2-selection").addClass("outlineNone")
+
+                return true;
+            });
+        };
+
+        var HandleLoginRadius = function () {
+            $('#iModal_ClientePlanoProd').on('select2:select select2:unselecting', function (e) {
+                if (e.params && e.params.data) {
+                    AddSelect("iModal_LoginRadius", "@CONSTANTES.URLPortal/api/LoginRadiusapi/GetComboVinculoIdPlanoProduto", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+
+
+                }
+
+                $(".select2-selection").addClass("outlineNone")
+
+                return true;
+
+            });
+        }
+
+        $('#datatable').on('error.dt', function (e, settings, techNote, message) {
+            Notificar("@RsBase.ATENCAO_", "Erro DataTable: " + message, "danger");
+            console.error("DataTables error:", message);
+        });
+
+        $('#datatable tbody').off().on('click', '.vincularClientePlanoProd', function (e) {
+            var $row = $(this).closest('tr');
+            $('#iModal_Cliente').val('').trigger('change');
+            $('#iModal_Contrato').val('').trigger('change');
+            $('#iModal_ClientePlanoProd').val('').trigger('change');
+            $('#iModal_LoginRadius').val('').trigger('change');
+            $('#iModal_PerfilAtivacao').val('').trigger('change');
+            $('#iModal_SsidWifi').val('');
+            $('#iModal_SenhaWifi').val('');
+            $('#iModal_NumOS').val('');
+            $('#iModal_SsidWifi').removeClass('obrigatorio');
+            $('#iModal_SenhaWifi').removeClass('obrigatorio');
+            $('#iModal_SsidWifi').val('').removeClass('is-invalid obrigatorio');
+            $('#iModal_SenhaWifi').val('').removeClass('is-invalid obrigatorio');
+            $('#iModal_SsidWifi').next('.invalid-feedback').remove();
+            $('#iModal_SenhaWifi').next('.invalid-feedback').remove();
+
+
+            $('#iModal_Vincular_ClientePlanoProd').modal('show')
+            {
+                AddSelect("iModal_Cliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleClienteContrato);
+                        @*AddSelect("iModal_ClientePlanoProd", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);*@
+                AddSelect("iModal_PerfilAtivacao", "@CONSTANTES.URLPortal/api/PerfilAtivacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+
+                $("#btnVincularClientePlanoProd").off().on('click', function (e) {
+
+                    e.stopPropagation();
+
+                    const numOS = $('#iModal_NumOS').val();
+
+
+                    function executarOperacao() {
+
+                        let erro = false
+
+                        if (ValidaCamposObrigatorios(erro)) {
+                            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                            return false;
+                        }
+
+                        var dataTemp = oDatatable.row($row).data();
+                        //dataTemp.Desc_Forma_Pagto = $('#iNovaFormaPagto option:selected').text();
+                        dataTemp.id_Cliente_Plano_Produto = $('#iModal_ClientePlanoProd option:selected').val();
+                        dataTemp.id_Perfil_Ativacao = $('#iModal_PerfilAtivacao option:selected').val();
+                        dataTemp.id_Login_Radius = $('#iModal_LoginRadius option:selected').val();
+                        dataTemp.wireless_SSID = $('#iModal_SsidWifi').val();
+                        dataTemp.senha_WPA2 = $('#iModal_SenhaWifi').val();
+                        dataTemp.num_Os = $('#iModal_NumOS').val();
+
+                        $.ajax({
+                            url: "@CONSTANTES.URLPortal/api/AutorizarONUApiController/GetObrigaWifiByPerfilAtivacaoId",
+                            method: 'GET',
+                            data: { idPerfilAtivacao: dataTemp.id_Perfil_Ativacao },
+                            success: function (response) {
+
+                                if (response) {
+                                    $('#iModal_SsidWifi').addClass('obrigatorio');
+                                    $('#iModal_SenhaWifi').addClass('obrigatorio');
+
+                                    if (ValidaCamposObrigatorios(erro)) {
+                                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                                        return false;
+                                    }
+
+                                    if (dataTemp.senha_WPA2.length < 8) {
+                                        Notificar("@RsBase.ATENCAO_", "Senha WiFi não pode conter menos que 8 caracteres.", "warning")
+                                        return false;
+                                    }
+
+                                } else {
+                                    $('#iModal_SsidWifi').removeClass('obrigatorio');
+                                    $('#iModal_SenhaWifi').removeClass('obrigatorio');
+                                }
+                                $('#iModal_Vincular_ClientePlanoProd').modal('hide')
+                                oDatatable.row($row).data(dataTemp).draw(false);
+                                rows_selected = [];
+                            },
+                            error: function (xhr, status, error) {
+                                console.error("API call failed:", error);
+                            }
+                        });
+
+                    }
+
+
+                    console.log("NUMERO OS", numOS);
+
+                    // Se houver numOS, mostrar o modal
+                    if (numOS && numOS.trim() !== "") {
+                        $('#textoConfirmacaoOS').text(`Confirma número da O.S: ${numOS}?`);
+                        $('#modalConfirmacaoOS').modal('show');
+
+                        $('#btnConfirmarOS').off().on('click', function () {
+                            $('#modalConfirmacaoOS').modal('hide');
+                            executarOperacao();
+                        });
+
+                    } else {
+                        // Se não houver numOS, seguir normalmente
+                        executarOperacao();
+                    }
+
+
+                    e.stopPropagation();
+
+                });
+            }
+
+            e.stopPropagation();
+        });
+
+        // Handle click on checkbox
+        $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+            var $row = $(this).closest('tr');
+
+            // Get row data
+            var rowId = oDatatable.row($row).data().mac_Serial;
+
+            var index = $.inArray(rowId, rows_selected);
+
+            // If checkbox is checked and row ID is not in list of selected row IDs
+            if (this.checked && index === -1) {
+                rows_selected.push(rowId);
+
+                // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+            } else if (!this.checked && index !== -1) {
+                rows_selected.splice(index, 1);
+            }
+
+            if (this.checked) {
+                $row.addClass('selected');
+            } else {
+                $row.removeClass('selected');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        // Handle click on table cells with checkboxes
+        $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+            $(this).parent().find('input[type="checkbox"]').trigger('click');
+        });
+
+        // Handle click on "Select all" control
+        $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+            if (this.checked) {
+                $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+            } else {
+                $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        // Handle table draw event
+        oDatatable.on('draw', function () {
+            // Update state of "Select all" control
+            updateDataTableSelectAllCtrl(oDatatable);
+        });
+
+    }
+
+    $("#iConsultarOLT").on("click", function () {
+        if (!$("#iOLT").val()) {
+            Notificar("@RsCadastros.ATENCAO", "Informe uma OLT para realizar a consulta", "warning");
+            return false;
+        }
+            CarregaDataTable()
+        })
+
+        $("#iAutorizarONU").on("click", function () {
+            if (rows_selected.length > 0) {
+
+                ShowPageLoading()
+
+                const tableData = oDatatable.data().toArray();
+
+                var onus_nao_vinculadas = tableData.filter(p => rows_selected.includes(p.mac_Serial) && (p.id_Cliente_Plano_Produto == null
+                    || p.id_Cliente_Plano_Produto == undefined
+                    || p.id_Cliente_Plano_Produto === 0));
+
+                if (onus_nao_vinculadas.length > 0) {
+                    HidePageLoading()
+                    onus_nao_vinculadas.forEach(p => Notificar("@RsCadastros.ATENCAO", "É necessário vincular a ONU de id "+p.id+" a um cliente", "warning"));
+
+                }
+                else {
+                    $.ajax({
+                    url: "@CONSTANTES.URLPortal/api/AutorizarONUApiController/AutorizarONU",
+                    type: "POST",
+                    data: {
+                        ListONU: tableData.filter(p => rows_selected.includes(p.mac_Serial))
+                    }
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            data.mensagens.forEach(p => Notificar(p.tipo === 0 ? "@RsBase.ATENCAO_" : "@RsBase.OPERACAOBEMSUCEDIDA", p.mensagem, p.tipo === 0 ? "warning" : "info"))
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning")
+                        }
+
+                        rows_selected = [];
+                        HidePageLoading();
+
+                        CarregaDataTable();
+                    });
+                }
+
+
+            }
+            else {
+                Notificar("@RsCadastros.ATENCAO", "Selecione uma ONU para autorizar", "warning");
+            }
+        })
+
+</script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-server"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GERENCIAMENTO_REDE</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <div class=" pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.OLT" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <button class="btn btn-primary" id="iAutorizarONU" title="Autorizar ONU">
+                    Autorizar ONU
+                </button>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                <button class="btn btn-default btn-add" id="iLimparFiltro" onclick="$('#txtSearch').val('');oDatatable.search('').draw();" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+            </div>
+        </div>
+
+    </div>
+    <!--./main-->
+</div>
+
+<div class="accordion" id="accordion_1">
+    <div class="card div-card-accord mb-3">
+        <div class="card-body">
+            <div class="row row-filtro">
+                <div class="col-sm-3">
+                    <div class="form-group">
+                        <label for="iOLT">@RsCadastros.OLT</label>
+                        <select class="form-control" id="iOLT"></select>
+                    </div>
+                </div>
+
+                <div class="col-sm-1 ml-3">
+                    <a class="btn btn-primary" id="iConsultarOLT" style="position: absolute;top: 30%;color: #FFF;right: 25px;">
+                        <i class="fas fa-search"></i> Consultar OLT
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="divTable" style="display: none">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<!--Modal Filters-->
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted"> Filtros OLT </h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- /.modal-->
+<!-- Modal para Vincular ONU a Cliente e Plano/Produto-->
+<div class="modal fade" id="iModal_Vincular_ClientePlanoProd">
+    <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsCadastros.VINCULAR_ONU_CLIENTE</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_Cliente">@RsCadastros.CLIENTE:</label>
+                            <br />
+                            <select class="form-control obrigatorio" id="iModal_Cliente"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_Contrato">@RsCadastros.CONTRATO_CLIENTE:</label>
+                            <br />
+                            <select class="form-control obrigatorio" id="iModal_Contrato"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_ClientePlanoProd">@RsCadastros.PLANOSPRODUTOS_CLIENTE:</label>
+                            <br />
+                            <select class="form-control obrigatorio" id="iModal_ClientePlanoProd"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_LoginRadius">@RsCadastros.LOGIN_RADIUS:</label>
+                            <br />
+                            <select class="form-control" id="iModal_LoginRadius"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_PerfilAtivacao">@RsCadastros.PERFIL_ATIVACAO:</label>
+                            <br />
+                            <select class="form-control obrigatorio" id="iModal_PerfilAtivacao"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_SsidWifi">@RsCadastros.SSID_WIFI:</label>
+
+                            <input type="text" class="form-control" id="iModal_SsidWifi">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_SenhaWifi">@RsCadastros.SENHA_WIFI:</label>
+
+                            <input type="text" class="form-control" id="iModal_SenhaWifi">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <div class="form-group">
+                            <label for="iModal_NumOS">@RsCadastros.NUMERO_ORDEM_SERVICO:</label>
+
+                            <input type="text" class="form-control" id="iModal_NumOS">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mt-4">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" data-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success ml-2" id="btnVincularClientePlanoProd">Vincular</button>
+                    </div>
+                </div>
+
+            </div>
+            <!--<div class="modal-footer">
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" data-dismiss="iModal_Alterar_FormaPagto" id="btnAlterarFormaPagto">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="btnAlterarFormaPagto">Alterar</button>
+                </div>
+            </div>-->
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação -->
+<div class="modal fade" id="modalConfirmacaoOS" tabindex="-1" role="dialog" aria-labelledby="modalConfirmacaoOSTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalConfirmacaoOSTitulo">Confirmar O.S</h5>
+            </div>
+            <div class="modal-body">
+                <p id="textoConfirmacaoOS"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnConfirmarOS" class="btn btn-primary">Sim</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>

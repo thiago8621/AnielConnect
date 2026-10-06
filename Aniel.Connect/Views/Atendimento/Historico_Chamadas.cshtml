@@ -1,0 +1,431 @@
+﻿@model Aniel.Connect.Models.LogGenericoParamListModel
+
+@using Resources
+@using Aniel.Connect.Models.T5
+@using Aniel.Connect.Core
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_ALTERACAO;
+    ViewBag.Sessao = RsCadastros.HISTORICO_ALTERACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+}
+
+
+@section  scripts
+{
+    @Scripts.RenderFormat(Aniel.Connect.SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+        ///<reference path="../../../Aniel.Connect.Core/Scripts/connect.js" />
+
+        var rows_selected = [];
+
+
+        var oDatatable = null;
+        function switchTabInIframe() {
+            if (oDatatable != null) {
+                TableManageButtons.init();
+            }
+        };
+
+       function OSLink(id) {
+
+         var _url = '@Url.Action("Index", "Acompanhamento_Servico")' + id;
+            parent.AddAba(_url, "Acompanhamento de Servico");
+
+        };
+
+        AddSelect("iDidDestino", "@CONSTANTES.URLPortal/api/DidApi/GetComboNum_Did", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iDidOrigem", "@CONSTANTES.URLPortal/api/DidApi/GetComboNum_Did", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+    var handleDataTableButtons = async function () {
+        "use strict";
+
+        if (oDatatable != null) {
+            oDatatable.destroy();
+            $("#datatable").empty();
+            oDatatable = null;
+        }
+
+
+
+        if ($("#iDataInicial").val() && $("#iDataFinal").val()) {
+
+            var date1 = new Date(parseInt($("#iDataInicial").val().substring(6, 10)), parseInt($("#iDataInicial").val().substring(3, 5)) - 1, parseInt($("#iDataInicial").val().substring(0, 2)));
+            var date2 = new Date(parseInt($("#iDataFinal").val().substring(6, 10)), parseInt($("#iDataFinal").val().substring(3, 5)) - 1, parseInt($("#iDataFinal").val().substring(0, 2)));
+
+            const diffTime = Math.abs(date2 - date1);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 90) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido (menor que 90 dias)", "info");
+                return false;
+            }
+
+            if ((date2 - date1) < 0) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+        }
+        else if ($("#iDataInicial").val() && !$("#iDataFinal").val()) {
+            Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+            return false;
+        }
+        else if (!$("#iDataInicial").val() && $("#iDataFinal").val()) {
+            Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+            return sfalse;
+        }
+
+
+            await AddSelect("iClientePlanoProduto", "@CONSTANTES.URLPortal/api/clienteapi/GetComboClientePlanoProduto", @CONSTANTES.PaginacaoRegistros, null, "@Request.QueryString["Id_Cliente"]", "@Request.QueryString["Id_ClientePlanoProduto"]", "@RsBase.SELECIONE", false);
+
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    //{
+                    //    targets: 0,
+                    //    searchable: false,
+                    //    orderable: false,
+                    //    width: '1%',
+                    //    className: 'dt-body-center',
+                    //    render: function (data, type, full, meta) {
+                    //        return "<input type='checkbox'></input>";
+                    //    }
+                    //}
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[6, 'asc']],
+                serverSide: true,
+                searching: true,
+                processing: true,
+                //ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollResize: true,
+                autoWidth: false,
+                scrollY: '61vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Atendimentoapi/HistoricoChamadas',
+                    type: 'POST',
+                    data: function (data) {
+                        data.idClientePlanoProduto = "@Request.QueryString["Id_Cliente_PlanoProduto"]";
+                        data.dataini = $("#iDataInicial").val();
+                        data.datafim = $("#iDataFinal").val();
+                        data.id_didOrigem = $("#iDidOrigem").val();
+                        data.id_didDestino = $("#iDidDestino").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: function () {
+                    oDatatable.columns.adjust();
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    //if($.inArray(rowId, rows_selected) !== -1){
+                    //   $(row).find('input[type="checkbox"]').prop('checked', true);
+                    //   $(row).addClass('selected');
+                    //}
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    //{ title: "<input name='select_all' value='1' type='checkbox'>" },
+                    { data: "data", title: "@RsCadastros.DATA", orderable: false },
+                    { data: "didOrigem", title: "@RsCadastros.DID_ORIGEM", orderable: false },
+                    { data: "didDestino", title: "@RsCadastros.DID_DESTINO", orderable: false },
+                    { data: "sentido", title: "@RsCadastros.SENTIDO", orderable: false },
+                    { data: "dataHoraInicio", title: "@RsCadastros.DATA_HORA_INICIO", orderable: false },
+                    { data: "dataHoraFim", title: "@RsCadastros.DATA_HORA_FIM", orderable: false },
+                    { data: "duracao", title: "@RsCadastros.DURACAO", orderable: false },
+                    { data: "custoLigacao", title: "@RsCadastros.CUSTO_LIGACAO", orderable: false },
+                    { data: "cidade", title: "@RsCadastros.CIDADE", orderable: false },
+
+
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Handle click on checkbox
+            //$('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+            //    var $row = $(this).closest('tr');
+
+            //    // Get row data
+            //    var rowId = oDatatable.row($row).data().id;
+
+            //    var index = $.inArray(rowId, rows_selected);
+
+            //    // If checkbox is checked and row ID is not in list of selected row IDs
+            //    if (this.checked && index === -1) {
+            //        rows_selected.push(rowId);
+
+            //        // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+            //    } else if (!this.checked && index !== -1) {
+            //        rows_selected.splice(index, 1);
+            //    }
+
+            //    if (this.checked) {
+            //        $row.addClass('selected');
+            //    } else {
+            //        $row.removeClass('selected');
+            //    }
+
+            //    // Prevent click event from propagating to parent
+            //    e.stopPropagation();
+            //});
+
+
+            @*$('#datatable tbody').on('click', 'tr', function () {
+
+                if (oDatatable.row(this).data() != null) {
+
+                    @if (AcessoHelper.TemAcesso(_areas, "20"))
+                    {
+                        <text>
+                            var _id = oDatatable.row(this).data().id;
+
+                            var url = '@Url.Action("Cadastro", "Banco", new { id = "__id__" })';
+                            window.location.href = url.replace('__id__', _id);
+                            ShowPageLoading();
+                        </text>
+                    }
+                }
+            });*@
+
+            // Handle click on table cells with checkboxes
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                //$(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                //if (this.checked) {
+                //    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                //} else {
+                //    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                //}
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+
+            $("#iLimparFiltroModal, #iLimparFiltros").unbind("click");
+            $("#iLimparFiltroModal, #iLimparFiltros").on("click", function () {
+                $("#iDataInicial").val("");
+                $("#iDataFinal").val("");
+
+                $("#iConta").val("");
+                $("#iCampo").val("");
+                $("#iTipoOperacao").val("");
+
+                rows_selected = [];
+
+                oDatatable.search($('#txtSearch').val()).draw(false);
+            });
+
+            $("#iPesquisar").unbind("click");
+            $("#iPesquisar").on("click", function () {
+
+                var _data_ini = $("#iDataInicial").val().split("/");
+                var _data_fim = $("#iDataFinal").val().split("/");
+
+                var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+                var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+                let erro = false;
+
+                if (!$("#iDataInicial").val()) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DATA_INICIO)", "warning");
+                    erro = true;
+                }
+                if (!$("#iDataFinal").val()) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DATA_FINAL)", "warning");
+                    erro = true;
+                }
+
+                if (!erro && data_ini > data_fim) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning")
+                    $("#iDataInicial").val("")
+                    $("#iDataFinal").val("")
+                    erro = true;
+                }
+
+                if (!erro)
+                {
+                    rows_selected = [];
+                    oDatatable.search($('#txtSearch').val()).draw();
+                    $("#modal-filter").modal('hide');
+                }
+
+                return true;
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+
+</script>
+}
+
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="card mt-3" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+            <div class="card-header title-card" id="heading_70">
+                <h5 class="mb-1">
+                    <a role="button" data-toggle="" data-target="#collapse_70" aria-expanded="true" aria-controls="collapse_70">
+                        <span class="text-bold-card">@RsCadastros.HISTORICO_CHAMADAS</span>
+                    </a>
+                </h5>
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-sm-6">
+                    <div class="form-group">
+                        <label class="" for="iNome">@RsCadastros.PERIODO:</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="mt-1 col-sm-3 col-md-2">
+                    <div class="form-group" style="margin-bottom:0px !important">
+                        <label for="iAssunto" class="mr-3">@RsCadastros.DE:</label>
+                    </div>
+                    <input type="text" class="form-control datepicker" value="@DateTime.Today.AddDays(-90).Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDataInicial">
+
+                </div>
+
+                <div class="mt-1 col-sm-3 col-md-2">
+                    <div class="form-group" style="margin-bottom:0px !important">
+                        <label for="iAssunto" class="mr-3">@RsCadastros.PARA:</label>
+                    </div>
+                    <input type="text" class="form-control datepicker" value="@DateTime.Today.Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDataFinal">
+                </div>
+
+
+                <div class="mt-1 col-sm-3 col-md-2">
+                    <div class="form-group">
+                        <label for="iDidOrigem">@RsCadastros.DID_ORIGEM:</label>
+                        <select class="form-control" id="iDidOrigem"></select>
+                    </div>
+                </div>
+
+
+                <div class="mt-1 col-sm-3 col-md-2">
+                    <div class="form-group">
+                        <label for="iDidDestino">@RsCadastros.DID_DESTINO:</label>
+                        <select class="form-control" id="iDidDestino"></select>
+                    </div>
+                </div>
+
+
+
+                <div class="mt-1 col-sm-6 col-md-2 mt-4 pb-2 pr-5">
+                    <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return handleDataTableButtons()">
+                </div>
+            </div>
+            <div id="collapse_70" class="collapse show" aria-labelledby="heading_70" data-parent="#heading_70">
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+            </div>
+        </div>
+
+
+    </div>
+
+</div>
+
+
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+
+
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

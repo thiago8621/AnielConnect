@@ -1,0 +1,551 @@
+﻿@model Aniel.Connect.Models.T5.Area_CoberturaCadastroModel
+
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_AREA_COBERTURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+@section Variaveis
+{
+    <script>
+        let produto = null;
+        let combo = null;
+    </script>
+
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script>
+
+
+    $(document).ready(function () {
+        AddSelect("iTipo", "@CONSTANTES.URLPortal/api/Tipo_Elemento_RedeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboPlanoProdutoConnectAniel", @CONSTANTES.PaginacaoRegistros, null, null,null, "@RsBase.SELECIONE", false);
+        AddSelect("iCombo", "@CONSTANTES.URLPortal/api/ComboApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null,null, "@RsBase.SELECIONE", false);
+    });
+
+        var rows_selected = [];
+
+        let odatatable_planoprod = null;
+        let odatatable_combo = null;
+
+
+        function Mapa(id)
+        {
+            var _id = "@Html.Raw(Model.Id)";
+            if (_id === "0") {
+                Notificar("@RsBase.ATENCAO_", "Registro Pendente de Cadastro", "warning");
+                return false;
+            }
+            var url = '@Url.Action("MapaCobertura", "Area_Cobertura")' + `?Id=${_id}`;
+            window.location.href = url;
+        }
+
+        var clicked = false;
+      function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        erro = false;
+
+        if (ValidaCamposObrigatorios(erro)) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+        }
+
+
+    function HandleExcluirPlanos() {
+
+        $(".excluiplanoproduto").unbind('click');
+        $(".excluiplanoproduto").click(function (e) {
+            e.preventDefault();
+            var excluir = $(this).attr('excluir');
+            var trLinkButton = $(this).parents('tr');
+
+
+            if (excluir == 0) {
+                odatatable_planoprod.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+            }
+            else {
+                var link = `@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/DeletePlano?Idplano=")${excluir}`;
+
+                $.ajax({
+                    url: link,
+                    type: "GET",
+                    dataType: "json",
+
+                })
+                    .done(function (data) {
+                        if (data.ok) {
+                            odatatable_planoprod.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () { })
+                    .always(function () { });
+            }
+        });
+    }
+    function HandleExcluirCommbo() {
+
+        $(".excluicombo").unbind('click');
+        $(".excluicombo").click(function (e) {
+            e.preventDefault();
+            var excluir = $(this).attr('excluir');
+            var trLinkButton = $(this).parents('tr');
+
+
+            if (excluir == 0) {
+                odatatable_combo.row(trLinkButton).remove().draw(false);
+                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+
+            }
+            else {
+                var link = `@String.Concat(CONSTANTES.URLPortal, "/api/Area_CoberturaApi/DeleteCombo?IdCombo=")${excluir}`;
+
+                $.ajax({
+                    url: link,
+                    type: "GET",
+                    dataType: "json",
+
+                })
+                    .done(function (data) {
+                        if (data.ok) {
+                            odatatable_combo.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    })
+                    .fail(function () { })
+                    .always(function () { });
+            }
+        });
+    }
+
+
+        let array_planoprodutos = @Html.Raw(Json.Encode(Model.Produtos));
+        var nomePlanoproduto = "Produtos";
+        odatatable_planoprod = $("#datatablePlanoProd").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array_planoprodutos,
+            drawCallback: function () {
+                HandleExcluirPlanos();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                //Primeira Coluna
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta )
+                    {
+                        let text = `<a href = "#" id="excluiplanoproduto_${meta.row}__Id" class="excluiplanoproduto"  excluir="${row.Id}">
+                                        <i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i>
+                                    </a>
+                                    <input id="${nomePlanoproduto}_${meta.row}__Id" name="${nomePlanoproduto}[${meta.row}].Id" type="hidden" value="${TrataNulo(data)}">`;
+                        return text;
+                    }
+                },
+                //Segunda Coluna
+                {
+                    data: "Plano_produto",
+                    title: "Cód. Plano/Produto",
+                    render: function (data, type, row, meta) {
+                        return `${data}
+                                <input id="${nomePlanoproduto}_${meta.row}__Plano_produto" name="${nomePlanoproduto}[${meta.row}].Plano_produto" type="hidden" value="${TrataNulo(data)}">`;
+                    }
+                },
+                //Terceira Coluna
+                {
+                    data: "Descricao",
+                    title: "Descricao do Plano/Produto",
+                    render: function (data, type, row, meta)
+                    {
+                        var Data = `${data}
+                                    <input id="${nomePlanoproduto}_${meta.row}__Descricao" name="${nomePlanoproduto}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">
+                                    </input>`;
+                        return Data;
+                    }
+                },
+            ]
+        });
+
+        $("#iProduto").on("select2:select", function (event) {
+
+            produto = event.params.data;
+        });
+
+        $("#IAdicionarProduto").click(function () {
+            // 1. Valida se algo foi selecionado no combo
+            let valorSelecionado = $("#iProduto").val();
+            if (!valorSelecionado) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            // 2. Valida se o item já existe na DataTable
+            let duplicado = false;
+            odatatable_planoprod.rows().data().each(function (row) {
+                // Compara o ID selecionado com o campo 'Plano_produto' da tabela
+                if (row.Plano_produto == valorSelecionado) {
+                    duplicado = true;
+                }
+            });
+
+            if (duplicado) {
+                Notificar("@RsBase.ATENCAO_", "Este Plano/Produto já foi adicionado à lista.", "warning");
+                return; // Interrompe a execução aqui
+            }
+
+            odatatable_planoprod.row.add({
+                    Id: 0,
+                    Descricao: $("#iProduto option:selected").text(),
+                Plano_produto: valorSelecionado,
+            }).draw(false);
+
+            $("#iProduto").val(null).trigger('change');
+        });
+
+
+        let array_combo = @Html.Raw(Json.Encode(Model.Combos));
+        var nomecombo = "Combos";
+        odatatable_combo = $("#datatableCombo").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array_combo,
+            drawCallback: function () {
+                HandleExcluirCommbo();
+            },
+            paging: false,
+            order: [],
+            columns: [
+                //Primeira Coluna
+                {
+                    data: "Id",
+                    title: "",
+                    render: function (data, type, row, meta )
+                    {
+                        let text = `<a href = "#" id="excluicombo_${meta.row}__Id" class="excluicombo"  excluir="${row.Id}">
+                                        <i class="far fa-trash-alt" style="font-size:16px;padding-right:2px;"></i>
+                                    </a>
+                                    <input id="${nomecombo}_${meta.row}__Id" name="${nomecombo}[${meta.row}].Id" type="hidden" value="${TrataNulo(data)}">`;
+                        return text;
+                    }
+                },
+                //Segunda Coluna
+                {
+                    data: "Combo",
+                    title: "Cód.Combo",
+                    render: function (data, type, row, meta) {
+                        return `${data} 
+                                <input id="${nomecombo}_${meta.row}__Combo" name="${nomecombo}[${meta.row}].Combo" type="hidden" value="${TrataNulo(data)}">`;
+                    }
+                },
+                //Terceira Coluna
+                {
+                    data: "Descricao",
+                    title: "Descricao do Combo",
+                    render: function (data, type, row, meta)
+                    {
+                        var Data = `${data} 
+                                    <input id="${nomecombo}_${meta.row}__Descricao" name="${nomecombo}[${meta.row}].Descricao" type="hidden" value="${TrataNulo(data)}">
+                                    </input>`;
+                        return Data;
+                    }
+                },
+            ]
+        });
+
+        $("#iCombo").on("select2:select", function (event) {
+
+            combo = event.params.data;            
+        });
+
+        $("#IAdicionarCombo").click(function () {
+
+            if (!$("#iCombo").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+           
+
+            // 1. Valida se algo foi selecionado no combo
+            let valorSelecionado = $("#iCombo").val();
+            if (!valorSelecionado) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            // 2. Valida se o item já existe na DataTable
+            let duplicado = false;
+            odatatable_combo.rows().data().each(function (row) {
+                // Compara o ID selecionado com o campo 'Plano_produto' da tabela
+                if (row.Combo == valorSelecionado) {
+                    duplicado = true;
+                }
+            });
+
+            if (duplicado) {
+                Notificar("@RsBase.ATENCAO_", "Este Combo já foi adicionado à lista.", "warning");
+                return; // Interrompe a execução aqui
+            }
+
+            odatatable_combo.row.add({
+                    Id: 0,
+                    Descricao: $("#iCombo option:selected").text(),
+                    Combo: $("#iCombo option:selected").val(),
+
+            }).draw(false);
+
+            $("#iCombo").val(null).trigger('change');
+
+        });
+
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="icofont-search-map"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Projeto_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ANIEL_GEOGRAPHY</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Area_Cobertura")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_AREA_COBERTURA</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            @*<span style="font-size:11px" id="dtLegend"></span>*@
+        </div>
+
+    </div>
+
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="cadastro-tab" data-toggle="tab" href="#iTabCadastro" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.CADASTRO</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link " id="planoproduto-tab" data-toggle="tab" href="#iTabPlanoProduto" role="tab" aria-controls="financeiro" aria-selected="false"><i class="fas fa-wifi"></i> @RsCadastros.PLANOS_E_PRODUTOS </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link " id="combo-tab" data-toggle="tab" href="#iTabCombo" role="tab" aria-controls="combo" aria-selected="false"><i class="fas fa-boxes"></i> @RsCadastros.COMBO </a>
+        </li>
+
+    </ul>
+
+</div>
+<!--./main-->
+@using (Html.BeginForm("Cadastro", "Area_Cobertura", FormMethod.Post, new { enctype = "multipart/form-data", @id = "form", autocomplete = "off" }))
+{
+
+
+    <div style="padding:10px">
+        @*Criação das Tabs*@
+        <div class="tab-content">
+            @*Tab de Cadastro*@
+            <div role="tabpanel" class="tab-pane active" id="iTabCadastro">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                <span class="text-bold-card">@RsCadastros.CADASTRO</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iId">@RsCadastros.ID</label>
+                                        @Html.TextBoxFor(model => model.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-1"></div>
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iDescricao">@RsCadastros.DESCRICAO da Área de Cobertura </label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control obrigatorio", id = "iDescricao", autocomplete = "off", @maxlength = "100" })
+                                    </div>
+                                </div>
+
+                                @if (Model.Id != 0)
+                                {
+                                    <div class="col-sm-2">
+                                        <div class="form-group">
+                                            <label for="iStatus">@RsCadastros.STATUS</label>
+                                            @Html.EnumDropDownListFor(model => model.Status, RsBase.SELECIONE, new { @class = "form-control", id = "iStatus", autocomplete = "off" })
+                                        </div>
+                                    </div>
+                                }
+
+
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCor">@RsCadastros.COR da Área de Cobertura:</label>
+                                        @Html.TextBoxFor(model => model.Cor, new { @type = "color", id = "iCor", @class = "form-control", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Cor, "", new { @class = "text-danger" })
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (Model.Id != 0)
+                            {
+                                <div class="row desenhaMapa">
+                                    <div class="col-sm-2">
+                                        <button type="button" class="btn btn-primary" onclick="Mapa()">
+                                            <i class="fas fa-map"></i><span>&ensp;</span>
+                                            <span>@RsCadastros.VISUALIZAR_AREA</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane " id="iTabPlanoProduto">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.PLANOS_PRODUTOS_OFERTADOS</span>
+                            </a>
+                        </h5>
+                    </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iProduto">@RsCadastros.PLANO_PRODUTO:</label>
+                                        @Html.DropDownList("iProduto", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iProduto", @class = "form-control", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" id="IAdicionarProduto" href="#" title="@RsBase.INCLUIR" onclick=" return true;">@RsCadastros.ADICIONAR</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatablePlanoProd" style="width:100%"></table>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div role="tabpanel" class="tab-pane " id="iTabCombo">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-2">
+                        <h5 class="mb-0">
+                            <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                <span class="text-bold-card">@RsCadastros.COMBOS_OFERTADOS</span>
+                            </a>
+                        </h5>
+        </div>
+                    <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                        <div class="card-body body-card-accord">
+
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iCombo">@RsCadastros.COMBO:</label>
+                                        @Html.DropDownList("iCombo", new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @id = "iCombo", @class = "form-control", @autocomplete = "off" })
+    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <a class="btn btn-success" id="IAdicionarCombo" href="#" title="@RsBase.INCLUIR" onclick=" return true;">@RsCadastros.ADICIONAR</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table class="table table-hover nowrap" id="datatableCombo" style="width:100%"></table>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+}
+@*Button-Float*@
+<a href="@Url.Action("Index", "Area_Cobertura")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+    <div class="text-btn-float-cancel" data - toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+
+

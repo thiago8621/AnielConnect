@@ -1,0 +1,24 @@
+﻿namespace Aniel.Connect.API_Aniel.Models
+{
+    public class Caixa_FTTH_IXC
+    {
+        public string codigo_estilo_caixa { get; set; }
+        public string id { get; set; }
+        public string status { get; set; }
+        public string id_transmissor { get; set; }
+        public string id_interface { get; set; }
+        public string descricao { get; set; }
+        public string id_projeto { get; set; }
+        public string id_tecnologia { get; set; }
+        public string capacidade { get; set; }
+        public string latitude { get; set; }
+        public string longitude { get; set; }
+        public string obs_caixa_ftth { get; set; }
+        public string cep { get; set; }
+        public string endereco { get; set; }
+        public string numero { get; set; }
+        public string bairro { get; set; }
+        public string id_cidade { get; set; }
+        public string ultima_atualizacao { get; set; }
+    }
+}

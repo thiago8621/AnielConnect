@@ -1,0 +1,1447 @@
+﻿@model Aniel.Connect.Models.Workflow_VendasCadastroModel
+
+
+
+@using Aniel.Connect.Core.Helpers;
+@using Aniel.Connect.Model.enumerado;
+@using System.Text;
+@using Aniel.Connect.Models.T5;
+@using Aniel.Connect.Models;
+@using Aniel.Connect.ControllersWebApi;
+@using Microsoft.AspNet.Identity;
+@using System.Threading.Tasks;
+@using System.Web.Http;
+@using Aniel.Connect.Models
+
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_WORKFLOW_VENDAS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <style>
+        #datatable {
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+    </style>
+
+
+    @if (Model.Id == 0)
+    {
+        <text>
+            <script>
+                $("#iStatus").prop("checked", true).change();
+                $("#divStatus").addClass('d-none');
+
+            </script>
+        </text>
+    }
+
+
+
+
+<script>
+    /*Mostrar proxima atividade*/
+   document.getElementById("idAtividade_decisoria").onchange = function () { exibirProxAtividade() };
+   function exibirProxAtividade() {
+        var ativDecisoria = document.getElementById("idAtividade_decisoria").value
+        if (ativDecisoria == 1) {
+            var iproNao = document.getElementById("iProximaAtividade");
+            iproNao.classList.remove("d-none")
+        } else {
+            var iproSim = document.getElementById("iProximaAtividade");
+            iproSim.classList.add("d-none")
+            $("#iProxAtivAprov").val(0);
+            $("#iProxAtivReprov").val(0);
+        }
+    }
+    /*FIM*/
+
+
+    $('[data-toggle="popover"]').popover();
+    /*Mostrar Horário atendimento*/
+    document.getElementById("iTHoras_ativ").onchange = function () { exibirHorarioAtendimento() };
+    function exibirHorarioAtendimento() {
+        var tipoHoras = document.getElementById("iTHoras_ativ").value
+        if (tipoHoras == 1) {
+            var x = document.getElementById("iHoraDiv");
+            x.classList.remove("d-none")
+        } else {
+            var x = document.getElementById("iHoraDiv");
+            x.classList.add("d-none")
+        }
+    }
+    /*FIM*/
+
+    /*Conversao campo horas*/
+
+    const converter = (minutos) => {
+        const horas = Math.floor(minutos / 60);
+        const min = minutos % 60;
+
+        if (minutos < 60) {
+            const textoHoras = (`00${horas}`).slice(-5).replace(/\b0+/g, "00");
+            const textoMinutos = (`00${min}`).slice(-2);
+            return `${textoHoras}:${textoMinutos}`;
+        } else {
+            const textoHoras = (`00${horas}`).slice(-5).replace(/\b0+/g, "");
+            const textoMinutos = (`00${min}`).slice(-2);
+            return `${textoHoras}:${textoMinutos}`;
+        }
+    };
+
+    $('#iPrazo_HorasView').val(converter($('#iPrazo_Horas').val()));
+
+    /*FIM*/
+
+        function reiniciarToggle() {
+            $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle('destroy');
+                $("input[type='checkbox'][data-toggle='toggle']").bootstrapToggle();
+            });
+        }
+
+        reiniciarToggle();
+
+     var array = @Html.Raw(Json.Encode(Model.Id));
+    @*reloadData("@(CONSTANTES.URLPortal + "/api/workflow_vendasapi/busca")", "", "");*@
+    var ufs = @(Html.GetArrayEnum<UF>());
+
+    async function mudancaUF()  {
+
+            var estado = $('#iUF' + ' option:selected').text();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+            $('#iCidade').empty();
+
+        await $.getJSON(enderecoApi, function (data) {
+                $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+                    $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+
+            });
+
+            /*$("#iCidade").trigger("change");*/
+        }
+
+
+    $('#iUF').change(function () { mudancaUF() });
+
+        let DepartamentoSelecionado = "";
+        const handleDepartamento = function () {
+        $('#iSetorDepartamento').on('select2:select select2:unselecting',async function (e) {
+            DepartamentoSelecionado = e.params.data;
+
+            if (DepartamentoSelecionado === undefined || DepartamentoSelecionado == "") {
+                await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, handleDepartamento);
+            } else {
+                await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, null, "@RsBase.SELECIONE", false, handleDepartamento);
+
+            }
+            });
+        }
+        let DepartamentoMSelecionado = "";
+        const handleDepartamentoM = function () {
+
+            $('#iSetorDepartamentoM').on('select2:select select2:unselecting',async function (e) {
+                DepartamentoMSelecionado = e.params.data;
+
+                if (DepartamentoMSelecionado === undefined || DepartamentoMSelecionado == "") {
+                await AddSelect("iResponsavelM", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, handleDepartamentoM);
+            } else {
+                    await AddSelect("iResponsavelM", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, DepartamentoMSelecionado.id, null, "@RsBase.SELECIONE", false, handleDepartamentoM);
+
+            }
+            });
+        }
+
+
+    let ResponsavelSelecionado = "";
+    const handleResponsavel = function () {
+        $('#iResponsavel').on('select2:select select2:unselecting', function (e) {
+            ResponsavelSelecionado = e.params.data;
+        });
+    }
+
+
+
+    $(document).ready(async function () {
+
+
+        $('#iDefinir_Responsavel').trigger('change');
+        $('#iDefinir_ResponsavelM').trigger('change');
+
+
+        await AddSelectSemPag('iStatusVenda', '@CONSTANTES.URLPortal/api/Atividade_StatusVendaApi/GetCombo', null, null, null, '@RsBase.SELECIONE', false, HandleModeloPainel, "@User.Identity.GetUserId()");
+        await AddSelect("idCategoria_ClienteD", "@CONSTANTES.URLPortal/api/workflow_vendasapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Atividades", "@RsBase.SELECIONE", false);
+        AddSelect("idCategoria_Cliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Categoria", "@RsBase.TODOS", false);
+        AddSelect("idMeio_Captacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Captacao", "@RsBase.TODOS", false);
+        AddSelect("iHoraAtendimento", "@CONSTANTES.URLPortal/api/Horarioapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Horario_Atendimento", "@RsBase.SELECIONE", false);
+        AddSelect("iSetorDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Horario_Atendimento", "@RsBase.SELECIONE", false, handleDepartamento);
+        AddSelect("iSetorDepartamentoM", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Horario_Atendimento", "@RsBase.SELECIONE", false, handleDepartamentoM);
+
+        await AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        await AddSelect("iResponsavelM", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+
+
+        if (!$('#iStatusVenda').val()) {
+            /*TableManageButtons.init();*/
+        }
+
+        await mudancaUF();
+        $('#iCidade').val("@Model.Cidade")
+
+    });
+
+    $('#iDefinir_Responsavel').change(function () {
+        if ($(this).is(':checked')) {
+            $('#Idefinir').show();
+        } else {
+            $('#Idefinir').hide();
+
+            // limpa setor
+            $('#iSetorDepartamento').val(null).trigger('change');
+
+            // limpa responsável
+            $('#iResponsavel').val(null).trigger('change');
+        }
+    });
+
+    $('#iDefinir_ResponsavelM').change(function () {
+        if ($(this).is(':checked')) {
+            $('#IdefinirM').show();
+        } else {
+            $('#IdefinirM').hide();
+
+            // limpa setor
+            $('#iSetorDepartamentoM').val(null).trigger('change');
+
+            // limpa responsável
+            $('#iResponsavelM').val(null).trigger('change');
+        }
+    });
+
+    $('#iDefinir_ResponsavelM').change(function () {
+        if ($("#iDefinir_ResponsavelM").is(':checked')) {
+            $('#IdefinirM').show()
+        }
+        else {
+            $('#IdefinirM').hide()
+
+        }
+    });
+
+
+    var HandleModeloPainel = function () {
+
+        $('#iStatusVenda').unbind('select2:select select2:unselecting');
+        $('#iStatusVenda').on('select2:select select2:unselecting', function (e) {
+            let ModeloSelecionado = e.params.data;
+            $('#iAtivStatusPadrao').val(e.params.data.statusFixo);
+            $('#iIdStatusPadrao').val(e.params.data.idStatusPadrao);
+
+
+        });
+    };
+
+    $("#iStatus_ativ").prop("checked", true).change();
+
+    /*Validar Atividades*/
+    function validarAtividades() {
+
+        if (!$("#iDescricao_ativ").val()) {
+            Notificar("@RsBase.ATENCAO_", "@RsCadastros.DESCRICAO @RsBase.INVALIDO", "warning");
+        }
+        else {
+
+            if (!$("#iStatusVenda").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsCadastros.STATUS_VENDA @RsBase.INVALIDO", "warning");
+            } else {
+
+                var dados = oDatatable.data().toArray().map(p => p.Id)
+                let a = parseInt($('#iProxAtivAprov').val());
+                let r = parseInt($('#iProxAtivReprov').val());
+                let definirResponsavel = $('#iDefinir_Responsavel').is(":checked");
+                let setor = $('#iSetorDepartamento').val();
+                var aprovada = dados.includes(a);
+                var reprovada = dados.includes(r);
+                var ativDecisoria = document.getElementById("idAtividade_decisoria").value
+
+                if (definirResponsavel && (!setor || setor == "" || setor == "0")) {
+                    Notificar("@RsBase.ATENCAO_", "Informe o setor/departamento", "warning");
+                    return;
+                }
+                if (ativDecisoria == 1) {
+                    if (a && r != 0) {
+                        if (aprovada && reprovada == true) {
+                            AdicionaAtividade()
+
+                        } else {
+                            if (aprovada == false) {
+                                Notificar("@RsCadastros.N_PROXIMA_ATIVIDADE_APROVADA", "@RsBase.VALOR_ATIVIDADE", "info")
+                                if (reprovada == false) {
+                                    Notificar("@RsCadastros.N_PROXIMA_ATIVIDADE_REPROVADA", "@RsBase.VALOR_ATIVIDADE", "info")
+                                }
+
+                            } else {
+                                Notificar("@RsCadastros.N_PROXIMA_ATIVIDADE_REPROVADA", "@RsBase.VALOR_ATIVIDADE", "info")
+                            }
+
+
+                        }
+                    }
+                    // aprovada/reprovada valida ZERO
+                    else {
+                        Notificar("@RsBase.ERRO", "@RsBase.ERRO_NUMERO_ATIVIDADE", "info")
+                    }
+
+                }
+
+                // ativDecisoria
+                else {
+                    AdicionaAtividade();
+
+                }
+            }
+        }
+}
+    /*FIM*/
+
+
+    function AdicionaAtividade() {
+
+        let descricaoAtividade = $("#iDescricao_ativ").val();
+        let prazoAtividade = $("#iPrazo_Dias_ativ").val();
+        let numeroProxAtividadeAprovada = $("#iProxAtivAprov").val();
+        let numeroProxAtividadeReprovada = $("#iProxAtivReprov").val();
+        let agendarAtividade = $("#iAgendaTarefa").val();
+
+        let statusVenda = $("#iStatusVenda").val();
+        let statusVendaDesc = $("#iStatusVenda option:selected").text();
+
+        let statusAtividade = $("#iStatus_ativ").is(":checked");
+        let statusAtividadeDesc = $("#iStatus_ativ").is(":checked") ? "@RsCadastros.ATIVO" : "@RsCadastros.INATIVO";
+
+        let statusPadrao = $('#iAtivStatusPadrao').val();
+        let IdstatusPadrao = $('#iIdStatusPadrao').val();
+
+        let IdsetorResponsavel = $('#iSetorDepartamento').val();
+        let setorResponsavelDesc = $("#iSetorDepartamento option:selected").text();
+        let definir_Responsavel= $('#iDefinir_Responsavel').is(":checked");
+
+        let Idresponsavel = $('#iResponsavel').val();
+        let responsavelDesc = $("#iResponsavel option:selected").text();
+
+
+        let atividadeDecisoria = $("#idAtividade_decisoria").val();
+        let atividadeDecisoriaDesc = $("#idAtividade_decisoria option:selected").text();
+
+        let tipoAtividadeDecisoria = $("#idTipo_Atividade_decisoria").val();
+        let tipoAtividadeDecisoriaDesc = $("#idTipo_Atividade_decisoria option:selected").text();
+
+
+        let tipoDias = $("#iTHoras_ativ").val();
+        let tipoDiasDesc = $("#iTHoras_ativ option:selected").text();
+
+        //var horaAtendimento = 0;
+        //var horaAtendimento_Desc = "";
+
+         if (horaAtendimento == null) {
+            var horaAtendimento = tipoDias;
+            var horaAtendimento_Desc = tipoDiasDesc;
+        } else {
+            horaAtendimento = $("#iHoraAtendimento").val();
+            horaAtendimento_Desc = $("#iHoraAtendimento option:selected").text();
+        }
+
+        oDatatable.row.add({
+            Id: 0,
+
+            StatusPadrao: statusPadrao,
+            Id_Status_Padrao: IdstatusPadrao,
+            Ativ_Descricao: descricaoAtividade,
+            Ativ_Prazo: prazoAtividade,
+
+            Definir_Responsavel: definir_Responsavel,
+            Setor_Departamento: IdsetorResponsavel,
+            Setor_Departamento_Desc: setorResponsavelDesc,
+            Responsavel: Idresponsavel,
+            Responsavel_Desc: responsavelDesc,
+
+
+            Ativ_Tipodias: tipoDias,
+            Ativ_Tipodias_Desc: tipoDiasDesc,
+
+            Ativ_StatusVenda: statusVenda,
+            Ativ_StatusVenda_Desc: statusVendaDesc,
+
+
+            Ativ_Status: statusAtividade,
+            Ativ_Status_Desc: statusAtividadeDesc,
+
+            Ativ_Decisao: atividadeDecisoria,
+            Ativ_Decisao_Desc: atividadeDecisoriaDesc,
+
+            Ativ_TipoDecisao: tipoAtividadeDecisoria,
+            Ativ_TipoDecisao_Desc: tipoAtividadeDecisoriaDesc,
+
+            Horario_Atendimento: horaAtendimento,
+            Horario_Atendimento_Desc: horaAtendimento_Desc,
+
+            Ativ_NAtivAprovada: numeroProxAtividadeAprovada,
+
+            Ativ_NAtivReprovada: numeroProxAtividadeReprovada,
+
+            Ativ_AgendaTarefa: agendarAtividade,
+
+        }).draw(false);
+        $("#iDescricao_ativ").val(" ");
+        $("#iStatusVenda").empty();
+        $("#idAtividade_decisoria").val(0);
+        $("#iPrazo_Dias_ativ").val("000:00");
+        $("#iTHoras_ativ").val(0);
+        $("#iProxAtivAprov").val(0);
+        $("#iProxAtivReprov").val(0);
+        $("#iHoraAtendimento").empty();
+
+    }
+
+    //"Blfrtip"
+    let arrayAtividades = @Html.Raw(Json.Encode(Model.Atividades));
+    var nome_lista = "Atividades";
+    var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+        dom: "Bfrti",
+        language: traducaoDataTableSimples,
+        data: arrayAtividades,
+        drawCallback: function () { handleExcluir() },
+        paging: false,   
+        columns: [
+            {
+                data: "Id",
+                title: "@RsCadastros.ID_WORKFLOW_VENDAS_ATIVIDADES",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_Descricao",
+                title: "@RsCadastros.ATIVIDADE",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Descricao" name="' + nome_lista + '[' + meta.row + '].Ativ_Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_Prazo",
+                title: "@RsCadastros.PRAZO_HORAS",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Prazo" name="' + nome_lista + '[' + meta.row + '].Ativ_Prazo" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_Tipodias_Desc",
+                title: "@RsCadastros.TIPO_HORA",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Tipodias_Desc" name="' + nome_lista + '[' + meta.row + '].Ativ_Tipodias_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Tipodias" name="' + nome_lista + '[' + meta.row + '].Ativ_Tipodias" type="hidden" value="' + TrataNulo(row.Ativ_Tipodias) + '">';
+                    }
+
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_Decisao_Desc",
+                title: "@RsCadastros.ATIVIDADE_DECISORIA",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Decisao_Desc" name="' + nome_lista + '[' + meta.row + '].Ativ_Decisao_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Decisao" name="' + nome_lista + '[' + meta.row + '].Ativ_Decisao" type="hidden" value="' + TrataNulo(row.Ativ_Decisao) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Horario_Atendimento_Desc",
+                title: "@RsCadastros.HORARIO_ATENDIMENTO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Horario_Atendimento_Desc" name="' + nome_lista + '[' + meta.row + '].Horario_Atendimento_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Horario_Atendimento" name="' + nome_lista + '[' + meta.row + '].Horario_Atendimento" type="hidden" value="' + TrataNulo(row.Horario_Atendimento) + '">';
+                    }
+                    return data;
+                }
+            },
+             {
+                 data: "StatusPadrao",
+                 title: "@RsCadastros.STATUS_PADRAO",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__StatusPadrao" name="' + nome_lista + '[' + meta.row + '].StatusPadrao" type="hidden" value="' + TrataNulo(row.StatusPadrao) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id_Status_Padrao" name="' + nome_lista + '[' + meta.row + '].Id_Status_Padrao" type="hidden" value="' + TrataNulo(row.Id_Status_Padrao) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_StatusVenda_Desc",
+                title: "@RsCadastros.STATUS_VENDA",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_StatusVenda_Desc" name="' + nome_lista + '[' + meta.row + '].Ativ_StatusVenda_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_StatusVenda" name="' + nome_lista + '[' + meta.row + '].Ativ_StatusVenda" type="hidden" value="' + TrataNulo(row.Ativ_StatusVenda) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_NAtivAprovada",
+                title: "@RsCadastros.N_PROXIMA_ATIVIDADE_APROVADA",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_NAtivAprovada" name="' + nome_lista + '[' + meta.row + '].Ativ_NAtivAprovada" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                    return data;
+                }
+            },
+            {
+                data: "Ativ_NAtivReprovada",
+                title: "@RsCadastros.N_PROXIMA_ATIVIDADE_REPROVADA",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_NAtivReprovada" name="' + nome_lista + '[' + meta.row + '].Ativ_NAtivReprovada" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                    return data;
+                }
+            },
+              {
+            data: "Definir_Responsavel",
+               title: "Definir setor responsável nesta atividade?",
+              render: function (data, type, row, meta) {
+                  if (type === 'display') {
+                      data = (data? "@RsBase.SIM" :"@RsBase.NAO" ) + ' <input id="' + nome_lista + '_' + meta.row + '__Definir_Responsavel" name="' + nome_lista + '[' + meta.row + '].Definir_Responsavel" type="hidden" value="' + TrataNulo(data) + '">' +
+                          ' <input id="' + nome_lista + '_' + meta.row + '__Definir_Responsavel" name="' + nome_lista + '[' + meta.row + '].Definir_Responsavel" type="hidden" value="' + TrataNulo(row.Definir_Responsavel) + '">';
+
+
+                  }
+                  return data;
+              }
+          },
+
+         {
+             data: "Setor_Departamento_Desc",
+             title: "@RsCadastros.SETOR_RESPONSAVEL",
+            render: function (data, type, row, meta) {
+                if (type === 'display') {
+                    data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Setor_Departamento_Desc" name="' + nome_lista + '[' + meta.row + '].Setor_Departamento_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                        ' <input id="' + nome_lista + '_' + meta.row + '__Setor_Departamento" name="' + nome_lista + '[' + meta.row + '].Setor_Departamento" type="hidden" value="' + TrataNulo(row.Setor_Departamento) + '">';
+
+
+                }
+                return data;
+            }
+        },
+         {
+             data: "Responsavel_Desc",
+             title: "@RsCadastros.RESPONSAVEL",
+            render: function (data, type, row, meta) {
+                if (type === 'display') {
+                    data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Responsavel_Desc" name="' + nome_lista + '[' + meta.row + '].Responsavel_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                        ' <input id="' + nome_lista + '_' + meta.row + '__Responsavel" name="' + nome_lista + '[' + meta.row + '].Responsavel" type="hidden" value="' + TrataNulo(row.Responsavel) + '">';
+
+
+                }
+                return data;
+            }
+        },
+
+             {
+                 data: "Ativ_Status_Desc",
+                 title: "@RsCadastros.STATUS",
+                render: function (data, type, row, meta) {
+                    if (type === 'display') {
+                        data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Status_Desc" name="' + nome_lista + '[' + meta.row + '].Ativ_Status_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Ativ_Status" name="' + nome_lista + '[' + meta.row + '].Ativ_Status" type="hidden" value="' + TrataNulo(row.Ativ_Status) + '">';
+
+
+                    }
+                    return data;
+                }
+            },
+
+              {
+                  data: "BTN Excluir/Editar",
+                  title: "@RsCadastros.ACOES",
+                  render: function (data, type, row, meta) {
+                      var retorno = "";
+                      retorno += '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir=' + row.Id + '><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                      if (row.Id != 0) {
+                          retorno += '<a href="#" data-toggle="modal"  class="btnEditar ml-2" id="btnEditar_' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+                      }
+                      retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(row.Id) + '">';
+                      retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Senha" name="' + nome_lista + '[' + meta.row + '].Senha" type="hidden" value="' + TrataNulo(row.Senha) + '">';
+                      return retorno;
+                }
+            },
+
+
+        ]
+    });
+
+    function handleExcluir() {
+        console.log("Função ativada")
+        $(".btnExcluir").unbind('click');
+        /*$(".btnExcluir").one('click', async function (e)*/
+        $(".btnExcluir").click(async function (e)
+        {
+            /*$(this).prop('disabled', true);*/
+             e.preventDefault();
+
+             var idArquivo = $(this).attr("excluir");
+
+             var trLinkButton = $(this).parents('tr');
+
+             if (idArquivo === "0") {
+                 oDatatable.row(trLinkButton).remove().draw(false);
+                 Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+             }
+              else {
+
+                 var link = '@String.Concat(CONSTANTES.URLPortal, "/api/workflow_vendasapi/ExcluirGrid?value=")' + idArquivo;
+
+                 await $.ajax({
+                     url: link,
+                     type: 'GET',
+                     dataType: 'json',
+
+                 })
+                     .done(function (data) {
+
+                         if (data.ok) {
+                             oDatatable.row(trLinkButton).remove().draw(false);
+                             Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                             //qtderegistros -= 1;
+                         }
+                         else {
+                             Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                             /*$(this).prop('disabled', false);*/
+                         }
+                     })
+                     .fail(function () {
+                         /*$(this).prop('disabled', false);*/
+
+                     })
+                     .always(function () {
+
+                     });
+             }
+
+
+         });
+
+            }
+
+            handleExcluir();
+
+    //Lógica modal
+
+
+    $('#iEditarAtividades').click(async function () {
+
+         let definirResponsavel = $('#iDefinir_ResponsavelM').is(":checked");
+         let setor = $('#iSetorDepartamentoM').val();
+
+         if (definirResponsavel && (!setor || setor === "" || setor === "0")) {
+             Notificar("@RsBase.ATENCAO_", "Informe o setor/departamento", "warning");
+             return;
+         }
+
+
+        ShowPageLoading();
+
+        const result = await $.ajax({
+            url: '@String.Concat(CONSTANTES.URLPortal, "/api/workflow_vendasapi/EditarAtividades")',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                Id: $('#idConta').val(),
+                Ativ_Descricao: $('#iDescricao_ativM').val(),
+                Ativ_Prazo: $('#iPrazo_Horas_ativM').val(),
+                Ativ_Tipodias: $('#iTipo_Horas_ativM').val(),
+                Ativ_Decisao: $('#idAtividade_decisoriaM').val(),
+                Setor_Departamento: $('#iSetorDepartamentoM').val(),
+                Responsavel: $('#iResponsavelM').val(),
+
+                Horario_Atendimento: $('#iHoraAtendimentoM').val(),
+                /*Ativ_TipoDecisao: $('#idTipo_Atividade_decisoriaM').val(),*/
+                Ativ_StatusVenda: $('#iModal_Status_Venda').val(),
+                Ativ_NAtivAprovada: $('#iProxAtivAprovM').val(),
+                Ativ_NAtivReprovada: $('#iProxAtivReprovM').val(),
+                Ativ_Status: $('#iStatus_ativM').is(":checked"),
+                Definir_Responsavel: $('#iDefinir_ResponsavelM').is(":checked"),
+
+            }
+        })
+
+        HidePageLoading();
+
+        if (!result.ok) {
+            Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+        }
+        else {
+            $('#modal-editar-atividade').modal('hide')
+            let updatedData = oDatatable.rows().data().toArray()
+            let atualizar = updatedData.filter(p => p.Id == $('#idConta').val())[0]
+
+            atualizar.Ativ_Descricao = $('#iDescricao_ativM').val();
+            atualizar.Ativ_Prazo = $('#iPrazo_Horas_ativM').val();
+
+            atualizar.Ativ_Tipodias = $('#iTipo_Horas_ativM').val();
+            atualizar.Ativ_Tipodias_Desc = $('#iTipo_Horas_ativM option:selected').text();
+
+            atualizar.Horario_Atendimento = $('#iHoraAtendimentoM').val();
+            atualizar.Horario_Atendimento_Desc = $('#iHoraAtendimentoM option:selected').text();
+
+            atualizar.Ativ_Decisao = $('#idAtividade_decisoriaM').val();
+            atualizar.Ativ_Decisao_Desc = $('#idAtividade_decisoriaM option:selected').text();
+
+            atualizar.Ativ_StatusVenda = $('#iModal_Status_Venda').val();
+            atualizar.Ativ_StatusVenda_Desc = $('#iModal_Status_Venda option:selected').text();
+
+            atualizar.Ativ_NAtivAprovada = $('#iProxAtivAprovM').val();
+            atualizar.Ativ_NAtivReprovada = $('#iProxAtivReprovM').val();
+
+            atualizar.Ativ_Status = $('#iStatus_ativM').prop('checked');
+            atualizar.Ativ_Status_Desc = $('#iStatus_ativM').prop('checked') ? "@RsCadastros.ATIVO" : "@RsCadastros.INATIVO";
+
+            atualizar.Definir_Responsavel = $('#iDefinir_ResponsavelM').prop('checked') ;
+
+            atualizar.Setor_Departamento = $('#iSetorDepartamentoM').val();
+            atualizar.Setor_Departamento_Desc = $('#iSetorDepartamentoM option:selected').text();
+
+            atualizar.Responsavel = $('#iResponsavelM').val();
+            atualizar.Responsavel_Desc = $('#iResponsavelM option:selected').text();
+
+
+            $('#datatable').dataTable().fnClearTable();
+            $('#datatable').dataTable().fnAddData(updatedData);
+        }
+
+    });
+
+    $('#datatable tbody').on('click', '.btnEditar', async function (e) {
+
+        $('#modal-editar-atividade').modal('show');
+        var $row = $(this).closest('tr');
+
+        const data_row = oDatatable.row($row).data();
+
+        $('#iDescricao_ativM').val(data_row.Ativ_Descricao);
+        $('#iPrazo_Horas_ativM').val(data_row.Ativ_Prazo);
+        $('#iTipo_Horas_ativM').val(data_row.Ativ_Tipodias);
+        $('#idAtividade_decisoriaM').val(data_row.Ativ_Decisao);
+        $('#idTipo_Atividade_decisoriaM').val(data_row.Ativ_TipoDecisao);
+        $('#iProxAtivAprovM').val(data_row.Ativ_NAtivAprovada);
+        $('#idConta').val(data_row.Id);
+        $('#iProxAtivReprovM').val(data_row.Ativ_NAtivReprovada);
+        $('#iHoraAtendimentoM').val(data_row.Horario_Atendimento_Desc);
+        AddSelect("iSetorDepartamentoM", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.Setor_Departamento, "@RsBase.SELECIONE", false, handleDepartamentoM);
+        AddSelect("iResponsavelM", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetComboUserId", @CONSTANTES.PaginacaoRegistros, null, null, data_row.Responsavel, "@RsBase.SELECIONE", true);
+        $('#iModal_Status_Venda').val(data_row.Ativ_StatusVenda);
+        var dados = oDatatable.data().toArray().map(p => p.Id)
+
+
+        /*MODAL Mostrar proxima atividade*/
+        var ativDecisoriaM = document.getElementById("idAtividade_decisoriaM").value
+        var proxAtiv = document.getElementById("iProximaAtividadeM");
+        if (ativDecisoriaM == 1) {
+            proxAtiv.classList.remove("d-none")
+        }
+        else {
+            proxAtiv.classList.add("d-none")
+
+            $("#iProxAtivAprovM").val(0);
+            $("#iProxAtivReprovM").val(0);
+        }
+
+
+
+        document.getElementById("idAtividade_decisoriaM").onchange = function () { exibirProxAtividade() };
+        function exibirProxAtividade() {
+            var ativDecisoria = document.getElementById("idAtividade_decisoriaM").value
+            if (ativDecisoria == 1) {
+                var proxAtivRemove = document.getElementById("iProximaAtividadeM");
+                proxAtivRemove.classList.remove("d-none")
+            }
+            else {
+                var proxAtivAdd = document.getElementById("iProximaAtividadeM");
+                proxAtivAdd.classList.add("d-none");
+
+                $("#iProxAtivAprovM").val(0);
+                $("#iProxAtivReprovM").val(0);
+            }
+        }
+
+        /*FIM*/
+
+        /*Mostrar Horário atendimento MODAL*/
+        var tipoHorasM = document.getElementById("iTipo_Horas_ativM").value
+        var horaDivM = document.getElementById("iHoraDivM");
+        if (tipoHorasM == 1) {
+            horaDivM.classList.remove("d-none")
+        } else {
+            horaDivM.classList.add("d-none")
+        }
+        document.getElementById("iTipo_Horas_ativM").onchange = function () { exibirHorarioAtendimento() };
+            function exibirHorarioAtendimento() {
+                var tipoHoras = document.getElementById("iTipo_Horas_ativM").value
+                if (tipoHoras == 1) {
+                    var horaDivMy = document.getElementById("iHoraDivM");
+                    horaDivMy.classList.remove("d-none")
+                } else {
+                    var horaDivMz = document.getElementById("iHoraDivM");
+                    horaDivMz.classList.add("d-none")
+                }
+            }
+
+    /*FIM*/
+
+        if (data_row.Ativ_Status == true)
+            $("#iStatus_ativM").bootstrapToggle('on');
+        else
+            $("#iStatus_ativM").bootstrapToggle('off');
+
+        if (data_row.Definir_Responsavel == true)
+            $("#iDefinir_ResponsavelM").bootstrapToggle('on');
+        else
+            $("#iDefinir_ResponsavelM").bootstrapToggle('off');
+
+
+        AddSelect("iHoraAtendimentoM", "@CONSTANTES.URLPortal/api/Horarioapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.Horario_Atendimento, "@RsBase.SELECIONE", false);
+        @*AddSelect("iStatusVendaM", "@CONSTANTES.URLPortal/api/Atividade_StatusVendaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, data_row.Ativ_StatusVenda, "@RsBase.TODOS", false);*@
+
+        await AddSelectSemPag('iModal_Status_Venda', '@CONSTANTES.URLPortal/api/Atividade_StatusVendaApi/GetCombo', null, null, data_row.Ativ_StatusVenda,'@RsBase.SELECIONE', false, HandleModeloPainel, "@User.Identity.GetUserId()");
+
+
+
+        reiniciarToggle();
+    });
+
+    /*Fim Modal*/
+
+    /*LISTA STATUS*/
+
+
+
+
+    /*FIM LISTA STATUS*/
+
+
+
+    /*Validação*/
+    var clicked = false;
+
+    function ValidaSubmit()
+    {
+
+        var erro = false;
+
+        if (clicked) {
+            return false;
+        }
+
+
+        if (!$("#iDescricao").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.NUMERO)", "warning");
+            erro = true;
+        }
+
+        if (oDatatable.data().toArray().length == 0)
+        {
+            Notificar("@RsBase.ATENCAO_", "Informe pelo menos uma atividade", "warning");
+            erro = true;
+        }
+
+
+        clicked = true;
+
+
+	    if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+	    return true;
+        }
+
+
+</script>
+
+}
+
+
+@using (Html.BeginForm("Cadastro", "Workflow_Vendas", FormMethod.Post, htmlAttributes: new { enctype = "multipart/form-data", @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+
+                <div class="row">
+                    <div class="col main-title">
+
+                        <h4 class="title-page">
+                            <i class="fas fa-headset"></i> @ViewBag.Title
+                        </h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Workflow_Vendas" )" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_WORKFLOW_VENDAS</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+
+                    </div>
+                </div>
+
+                <!--Nav Tab-->
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="parametrosworkflow-tab" data-toggle="tab" href="#iTabParametrosWorkflow" role="tab" aria-controls="iTabParametrosWorkflow" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.PARAMETROS_WORKFLOW</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="atividadesworkflow-tab" data-toggle="tab" href="#iTabAtividadeWorkflow" role="tab" aria-controls="iTabAtividadeWorkflow" aria-selected="false"><i class="far fa-file-alt"></i> @RsCadastros.ATIVIDADE_WORKFLOW</a>
+                    </li>
+
+                </ul>
+                <!--Content Parametros do Workflow-->
+                <div class="tab-content" id="myTabContent">
+                    <div class="tab-pane fade show active" role="tabpanel" id="iTabParametrosWorkflow" aria-labelledby="parametrosworkflow-tab">
+
+
+                        <div id="accordion">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-1">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                            <span class="text-bold-card">@RsCadastros.PARAMETROS_WORKFLOW</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="row">
+
+                                            @*DESCRICAO_WORKFLOW*@
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <label for="iDescricao">@RsCadastros.DESCRICAO_WORKFLOW:</label>
+                                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            @*TIPO DE PESSOA*@
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <label for="iTPessoa">@RsCadastros.TIPOPESSOA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.TipoPessoa, @RsBase.TODOS, new { @class = "form-control", @id = "iTPessoa", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.TipoPessoa, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            @*CATEGORIA DO CLIENTE*@
+
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <label for="idCategoria_Cliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                                    @Html.DropDownListFor(m => m.Categoria, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idCategoria_Cliente", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Categoria, "", new { @class = "text-danger" })
+                                                </div>
+
+                                            </div>
+
+
+                                            @*MEIO DE CAPTACAO*@
+
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <label for="idMeio_Captacao">@RsCadastros.MEIO_CAPTACAO:</label>
+                                                    @Html.DropDownListFor(m => m.Captacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "idMeio_Captacao", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+
+                                            @*STATUS*@
+                                            <div class="col text-center mr-4" id="divStatus">
+                                                <div class="form-group">
+                                                    <label for="iStatus" style="padding-right: 0;">@RsCadastros.STATUS:</label><br>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <br>
+
+
+                                        @*ESTADO*@
+                                        <div class="row mr-2">
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iUF">@RsCadastros.UF:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Uf, RsBase.TODOS, new { @class = "form-control", @id = "iUF", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Uf, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            @*CIDADE*@
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="iCidade">@RsCadastros.CIDADE:</label>
+
+                                                    @Html.DropDownListFor(m => m.Cidade, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCidade", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Cidade, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            @*PRAZO EM DIAS*@
+                                            <div class="col-sm-1">
+                                                <div class="form-group">
+                                                    <label for="iPrazo_HorasView">@RsCadastros.PRAZO_HORAS:</label>
+                                                    <input type="text" disabled="true" class="form-control" id="iPrazo_HorasView">
+
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <div class="form-group d-none">
+                                                    <label for="iPrazo_Horas">@RsCadastros.PRAZO_MINUTOS:</label>
+                                                    @Html.TextBoxFor(model => model.Prazo, new { @class = "form-control", @id = "iPrazo_Horas", @autocomplete = "off", @disabled = "true" })
+                                                    @Html.ValidationMessageFor(model => model.Prazo, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            @*ID PARAMETROS*@
+                                            <div class="col-sm-1 text-left">
+                                                <div class="form-group d-none">
+                                                    <label for="iId">@RsCadastros.ID_WORKFLOW:</label>
+
+                                                    @Html.TextBoxFor(m => m.Id, new { @class = "form-control", @id = "iId", @name = " iId", @disabled = "true" })
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!--Cadastro Atividades Workflow-->
+
+                    <div role="tabpanel" class="tab-pane fade" id="iTabAtividadeWorkflow" aria-labelledby="atividadesworkflow-tab">
+                        <div id="accordion2">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-2">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                            <span class="text-bold-card">@RsCadastros.ATIVIDADE_WORKFLOW</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body body-card-accord">
+
+                                        <div class="row">
+
+                                            @*DESCRICAO ATIVIDADES*@
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <label for="iDescricao_ativ">@RsCadastros.DESCRICAO_ATIVIDADE_WORKFLOW:<span class="text-danger">*</span></label>
+                                                    @Html.TextBoxFor(model => model.Ativ_Descricao, new { @class = "form-control", @id = "iDescricao_ativ", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Ativ_Descricao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+
+
+
+
+                                            @*STATUS DA VENDA*@
+                                            <div class="col">
+                                                <div class="form-group">
+                                                    <input type="hidden" id="iAtivStatusPadrao">
+                                                    <input type="hidden" id="iIdStatusPadrao">
+                                                    <label for="iStatusVenda">@RsCadastros.STATUS_VENDA:<span class="text-danger">*</span></label>
+                                                    <select class="form-control filtro" id="iStatusVenda" autocomplete="off">
+                                                        <option value="">@RsBase.SELECIONE</option>
+                                                    </select>
+
+                                                </div>
+                                            </div>
+                                            @*AGENDAR TAREFA*@
+                                            <div class="col text-center">
+                                                <div class="form-group">
+                                                    <label for="iAgendaTarefa">@RsCadastros.AGENDAR_TAREFA_AGENDA_VENDEDOR:</label><br>
+                                                    @Html.CheckBoxFor(m => m.Ativ_AgendaTarefa, new { @class = "form-control", @id = "iAgendaTarefa", @name = " iAgendaTarefa", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light", @style = "width:100px;height:25px" })
+                                                </div>
+                                            </div>
+
+
+                                        </div>
+
+                                        <br>
+                                        <div class="row">
+
+                                            @*ATIVIDADE DECISORIA*@
+                                            <div class="col-sm-2">
+                                                <div class="form-group">
+                                                    <label for="idAtividade_decisoria">@RsCadastros.ATIVIDADE_DECISORIA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Ativ_Decisao, new { @class = "form-control", @id = "idAtividade_decisoria", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Ativ_Decisao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <section class="col-7 m-0 d-none" id="iProximaAtividade">
+                                                <div class="row">
+                                                    @*Nº PROXIMA ATIVIDADE APROVADA*@
+                                                    <div class="col-sm-3">
+                                                        <div class="form-group">
+                                                            <label for="iProxAtivAprov">@RsCadastros.N_PROXIMA_ATIVIDADE_APROVADA:</label>
+                                                            @Html.TextBoxFor(m => m.Ativ_NAtivAprovada, new { @class = "form-control", @id = "iProxAtivAprov", @autocomplete = "off" })
+                                                            @Html.ValidationMessageFor(model => model.Ativ_NAtivAprovada, "", new { @class = "text-danger" })
+                                                        </div>
+                                                    </div>
+                                                    @*Nº PROXIMA ATIVIDADE REPROVADA*@
+                                                    <div class="col-sm-3">
+                                                        <div class="form-group">
+                                                            <label for="iProxAtivReprov">@RsCadastros.N_PROXIMA_ATIVIDADE_REPROVADA:</label>
+                                                            @Html.TextBoxFor(m => m.Ativ_NAtivReprovada, new { @class = "form-control", @id = "iProxAtivReprov", @autocomplete = "off" })
+                                                            @Html.ValidationMessageFor(model => model.Ativ_NAtivReprovada, "", new { @class = "text-danger" })
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </section>
+
+                                        </div>
+
+                                        <br>
+                                        <div class="row">
+
+                                            @*PRAZO EM HORAS*@
+                                            <div class="col-xl-2">
+                                                <div class="form-group">
+                                                    <label for="iPrazo_Dias_ativ">@RsCadastros.PRAZO_HORAS:</label>
+                                                    @Html.TextBoxFor(model => model.Ativ_Prazo, new { @class = "form-control hora99", @id = "iPrazo_Dias_ativ", @placeholder = "000:00", @autocomplete = "off" })
+                                                    @*@Html.TextBoxFor(m => m.Horas, new { @class = "form-control hora99", @placeholder = "000:00", @id = "iHoras" })*@
+                                                    @Html.ValidationMessageFor(model => model.Ativ_Prazo, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            @*TIPO DE HORAS*@
+                                            <div class="col-2">
+                                                <div class="form-group">
+                                                    <label for="iTHoras_ativ">@RsCadastros.TIPO_HORA:</label>
+                                                    @Html.EnumDropDownListFor(m => m.Ativ_Tipodias, new { @class = "form-control", @id = "iTHoras_ativ", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Ativ_Tipodias, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            <div class="col-2">
+                                                <div class="form-group d-none" id="iHoraDiv">
+                                                    <label for="iHoraAtendimento">@RsCadastros.HORARIO_ATENDIMENTO:</label>
+                                                    @Html.DropDownListFor(m => m.Horario_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iHoraAtendimento", @autocomplete = "off" })
+                                                </div>
+                                            </div>
+
+                                            @*ID ATIVIDADES*@
+                                            <div class="col-sm-1">
+                                                <div class="form-group d-none">
+                                                    <label for="iIdAtiv">@RsCadastros.ID_WORKFLOW_VENDAS_ATIVIDADES:</label>
+
+                                                    @*@Html.TextBoxFor(m => m.Id, new { @class = "form-control", @id = "iId", @name = " iIdAtiv", @disabled = "true" })*@
+
+                                                </div>
+                                            </div>
+
+
+                                            @*BOTAO STATUS*@
+                                            <div class="col">
+                                                <div class="form-group d-none">
+                                                    <label for="iStatus_ativ">@RsCadastros.STATUS:</label><br>
+                                                    @Html.CheckBoxFor(m => m.Ativ_Status, new { @class = "form-control", @id = "iStatus_ativ", @name = " iStatus_ativ", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-sm-3 pt-3">
+                                                <label>Definir setor responsável nesta atividade?</label>
+                                                <i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="Ao marcar como Sim, será possível definir o setor responsável e o responsável da venda para esta atividade. Ao avançar para esta atividade, o sistema atualizará automaticamente essas informações na venda."></i>
+                                                <div class="form-group">
+                                                    @Html.CheckBoxFor(m => m.Definir_Responsavel, new { @class = "form-control", @id = "iDefinir_Responsavel", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Nao", @data_onstyle = "success", @data_offstyle = "light" })
+
+                                                </div>
+                                            </div>
+                                            <section class="col-6" id="Idefinir">
+                                                <div class="row">
+                                                    <div class="col-3">
+                                                        <div class="form-group" id="iSetorDiv">
+                                                            <label for="iSetorDepartamento">@RsCadastros.SETOR_RESPONSAVEL:<span class="text-danger">*</span></label>
+                                                            @Html.DropDownListFor(m => m.Setor_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSetorDepartamento", @autocomplete = "off" })
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-3">
+                                                        <div class="form-group" id="iSetorDiv">
+                                                            <label for="iResponsavel">@RsCadastros.RESPONSAVEL:</label>
+                                                            @Html.DropDownListFor(m => m.Responsavel, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iResponsavel", @autocomplete = "off" })
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                            @*BOTAO ADICIONAR*@
+                                            <div class="col">
+                                                <div class="form-group float-right mr-3" style="width:250px">
+                                                    <span id="msgnotificao"> </span>
+                                                    <input type="button" class="btn btn-success pt-3 pb-3 pr-5 pl-5 font-weight-bold" id="iBtnAdd" value="Adicionar" onclick="validarAtividades()" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="divTable" class="mt-5">
+                            <span class="text-bold-card ml-3">@RsCadastros.LISTAGEM_ATIVIDADES_WORKFLOW</span>
+                            <hr>
+                            <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                            </table>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "Workflow_Vendas")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return ValidaSubmit();">
+        <div id="btnSalvar" class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+
+    <div></div>
+}
+
+<!--./BeginForm-->
+
+<style>
+
+    .container > div:nth-child(5) > div:nth-child(2) > div:nth-child(1) > div:nth-child(3) {
+        height: 30px;
+    }
+
+    .popover-body {
+        background-color: #357CA5;
+        color: white;
+    }
+    </style>
+
+
+    <div class="modal fade" id="modal-editar-atividade">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">Editar Workflow Atividade</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input id="idConta" type="hidden">
+                    <div class="row">
+                        <div class="col-sm-12" style="align-content:center;">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iDescricao_ativM" class="mr-3">@RsCadastros.ATIVIDADE:</label><br>
+                                        <input type="text" class="form-control" id="iDescricao_ativM">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iPrazo_Horas_ativM">@RsCadastros.PRAZO_HORAS:</label>
+                                        @Html.TextBoxFor(model => model.Ativ_Prazo, new { @class = "form-control hora99", @id = "iPrazo_Horas_ativM", @placeholder = "000:00", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iTipo_Horas_ativM" class="mr-3">@RsCadastros.TIPO_HORA:</label>
+                                        @Html.EnumDropDownListFor(m => m.Ativ_Tipodias, new { @class = "form-control", @id = "iTipo_Horas_ativM", @autocomplete = "off" })
+
+
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group d-none" id="iHoraDivM">
+                                        <label for="iHoraAtendimentoM">@RsCadastros.HORARIO_ATENDIMENTO:</label>
+                                        @Html.DropDownListFor(m => m.Horario_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iHoraAtendimentoM", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="idAtividade_decisoriaM">@RsCadastros.ATIVIDADE_DECISORIA:</label>
+                                        @Html.EnumDropDownListFor(m => m.Ativ_Decisao, new { @class = "form-control", @id = "idAtividade_decisoriaM", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Ativ_Decisao, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <section class="col m-0 d-none" id="iProximaAtividadeM">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="form-group">
+                                            <label for="iProxAtivAprovM">@RsCadastros.N_PROXIMA_ATIVIDADE_APROVADA:</label>
+                                            @Html.TextBoxFor(m => m.Ativ_NAtivAprovada, new { @class = "form-control", @id = "iProxAtivAprovM", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Ativ_NAtivAprovada, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-6">
+                                        <div class="form-group">
+                                            <label for="iProxAtivReprovM">@RsCadastros.N_PROXIMA_ATIVIDADE_REPROVADA:</label>
+                                            @Html.TextBoxFor(m => m.Ativ_NAtivReprovada, new { @class = "form-control", @id = "iProxAtivReprovM", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Ativ_NAtivReprovada, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label for="iModal_Status_Venda">@RsCadastros.STATUS_VENDA:</label>
+                                        @Html.DropDownListFor(m => m.Ativ_StatusVenda, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iModal_Status_Venda", @autocomplete = "off", })
+                                        @Html.ValidationMessageFor(model => model.Ativ_StatusVenda, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col text-center">
+                                    <div class="form-group">
+
+                                        <label for="iStatus_ativM ">@RsCadastros.STATUS:</label><br>
+                                        @Html.CheckBoxFor(m => m.Ativ_Status, new
+                                     {
+                                       @data_height = 28,
+                                       @class = "form-control",
+                                       @id = "iStatus_ativM",
+                                       @name = " iStatus_ativ",
+                                       @data_toggle = "toggle",
+                                       @data_on = "Ativo",
+                                       @data_off = "Inativo",
+                                       @data_onstyle = "success",
+                                       @data_offstyle = "light",
+                                     })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+
+                                <div class="col-6">
+                                    <div class="form-group">
+
+                                        <label for="iDefinir_ResponsavelM ">Definir setor responsável nesta atividade?</label><i class="ml-2 fas fa-question-circle fa-2x " style="color: #2092EC" data-toggle="popover" title="" data-content="Ao marcar como Sim, será possível definir o setor responsável e o responsável da venda para esta atividade. Ao avançar para esta atividade, o sistema atualizará automaticamente essas informações na venda."></i><br>
+                                        @Html.CheckBoxFor(m => m.Definir_Responsavel, new
+                                     {
+                                       @data_height = 28,
+                                       @class = "form-control",
+                                       @id = "iDefinir_ResponsavelM",
+                                       @name = " iDefinir_ResponsavelM",
+                                       @data_toggle = "toggle",
+                                       @data_on = "Sim",
+                                       @data_off = "Não",
+                                       @data_onstyle = "success",
+                                       @data_offstyle = "light",
+                                     })
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div id="IdefinirM">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="form-group" id="iSetorDivM">
+                                            <label for="iSetorDepartamentoM">@RsCadastros.SETOR_RESPONSAVEL:</label>
+                                            @Html.DropDownListFor(m => m.Setor_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSetorDepartamentoM", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6">
+                                        <div class="form-group" id="iSetorDivM">
+                                            <label for="iResponsavelM">@RsCadastros.RESPONSAVEL:</label>
+                                            @Html.DropDownListFor(m => m.Responsavel, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iResponsavelM", @autocomplete = "off" })
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-success" id="iEditarAtividades">Editar</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->

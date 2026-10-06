@@ -1,0 +1,1 @@
+New-Service -Name "Aniel.Connect.EmailService" -BinaryPathName "F:\Checkouts\Connect\Aniel.Connect\Aniel.Connect.EmailService\bin\Debug\Aniel.Connect.EmailService.exe"

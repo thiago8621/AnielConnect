@@ -1,0 +1,417 @@
+﻿@model Aniel.Connect.Models.Escala_TrabalhoCadastroModel
+
+
+@{
+    ViewBag.Title = RsCadastros.ESCALA_TRABALHO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+
+        #iContadorCaracteres {
+            color: #999;
+            text-align: right;
+            margin-top: 0.25rem;
+        }
+
+        .select-readonly {
+            pointer-events: none;
+            background-color: #e9ecef; /* ou qualquer cor de fundo desejada */
+        }
+        .btn-light {
+            height: 30px;
+        }
+    </style>
+}
+
+@section scripts
+{
+
+    @if (ViewBag.Sucesso == true)
+    {
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+        </script>
+    }
+
+
+<script>
+
+
+    var HandleHorario = function () {
+        $('#iHorario').on('select2:select select2:unselecting', function (e) {
+
+            HorarioSelecionado = e.params.data;
+            if (HorarioSelecionado) {
+                $('#iJornadaDia').text("@Html.Raw(RsCadastros.HORARIO):" + HorarioSelecionado.jornadaDia);
+            }
+
+        });
+    };
+
+        @*$(document).ready(function () {
+            $("#iApenas_Dia").trigger('change')
+            AddSelect("iHorario", "@CONSTANTES.URLPortal/api/Horarioapi/GetComboJornadaDia", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Horario", "@RsBase.SELECIONE", false, HandleHorario);
+            AddSelect("iPerfilAgendamento", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_PerfilAgendamento", "@RsBase.SELECIONE", false);
+        }*@
+
+
+     $(document).ready(function () {
+         $("#iApenas_Dia").trigger('change')
+         AddSelect("iHorario", "@CONSTANTES.URLPortal/api/Horarioapi/GetComboJornadaDia", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleHorario);
+         AddSelect("iPerfilAgendamento", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+         const num_fre = '@Html.Raw(Request.Params["tecnicos"])'
+         $('#iHiddenTecnicos').val(num_fre);
+
+         $('#iIndisponivel').trigger('change');
+         $('#iApenas_Dia').prop("checked", false).change();
+         //toogle
+         $("#iEscalarEmMassa ").change(function () {
+             if ($("#iEscalarEmMassa").is(':checked')) {
+                 $('#divEscalar').show();
+             }
+             else {
+                 $('#divEscalar').hide();
+             }
+         });
+
+         $("#iPerfilMassa ").change(function () {
+             if ($("#iPerfilMassa").is(':checked')) {
+                 $('#divPerfilMassa').show();
+             }
+             else {
+                 $('#divPerfilMassa').hide();
+             }
+         });
+         $("#iApenas_Dia").change(function () {
+             if ($("#iApenas_Dia").is(':checked')) {
+                 $('#divDatas').show();
+             }
+             else {
+                 $('#divDatas').hide();
+             }
+         });
+     });
+
+     var HandleHorario = function () {
+         $('#iHorario').on('select2:select select2:unselecting', function (e) {
+
+             HorarioSelecionado = e.params.data;
+             if (HorarioSelecionado) {
+                 $('#iJornadaDia').text("@Html.Raw(RsCadastros.HORARIO):" + HorarioSelecionado.jornadaDia);
+             }
+
+         });
+     };
+
+     $("#iApenas_Dia").change(function () {
+
+         $("#iDataSelecionada").unbind("focusout");
+
+         if ($("#iApenas_Dia").is(':checked')) {
+
+             $('#iDataSelecionada').prop("disabled", true);
+
+             ValidaPeriodo("iData_Inicial", "iData_Final", "@String.Format(RsBase.PERIODO_INVALIDO)");
+
+         } else {
+             $('#iDataSelecionada').prop("disabled", false);
+             //$('#divDatas').hide();
+         }
+
+     });
+
+     $("#iIndisponivel").change(function () {
+
+         $("#iData_Final").unbind("focusout");
+
+         if ($("#iIndisponivel").is(':checked')) {
+             $('#iHorario').prop("disabled", true);
+             //$('#divDatas').show();
+             ValidaPeriodo("iData_Inicial", "iData_Final", "@String.Format(RsBase.PERIODO_INVALIDO)");
+
+         } else {
+             $('#iHorario').prop("disabled", false);
+             //$('#divDatas').hide();
+         }
+
+         if (HandleHorario.jornadaDia == '') {
+             ValidaPeriodo("iData_Inicial", "iData_Final", "@String.Format(RsBase.PERIODO_INVALIDO)");
+         }
+     });
+
+
+     $("#iApenas_Dia ").change(function () {
+         if ($("#iApenas_Dia").is(':checked')) {
+             $('#divDatas').show();
+         }
+         else {
+             $('#divDatas').hide();
+         }
+     });
+
+     var clicked = false;
+      function ValidaSubmit() {
+            $("#divProgress").show();
+
+         if (clicked) {
+             return false;
+         }
+
+         clicked = true;
+
+         erro = false;
+
+
+         ValidaPeriodo("iData_Inicial", "iData_Final", "@String.Format(RsBase.PERIODO_INVALIDO)");
+         if (!$("#iHorario").val() && !$("#iIndisponivel").is(':checked')) {
+             Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.HORARIO_DE_SERVICO)", "warning");
+             erro = true;
+         }
+
+         ValidaPeriodo("iData_Inicial", "iData_Final", "String.Format(RsBase.PERIODO_INVALIDO)");
+
+         if ($("#iIndisponivel").is(':checked') && $("#iApenas_Dia").is(':checked')) {
+
+             if ($("#iData_Inicial").val() == "") {
+                 Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATAINICIAL)", "warning");
+                 erro = true;
+             }
+
+             if ($("#iData_Final").val() == "") {
+                 Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.DATAFINAL)", "warning");
+                 erro = true;
+             }
+         }
+
+         else if (!$("#iHorario").val() && !$("#iIndisponivel").is(':checked')) {
+             Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.HORARIO_DE_SERVICO)", "warning");
+             erro = true;
+         }
+
+         if (DataMenorHoje($("#iData_Inicial").val())) {
+             Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.NAO_POSSIVEL_ESCALA_DIAS_ANTERIOES)", "warning");
+             erro = true;
+         }
+
+         if (DataMenorHoje($("#iData_Final").val())) {
+             Notificar("@RsBase.ATENCAO_", "@String.Format(RsCadastros.NAO_POSSIVEL_ESCALA_DIAS_ANTERIOES)", "warning");
+             erro = true;
+         }
+
+         if (erro) {
+             $("#divProgress").hide();
+             clicked = false;
+             return false;
+          }
+         if (!erro) {
+             Notificar("@RsBase.INFORMACAO", "@RsCadastros.ESCALAR_SALVA_MASSA", "info");
+          }
+
+         //ShowPageLoading();
+
+          $('#form').submit();
+     }
+
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "Escala_Trabalho", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.Tecnicos, new { id = "iHiddenTecnicos" })
+    @Html.HiddenFor(model => model.Equipe)
+    @Html.HiddenFor(model => model.Dia)
+    @Html.HiddenFor(model => model.Mes)
+    @Html.HiddenFor(model => model.Ano)
+
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+
+            <div class="card div-card-accord" style="box-shadow:none !important">
+
+                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                    <div class="card-body body-card-accord">
+
+                        <div class="row mt-2 mb-2">
+
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iUF">@RsCadastros.HORARIO_DE_SERVICO:</label>
+                                    @Html.DropDownListFor(m => m.Id_Horario, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iHorario", @autocomplete = "off" })
+
+                                    @Html.ValidationMessageFor(model => model.Id_Horario, "", new { @class = "text-danger" })
+
+                                    <label id="iJornadaDia" for="iUF"></label>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="form-group">
+                                    <label for="iUF">@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO :</label>
+                                    @Html.DropDownListFor(m => m.Id_PerfilAgendamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPerfilAgendamento", @autocomplete = "off" })
+                                    @Html.ValidationMessageFor(model => model.Id_PerfilAgendamento, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+                            <div class="col-sm-2">
+                                <label for="iCidade">@RsCadastros.INDISPONIVEL:</label>
+                                <div class="form-group">
+
+                                    @Html.CheckBoxFor(m => m.Indisponivel, new { @class = "form-control", @id = "iIndisponivel", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                    @Html.ValidationMessageFor(model => model.Indisponivel, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-2 mb-2">
+
+                            <div class="col-sm-2" id="divApenasDia">
+                                <label for="iUF">@RsCadastros.REPLICAR_DIAS:</label>
+                                <div class="form-group">
+
+                                    @Html.CheckBoxFor(m => m.Apenas_Dia, new { @class = "form-control", @id = "iApenas_Dia", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                    @Html.ValidationMessageFor(model => model.Apenas_Dia, "", new { @class = "text-danger" })
+                                </div>
+                            </div>
+
+                            <div class="mt-1">
+                                <div class="row pl-3" id="divDatas" style="display:none">
+                                    <div class="col">
+                                        <label for="iData_Inicial">@RsCadastros.DATAINICIAL</label>
+                                        @Html.TextBoxFor(m => m.Data_Inicial, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iData_Inicial", @autocomplete = "off" })
+                                    </div>
+                                    <div class="col">
+                                        <label for="iData_Final">@RsCadastros.DATAFINAL</label><br />
+                                        @Html.TextBoxFor(m => m.Data_Final, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iData_Final", @autocomplete = "off" })
+                                    </div>
+                                </div>
+
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body body-card-accord">
+                                        <div class="row mt-2 mb-2">
+                                            <div class="col-sm-2" id="divApenasDia">
+                                                <label for="iUF">Alterar Horário de Serviço em Massa?</label>
+                                                <div class="form-group">
+
+                                                    @Html.CheckBoxFor(m => m.EscalarEmMassa, new { @class = "form-control", @id = "iEscalarEmMassa", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    @Html.ValidationMessageFor(model => model.EscalarEmMassa, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-1">
+                                                <div class="row pl-3" id="divEscalar" style="display:none">
+                                                    <div class="col-sm-4 ">
+                                                        <div class="form-group">
+                                                            <label for="iUF">@RsCadastros.HORARIO_DE_SERVICO:</label>
+                                                            @Html.DropDownListFor(m => m.Id_Horario, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iHorario", @autocomplete = "off" })
+
+                                                            @Html.ValidationMessageFor(model => model.Id_Horario, "", new { @class = "text-danger" })
+
+                                                            <label id="iJornadaDia" for="iUF"></label>
+
+                                                            <div class="col-sm-4 ">
+                                                                <label for="iIndisponivel">@RsCadastros.INDISPONIVEL:</label>
+                                                                <div class="form-group">
+
+                                                                    @Html.CheckBoxFor(m => m.Indisponivel, new { @class = "form-control", @id = "iIndisponivel", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                                    @Html.ValidationMessageFor(model => model.Indisponivel, "", new { @class = "text-danger" })
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-sm-2">
+
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                                <!--toogle perfil-->
+                                                <div class="col-sm-2" id="divPerfil">
+                                                    <label for="iDataSelecionada">Selecione o dia:</label><br />
+                                                    @Html.TextBoxFor(m => m.Data_Selecionada, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDataSelecionada", @autocomplete = "off" })
+                                                </div>
+                                                <div class="col-sm-2" id="divPerfil">
+                                                    <label for="iUF">Alterar Perfil em Massa?</label>
+                                                    <div class="form-group">
+
+                                                        @Html.CheckBoxFor(m => m.PerfilEmMassa, new { @class = "form-control", @id = "iPerfilMassa", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                        @Html.ValidationMessageFor(model => model.PerfilEmMassa, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-1">
+
+                                                    <div class="row pl-3" id="divPerfilMassa" style="display:none">
+
+                                                        <div class="form-group">
+                                                            <label for="iUF">@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO :</label>
+                                                            @Html.DropDownListFor(m => m.Id_PerfilAgendamento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPerfilAgendamento", @autocomplete = "off" })
+                                                            @Html.ValidationMessageFor(model => model.Id_PerfilAgendamento, "", new { @class = "text-danger" })
+                                                        </div>
+                                                        <div class="form-group">
+                                                            <label for="iUF">@RsCadastros.REPLICAR_DIAS:</label>
+                                                            @Html.CheckBoxFor(m => m.Apenas_Dia, new { @class = "form-control", @id = "iApenas_Dia", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                                            @Html.ValidationMessageFor(model => model.Apenas_Dia, "", new { @class = "text-danger" })
+
+                                                        </div>
+                                                        <div class="mt-1">
+
+                                                            <div class="row pl-3" id="divDatas" style="display:none">
+                                                                <div class="col">
+                                                                    <label for="iData_Inicial">@RsCadastros.DATAINICIAL</label>
+                                                                    @Html.TextBoxFor(m => m.Data_Inicial, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iData_Inicial", @autocomplete = "off" })
+                                                                </div>
+                                                                <div class="col">
+                                                                    <label for="iData_Final">@RsCadastros.DATAFINAL</label><br />
+                                                                    @Html.TextBoxFor(m => m.Data_Final, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iData_Final", @autocomplete = "off" })
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!--Button Float-->
+
+            <div class="form-group col-sm-12" style="padding: 15px;">
+                <div class="text-center">
+                    <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+                    <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iPesquisar">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="divProgress" style="display:none;">
+        <div class="preloaderbar show active">
+            <span class="bar"></span>
+            <span class="text">@RsCadastros.PROCESSANDO...</span>
+        </div>
+    </div>
+}

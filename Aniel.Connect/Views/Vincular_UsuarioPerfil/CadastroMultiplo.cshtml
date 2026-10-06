@@ -1,0 +1,257 @@
+﻿@model Aniel.Connect.Models.Vincular_MultiploPerfilCadastroModel
+@using Aniel.Connect.Controllers
+@using Sinapse.Model.enumerados
+@using Microsoft.AspNet.Identity;
+@{
+    ViewBag.Title = "Vincular Usuario ao Perfil";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+
+
+@section scripts{
+
+    @if (ViewBag.Sucesso == true)
+    {
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+        </script>
+    }
+
+
+
+
+<script>
+
+        $(document).ready(async function () {
+
+            await AddSelect("iPerfilAgente", "@CONSTANTES.URLPortal/api/Vincular_UsuarioPerfilApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.PerfilAgente", "@RsBase.SELECIONE", false);
+            await AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/Perfil_Dashboardapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Perfil", "@RsBase.SELECIONE", false);
+            await AddSelect("iPerfilVisualizacaoServico", "@CONSTANTES.URLPortal/api/PerfilVisualizacaoServicoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.IdPerfilVisualizacaoServico", "@RsBase.SELECIONE", false);
+            await AddSelect("iModelo_Unico_Permitido_ID", "@CONSTANTES.URLPortal/api/Modelo_PainelServicoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Modelo_Unico_Permitido_ID", "@RsBase.SELECIONE", false,null,"@User.Identity.GetUserId()");
+
+
+            function toggleModeloDropdown() {
+                var isChecked = $("#iBloqueiaModeloVisualizacao").is(":checked");
+
+                if (isChecked) {
+                    $("#divModeloUnico").show();
+                    // Adiciona a classe 'obrigatorio' para a validação do formulário
+                    $("#iModeloUnicoPermitidoID").addClass("obrigatorio");
+                } else {
+                    $("#divModeloUnico").hide();
+                    // Remove a obrigatoriedade e limpa o valor (evita envio de ID incorreto)
+                    $("#iModeloUnicoPermitidoID").removeClass("obrigatorio");
+                    $("#iModeloUnicoPermitidoID").val(null).trigger('change');
+                }
+            }
+
+            // 1. Executa na carga da página para definir o estado inicial
+            toggleModeloDropdown();
+
+            // 2. Atribui o evento de mudança ao checkbox
+            $("#iBloqueiaModeloVisualizacao").on("change", function () {
+                toggleModeloDropdown();
+            });
+            let temPerfil = '@Model.TemPerfil.ToString()';
+
+            if (temPerfil != null) {
+                    parent.Swal.fire({
+                        type: 'warning',
+                        title: 'Um ou mais usuários já possuem um perfil',
+                        text: 'Alguns usuários selecionados já estão vinculados a um perfil, ao prosseguir com a ação os perfis serão atualizados.Deseja continuar?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sim',
+                        cancelButtonText: 'Não',
+                    })
+                    .then(function (res) {
+                        if (res.dismiss == "cancel") {
+                            parent.dial.dialog('close');
+                        }
+                    });
+            }
+
+        });
+
+        $(function () {
+            if ($('#iTipoUsuario').val()) {
+                $("#iTipoUsuario").prop("disabled", false);
+            }
+        });
+
+        var clicked = false;
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            if (!$('#iSecao').val() || !$("#iTipoUsuario").val() || !$("#iPerfil").val()) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "info");
+                return false;
+            }
+
+            var bloqueiaModelo = $('#iBloqueiaModeloVisualizacao').is(':checked');
+            var modeloUnicoId = $('#iModelo_Unico_Permitido_ID').val();
+            if (bloqueiaModelo)
+            {
+                // 2. Se estiver marcado, verificar se o combo está vazio ou com o valor de "Selecione"
+                if (!modeloUnicoId || modeloUnicoId === "" || modeloUnicoId === "0") {
+                    Notificar("@RsBase.ATENCAO_",
+                        "É obrigatório selecionar um 'Modelo Único Permitido' quando a opção 'Bloquear Modelo Único de Visualização' está marcada",
+                        "info"
+                    );
+
+                    // Focar o campo para ajudar o usuário
+                    $('#iModelo_Unico_Permitido_ID').focus();
+
+                    // Bloquear o envio do formulário
+                    return false;
+                }
+            }
+            clicked = true;
+            ShowPageLoading();
+
+            $('#form').submit();
+
+            try {
+                parent.dial.dialog('close');
+            }
+            catch (ex) {
+                console.log(ex);
+            }
+
+            return true;
+        }
+
+        $("#iSecao").change(function () {
+            if ($("#iSecao").val()) {
+                $("#iTipoUsuario").prop("disabled", false);
+            }
+            else {
+                $("#iTipoUsuario").prop("disabled", true);
+            }
+
+            switch ($("#iSecao").val()) {
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.ATENDIMENTO)":
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.ATENDENTE)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_ATENDENTE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_DE_ATENDENTE)));
+                    $(".perfil-agente").show();
+                    break;
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.COMERCIAL)":
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_COMERCIAL", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_COMERCIAL)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.VENDEDOR", @Convert.ToInt32(TipoUsuarioEnum.VENDEDOR)));
+                    $(".perfil-agente").hide();
+                    break;
+
+                case "@Convert.ToInt32(SecaoConnectPerfilEnum.SERVICOS)":
+                    $("#iTipoUsuario").empty();
+                    $("#iTipoUsuario").append(new Option("@RsBase.SELECIONE", ""));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.MONITOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.MONITOR_EQUIPE)));
+                    $("#iTipoUsuario").append(new Option("@RsCadastros.SUPERVISOR_EQUIPE", @Convert.ToInt32(TipoUsuarioEnum.SUPERVISOR_EQUIPE)));
+                    $(".perfil-agente").hide();
+                    break;
+            }
+        });
+
+</script>
+
+}
+
+@section styles{
+    <style>
+        .ui-dialog-title {
+            font-size: 16px !important;
+        }
+    </style>
+}
+
+@using (Html.BeginForm("CadastroMultiplo", "Vincular_UsuarioPerfil", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off", }))
+{
+    <div class="row" style="max-height: 400px; overflow-y: auto; padding-right: 15px;">
+
+        <div class="col-6">
+
+            <div class="form-group">
+                <label for="iDescricao">@RsCadastros.USUARIO: </label>
+                @Html.HiddenFor(model => model.Id, new { @class = "form-control", @id = "iIdUsuario" })
+                @Html.DisplayFor(model => model.Usuario, new { @class = "form-control", @id = "iDescricao" })
+
+            </div>
+            <div class="form-group">
+                <label for="iPerfil_Usuario">@RsCadastros.SECAO_CONNECT</label>
+                @Html.DropDownListFor(m => m.SecaoConnect, new SelectList(ViewBag.Secao, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iSecao", @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Perfil, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group">
+                <label for="iPerfil_Usuario">@RsCadastros.TIPO_USUARIO</label>
+                @Html.DropDownListFor(m => m.TipoUsuario, new SelectList(ViewBag.Tipos, "Id", "Descricao"), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iTipoUsuario", @autocomplete = "off", @disabled = "true" })
+                @Html.ValidationMessageFor(model => model.Perfil, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group perfil-agente">
+                @Html.Label(RsCadastros.PERFIL_AGENTE, new { @class = "perfil-agente" })
+
+                @Html.DropDownList("PerfilAgente", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3 perfil-agente", @id = "iPerfilAgente", @autocomplete = "off", @style = Model.TipoUsuario == "0" ? "width:50%;" : "width:50%;display:none" })
+                @Html.ValidationMessageFor(model => model.Perfil, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group">
+                <label for="iPerfil_Usuario">@RsCadastros.PERFIL</label>
+                @Html.DropDownList("Id_Perfil", new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfil", @autocomplete = "off" })
+                @Html.ValidationMessageFor(model => model.Id_Perfil, "", new { @class = "text-danger" })
+            </div>
+            <div class="form-group">
+                <label for="iPerfilVisualizacaoServico">@RsCadastros.PERFIL_VISUALIZACAO_SERVICO</label>
+                @Html.DropDownListFor(m => m.IdPerfilVisualizacaoServico, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iPerfilVisualizacaoServico", @autocomplete = "off" })
+            </div>
+
+
+            <div class="form-group">
+
+                @* Checkbox para Bloquear Modelo de Visualização *@
+                <div class="form-check">
+                    @Html.CheckBoxFor(model => model.Bloqueia_Modelo_Visualizacao, new { @class = "form-check-input", @id = "iBloqueiaModeloVisualizacao" })
+                    <label class="form-check-label" for="iBloqueiaModeloVisualizacao">
+                        Bloquear Modelo Único de Visualização
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" id="divModeloUnico" style="display:none;">
+
+                <label for="iModelo_Unico_Permitido_ID">Modelo Único Permitido</label>
+                @Html.DropDownListFor(m => m.Modelo_Unico_Permitido_ID, new SelectList(new List<object>()), RsBase.SELECIONE, new { @class = "form-control mb-3", @id = "iModelo_Unico_Permitido_ID", @autocomplete = "off" })
+
+            </div>
+
+
+        </div>
+
+
+        <div class="form-group col-sm-12" style="padding: 15px;">
+            <div class="text-center">
+                <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+                <button type="button" onclick="return ValidaSubmit(); return false;" class="btn btn-success" id="iPesquisar">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+
+}
+
+
+

@@ -1,0 +1,576 @@
+﻿@model Aniel.Connect.Models.Equipe_MapaModel
+@using Aniel.Connect.Core.Helpers
+@using Sinapse.Model.enumerados;
+
+@{
+    var areas = ViewBag.Areas;
+
+    ViewBag.Title = RsCadastros.LOCALIZACAO_EQUIPE_MAPA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    <script src="~/bin/Scripts/jquery-3.3.1.min.js"></script>
+    <link href="~/Content/leaflet.css" rel="stylesheet" />
+    <script src="~/Scripts/leaflet.js"></script>
+
+    <link href="~/Content/map.css" rel="stylesheet" />
+    <style>
+        .leaflet-popup-content {
+            width: 600px;
+        }
+    </style>
+}
+
+@section variaveis
+{
+    @Scripts.Render("~/bundles/jslayoutlimpo")
+}
+
+@section scripts
+{
+
+    <script>
+        @if (AcessoHelper.TemAcesso(areas, "176"))
+        {
+        <text>
+        var HandleSupervMonitor = function () {
+            $('#iSupervisor, #iMonitor').change(function () {
+                if ($("#iSupervisor").is(":checked")) {
+                    $("#divSupervisor").show();
+                    $("#divMonitor").hide();
+                    $("#idMonitor").val("").trigger("change");
+                }
+                else {
+                    $("#divSupervisor").hide();
+                    $("#divMonitor").show();
+
+                    $("#idSupervisor").val("").trigger("change");
+                }
+            });
+        }
+        </text>
+        }
+
+        const HandleGrupoArea = function () {
+            $('#iGrupoArea').unbind('select2:select select2:unselecting');
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+
+                GrupoSelecionado = e.params.data
+                if (GrupoSelecionado) {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(GrupoSelecionado.id), null, "@RsBase.SELECIONE", false, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+
+                else {
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+
+            });
+        };
+
+        const HandleArea = function () {
+            $('#iArea').unbind('select2:select select2:unselecting');
+            $('#iArea').on('select2:select select2:unselecting', function (e) {
+                const AreaSelecionada = e.params.data;
+
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id), null, "@RsBase.SELECIONE", false, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+                }
+            });
+        };
+
+        $(document).ready(function () {
+            @if (Model.Itens.Count() == 0)
+            {
+                <text>
+                    Notificar("@RsBase.ATENCAO_","@RsCadastros.NENHUM_REGISTRO","warning");
+                </text>
+            }
+
+            @if (!String.IsNullOrEmpty(Model.Id_Monitor))
+            {
+                <text>
+                $('#iMonitor').prop("checked", true).change();
+                </text>
+            }
+
+            @if (!String.IsNullOrEmpty(Model.Endereco))
+            {
+                <text>
+                $('#idEndereco').trigger("focusout");
+                </text>
+            }
+
+            @if (AcessoHelper.TemAcesso(areas, "176"))
+            {
+            <text>
+            HandleSupervMonitor();
+            $('#iSupervisor').trigger('change');
+
+            AddSelect("idMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Monitor", "@RsBase.SELECIONE", false);
+            AddSelect("idSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Num_Fre_Supervisor", "@RsBase.SELECIONE", false);
+            </text>
+            }
+            AddSelect("idEquipe", "@CONSTANTES.URLPortal/api/Equipeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Equipe", "@RsBase.SELECIONE", false, null, null, null, { ExibirApenasTecnicosSupervisorMonitor: @(AcessoHelper.TemAcesso(areas, "176") ? "false" : "true") });
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Cod_Escritorio", "@RsBase.SELECIONE", false, HandleGrupoArea, null, null, { UsaPerfilVisualizacaoServico: true });
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, "@Model.Cod_Escritorio", "@Model.Cod_Area", "@RsBase.SELECIONE", "@Model.Cod_Area" ? false : true, HandleArea, null, null, { UsaPerfilVisualizacaoServico: true });
+            AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, "@Model.Cod_Escritorio", "@Model.Cod_Area", "@Model.Cod_Localidade", "@RsBase.SELECIONE", "@Model.Cod_Localidade" ? false : true, null, null, null, { UsaPerfilVisualizacaoServico: true });
+        });
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Equipes", "Mapa", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+
+    <div class="container-fluid" id="divTitle">
+
+
+        <div class="row">
+            <div class="col-auto mr-auto">
+                <h4 class="title-page"><i class="fas fa-map-marked"></i> @ViewBag.Title</h4>
+
+                <nav aria-label="breadcrumb" class="mt-25">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Index", "Gestao_Equipe")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_EQUIPES</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <span>@ViewBag.Title</span>
+                        </li>
+
+                    </ol>
+                </nav>
+            </div>
+
+            <div class="col-auto">
+                <div class="row title-page">
+                    <div class="form-inline pr-3">
+                        <a class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO">
+                            <i class="la la-filter la-2x" style="color: #999; top: -5px; position: relative;font-size: 30px;"></i>
+                        </a>
+
+                        <label for="iId_WidePay" class="mr-3"></label><br>
+                        <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legendas"
+                        data-content="<div style='font-size: 10px'>
+                        <span class='p-3'><i class='fas fa-circle legend-color-disp'></i> Disponível</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-aus'></i> Ausente</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-ocup'></i> Em Atendimento</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-sem-agenda'></i> Sem Agenda</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-desl'></i> Em Deslocamento</span><br />
+                        <span class='p-3'><i class='fas fa-circle legend-color-indisp'></i> Indisponível</span><br />
+                        </div>"></i>
+
+                    </div>
+                    <div>
+                        <p id="relogioPainel" style="margin-bottom: 0rem;">Painel Atualizado às </p>
+                        <h4 id="relogio">@DateTime.Now.ToString("dd/MM/yyyy HH:mm")</h4>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Div do Mapa -->
+        <div id="map">
+
+            <img src="~/Images/map-leafletjs.png" class="img-fluid" style="height: 100%; width: 100%;">
+        </div>
+
+
+
+        @if (Model.Itens.Count() != 0)
+        {
+
+            <div class="form-group panel">
+
+
+                <script>
+
+                            var map = L.map('map').setView([@Model.Itens[0].Latitude, @Model.Itens[0].Longitude], 15);
+                            var marker_endereco;
+
+
+
+
+                            $("#idEndereco").focusout(async function () {
+
+                                var latitude;
+                                var longitude;
+                                var link = 'https://maps.googleapis.com/maps/api/geocode/json?key=@CONSTANTES.TokenGoogleAPI&address=' + $("#idEndereco").val();
+
+                                /**/
+
+                                await $.ajax({
+                                    url: link,
+                                    type: 'GET',
+                                    dataType: 'json'
+                                })
+                                    .done(function (data) {
+                                        latitude = data.results[0].geometry.location.lat;
+                                        longitude = data.results[0].geometry.location.lng;
+                                    })
+                                    .fail(function (e) {
+                                        Notificar("@RsBase.ATENCAO_", e, "warning");
+                                    })
+                                    .always(function () {
+
+                                    });
+
+
+                                if (marker_endereco) { // check
+                                    map.removeLayer(marker_endereco); // remove
+                                }
+
+                                marker_endereco = L.marker([latitude, longitude], {
+                                        icon: L.divIcon({
+                                            //html: '<i class="fa fa-truck fa-2x" style="color: blue"></i>',
+                                            //html: '<i class="icofont-labour icofont-2x" style="color: #a52a2a; background-color: #fff !important; border-radius: 1rem !important;"></i>',
+                                            html: '<i class="fas fa-map-marker-alt fa-2x" style="color:black"></i>',
+                                            iconSize: [20, 20],
+                                            className: 'myDivIcon'
+                                        })
+                                }).addTo(map);
+                                map.panTo([latitude, longitude], 15);
+                            });
+
+                            /***************************************************************************************
+                            * Inicializaremos o mapa e definiremos sua visualização para as coordenadas geográficas
+                            * escolhidas e um nível de zoom:
+                            ***************************************************************************************/
+
+                            @*var mymap = L.map('mapid').setView([@Model.Itens[0].Latitude, @Model.Itens[0].Longitude], 15);*@
+
+
+                            //Iniciando o objeto map com coordenadas inicias e zoom de 15
+
+
+                            //L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibGVhbmRyb2JydW0iLCJhIjoiY2p2M3F0cGlkMmoxaDRlcHBscTdoZHh6eSJ9.znjXpk20uGWpVAcmrVNGhQ', {
+                            //    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                            //    maxZoom: 18,
+
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    zoom: 15,
+                                }).addTo(map);
+
+
+                                /****************************************************************************************
+                                * Adicionaremos uma camada de mosaico para adicionar ao nosso mapa
+                                * Você pode tentar substituir o mapbox.streets pelo mapbox.satellite e ver o que acontece.
+                                *
+                                * Criei uma conta pessoal e-mail: leandrobrum@unigranrio.br
+                                ****************************************************************************************/
+                                //id: 'mapbox.streets',
+                                //id: 'mapbox.satellite',
+                    id: 'mapbox.streets',
+
+                        //accessToken: 'your.mapbox.access.token'
+                        //    accessToken: 'pk.eyJ1IjoibGVhbmRyb2JydW0iLCJhIjoiY2p2M3F0cGlkMmoxaDRlcHBscTdoZHh6eSJ9.znjXpk20uGWpVAcmrVNGhQ'
+                        //}).addTo(mymap);
+
+
+                        // function onLocationFound(e) {
+                        //     var radius = e.accuracy / 2;
+
+                        //     L.marker(e.latlng).addTo(map)
+                        //         .bindPopup("You are within " + radius + " meters from this point").openPopup();
+
+                        //     L.circle(e.latlng, radius).addTo(map);
+                        // }
+
+                        // function onLocationError(e) {
+                        //     alert(e.message);
+                        // }
+
+                        // map.on('locationfound', onLocationFound);
+                        // map.on('locationerror', onLocationError);
+
+                        // map.locate({ setView: true, maxZoom: 16 });
+
+
+                        /*********************************
+                        *Marcadores, círculos e polígonos
+                        **********************************/
+
+                        // L.marker([-22.8758133, -43.447965]).addTo(mymap)
+                        //     .bindPopup("<b>Olá Mapa!</b><br>Eu sou um Popup.").openPopup();
+
+                        /*********************************
+                            * Icones Personalizados
+                            **********************************/
+                        // var LeafIcon = L.Icon.extend({
+                        //     options: {
+                        //         shadowUrl: 'leaf-shadow.png',
+                        //         iconSize: [38, 95],
+                        //         shadowSize: [50, 64],
+                        //         iconAnchor: [22, 94],
+                        //         shadowAnchor: [4, 62],
+                        //         popupAnchor: [-3, -76]
+                        //     }
+                        // });
+
+                        // var greenIcon = new LeafIcon({ iconUrl: 'leaf-green.png' }),
+                        //     redIcon = new LeafIcon({ iconUrl: 'leaf-red.png' }),
+                        //     orangeIcon = new LeafIcon({ iconUrl: 'leaf-orange.png' });
+
+                        // L.marker([51.5, -0.09], { icon: greenIcon }).bindPopup("I am a green leaf.").addTo(map);
+                        // L.marker([51.495, -0.083], { icon: redIcon })TipobindPopup("I am a red leaf.").addTo(map);
+                        // L.marker([51.49, -0.1], { icon: orangeIcon }).bindPopup("I am an orange leaf.").addTo(map);
+                            @for (int i = 0; i < Model.Itens.Count(); i++)
+                            {
+                                    <text>
+
+                                    L.marker([@Model.Itens[i].Latitude, @Model.Itens[i].Longitude], {
+                                        icon: L.divIcon({
+                                            //html: '<i class="fa fa-truck fa-2x" style="color: blue"></i>',
+                                            //html: '<i class="icofont-labour icofont-2x" style="color: #a52a2a; background-color: #fff !important; border-radius: 1rem !important;"></i>',
+                                            html: '<i class="fas fa-male fa-3x" style="color: @Model.Itens[i].Cor_StatusEquipe_Mapa;"></i>',
+                                            iconSize: [20, 20],
+                                            className: 'myDivIcon'
+                                        })
+
+                                    }).addTo(map).bindPopup(
+                                            //"<b>Olá, sou o técnico: </b><br>Joao da Salva."
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-12">' +
+                                            '<span class="text-uppercase text-muted">' +
+                                            "<b>@Model.Itens[i].Equipe</b>" +
+                                            '</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<hr>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-8">' +
+                                            '<b>Origem Informação:</b> <span class="font-weight-normal">@Model.Itens[i].OrigemLocalizacao</span>' +
+                                            '</div>' +
+                                            '<div class="col-sm-8">' +
+                                            '<i class="fas fa-building"></i> <b>Endereço:</b> <span class="font-weight-normal">@Model.Itens[i].Endereco</span>' +
+                                            '</div>' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-building"></i> <b>Status Técnico:</b> <span class="font-weight-normal">@Model.Itens[i].Status_Tecnico</span>' +
+                                            '</div>' +
+                                            ("@Model.Itens[i].Status_Tecnico" == "@RsCadastros.AUSENTE" ? `<div class="col-sm-6"><b>Justificativa Ausência:</b> <span class="font-weight-normal">@Model.Itens[i].Justificativa_Ausencia</span></div>`: "") +
+                                            '<div class="col-sm-8">' +
+                                            '<b>OS Atual:</b> <span class="font-weight-normal">@Model.Itens[i].Numero_Os</span>' +
+                                            '</div>' +
+
+                                            '<div class="col-sm-8">' +
+                                            '<b>Tipo de Serviço:</b> <span class="font-weight-normal">@Model.Itens[i].TipoServico</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-sync"></i> <b>Atualizado:</b> <span class="font-weight-normal">@Model.Itens[i].Atualizado_Em</span>' +
+                                            '</div>' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-rss"></i> <b>Precisão:</b> <span class="font-weight-normal">@Model.Itens[i].Precisao</span><span>m</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-map-marker-alt"></i> <b>Status GPS:</b> @Model.Itens[i].Status_Gps em: <span class="font-weight-normal">@Model.Itens[i].Atualizado_Em</span>' +
+                                            '</div>' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-battery-half"></i> <b>Bateria:</b> <span class="font-weight-normal">@Model.Itens[i].Bateria%</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-12">' +
+                                            '<i class="fas fa-mobile-alt"></i> <b>Dispositivo Móvel:</b> <span class="font-weight-normal">@Model.Itens[i].Dispositivo</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-12">' +
+                                            '<i class="fas fa-phone"></i> <b>Telefone:</b> <span class="font-weight-normal">@Model.Itens[i].Telefone</span>' +
+                                            '</div>' +
+                                            '</div>' +
+
+                                            '<div class="row mt-1 mb-2">' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fab fa-android"></i> <b>Versão Android:</b> <span class="font-weight-normal">@Model.Itens[i].Versao_Android</span>' +
+                                            '</div>' +
+                                            '<div class="col-sm-6">' +
+                                            '<i class="fas fa-info-circle"></i> <b>Versão App:</b> <span class="font-weight-normal">@Model.Itens[i].Versao_App</span>' +
+                                            '</div>' +
+                                        '</div>', { maxWidth : 600 }
+                                        ).openPopup();
+                                    </text>
+                            }
+
+
+                                /*Circulo ********************************************************************************************
+                                * Adicionar um círculo é o mesmo (exceto para especificar o raio em metros como um segundo argumento),
+                                * mas permite controlar a aparência passando as opções como o último argumento ao criar o objeto:
+                                * *****************************************************************************************************/
+
+                            //    L.circle([-22.8758133, -43.447965], {
+                            //    //color: 'red',
+                            //    //fillColor: '#f03',
+                            //    color: '#3388ff',
+                            //    fillColor: '#38f',
+                            //    fillOpacity: 0.5,
+                            //    radius: 300
+                            //    }).addTo(mymap).bindPopup("Eu sou um circle.");
+
+
+                            //    /*Polígono ********************************************************************************************
+                            //    * Adicionar um polígono é o mesmo (exceto para especificar o raio em metros como um segundo argumento),
+                            //    * mas permite controlar a aparência passando as opções como o último argumento ao criar o objeto:
+                            //    * *****************************************************************************************************/
+                            //    L.polygon([
+                            //        // [51.509, -0.08],
+                            //        // [51.503, -0.06],
+                            //        // [51.51, -0.047]
+                            //        [-22.8758133, -43.447965],
+                            //    [-22.8758133, -43.447945],
+                            //    [-22.8758133, -43.447925]
+                            //]).addTo(mymap).bindPopup("Eu sou um polygon.");
+
+
+                            /*********************************
+                            * Trabalhando com pop-ups
+                            **********************************/
+
+                            L.popup();
+
+                            function onMapClick(e) {
+                                popup.setLatLng(e.latlng)
+                                    .setContent("Eu sou um popup padrão." + e.latlng.toString())
+                                    .openOn(mymap);
+                            }
+
+                            /*********************************
+                            * Lidando com eventos
+                            **********************************/
+                            map.on('click', onMapClick);
+
+
+
+                </script>
+            </div>
+        }
+
+
+
+    </div>
+
+
+    <!--Modal Filters-->
+    <div class="modal" id="modal-filter">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    @if (AcessoHelper.TemAcesso(areas, "176"))
+                    {
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <div class="form-check form-check-inline">
+                                @Html.RadioButtonFor(m => m.TipoFiltro, "0", new { @id = "iSupervisor" })
+                                <label class="form-check-label" for="iSupervisor">Supervisor de Técnico</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                @Html.RadioButtonFor(m => m.TipoFiltro, "1", new { @id = "iMonitor" })
+                                <label class="form-check-label" for="iMonitor">Monitor de Técnico</label>
+                            </div>
+
+                                <div class="form-group" id="divSupervisor">
+                                    @Html.DropDownListFor(model => model.Num_Fre_Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control text-center", @id = "idSupervisor" })
+                                </div>
+                                <div class="form-group" id="divMonitor">
+                                    @Html.DropDownListFor(model => model.Id_Monitor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control text-center", @id = "idMonitor" })
+                                </div>
+                        </div>
+                    </div>
+                    }
+                    <div class="row">
+                        <div class="col-12 mt-2">
+                            <div class="form-group">
+                                <label for="iVendedor">@RsCadastros.EQUIPE</label>
+                                @Html.DropDownListFor(model => model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control", @id = "idEquipe" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iVendedor">@RsCadastros.ENDERECO</label>
+                                @Html.TextBoxFor(model => model.Endereco, new { @class = "form-control", @id = "idEndereco", @placeholder = "ex:Logradouro - Bairro Número" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                                @Html.DropDownListFor(model => model.Cod_Escritorio, new SelectList(new List<object>()), new { @class = "form-control", @id = "iGrupoArea" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iArea">@RsCadastros.AREA:</label>
+                                @Html.DropDownListFor(model => model.Cod_Area, new SelectList(new List<object>()), new { @class = "form-control", @id = "iArea" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                                @Html.DropDownListFor(model => model.Cod_Localidade, new SelectList(new List<object>()), new { @class = "form-control", @id = "iLocalidade" })
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mt-1">
+                            <div class="form-group">
+                                <label for="iIdNatureza">@RsCadastros.HABILIDADE_TECNICA</label>
+                                @Html.DropDownListFor(model => model.Id_Natureza, new SelectList(ViewBag.Natureza, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iIdNatureza", @autocomplete = "off" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <div class="mt-2 mb-2" style="">
+                                <button class="btn btn-success pl-2 pr-2" type="submit" id="btnAtualizar" title="Aplicar" onclick="ShowPageLoading();">
+                                    @RsCadastros.APLICAR
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+
+
+
+
+
+}

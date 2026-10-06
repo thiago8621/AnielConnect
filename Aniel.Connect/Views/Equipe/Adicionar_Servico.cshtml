@@ -1,0 +1,249 @@
+﻿@model Aniel.Connect.Models.Habilitar_ServicoCadastroModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.PONTO_PARTIDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+    @if (ViewBag.Sucesso == true)
+    {
+
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                try {
+                    parent.dial.dialog('close');
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+
+            });
+        </script>
+    }
+
+    <script>
+
+        var ufs = @(Html.GetArrayEnum<UF>());
+
+        @*$(document).ready(function () {
+
+           $.ajax({
+            url: "@String.Concat(CONSTANTES.URLPortal,"/api/Natureza_ProducaoApi/GetList")",
+            type: 'POST',
+            dataType: 'json'
+            })
+            .done(function (data) {
+
+             $("#iIdNatureza").empty();
+             $("#iIdNatureza").append("<option value=''>@RsBase.SELECIONE</option>");
+
+                $.each(data, function (key, value) {
+                    $("#iIdNatureza").append('<option value="' + data[key].objeto.value + '">' + data[key].objeto.label + '</option>');
+                });
+            });
+        });*@
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Naturezas));
+
+            var nome_lista = "Naturezas";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                pageLength: 5000,
+                ordering: false,
+                columns: [
+                    {
+                        data: "Id",
+                        orderable: false,
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id +'"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id_Natureza" name="' + nome_lista + '[' + meta.row + '].Id_Natureza" type="hidden" value="' + TrataNulo(row.Id_Natureza) + '">';
+                        }
+                    },
+                    {
+                        data: "Descricao",
+                        orderable: false,
+                        title: "@RsCadastros.DESCRICAO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Descricao" name="' + nome_lista + '[' + meta.row + '].Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/EquipeNaturezaapi/ExcluirGridEquipeNatureza?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+
+            handleExcluir();
+
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+
+                if (ValidaCamposObrigatorios(false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                    if (oDatatable.rows().data()[i].Id_Natureza == $("#iIdNatureza").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.NATUREZA)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add({
+                    Id_Natureza: $("#iIdNatureza").val(),
+                    Descricao: $('#iIdNatureza option:selected').prop("label"),
+                    Id: 0
+                }).draw(false);
+
+                $("#iIdNatureza").val("");
+
+                handleExcluir();
+            });
+
+            $("#iPesquisar").on('click', function () {
+
+
+
+                oDatatable.draw();
+
+
+            });
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+    var clicked = false;
+    function ValidaSubmit()
+    {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+        $('#form').submit();
+    }
+
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Adicionar_Servico", "Equipe", FormMethod.Post, htmlAttributes: new { enctype = "multipart/form-data", @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.Ids)
+
+
+    <div class="row">
+        <div class="col-8">
+            <div class="form-group mb-2" style="padding-left:14%;padding-top: 5%">
+                <label for="iVendedor">@RsCadastros.HABILITAR_NATUREZA_SERVICO_EQUIPE</label>
+                @Html.DropDownListFor(model => model.Id_Natureza, new SelectList(ViewBag.Natureza, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iIdNatureza", @autocomplete = "off", @required = true })
+                @*<select id="iIdNatureza" class="form-control col-6" name="Id_Natureza"></select>*@
+            </div>
+        </div>
+        <div class="col-4">
+            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success mt-4" />
+        </div>
+    </div>
+
+
+
+    <div class="row mt-3" style="padding-left:14%">
+        <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+    </div>
+
+    <div class="form-group col-sm-12">
+        <div class="text-center">
+            <button type="button" onclick="parent.dial.dialog('close'); return false;" class="btn btn-danger" id="iLimparFiltroModal">Cancelar</button>
+            <button type="button" onclick="return ValidaSubmit();" class="btn btn-success" id="iPesquisar">Salvar</button>
+        </div>
+    </div>
+
+}

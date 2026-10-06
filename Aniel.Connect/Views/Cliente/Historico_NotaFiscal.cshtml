@@ -1,0 +1,320 @@
+﻿@model Aniel.Connect.Models.Historico_Nota_FiscalModel
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_NOTA_FISCAL;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+
+}
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+    
+    <script>
+
+    var link = '@String.Concat(CONSTANTES.URLFinanceiro, "/api/Nota_Fiscalapi/GetNotas_Geradas")';
+
+    var oDatatable = null;
+    var rows_selected = [];
+
+        function FiltrarDataTable() {
+
+            var date1 = new Date(parseInt($("#iDtInicialFiltro").val().substring(6, 10)), parseInt($("#iDtInicialFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtInicialFiltro").val().substring(0, 2))); 
+            var date2 = new Date(parseInt($("#iDtFinalFiltro").val().substring(6, 10)), parseInt($("#iDtFinalFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtFinalFiltro").val().substring(0, 2)));
+  
+            const diffTime = Math.abs(date2 - date1);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+            if (diffDays > 90) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+            if ($("#iDtInicialFiltro").val() == "" || $("#iDtFinalFiltro").val() == "") {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+            if ($("#iDtInicialFiltro").val() > $("#iDtFinalFiltro").val()) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+            oDatatable.draw();
+            return true;
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+                            return "";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+
+                    url: link,
+                    type: 'POST',
+                    data: function (data) {
+                        //data.draw = 1; data.length = 18; data.order = [{ column: 1, dir: "asc" }]; data.search = { regex: false, value: null }; data.start = 0;
+                        data.Id_Forma_Pagamento = null;
+                        data.Data_Emissao_Fatura_Ini = $("#iDtInicialFiltro").val();
+                        data.Data_Emissao_Fatura_Fim = $("#iDtFinalFiltro").val();
+                        data.Data_Vencimento = null;
+                        data.Status_Faturamento = null;
+                        data.Id_Cliente = $("#iIdClienteHisNtFisc").val();
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: () => {
+
+                $("#vizualizarNota").on("click", function () {
+                    var id_conta_receber = parseInt( $("#vizualizarNota").attr("id_conta_receber") ) ;
+                    $.getJSON("@CONSTANTES.URLFinanceiro/api/Nota_FiscalApi/GetUrlNotaFiscalContaReceber?Id_Conta_Receber=" + id_conta_receber,
+                        function myfunction(data) {
+
+                        var url = data.objeto;
+
+                        var aTag = document.createElement('a');
+                        aTag.setAttribute('target', '_blank');
+                        aTag.setAttribute('href', url);
+                        aTag.click();
+                    });
+
+                });
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 10,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { data: "documento", title: "", orderable: true },
+                    { data: "documento", title: "@RsCadastros.NUMERO_NOTA_FISCAL", orderable: true },
+
+                    { data: "data_Emissao", title: "@RsCadastros.DATAEMISSAO", orderable: true },
+                    { data: "cnpj_Nota", title: "@RsCadastros.CNPJ_EMPRESA", orderable: true },
+                    { data: "empresa_Nota", title: "@RsCadastros.NOME_DA_EMPRESA", orderable: true },
+
+                    { data: "valor_Previsto", title: "@RsCadastros.VALOR_FATURA", orderable: true },
+                    { data: "data_Vencimento", title: "@RsCadastros.DATAVENCIMENTO", orderable: true },
+                    { data: "data_Recebimento", title: "@RsCadastros.DATA_PAGAMENTO", orderable: true },
+                    { data: "valor_Recebido", title: "@RsCadastros.VALOR_PAGO", orderable: true },
+                    {
+                        data: "id",
+                        title: "@RsCadastros.BOLETO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                if (row.id != null) {                                    
+                                    data = `<a  class="btnBoleto pl-2" id_conta_receber=${row.id} id="vizualizarNota" href="#"  ><i  class="fas fa-print"></i></a>`;
+                                }
+                            }
+                            return data;
+                        },
+                        orderable: false
+                    },
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+            // Aqui
+            $("#btnFiltro").on("click", function () {
+
+                //if (rows_selected.length == 0) {
+                //    Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                //    return;
+                //}
+
+
+                //AlterarStatusObj(1);
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+
+    </script>
+}
+
+
+
+
+
+@Html.HiddenFor(model => model.Id_Cliente, new { @id = "iIdClienteHisNtFisc" })
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+            <div class="card-header title-card" id="heading_1">
+                <h5 class="mb-0">
+                    <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                        <span class="text-bold-card">@RsCadastros.HISTORICO_NOTA_FISCAL</span>
+                    </a>
+                </h5>
+            </div>
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label class="ml-4" for="iNome">@RsCadastros.PERIODO:</label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3 ml-4">@RsCadastros.DE:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Inicial_Filtro, new { @tabindex = "7", @class = "form-control ml-4 datepicker", @data_provide = "datepicker", @id = "iDtInicialFiltro", @required = true })
+
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iAssunto" class="mr-3 ">@RsCadastros.PARA:</label>
+                        </div>
+                        @Html.TextBoxFor(model => model.Dt_Final_Filtro, new { @tabindex = "7", @class = "form-control datepicker", @data_provide = "datepicker", @id = "iDtFinalFiltro", @required = true })
+
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+
+                        </div>
+
+
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+
+                        </div>
+
+
+                    </div>
+
+                    <div class="col-sm-4 text-right mt-4 pb-2 pr-5">
+                        <input type="button" class="btn btn-outline-secondary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                    </div>
+
+                </div>
+
+                <!--.Filtros-->
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+
+
+            </div>
+        </div>
+    </div>
+</div>

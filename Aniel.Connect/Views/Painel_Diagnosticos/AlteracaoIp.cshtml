@@ -1,0 +1,197 @@
+﻿@model Aniel.Connect.Models.Pool_Ip_Endereco_VincularLoginModels
+
+@{
+    ViewBag.Title = RsCadastros.ALTERAR_IP;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts {
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+    <script>
+
+        var model = @Html.Raw(Json.Encode(Model));
+        //Esconde info de IP dinâmico e só exibe quando a pool não for de IP fixo.
+        $('#iInfoIPDinamico').hide();
+
+        var HandleLoginCliente = function () {
+            //Plano Vinculado
+            $('#iLoginCliente').on('select2:select select2:unselecting', function (e) {
+                if (e.params.data != undefined) {
+                    AddSelect("iLoginPlanoProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboVinculoLoginRadius", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, null, "@RsBase.SELECIONE", false);
+                }
+                return true;
+            });
+        }
+
+        //Função que esconde campo de seleção de IP e mostra a informação
+        //De que a pool é de IP dinâmico e que a atribuição de IP ocorre
+        //Pelo radius ou concentradora.
+        var HandleIsIpFixo = function (e) {
+            if (e.params.data.isPoolIpFixo === false) {
+                
+                $('#iEsconderIPfixo').hide();
+                $('#iInfoIPDinamico').show();
+            }
+            else {
+                $('#iEsconderIPfixo').show();
+                $('#iInfoIPDinamico').hide();
+            }
+        }
+
+        var HandlePoolIp = function () {
+            //Pool Vinculado
+            $('#iPoolIp').on('select2:select select2:unselecting', function (e) {
+                
+                if (e.params.data !== undefined) {
+                    AddSelect("iEnderecoPoolIp", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, e.params.data.id, model.Id_Ip, "@RsBase.SELECIONE", false);
+                    HandleIsIpFixo(e);
+                }         
+                                       
+                return true;
+            });
+        }
+
+        AddSelect("iLoginCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, model.Id_Cliente, "@RsBase.SELECIONE", false, HandleLoginCliente);
+        AddSelect("iLoginPlanoProduto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboVinculoLoginRadius", @CONSTANTES.PaginacaoRegistros, null, model.Id_Cliente, model.Id_ClientePlanoProduto, "@RsBase.SELECIONE", false);
+        AddSelect("iPoolIp", "@CONSTANTES.URLPortal/api/pool_Ipapi/GetComboDisponiveis", @CONSTANTES.PaginacaoRegistros, null, null, model.Id_Pool_Ip, "@RsBase.SELECIONE", false, HandlePoolIp);
+        AddSelect("iEnderecoPoolIp", "@CONSTANTES.URLPortal/api/pool_Ip_Enderecoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, model.Id_Pool_Ip, model.Id_Ip, "@RsBase.SELECIONE", false);
+
+        function notifyParentOfCompletion() {
+         window.parent.postMessage('closeDialog', '*'); // Send a message to the parent window
+            }
+
+        $("#btnAlterarIp").click(function (e) {
+            ShowPageLoading();
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/pool_Ip_Enderecoapi/VincularLoginRadius")';
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    Id_Ip: $('#iEnderecoPoolIp option:selected').val(),
+                    Id_Pool_Ip: $('#iPoolIp option:selected').val(),
+                    Id_Cliente: $('#iLoginCliente option:selected').val(),
+                    Id_ClientePlanoProduto: $('#iLoginPlanoProduto option:selected').val()
+                }
+            })
+                .done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        notifyParentOfCompletion();
+                        HidePageLoading();
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        notifyParentOfCompletion();
+                        HidePageLoading();
+
+                    }
+
+                    $('#iLoginCliente').val('').trigger('change');
+                    $('#iLoginPlanoProduto').val('').trigger('change');
+                    $('#iEnderecoPoolIp').val('').trigger('change');
+                    $('#iPoolIp').val('').trigger('change');
+
+                    HidePageLoading();
+
+
+
+                });
+
+            e.stopPropagation();
+            $("#btnAlterarIp").unbind("click");
+
+
+        });
+
+    </script>
+}
+
+
+<div class="mx-auto mt-5 col-10 col-md-10 col-lg-6">
+    <div class="row mb-5">
+
+        <div class="col-sm-8 container" style="align-content:center;">
+            <div class="form-group">
+                <label for="iLoginCliente">@RsCadastros.CLIENTE</label>
+                <select class="form-control" id="iLoginCliente">
+                    <option value="" selected>Selecione</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="iLoginPlanoProduto">@RsCadastros.PLANO_PRODUTO</label>
+                <select class="form-control" id="iLoginPlanoProduto">
+                    <option value="" selected>Selecione</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="iPoolIp">@RsCadastros.POOL_IP</label>
+                <select class="form-control" id="iPoolIp">
+                    <option value="" selected>Selecione</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="iEsconderIPfixo">
+                <label for="iEnderecoPoolIp">@RsCadastros.ENDERECO_IP</label>
+                <select class="form-control" id="iEnderecoPoolIp">
+                    <option value="" selected>Selecione</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="iInfoIPDinamico">               
+                <div class="text-center">
+                <p>Pool de IP dinâmico. A atribuição de IP é realizada pelo Radius ou concentradora.</p>
+                </div>
+            </div>
+
+
+            @*
+            <div class="col-sm-3">
+                <div class="form-group">
+                    <label>@RsCadastros.CODIGO_CLIENTE</label>
+                    @Html.TextBoxFor(model => model.Id_Login_Radius, new { @class = "form-control", @id = "iCodCliente", disabled = "disabled" })
+                </div>
+            </div>
+
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label>@RsCadastros.USUARIO</label>
+                    @Html.TextBoxFor(model => model.Desc_Login_Radius, new { @class = "form-control", @id = "iDescLoginRadius", disabled = "disabled" })
+                </div>
+            </div>
+
+            <div class="col-sm-5">
+                <div class="form-group">
+                    <label>@RsCadastros.MAC</label>
+                    @Html.TextBoxFor(model => model.Endereco_Mac, new { @class = "form-control", @id = "iEnderecoMac", disabled = "disabled" })
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="width:100%">
+            <div class="col-sm-12">
+                <div class="form-group">
+                    <label>@RsCadastros.CLIENTE</label>
+                    @Html.TextBoxFor(model => model.Desc_Cliente, new { @class = "form-control", @id = "iDescCliente", disabled = "disabled" })
+                </div>
+            </div>
+            *@
+        </div>
+    </div>
+    <br />
+
+    <div class="form-group mt-4" style="padding: 15px;">
+        <div class="text-center">
+            <button type="button" class="btn btn-danger" data-dismiss="modal">@RsBase.CANCELAR</button>
+            <button type="button" class="btn btn-success" id="btnAlterarIp">@RsBase.ALTERAR</button>
+        </div>
+    </div>
+</div>
+
+

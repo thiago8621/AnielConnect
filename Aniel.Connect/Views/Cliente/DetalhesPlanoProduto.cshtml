@@ -1,0 +1,883 @@
+﻿@model Aniel.Connect.Repository.Model.PlanoProdutoListModel
+@using Aniel.Connect.Model.enumerado
+@{
+    ViewBag.Title = "DetalhesPlanoProduto";
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section scripts
+{
+    <style>
+        .bloqueiodatas {
+            padding-top: 25px;
+            padding-right: 20px;
+            padding-bottom: 5px;
+        }
+    </style>
+
+    <script>
+        function Gravar() {
+            $.ajax({
+                url: "@CONSTANTES.URLPortal/api/clienteapi/GravarDetalhesPlanoProduto",
+                type: "POST",
+                data: {
+                    Objeto: {
+                        Id: @Model.Id,
+                        ImpedirBloqueio_Feriados: $("#ImpedirBloqueio_Automaticoferiado").prop('checked'),
+                        ImpedirBloqueio_Domingo: $("#ImpedirBloqueio_Automaticodomingo").prop('checked'),
+                        ImpedirBloqueio_Sabado: $("#ImpedirBloqueio_Automaticosabado").prop('checked'),
+                        ImpedirBloqueio_Sexta: $("#ImpedirBloqueio_Automaticosexta").prop('checked'),
+                        ImpedirBloqueio_Automatico: $("#ImpedirBloqueio_Automatico").prop('checked'),
+                        BloqueioAutomatico_Debito: $("#iBloqueioAutomatico_Debito").prop('checked'),
+
+                        Dias_Atraso: $("#iDias_Atraso").val(),
+                        Reducao_Velocidade: $("#iReducao_Velocidade").prop('checked'),
+                        QtdDiasAtraso: $("#iQtdDiasAtraso").val(),
+                        Velocidade_DownloadReduzida: $("#iVelocidade_DownloadReduzida").val(),
+                        Velocidade_UploadReduzida: $("#iVelocidade_UploadReduzida").val(),
+
+                        QtdDiasbloqueados: $("#QtdDiasbloqueados").val(),
+
+                        Frequencia_Desbloqueio: $("#iFrequencia_Desbloqueio").val(),
+                        dias_desbloq: $("#iDias_Desbloq").val(),
+                        Desbloqueio_Conf: $("#idesblqueio_conf").prop('checked'),
+
+                        Meses_Carencia: $("#iMeses_Carencia").val(),
+                        Qtde_Dias: $("#iQtde_Dias").val(),
+                        Numero_Parcelas: $("#iNumero_Parcelas").val(),
+                        ValorInstalacao: $("#iConsultaValorPlano").val(),
+                        CobrarInstalacaoEntrada: $("#iCobrancaInstalacaoEntrada").prop('checked'),
+                        ValorInstalacaoEntrada: $("#iValorInstalacaoEntrada").val(),
+                        Quantidade: $("#iQuantidade").val(),
+                        ValorPlanoOriginal: $("#ivalorPlano").val(),
+                        Parcela: $("#iParcela").val(),
+                        Valor_Entrada: $("#iValor_Entrada").val()
+                    }
+                },
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                }
+            })
+                .done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                        parent.salvou = true;
+                        parent.dial.dialog('close');
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+        }
+
+    let [poligonosbanco, lista_Analise_Comercial, geoCliente] = [[], [], [@Model.Latitude,@Model.Longitude]];
+
+    async function reservarCaixa_Porta() {
+        let [matrizLat, matrizLng] = [Number("@Model.Latitude".replace(",", ".")), Number("@Model.Longitude".replace(",", "."))];
+        if (!((matrizLat == 0 || matrizLng == 0))) {
+            geoCliente = [];
+            lista_Analise_Comercial = [];
+            geoCliente.push(matrizLat, matrizLng);
+            parent.AddAba(`@Html.Raw(Url.Action("Index","Viabilidade"))?latitude=${matrizLat}&longitude=${matrizLng}&idClientePlanoProduto=@Model.Id`, "Consulta de Viabilidade");
+        }
+        else {
+            Notificar("Aten&#231;&#227;o!", " O Endereço é obrigatório. Por Favor Preencher!", "warning");
+        }
+    }
+
+    function closeModal(id_plano_produto) {
+        parent.VincularOnu(id_plano_produto)
+        parent.dial.dialog('close');
+        return false;
+    }
+
+    function closeModalStatusOnu(id_plano_produto) {
+        parent.StatusOnu(id_plano_produto)
+        parent.dial.dialog('close');
+        return false;
+    }
+
+        $(document).ready(function () {
+           @if (Model.Meses_Carencia == 0 || Model.Meses_Carencia == null)
+           {
+            <text>
+            $('#iConsultaMeses_Carencia').text('0');
+            </text>
+            }
+
+            $('#ImpedirBloqueio_Automatico').trigger('change');
+            $('#iBloqueioAutomatico_Debito').trigger('change');
+            $('#iReducao_Velocidade').trigger('change');
+            $('#idesblqueio_conf').trigger('change');
+
+            @if(Model.CobrarInstalacaoEntrada == false)
+            {
+              <text>
+              $("#divValorInstalacaoEntrada").hide();
+               </text>
+            }
+
+        });
+
+        $('#idesblqueio_conf').change(function () {
+            if ($('#idesblqueio_conf').is(':checked')) {
+
+                $(".bloqueio_DesbloqueioConf").show();
+            }
+            else {
+                $(".bloqueio_DesbloqueioConf").hide();
+            };
+        });
+
+        $('#ImpedirBloqueio_Automatico').change(function () {
+            if ($('#ImpedirBloqueio_Automatico').is(':checked')) {
+
+                $(".bloqueiodatas").show();
+            }
+            else {
+                $(".bloqueiodatas").hide();
+            };
+        });
+
+        $('#iCobrancaInstalacaoEntrada').change(function () {
+            if ($('#iCobrancaInstalacaoEntrada').is(':checked')) {
+
+                $("#divValorInstalacaoEntrada").show();
+            }
+            else {
+                $("#divValorInstalacaoEntrada").hide();
+            };
+        });
+
+        $('#iReducao_Velocidade').change(function () {
+            if ($('#iReducao_Velocidade').is(':checked')) {
+
+                $(".propriedades_Velocidade").show();
+            }
+            else {
+                $(".propriedades_Velocidade").hide();
+            };
+        });
+
+        $('#iBloqueioAutomatico_Debito').change(function () {
+
+            if ($('#iBloqueioAutomatico_Debito').is(':checked')) {
+                $('#iQtdDiasbloqueados').show();
+            }
+            else {
+                $('#iQtdDiasbloqueados').hide();
+            }
+        });
+
+        $(".float-cancel").on("click", function () {
+            window.parent.$('.ui-dialog-content').dialog('close');
+        });
+
+    </script>
+}
+
+<input type="hidden" id="ivalorPlano" value="@Model.ValorPlanoOriginal" />
+<div class="container-fluid">
+    <hr />
+    <h4 class="text-muted" style="font-size:15px">Informações @RsCadastros.PLANO_PRODUTO</h4>
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label>Valor Real:</label>
+                <span id="iTextConsultaValorPlano">@Model.ValorPlanoProduto</span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaValor_Final">@RsCadastros.VALOR_FINAL:</label>
+                <span id="iConsultaValorPlano_Final">@Model.ValorPlanoProduto_Final</span>
+            </div>
+        </div>
+
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaCheckTesteGratis">@RsCadastros.TESTE_GRATIS:</label>
+                <span id="iConsultaQtde_Dias">@Model.Qtde_Dias</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaCheckPeriodoCarencia">@RsCadastros.PERIODO_FIDELIDADE_MESES_:</label>
+                <span id="iConsultaMeses_Fidelidade"> @Model.Meses_Carencia </span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaMulta_Fidelidade">@RsCadastros.MULTA_FIDELIDADE_REAIS.Replace("Meses", "Reais"):</label>
+                <span id="iConsultaMulta_Fidelidade"> @Model.Multa_Carencia_Reais </span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iCancelaContratoFimCarencia">@RsCadastros.CANCELADO.Insert(RsCadastros.CANCELADO.Length, " Ao Fim da Fidelidade"):</label>
+                <span id="iCancelaContratoFimCarencia"> @Model.CancelaContratoFimCarencia </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaCheckPeriodoCarencia">@RsCadastros.TEM_REAJUSTE:</label>
+                <span id="iConsultaMeses_Fidelidade"> @Model.Tem_Reajuste </span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaMulta_Fidelidade">@RsCadastros.FREQUENCIA_REAJUSTE</label>
+                <span id="iConsultaMulta_Fidelidade"> @Model.Frequencia_Reajuste </span>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaCheckRenovarFidelidadeAuto">@RsCadastros.RENOVAR_FIDELIDADE_AUTOMATCAMENTE:</label>
+                <span id="iConsultaCheckRenovarFidelidadeAuto"> @Model.Renovar_CarenciaAuto</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.NUMERO_PARCELAS_INSTALACAO:</label>
+                <span id="iConsultaNumero_Parcelas_Instalacao">@Model.Numero_Parcelas</span>
+            </div>
+        </div>
+        @if (Model.Produto_Plano == "Produto")
+        {
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.DATA_VALIDADE:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.DataValidade</span>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.BLOQUEIO_AUTOMATICO:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.BloqueioAutomatico</span>
+                </div>
+            </div>
+        }
+        @if (Model.Produto_Plano == "Plano")
+        {
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.AUTENTICACAO_RADIUS:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.AutenticacaoRadius</span>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.NAS:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.Nas</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (Model.Produto_Plano == "Plano")
+    {
+        <div class="row">
+
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.VELOCIDADE_DOWNLOAD:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.VelocidadeDownload</span>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.VELOCIDADE_UPLOAD:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.VelocidadeUpload</span>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="form-group">
+                    <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.VELOCIDADE_NOMINAL:</label>
+                    <span id="iConsultaNumero_Parcelas_Instalacao">@Model.VelocidadeNominal</span>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iConsultaQuantidade">@RsCadastros.QUANTIDADE:</label>
+                <span id="iConsultaQuantidade">@Model.Quantidade</span>
+            </div>
+        </div>
+    </div>
+    @*@if (Model.Produto_Plano == "Plano")
+        {
+            <div class="row">
+                <div class="col-sm-4">
+                    <div class="form-group">
+                        <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.VELOCIDADE_DOWNLOAD_REDUZIDA:</label>
+                        <span id="iConsultaNumero_Parcelas_Instalacao">@Model.VelocidadeDownloadReduzida</span>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="form-group">
+                        <label for="iConsultaNumero_Parcelas_Instalacao">@RsCadastros.VELOCIDADE_UPLOAD_REDUZIDA:</label>
+                        <span id="iConsultaNumero_Parcelas_Instalacao">@Model.VelocidadeUploadReduzida</span>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="form-group">
+                        <label for="iDetalhesLogin">@RsCadastros.VELOCIDADE_UPLOAD_REDUZIDA:</label>
+                        <span id="iDetalhesLogin">@Model.VelocidadeUploadReduzida</span>
+                    </div>
+                </div>
+            </div>
+        }*@
+
+
+    <hr />
+    <h4 class="text-muted" style="font-size:15px">Editar Detalhes da Instalação</h4>
+    <div class="row">
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label>@RsCadastros.VALOR_INSTALACAO</label>
+                @Html.TextBoxFor(model => model.ValorInstalacao, new { @class = "form-control money calculaValorLiquido", @id = "iConsultaValorPlano" })
+            </div>
+        </div>
+
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="iConsultaValor_Final">@RsCadastros.NUMERO_PARCELAS_INSTALACAO:</label>
+                @Html.TextBoxFor(model => model.Numero_Parcelas, new { @class = "form-control ", @id = "iNumero_Parcelas", @maxlength = 4 })
+            </div>
+        </div>
+        <div class="col-sm-3" id="diviCobrancaInstalacaoEntrada">
+            <div class="form-group">
+                <label for="iCobrancaInstalacaoEntrada" class="mb-1" style="heigth:25px">Instalação terá valor de entrada?</label><br>
+                @Html.CheckBoxFor(m => m.CobrarInstalacaoEntrada, new { @class = "form-control", @id = "iCobrancaInstalacaoEntrada", @name = "iCobrancaInstalacaoEntrada", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+
+            </div>
+        </div>
+        <div class="col-sm-3" id="divValorInstalacaoEntrada">
+            <div class="form-group">
+                <label for="iValorInstalacaoEntrada">@RsCadastros.VALOR_INSTALACAO de entrada</label>
+                @Html.TextBoxFor(model => model.ValorInstalacaoEntrada, new { @class = "form-control money calculaValorLiquido", @id = "iValorInstalacaoEntrada" })
+
+            </div>
+        </div>
+    </div>
+
+    <hr />
+    <h4 class="text-muted" style="font-size:15px">Editar Detalhes do Plano/Produto</h4>
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iQtde_Dias">@RsCadastros.TESTE_GRATIS:</label>
+                @Html.TextBoxFor(model => model.Qtde_Dias, new { @class = "form-control ", @id = "iQtde_Dias", @maxlength = 4 })
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iMeses_Carencia">@RsCadastros.PERIODO_FIDELIDADE_MESES_.Replace("Meses", "Reais"):</label>
+                @Html.TextBoxFor(model => model.Meses_Carencia, new { @class = "form-control ", @id = "iMeses_Carencia", @maxlength = 4 })
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iQuantidade">@RsCadastros.QUANTIDADE:</label>
+                @Html.TextBoxFor(model => model.Quantidade, new { @class = "form-control ", @id = "iQuantidade", @type = "number" })
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iParcela">@RsCadastros.PARCELAS:</label>
+                @Html.TextBoxFor(model => model.Parcela, new { @class = "form-control ", @id = "iParcela", @maxlength = 4, @type = "number" })
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="form-group">
+                <label for="iValor_Entrada">Valor Entrada (R$):</label>
+                @Html.TextBoxFor(model => model.Valor_Entrada, new { @class = "form-control money calculaValorLiquido", @id = "iValor_Entrada" })
+            </div>
+        </div>
+    </div>
+</div>
+<hr />
+
+<h4 class="text-muted" style="font-size:15px">@RsCadastros.INFORMACOES_TECNICAS</h4>
+<div class="row">
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLogin">@RsCadastros.LOGIN:</label>
+            <span id="iDetalhesLogin">@(Model.Login_Radius ?? "-") </span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesSenha">@RsCadastros.SENHA:</label>
+            <span id="iDetalhesSenha">@(Model.Senha_Radius ?? "-")</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesONU">@RsCadastros.ONU:</label>
+            <span id="iDetalhesONU">@(Model.ONU ?? "-")</span>
+        </div>
+    </div>
+
+
+
+</div>
+
+<div class="row">
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesOLT">@RsCadastros.OLT:</label>
+            <span id="iDetalhesOLT">@(Model.Olt ?? "-")</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesSlot">@RsCadastros.SLOT:</label>
+            <span id="iDetalhesSlot">@(Model.Slot ?? "-")</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesPON">@RsCadastros.PON:</label>
+            <span id="iDetalhesPON">@(Model.PON ?? "-")</span>
+        </div>
+    </div>
+
+</div>
+
+<div class="row">
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iCaixaFtth">@RsCadastros.CAIXA_FTTH_RESERVADA:</label>
+            <span id="iCaixaFtth">@(Model.Caixa_Ftth_Reservado ?? "-")</span>
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iPortaFtth">@RsCadastros.PORTA_FTTH_RESERVADA:</label>
+            <span id="iPortaFtth">@(Model.Porta_Ftth_Reservado ?? "-")</span>
+        </div>
+    </div>
+
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDataReserva">@RsCadastros.DATA_EXPIRACAO_RESERVA_PORTA:</label>
+            <span id="iDataReserva">@(Model.Data_Expiracao_Reserva ?? "-")</span>
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <b>
+                <a style="color:deepskyblue" onclick="reservarCaixa_Porta()">clique aqui para alterar porta reservada</a>
+            </b>
+        </div>
+    </div>
+
+
+</div>
+
+@if (Model.Id_Onu.HasValue)
+{
+    <a class="btn  btn-outline-secondary" onclick="closeModal(@Model.Id)" style="margin-top: 21px; font-size:0.8rem"
+       data-toggle="modal" data-target="#modal-loginradius"><i class="fas fa-key mr-2"></i>@RsCadastros.CONFIGURACOES_EQUIPAMENTO</a>
+
+    <a class="btn  btn-outline-secondary" onclick="closeModalStatusOnu(@Model.Id)" style="margin-top: 21px; font-size:0.8rem"
+       data-toggle="modal" data-target="#modal-loginradius"><i class="fas fa-signal mr-2"></i>@RsCadastros.STATUS_EQUIPAMENTO</a>
+
+}
+
+
+<hr />
+@*@if (Model.Tipo_Tecnologia == Tipo_Tecnologia.Telefonia_Movel)
+    {
+        <h4 class="text-muted" style="font-size:15px">@RsCadastros.INFORMACOES__TECNICAS_TELEFONIA</h4>
+        <div class="row">
+            <div class="row mt-1">
+                <div class="col-auto" id="divcobrarBina">
+                    <div class="form-group">
+                        <label for="iCobrarBina" class="mb-1">Cobrar Bina ?</label>
+                        <i class="fas fa-info-circle" style="color: #2092EC" data-toggle="popover" data-placement="top"
+                           data-content="Bina = Ao habilitar o
+                                                                         cliente poderá identificar quem está ligando para ele, e definir um valor que será
+                                                                         cobrado pelo serviço">
+
+                        </i><br>
+                        @Html.CheckBoxFor(m => m.CobrarBina, new { @class = "form-control", @id = "iCobrarBina", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                    </div>
+                </div>
+
+                <div class="col-sm-1" id="iDivValorBina" style="display:none">
+                    <div class="form-group">
+                        <label for="iValorBina" class="mb-1">@RsCadastros.VALOR a Cobrar:</label><br>
+                        @Html.TextBoxFor(m => m.ValorBina, new { @class = "form-control money", @id = "iValorBina" })
+                        @Html.ValidationMessageFor(model => model.ValorBina, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+
+                <div class="col-auto" id="divSigame">
+                    <div class="form-group">
+                        <label for="iCobrarSigame" class="mb-1">Cobrar Sigame ?</label>
+                        <i class="fas fa-info-circle" style="color: #2092EC" data-toggle="popover" data-placement="top"
+                           data-content="Siga-me = Ao habilitar
+                                                                         permite programar que todas as chamadas que seriam recebidas pelo o número
+                                                                         do cliente serão redirecionadas automaticamente, em uma determinada data
+                                                                         e/ou horário específico, para outro número configurado, e definir um valor que
+                                                                         será cobrado pelo serviço">
+
+                        </i><br>
+                        @Html.CheckBoxFor(m => m.CobrarSigame, new { @class = "form-control", @id = "iCobrarSigame", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-1">
+                <div class="col-auto" id="divBlackList">
+                    <div class="form-group">
+                        <label for="iCobrarBlacklist" class="mb-1">Cobrar Blacklist ?</label>
+                        <i class="fas fa-info-circle" style="color: #2092EC" data-toggle="popover" data-placement="top"
+                           data-content="Blacklist = Ao habilitar
+                                                                         permite bloquear uma chamada de ENTRADA que esteja perturbando o cliente
+                                                                         e definir um valor que será cobrado pelo serviço">
+
+                        </i><br>
+                        @Html.CheckBoxFor(m => m.CobrarBlacklist, new { @class = "form-control", @id = "iCobrarBlacklist", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                    </div>
+                </div>
+                <div class="col-sm-1" id="iDivValorBlacklist" style="display:none">
+                    <div class="form-group">
+                        <label for="iValorBlacklist" class="mb-1">@RsCadastros.VALOR a Cobrar:</label><br>
+                        @Html.TextBoxFor(m => m.ValorBlacklist, new { @class = "form-control money", @id = "iValorBlacklist" })
+                        @Html.ValidationMessageFor(model => model.ValorBlacklist, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+
+
+            </div>
+
+            <div class="row mt-1">
+                <div class="col-auto" id="divCobrarBloqueioChamadaCobrar">
+                    <div class="form-group">
+                        <label for="iCobrarBloqueioChamadaCobrar" class="mb-1">@RsCadastros.COBRAR_BLOQUEIO_COBRAR ?</label>
+                        <i class="fas fa-info-circle" style="color: #2092EC" data-toggle="popover" data-placement="top"
+                           data-content="Ao habilitar o sistema bloqueia qualquer chamada de ENTRADA
+                                                                         a cobrar e será possível definir um valor que será cobrado pelo serviço">
+
+                        </i><br>
+                        @Html.CheckBoxFor(m => m.CobrarBloqueioChamadaCobrar, new { @class = "form-control", @id = "iCobrarBloqueioChamadaCobrar", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                    </div>
+                </div>
+
+                <div class="col-sm-2" id="iDivBloqueioChamadaCobrar" style="display:none">
+                    <div class="form-group">
+                        <label for="iBloqueioChamadaCobrar" class="mb-1">@RsCadastros.COBRADO_POR:</label>
+                        <i class="fas fa-info-circle" style="color: #2092EC" data-toggle="popover" data-placement="top"
+                           data-content="Circuito: Valor único cobrado para todos os números dentro daquele circuito
+                                                                         Did: Valor cobrado para cada DID dentro de um circuito">
+
+                        </i><br>
+                        @Html.EnumDropDownListFor(m => m.BloqueioChamadaCobrar, RsBase.SELECIONE, new { @class = "form-control", @id = "iBloqueioChamadaCobrar", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.BloqueioChamadaCobrar, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+                <div class="col-sm-1" id="iDivValorBloqueioChamadaCobrar" style="display:none">
+                    <div class="form-group">
+                        <label for="iValorBloqueioChamadaCobrar" class="mb-1">@RsCadastros.VALOR a Cobrar:</label><br>
+                        @Html.TextBoxFor(m => m.ValorBloqueioChamadaCobrar, new { @class = "form-control money", @id = "iValorBloqueioChamadaCobrar" })
+                        @Html.ValidationMessageFor(model => model.ValorBloqueioChamadaCobrar, "", new { @class = "text-danger" })
+                    </div>
+                </div>
+            </div>
+
+
+           }
+            <hr />*@
+
+
+
+<h4 class="text-muted" style="font-size:15px">Informações de Endereço</h4>
+<div class="row">
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLogradouro">@RsCadastros.LOGRADOURO:</label>
+            <span id="iDetalhesLogradouro">@Model.Logradouro</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesNumero">@RsCadastros.NUMERO:</label>
+            <span id="iDetalhesNumero">@Model.Numero</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4"></div>
+
+</div>
+
+
+<div class="row">
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesComplemento">@RsCadastros.COMPLEMENTO:</label>
+            <span id="iDetalhesComplemento">@Model.Complemento</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesBairro">@RsCadastros.BAIRRO:</label>
+            <span id="iDetalhesBairro">@Model.Bairro</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4"></div>
+</div>
+
+<div class="row">
+
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesCidade">@RsCadastros.CIDADE:</label>
+            <span id="iDetalhesCidade">@Model.Cidade</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesCEP">@RsCadastros.CEP:</label>
+            <span id="iDetalhesCEP">@Model.CEP</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4"></div>
+
+</div>
+
+
+<div class="row">
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesPontoReferencia">@RsCadastros.PONTOREFERENCIA:</label>
+            <span id="iDetalhesPontoReferencia">@Model.Ponto_Referencia</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesUF">@RsCadastros.UF:</label>
+            <span id="iDetalhesUF">@Model.UF</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4"></div>
+
+</div>
+
+<div class="row">
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLatitude">@RsCadastros.LATITUDE:</label>
+            <span id="iDetalhesLatitude">@Model.Latitude</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLongitude">@RsCadastros.LONGITUDE:</label>
+            <span id="iDetalhesLongitude">@Model.Longitude</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4"></div>
+</div>
+
+<div class="row">
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLatitude">@RsCadastros.GRUPO_AREA:</label>
+            <span id="iDetalhesLatitude">@Model.Desc_Escritorio</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLongitude">@RsCadastros.AREA:</label>
+            <span id="iDetalhesLongitude">@Model.Desc_Area</span>
+        </div>
+    </div>
+
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iDetalhesLongitude">@RsCadastros.LOCALIDADE:</label>
+            <span id="iDetalhesLongitude">@Model.Localidade</span>
+        </div>
+    </div>
+</div>
+
+@*Redução / Bloqueio*@
+<hr />
+
+<h4 class="text-muted" style="font-size:15px">Editar Detalhes de Redução / Bloqueio</h4>
+
+<div class="row">
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="iBloqueioAutomatico_Debito" class="mr-3">@RsConfiguracao.BLOQUEIO_AUTO_DEBITO ?</label><br>
+            @Html.CheckBoxFor(model => model.BloqueioAutomatico_Debito, new { @class = "form-control", @id = "iBloqueioAutomatico_Debito", @name = "iBloqueioAutomatico_Debito", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+
+        </div>
+    </div>
+    <div class="col-sm-3">
+        <div class="form-group" id="iQtdDiasbloqueados">
+            <label for="QtdDiasbloqueados">@RsConfiguracao.QTDDIASATRASO :</label>
+            @Html.TextBoxFor(m => m.QtdDiasbloqueados, new { @class = "form-control col-sm-6", @type = "number", @id = "QtdDiasbloqueados" })
+            @Html.ValidationMessageFor(model => model.QtdDiasbloqueados, "", new { @class = "text-danger" })
+        </div>
+    </div>
+</div>
+
+
+<div class="row">
+    <div class="col-sm-4">
+        <div class="form-group">
+            <label for="ImpedirBloqueio_Automatico">@RsConfiguracao.IMPEDIRBLOQUEIO ?</label><br>
+            @Html.CheckBoxFor(m => m.ImpedirBloqueio_Automatico, new { @class = "form-control", @id = "ImpedirBloqueio_Automatico", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+            <br>
+        </div>
+    </div>
+    <div class="col-mt">
+        <div class="form-group">
+            <div class="bloqueiodatas">
+                @Html.CheckBoxFor(m => m.ImpedirBloqueio_Sexta, new { @id = "ImpedirBloqueio_Automaticosexta" })
+                <span> @RsConfiguracao.SEXTAFEIRA </span><br>
+            </div>
+        </div>
+    </div>
+    <div class="col-mt">
+        <div class="form-group">
+            <div class="bloqueiodatas">
+                @Html.CheckBoxFor(m => m.ImpedirBloqueio_Sabado, new { @id = "ImpedirBloqueio_Automaticosabado" })
+                <span> @RsConfiguracao.SABADO </span><br>
+            </div>
+        </div>
+    </div>
+    <div class="col-mt">
+        <div class="form-group">
+            <div class="bloqueiodatas">
+                @Html.CheckBoxFor(m => m.ImpedirBloqueio_Domingo, new { @id = "ImpedirBloqueio_Automaticodomingo" })
+                <span> @RsConfiguracao.DOMINGO </span><br>
+            </div>
+        </div>
+    </div>
+    <div class="col-mt">
+        <div class="form-group">
+            <div class="bloqueiodatas">
+                @Html.CheckBoxFor(m => m.ImpedirBloqueio_Feriados, new { @id = "ImpedirBloqueio_Automaticoferiado" })
+                <span> @RsConfiguracao.FERIADOS </span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row mt-3">
+
+    <div class="col-sm-3" id="reducaoveloc">
+        <div class="form-group">
+            <label for="iReducaoVelocidade" class="mb-1">@RsConfiguracao.REDUCAOVELOCIDADE ?</label><br>
+            @Html.CheckBoxFor(m => m.Reducao_Velocidade, new { @class = "form-control", @id = "iReducao_Velocidade", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+        </div>
+    </div>
+
+    <div class="col-sm-2" id="diasatraso">
+        <div class="form-group propriedades_Velocidade">
+            <label for="iQtdDiasAtraso">@RsConfiguracao.QTDDIASATRASO :</label>
+            @Html.TextBoxFor(m => m.QtdDiasAtraso, new { @class = "form-control col-sm-6", @type = "number", @id = "iQtdDiasAtraso" })
+            @Html.ValidationMessageFor(model => model.QtdDiasAtraso, "", new { @class = "text-danger" })
+        </div>
+    </div>
+
+    <div class="col-sm-3" id="velocidadedownreduzida">
+        <div class="form-group propriedades_Velocidade">
+            <label for="VelocidadeDownloadReduzida">@RsConfiguracao.VELOCIDADEDOWNLOADREDUZIDA :</label>
+            @Html.TextBoxFor(m => m.Velocidade_DownloadReduzida, new { @class = "form-control col-sm-8 somentenumero", @id = "iVelocidade_DownloadReduzida", autocomplete = "off" })
+            @Html.ValidationMessageFor(model => model.Velocidade_DownloadReduzida, "", new { @class = "text-danger" })
+        </div>
+    </div>
+
+    <div class="col-sm-3" id="velocidadeupreduzida">
+        <div class="form-group propriedades_Velocidade">
+            <label for="iVelocidadeUploadReduzida">@RsConfiguracao.VELOCIDADEUPLOADREDUZIDA :</label>
+            @Html.TextBoxFor(m => m.Velocidade_UploadReduzida, new { @class = "form-control col-sm-8 somentenumero", @id = "iVelocidade_UploadReduzida", autocomplete = "off" })
+            @Html.ValidationMessageFor(model => model.Velocidade_UploadReduzida, "", new { @class = "text-danger" })
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-sm-3">
+        <div class="form-group" id="iDesbloqueio_Conf">
+            <label for="idesbloqueio_conf" class="mb-1">@RsConfiguracao.DESBLOQUEIO_CONFIANCA ?</label><br>
+            @Html.CheckBoxFor(m => m.Desbloqueio_Conf, new { @class = "form-control", @id = "idesblqueio_conf", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+        </div>
+    </div>
+    <div class="col-sm-2">
+        <div class="form-group bloqueio_DesbloqueioConf" id="idias_desbloq">
+            <label for="iDias_Desbloq">@RsConfiguracao.DIAS_DESBLOQUEADOS :</label>
+            @Html.TextBoxFor(m => m.dias_desbloq, new { @class = "form-control col-sm-6", @type = "number", @id = "iDias_Desbloq" })
+            @Html.ValidationMessageFor(model => model.dias_desbloq, "", new { @class = "text-danger" })
+        </div>
+    </div>
+    <div class="col-sm-3">
+        <div class="form-group bloqueio_DesbloqueioConf" id="ifrequenciadesbloqueio">
+            <label for="iFrequencia_Desbloqueio" class="mb-1">@RsConfiguracao.FREQUENCIA_DESBLOQUEIO :</label><br>
+            @Html.EnumDropDownListFor(m => m.Frequencia_Desbloqueio, RsBase.SELECIONE, new { @class = "form-control", @id = "iFrequencia_Desbloqueio", @autocomplete = "off" })
+            @Html.ValidationMessageFor(model => model.Frequencia_Desbloqueio, "", new { @class = "text-danger" })
+        </div>
+    </div>
+</div>
+
+<!--Button Float-->
+<a href="#" class="float-cancel">
+    <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+        <i class="fas fa-times fa-2x"></i>
+    </div>
+</a>
+
+<a href="#" class="float-save" onclick="Gravar();">
+    <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar" id="btnSalvar">
+        <i class="fas fa-save fa-2x"></i>
+    </div>
+</a>
+    </div>

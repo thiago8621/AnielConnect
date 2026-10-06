@@ -1,0 +1,1200 @@
+﻿@model Aniel.Connect.Models.OrganizacaoCadastroModel
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_ORGANIZACAO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section scripts
+{
+    <script src="~/bin/Scripts/valida_cpf_cnpj.js"></script>
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+<script>
+
+        let oDatatable;
+        let oDatatableContato;
+
+        function SolicitacaoChat() {
+            let timerInterval
+            Swal.fire({
+              title: 'Você recebeu uma solicitação de atendimento por chat!',
+              html: 'Essa solicitação irá fechar em <b></b> segundos.',
+              timer: 10000,
+              timerProgressBar: true,
+              showConfirmButton: true,
+              confirmButtonText: "@RsBase.SIM",
+              cancelButtonText: "@RsBase.NAO",
+              showCancelButton: true,
+              onBeforeOpen: () => {
+                timerInterval = setInterval(() => {
+                  const content = Swal.getContent()
+                  if (content) {
+                    const b = content.querySelector('b')
+                    if (b) {
+                      b.textContent = Math.round(Swal.getTimerLeft() / 1000)
+                    }
+                  }
+                }, 100)
+              },
+              onClose: () => {
+                clearInterval(timerInterval)
+              }
+            }).then((result) => {
+              /* Read more about handling dismissals below */
+              if (result.dismiss === Swal.DismissReason.timer) {
+                console.log('I was closed by the timer')
+              }
+            })
+        }
+
+        async function getGoogleLatLong() {
+            var link = 'https://maps.googleapis.com/maps/api/geocode/json?key=@CONSTANTES.TokenGoogleAPI&address=';
+
+            if ($('#iLogradouro').val()) {
+
+                link = link.concat(GetEndereco());
+
+                try {
+                    return await $.getJSON(link, async function (data) {
+
+                        if (data.results[0]) {
+                            if (!data.results[0].geometry.location.lat || !data.results[0].geometry.location.lng) {
+                                Notificar("@RsBase.ATENCAO_", "@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", "warning");
+                                $("#iLatitude").val(null);
+                                $("#iLongitude").val(null);
+                                $('#iDivGoogleEndereco').hide();
+                                $('#iGoogleEndereco').text('');
+
+                            }
+                        }
+
+                        $("#iLatitude").val(data.results[0].geometry.location.lat);
+                        $("#iLongitude").val(data.results[0].geometry.location.lng);
+                        $('#iDivGoogleEndereco').show();
+                        $('#iGoogleEndereco').text(data.results[0].formatted_address);
+                    })
+                }
+                catch (e) {
+                    Notificar("@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", e, "warning");
+                }
+
+            }
+
+
+        }
+
+        var id_cidade_inicial = "@Model.Id_Cidade"
+        var id_bairro_inicial = "@Model.Id_Bairro"
+        $("#iUF").val("@Model.Uf")
+        if ($("#iUF").val())
+        {
+            var enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + $("#iUF option:selected").text();
+
+            $('#iCidade').empty();
+            $('#iBairro').empty();
+
+            $.getJSON(enderecoApiCidade, function (data) {
+
+                $('#iCidade').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+
+                    $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+
+                if (id_cidade_inicial) {
+
+                    $("#iCidade").val(id_cidade_inicial);
+
+                    var enderecoApiBairro = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + id_cidade_inicial;
+                    $.getJSON(enderecoApiBairro, function (data) {
+
+                        $('#iBairro').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+                        $.each(data, function (key, value) {
+                            $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                        })
+
+                        $("#iBairro").val(id_bairro_inicial);
+                    });
+                }
+            });
+        }
+
+        function GetEndereco() {
+
+            var endereco = "";
+
+
+            if ($("#iLogradouro").val()) {
+
+                endereco += " " + $("#iLogradouro").val();
+            }
+            else {
+                return false;
+            }
+
+            if ($("#iNumero").val())
+            endereco += " " + $("#iNumero").val();
+            if ($("#iBairro").val())
+            endereco += " " + $("#iBairro option:selected").text();
+            if ($("#iCidade").val())
+            endereco += " " + $("#iCidade option:selected").text();
+            if ($("#iUF").val())
+                endereco += " " + $("#iUF option:selected").text();
+
+
+
+            return endereco;
+        }
+
+        $("#iNumero").focusout(async () => await getGoogleLatLong());
+
+        $('#iEditarDominio').click(async function () {
+
+
+            if (ValidaObrigatoriosPorClasse("dominioObrigatorioEditar", false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                return false;
+            }
+
+            ShowPageLoading();
+
+            const result = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Organizacaoapi/EditarGrid")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id : $('#idDominio').val(),
+                    dominio : $('#iDominioEditar').val()
+                }
+            })
+
+            HidePageLoading();
+
+            if (!result.ok) {
+                Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+            }
+            else {
+                $('#modal-editar-dominio').modal('hide')
+                let updatedData = oDatatable.rows().data().toArray()
+                let atualizar = updatedData.filter(p => p.Id == $('#idDominio').val())[0]
+                atualizar.Dominio = $('#iDominioEditar').val();
+                $('#datatable').dataTable().fnClearTable();
+                $('#datatable').dataTable().fnAddData(updatedData);
+            }
+
+        })
+
+        $('#iEditarContato').click(async function () {
+
+
+            if (ValidaObrigatoriosPorClasse("contatoObrigatorioEditar", false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                return false;
+            }
+
+            ShowPageLoading();
+
+            const result = await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/Organizacaoapi/EditarGridContato")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id : $('#idContato').val(),
+                    contato: $('#iContatoEditar').val(),
+                    informacao_Adicional: $('#iInformacaoAdicionalEditar').val(),
+                    tipo_Contato : $('#iTipoContatoEditar').val(),
+                }
+            })
+
+            HidePageLoading();
+
+            if (!result.ok) {
+                Notificar("@RsBase.ATENCAO_", result.mensagem, "warning");
+            }
+            else {
+                $('#modal-editar-contato').modal('hide')
+                let updatedData = oDatatableContato.rows().data().toArray()
+                let atualizar = updatedData.filter(p => p.Id == $('#idContato').val())[0]
+                atualizar.Contato = $('#iContatoEditar').val();
+                atualizar.Informacao_Adicional = $('#iInformacaoAdicionalEditar').val();
+                atualizar.Tipo_Contato = $('#iTipoContatoEditar').val();
+                $('#datatableContato').dataTable().fnClearTable();
+                $('#datatableContato').dataTable().fnAddData(updatedData);
+            }
+
+        })
+
+        // Dados Gerais
+        $('#iUF').change(function () {
+
+            var estado = $(this).val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+            $('#iCidade').empty();
+            $('#iBairro').empty();
+
+            $.getJSON(enderecoApi, function (data) {
+
+                $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+
+                    $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+            });
+        });
+
+
+        $('#iCidade').change(function () {
+
+            var cidade = $('#iCidade option:selected').val();
+            var enderecoApi = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + cidade;
+
+            $('#iDesc_Cidade').val($('#iCidade option:selected').text());
+            $("#iBairro").empty();
+
+            $.getJSON(enderecoApi, function (data) {
+
+                $('#iBairro').append($('<option></option>').attr('value',"").text('@RsBase.SELECIONE'));
+                $.each(data, function (key, value) {
+
+                    $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                })
+            });
+        });
+
+        $('#iBairro').change(function () {
+
+            $('#iDesc_Bairro').val($('#iBairro option:selected').text());
+        });
+
+        $("#iCEP").focus(function() {
+            window["cep_on_focus_"] = cep_on_focus = $("#iCEP").val();
+        });
+
+        $("#iCEP").focusout(function () {
+
+            if ($("#iCEP").val() != window["cep_on_focus"]) {
+                $('#iUF').val("");
+                $('#iCidade').val("");
+                $('#iBairro').val("");
+                $('#iPais').val("");
+                $('#iComplemento').val("");
+                $('#iLatitude').val("");
+                $('#iLongitude').val("");
+                $('#iNumero').val("");
+                $('#iLogradouro').val("");
+            }
+
+            var cepcliente = $("#iCEP").val();
+
+            var link = "https://viacep.com.br/ws/";
+            link = link.concat(cepcliente);
+            link = link.concat("/json/");
+
+            try {
+                parent.App.startPageLoading();
+            }
+            catch (ex) { console.log(ex); }
+
+            $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function (data) {
+
+                $("#iLogradouro").val(data.logradouro);
+                $("#iUF").val(data.uf);
+                var cidade = data.localidade;
+                var bairro = data.bairro;
+
+                var estado = $('#iUF option:selected').text();
+                var enderecoApiCidade = "@CONSTANTES.URLPortal/api/enderecoapi/getcidades?Uf=" + estado;
+
+                if (!$("#iUFPrincipal option:selected").val() == "") {
+                    $('#iPais').val(1);
+                }
+
+                $('#iCidade').empty();
+                $('#iBairro').empty();
+
+                if ($('#iCidade').empty()) {
+                    $('iPais').empty();
+                }
+
+                $.getJSON(enderecoApiCidade, function (data) {
+
+                    $('#iCidade').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+
+                    $.each(data, function (key, value) {
+                        $('#iCidade').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                    })
+
+                    if (cidade) {
+
+                        $("#iCidade").val($('option:contains("' + cidade.toUpperCase() + '")').val());
+
+                        var enderecoApiBairro = "@CONSTANTES.URLPortal/api/enderecoapi/GetBairros?Id_Cidade=" + $('#iCidade').val();
+
+                        $.getJSON(enderecoApiBairro, function (data) {
+
+                            $('#iBairro').append($('<option></option>').attr('value', "").text('@RsBase.SELECIONE'));
+
+                            $.each(data, function (key, value) {
+                                $('#iBairro').append($('<option></option>').attr('value', value.id).text(value.descricao));
+                            });
+
+                            $("#iBairro" + " option:contains('" + bairro.toUpperCase() + "')").attr("selected", true);
+
+                            $('#iDesc_Bairro').val($('#iBairro' + ' option:selected').text());
+                            $('#iDesc_Cidade').val($('#iCidade' + ' option:selected').text());
+                            $("#iNumero").focusout();
+                        });
+                    }
+                });
+
+
+
+            })
+            .fail(function () {
+                console.log("error");
+            })
+            .always(function () {
+                try {
+                    parent.App.stopPageLoading();
+                }
+                catch (ex) {
+                    console.log(ex);
+                }
+            });
+        });
+
+
+
+
+        function ExibeMapa(tipoEndereco) {
+
+            if ($("#iLogradouro").val() == "" || $("#iCEP").val() == "") {
+
+                Notificar("@RsBase.ATENCAO_", " Campos CEP e Logradouro são obrigatórios. Por Favor Preencher!", "warning");
+                return false;
+            }
+
+            var endereco = GetEndereco();
+
+            ShowDialog(true, true, 'Mapa', '@Url.Action("Endereco", "Mapa")' + '?Endereco=' + endereco, 'mapa', 800, 500, 'iframeMapa');
+            return false;
+        }
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Dominios));
+
+            var nome_lista = "Dominios";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            var retorno = "";
+
+                            retorno += '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            if(row.Id != 0)
+                                retorno += '<a href="#" data-toggle="modal" data-target="#modal-editar-dominio" class="btnEditarDominio ml-2" id="btnEditarDominio_' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            return retorno;
+                        }
+                    },
+                    {
+                        data: "Dominio",
+                        title: "@RsCadastros.DOMINIO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Dominio" name="' + nome_lista + '[' + meta.row + '].Dominio" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            $('#datatable tbody').on('click', '.btnEditarDominio', function (e) {
+
+                var $row = $(this).closest('tr');
+                const data_row = oDatatable.row($row).data();
+                $('#iDominioEditar').val(data_row.Dominio);
+                $('#idDominio').val(data_row.Id);
+
+            });
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Organizacaoapi/ExcluirGrid?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionar").unbind('click')
+            $("#btnAdicionar").on('click', function () {
+
+                var erro = false;
+                const dominio = $("#iDominio").val()
+                if (!dominio) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DOMINIO)", "warning");
+                    erro = true;
+                }
+                else if (dominio.charAt(0) != '@Html.Raw("@")' || !dominio.includes('.')){
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.INVALIDO_FORMAT,RsCadastros.DOMINIO)", "warning");
+                    erro = true
+                }
+                else if (dominio.split('.')[1].length === 0) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.INVALIDO_FORMAT,RsCadastros.DOMINIO)", "warning");
+                    erro = true
+                }
+
+                for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                    if (oDatatable.rows().data()[i].Dominio == $("#iDominio").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.DOMINIO)", "warning");
+                        erro = true;
+                        i = oDatatable.rows().data().length;
+                    }
+
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatable.row.add({
+                    Dominio: $("#iDominio").val(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iDominio").val("");
+
+                handleExcluir();
+            });
+
+
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        var handleDataTableButtonsContato = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Contatos));
+
+            var nome_lista = "Contatos";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            oDatatableContato = $("#datatableContato").length && $("#datatableContato").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+
+                            var retorno = "";
+                            retorno += '<a href="#" class="btnExcluirContato" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>';
+                            if(row.Id != 0)
+                                retorno += '<a href="#" data-toggle="modal" data-target="#modal-editar-contato" class="btnEditarContato ml-2" id="btnEditarContato_' + meta.row + '" editar=' + row.Id + '><i class="fas fa-user-edit"></i></a>';
+
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                            retorno += ' <input id="' + nome_lista + '_' + meta.row + '__Tipo_Contato" name="' + nome_lista + '[' + meta.row + '].Tipo_Contato" type="hidden" value="' + TrataNulo(data) + '">';
+                            return retorno;
+
+                        }
+                    },
+                    {
+                        data: "Tipo_Contato_Descricao",
+                        title: "@RsCadastros.TIPO_CONTATO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Tipo_Contato_Descricao" name="' + nome_lista + '[' + meta.row + '].Tipo_Contato_Descricao" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Contato",
+                        title: "@RsCadastros.CONTATO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Contato" name="' + nome_lista + '[' + meta.row + '].Contato" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Informacao_Adicional",
+                        title: "@RsCadastros.INFORMACAO_ADICIONAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Informacao_Adicional" name="' + nome_lista + '[' + meta.row + '].Informacao_Adicional" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            $('#datatableContato tbody').on('click', '.btnEditarContato', function (e) {
+
+                var $row = $(this).closest('tr');
+                const data_row = oDatatableContato.row($row).data();
+                $('#iContatoEditar').val(data_row.Contato);
+                $('#iTipoContatoEditar').val(data_row.Tipo_Contato);
+                $('#iInformacaoAdicionalEditar').val(data_row.Informacao_Adicional);
+                $('#idContato').val(data_row.Id);
+
+            });
+
+            function handleExcluirContato() {
+                $(".btnExcluirContato").unbind('click');
+                $(".btnExcluirContato").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableContato.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Organizacaoapi/ExcluirContatoGrid?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableContato.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+            handleExcluirContato()
+
+            $("#btnAdicionarContato").unbind('click')
+            $("#btnAdicionarContato").on('click', function () {
+
+                let erro = false;
+
+                if (ValidaObrigatoriosPorClasse("obrigatorioContato", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+                for (var i = 0; i < oDatatableContato.rows().data().length; i++) {
+
+                    const row_data = oDatatableContato.rows().data()[i];
+                    if (row_data.Contato == $("#iContato").val() && row_data.Tipo_Contato == $('#iTipoContato').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.DOMINIO)", "warning");
+                        erro = true;
+                        i = oDatatableContato.rows().data().length;
+                    }
+
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+                oDatatableContato.row.add({
+                    Contato: $("#iContato").val(),
+                    Informacao_Adicional : $("#iInformacaoAdicional").val(),
+                    Tipo_Contato: $("#iTipoContato option:selected").val(),
+                    Tipo_Contato_Descricao: $("#iTipoContato option:selected").text(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iContato").val("");
+                $("#iInformacaoAdicional").val("");
+                $("#iTipoContato").val(null).trigger('change');
+                handleExcluirContato();
+            });
+
+
+        },
+            TableManageButtonsContato = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsContato();
+
+                    }
+                }
+            }();
+
+        TableManageButtonsContato.init();
+
+        $(document).ready(async function () {
+            @if (Model.Id != 0)
+            {
+                <text>$("#iNumero").val("@Model.Numero")</text>
+                <text>await getGoogleLatLong(false)</text>
+
+            }
+        });
+
+
+        var clicked = false;
+        function ValidaSubmit()
+        {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+            var erro = false;
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                erro = true
+                clicked = false;
+                return false;
+            }
+
+            if (!valida_cnpj($('#iCNPJ').val())) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.INVALIDO_FORMAT,RsCadastros.CNPJ)", "warning");
+                erro = true
+            }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+
+
+        }
+
+
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Organizacao", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @*@Html.AntiForgeryToken()*@
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-industry"></i> @ViewBag.Title</h4>
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a></li>
+                                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Organizacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_ORGANIZACOES</a></li>
+                                <li class="breadcrumb-item"><span>@ViewBag.Title</span></li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                <div id="accordion">
+                    <div class="card div-card-accord">
+                        <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-8 mr-auto">
+                                        <div class="form-group">
+                                            <label for="iNome_Fantasia"><span class="text-danger">*</span> @RsCadastros.NOMEFANTASIA:</label>
+                                            @Html.TextBoxFor(model => model.Nome_Fantasia, new { @class = "form-control obrigatorio", @id = "iNome_Fantasia", @autocomplete = "off", @maxlength = "255" })
+                                            @Html.ValidationMessageFor(model => model.Nome_Fantasia, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+
+                                    <div class="col-auto">
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="form-group">
+                                                <label class="mr-3">@RsFinanceiro.STATUS:</label><br>
+                                                @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-8">
+                                        <div class="form-group">
+                                            <label for="iRazao_Social"><span class="text-danger">*</span> @RsCadastros.RAZAO_SOCIAL:</label>
+                                            @Html.TextBoxFor(model => model.Razao_Social, new { @class = "form-control obrigatorio", @id = "iRazao_Social", @autocomplete = "off", @maxlength = "255" })
+                                            @Html.ValidationMessageFor(model => model.Razao_Social, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-3">
+                                        <div class="form-group">
+                                            <label for="iCNPJ"><span class="text-danger">*</span> @RsCadastros.CNPJ:</label>
+                                            @Html.TextBoxFor(model => model.CNPJ, new { @class = "form-control cnpj obrigatorio", @id = "iCNPJ", @autocomplete = "off", @placeholder = "Informe o CNPJ" })
+                                            @Html.ValidationMessageFor(model => model.CNPJ, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <div class="form-group">
+                                            <label for="iRazao_Social"><span class="text-danger">*</span> @RsCadastros.CLASSIFICACAO:</label>
+                                            @Html.EnumDropDownListFor(model => model.Classificacao_Organizacao, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iRazao_Social", @autocomplete = "off" })
+                                            @Html.ValidationMessageFor(model => model.Classificacao_Organizacao, "", new { @class = "text-danger" })
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!--Endereço-->
+                <div class="accordion" id="accordion_4">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_4">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_4" aria-expanded="true" aria-controls="collapse_4">
+                                    <span class="text-bold-card">@RsPontoEletronico.ENDERECO</span>
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div id="collapse_4" class="collapse show" aria-labelledby="heading_4" data-parent="#heading_4">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-4">
+                                        <div class="form-group">
+                                            <label><span class="text-danger" id="spniCEP">*</span> @RsCadastros.CEP</label>
+                                            <div class="form-inline">
+                                                @Html.TextBoxFor(model => model.Cep, new { @class = "form-control obrigatorio busca cep", @id = "iCEP", @autocomplete = "off", @placeholder = "Pesquisar" })
+                                                <div data-toggle="popover" title="Informação" data-trigger="hover" data-placement="top" data-content="Digite o CEP e ao sair do campo (clicar enter), o endereço se encontrado será completado.">
+                                                    <i class="fas fa-info-circle icofont-1dot5x ml-2" style="color:#486B91;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-1">
+                                        <label><span class="text-danger" id="spniUF">*</span> @RsCadastros.UF</label>
+                                        <select class="form-control estado obrigatorio" id="iUF" name="Uf" autocomplete="off">
+                                            <option value="" selected>----</option>
+                                            <option value="AC">AC</option>
+                                            <option value="AL">AL</option>
+                                            <option value="AP">AP</option>
+                                            <option value="AM">AM</option>
+                                            <option value="BA">BA</option>
+                                            <option value="CE">CE</option>
+                                            <option value="DF">DF</option>
+                                            <option value="ES">ES</option>
+                                            <option value="GO">GO</option>
+                                            <option value="MA">MA</option>
+                                            <option value="MT">MT</option>
+                                            <option value="MS">MS</option>
+                                            <option value="MG">MG</option>
+                                            <option value="PA">PA</option>
+                                            <option value="PB">PB</option>
+                                            <option value="PR">PR</option>
+                                            <option value="PE">PE</option>
+                                            <option value="PI">PI</option>
+                                            <option value="RJ">RJ</option>
+                                            <option value="RN">RN</option>
+                                            <option value="RS">RS</option>
+                                            <option value="RO">RO</option>
+                                            <option value="RR">RR</option>
+                                            <option value="SC">SC</option>
+                                            <option value="SP">SP</option>
+                                            <option value="SE">SE</option>
+                                            <option value="TO">TO</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-3">
+                                        <label for="iCidade"><span class="text-danger" id="spniCidade">*</span>@RsCadastros.MUNICIPIO</label>
+                                        @Html.HiddenFor(m => m.Cidade, new { @id = "iDesc_Cidade" })
+                                        @Html.DropDownListFor(m => m.Id_Cidade, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control cidade obrigatorio", @id = "iCidade", @autocomplete = "off" })
+                                    </div>
+                                    <div class="col-2">
+                                        <label for="iBairro"><span class="text-danger" id="spniBairro">*</span>@RsCadastros.BAIRRO</label>
+                                        @Html.HiddenFor(m => m.Bairro, new { @id = "iDesc_Bairro" })
+                                        @Html.DropDownListFor(m => m.Id_Bairro, new List<SelectListItem>(), RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iBairro", @autocomplete = "off" })
+                                    </div>
+                                    <div class="col-2">
+                                        <label for="iComplemento">@RsCadastros.COMPLEMENTO</label>
+                                        @Html.TextBoxFor(model => model.Complemento, new { @class = "form-control", @id = "iComplemento", @autocomplete = "off", @Maxlength = 80 })
+                                    </div>
+                                    <div class="col-3">
+                                        <label><span class="text-danger" id="spniLogradouro">*</span>@RsCadastros.LOGRADOURO</label>
+                                        @Html.TextBoxFor(model => model.Logradouro, new { @class = "form-control obrigatorio", @id = "iLogradouro", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+
+                                    <div class="col-2">
+                                        <div class="form-group">
+                                            <label><span class="text-danger" id="spniNumero">*</span> @RsCadastros.NUMERO</label>
+                                            <div class="form-inline">
+                                                @Html.TextBoxFor(model => model.Numero, new { @class = "form-control col-sm-10 obrigatorio", @id = "iNumero", @autocomplete = "off", @Maxlength = 8 })
+                                                <div id="iPopoverNumero" data-toggle="popover" title="Informação" data-trigger="hover" data-placement="top" data-content="Ao sair do campo, latitude e longitude serão preenchidos.">
+                                                    <i class="fas fa-info-circle icofont-1dot5x ml-2" style="color:#486B91;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-2">
+                                        <label for="iLatitude">@RsCadastros.LATITUDE</label>
+                                        @Html.TextBoxFor(m => m.Latitude, new { @class = "form-control readonly", @id = "iLatitude", @autocomplete = "off" })
+                                    </div>
+                                    <div class="col-2">
+                                        <label for="iLongitude">@RsCadastros.LONGITUDE</label>
+                                        @Html.TextBoxFor(m => m.Longitude, new { @class = "form-control readonly", @id = "iLongitude", @autocomplete = "off" })
+                                    </div>
+                                    <div id="iDivGoogleEndereco" style="display:none" class="col-6">
+                                        <label>Endereco Encontrado:</label>
+                                        <br />
+                                        <span class="fs-10 mt-2 form-label text-danger" id="iGoogleEndereco"></span>
+                                    </div>
+
+
+
+
+
+                                </div>
+
+                                <div class="row">
+
+                                    <div class="col-sm-1 text-center">
+                                        <button type="button" id="iBtnAlert" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Mapa" style="margin-top: 15px;"
+                                                onclick="return ExibeMapa('');">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>@RsCadastros.VISUALIZAR_MAPA
+                                        </button>
+                                    </div>
+
+
+                                </div>
+
+
+
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading_4">
+                                <h5 class="mb-1">
+                                    <a role="button">
+                                        <span class="text-bold-card">Adicionar Domínio</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <div class="form-group">
+                                                <label for="iDominio">@RsCadastros.DOMINIO:</label>
+                                                <input type="text" id="iDominio" class="form-control" placeholder="@RsBase.EXEMPLO: @Html.Raw("@sinapse.com.br")" />
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-12 text-right mt-3">
+                                            <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading_5">
+                                <h5 class="mb-1">
+                                    <a role="button">
+                                        <span class="text-bold-card">Lista de Domínios</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+
+                                    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading_4">
+                                <h5 class="mb-1">
+                                    <a role="button">
+                                        <span class="text-bold-card">Adicionar Contato</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <div class="form-group">
+                                                <label for="iContato">@RsCadastros.CONTATO:</label>
+                                                <input type="text" id="iContato" class="form-control obrigatorioContato" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <div class="form-group">
+                                                <label for="iInformacaoAdicional">@RsCadastros.INFORMACAO_ADICIONAL:</label>
+                                                <input type="text" id="iInformacaoAdicional" class="form-control" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-12">
+                                            <div class="form-group">
+                                                <label for="iDominio">@RsCadastros.TIPO_CONTATO:</label>
+                                                @Html.EnumDropDownListFor(m => m.Tipo_Contato, RsBase.SELECIONE, new { @class = "form-control obrigatorioContato", @id = "iTipoContato", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-12 text-right mt-3">
+                                            <input type="button" id="btnAdicionarContato" value="Adicionar" class="btn btn-success" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div id="accordion" class="col-sm-6">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading_4">
+                                <h5 class="mb-1">
+                                    <a role="button">
+                                        <span class="text-bold-card">Lista de Contatos</span>
+                                    </a>
+                                </h5>
+                            </div>
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body">
+
+                                    <table class="table table-hover nowrap" id="datatableContato" style="width:100%"></table>
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Organizacao")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();" name="gravar">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+    </div>
+
+    <div class="modal fade" id="modal-editar-dominio">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">Editar Domínio</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input id="idDominio" type="hidden">
+                    <div class="row">
+                        <div class="col-sm-10 container" style="align-content:center;">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iemailEditar" class="">@RsCadastros.DOMINIO:</label><br>
+                                        <input type="text" class="form-control dominioEditarObrigatorio" id="iDominioEditar">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-success" id="iEditarDominio">Editar</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+
+    <div class="modal fade" id="modal-editar-contato">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-muted">Editar Contato</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input id="idContato" type="hidden">
+                    <div class="row">
+                        <div class="col-sm-10 container" style="align-content:center;">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iContatoEditar" class="">@RsCadastros.CONTATO:</label><br>
+                                        <input type="text" class="form-control contatoObrigatorioEditar" id="iContatoEditar">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iInformacaoAdicionalEditar">@RsCadastros.INFORMACAO_ADICIONAL:</label>
+                                        <input type="text" id="iInformacaoAdicionalEditar" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <label for="iTipoContatoEditar">@RsCadastros.TIPO_CONTATO:</label>
+                                        @Html.EnumDropDownListFor(m => m.Tipo_Contato, RsBase.SELECIONE, new { @class = "form-control contatoObrigatorioEditar", @id = "iTipoContatoEditar", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group col-sm-12" style="padding: 15px;">
+                        <div class="text-center">
+                            <button type="button" class="btn btn-success" id="iEditarContato">Editar</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div><!-- /.modal-->
+
+}

@@ -1,0 +1,1158 @@
+﻿@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@using Microsoft.AspNet.Identity;
+@{
+    ViewBag.Title = RsCadastros.LISTAGEM_ALTERACOES_PLANO_CONTRATO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    bool visualizaPendenciaFinanceira = ViewBag.ConsultaPendenciaFinanceiraVendedorVisualiza;
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+@section styles {
+
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+            margin-right: 25px !important;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        .swal-wide {
+            width: 450px !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        .dataTables_scrollHeadInner {
+            width: 100% !important;
+        }
+
+            .dataTables_scrollHeadInner table {
+                width: 100% !important;
+            }
+
+        .table {
+            table-layout: fixed;
+        }
+
+        .swalIncluirAlteracao {
+            width: 60vw !important;
+            height: 55vh !important;
+        }
+
+        .circle-consulta-pendente {
+            font-size: 1.5em;
+            color: #CCCCCC;
+        }
+
+        .circle-consulta-aprovada {
+            font-size: 1.5em;
+            color: #8BC53F;
+        }
+
+        .circle-consulta-reprovada {
+            font-size: 1.5em;
+            color: #FF0000;
+        }
+
+        #divTableFinanceiro {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        #datatableFinanceiro {
+            width: 100% !important;
+        }
+    </style>
+}
+@section scripts {
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+<script>
+    const CONSULTA_VIABILIDADE = 0;
+    const CONSULTA_PENDENCIA_FINANCEIRA = 1;
+    const CONSULTA_PENDENCIA_ENDERECO = 2;
+    const CONSULTA_CREDITO = 3;
+    const STATUS_CONSULTA_PENDENTE = 0;
+    const STATUS_CONSULTA_APROVADA = 1;
+    const STATUS_CONSULTA_REPROVADA = 2;
+    const STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR = 3;
+    const configVisualizaPendenciaFinanceira = @Html.Raw(Json.Encode(visualizaPendenciaFinanceira));
+
+    let idPlano = null, cpfCliente = null, oDatatableFinanceiro = null,
+        id_cliente_anterior = null, idCliente = null, cliente = null,
+        existe_consulta = null;
+
+    $(document).ready(async function () {
+        await AddSelect("iComboCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleCliente, null, null, null, true);
+        await AddSelect('iVendedor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor',@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, function sem_condicao() { }, null, null, null, true);
+        await AddSelect('iSupervisor', '@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboFuncionarioSupervisor',@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+    });
+
+    const handleDataTableFinanceiro = function () {
+        oDatatableFinanceiro = $("#datatableFinanceiro").length && $("#datatableFinanceiro").DataTable({
+            dom: "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            processing: true,
+            serverSide: true,
+            searching: true,
+            ordering: true,
+            paging: true,
+            destroy: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            scroller: {},
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            drawCallback: () => {
+                if ($("#datatableFinanceiro").length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "Não constam pendências internas para esse cpf/cnpj.", "warning");
+                }
+                oDatatableFinanceiro.columns.adjust();
+                ResizeTable('divTableFinanceiro');
+            },
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/PendenciaFinanceiraIntegracaoApi/GetFaturaByCpfCnpj',
+                type: 'POST',
+                data: function (data) {
+                    if (cpfCliente.length <= 11) {
+                        data.Cpf = cpfCliente;
+                    } else {
+                        data.Cnpj = cpfCliente;
+                    }
+                },
+                error: function (e) {
+                    console.log(e);
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            },
+            beforeSend: function () {
+                $("#divProgress").show();
+            },
+            complete: function () {
+                $("#divProgress").hide();
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                var str = "@RsCadastros.INFODATATABLE";
+                if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                $("#dtLegend").html(str);
+
+                return "";
+            },
+            rowCallback: function (row, data, dataIndex) {
+                var rowId = data.id;
+                // If row ID is in the list of selected row IDs
+                if ($.inArray(rowId, rows_selected) !== -1) {
+                    $(row).find('input[type="checkbox"]').prop('checked', true);
+                    $(row).addClass('selected');
+                }
+            },
+            pageLength: 5,
+            order: [],
+            language: traducaoDataTableSimples,
+            buttons: buttonsDataTable,
+            columns: [
+                //{ data: "cod_Contrato", title: "@RsCadastros.CODIGO_CONTRATO", orderable: false },
+                { data: "codConexao", title: "@RsCadastros.CODIGO_CONEXAO", orderable: false },
+                { data: "cod_Cliente", title: "@RsCadastros.CLIENTE", orderable: false },
+                { data: "cpfCnpj", title: "@RsCadastros.CPFCNPJ", orderable: false },
+                //{ data: "contrato_Cancelado", title: "@RsCadastros.CONTRATO_CANCELADO", orderable: false },
+                { data: "conexao_Bloqueada", title: "@RsCadastros.CONEXAO_BLOQUEADA", orderable: false },
+                { data: "logradouro", title: "@RsCadastros.LOGRADOURO", orderable: false },
+                { data: "bairro", title: "@RsCadastros.BAIRRO", orderable: false },
+                { data: "cidade", title: "@RsCadastros.CIDADE", orderable: false },
+                { data: "codFatura", title: "@RsCadastros.CODIGO_FATURA", orderable: false },
+                { data: "valor_Total", title: "@RsCadastros.VALOR_TOTAL", orderable: false },
+                { data: "liquidado", title: "@RsCadastros.LIQUIDADO", orderable: false },
+                { data: "descricao", title: "@RsCadastros.DESCRICAO", orderable: false },
+                { data: "fatura_Suspensa", title: "@RsCadastros.FATURA_SUSPENSA", orderable: false },
+                { data: "data_Vencimento", title: "@RsCadastros.VENCIMENTO", orderable: false },
+                { data: "motivo_Suspensao", title: "@RsCadastros.MOTIVO_SUSPENSAO", orderable: false },
+            ]
+        });
+    },
+
+        TableManageButtonsFinanceiro = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableFinanceiro();
+                }
+            }
+        }();
+
+    function PesquisarAlteracoes() {
+
+        var erro = false;
+        var dateIni = ConverterData($('#iMesInicio').val());
+        var dateFim = ConverterData($('#iMesFim').val());
+
+         if (dateFim < dateIni) {
+            Notificar("@RsBase.ATENCAO_", "Data Fim não pode ser menor que a Data Inicial", "warning");
+            erro = true;
+         }
+
+        if (erro) {
+            return false;
+        }
+
+        $("#iModalFiltros").modal('hide');
+
+        if ($.fn.DataTable.isDataTable("#datatable")) {
+            $("#datatable").DataTable().clear().destroy();
+            TableManageButtons.init();
+        }
+        else {
+            TableManageButtons.init();
+        }
+    }
+
+    function LimparFiltros() {
+        
+        $("#iVendedor").val("").trigger('change');
+        $("#iSupervisor").val("").trigger('change');
+        $("#iContrato").val("").trigger('change');
+        $("#iTermoAssinado").val("").trigger('change');
+        $("#iChecklist").val("").trigger('change');
+
+        $("#iMesInicio").val("@DateTime.Now.AddDays(-30).ToString("dd/MM/yyyy")").trigger('change');
+        $("#iMesFim").val("@DateTime.Now.ToString("dd/MM/yyyy")").trigger('change');
+        $("#iStatusVenda").val("").trigger('change');
+    }
+
+    async function LimparInformacoesAlteracaoPlano(busca_titular) {
+        $("#iDivConsultarResultado").addClass("d-none");
+        $("#iDivContratoPlano").addClass("d-none");
+
+        AtualizarIndicadorStatusConsulta(1, 0);
+        idCliente = null;
+        cpfCliente = null;
+
+        $("#iCPFValue").text(null);
+
+        if (busca_titular) {
+            await AddSelect("iComboCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", null, null, null, null, null, true);
+        }
+
+        $("#iRadioContrato").prop("checked", true);
+        DisableSelect("iComboContrato");
+        $("#iComboContrato").val(null);
+        $("#iComboContrato").text("Selecione");
+
+        DisableSelect("iComboPlano");
+        $("#iComboPlano").val(null);
+        $("#iComboPlano").text("Selecione");
+
+    }
+
+    function FecharModal() {
+        $("#iCancelar").click();
+    }
+
+    $("#iCancelar").unbind("click");
+    $("#iCancelar").on("click", function () {
+        LimparInformacoesAlteracaoPlano(true);
+
+        $("#iModalAdicionar").modal("hide");
+    });
+
+    $("#iLimparFiltro").unbind("click");
+    $("#iLimparFiltro").on("click", function () {
+        $('#txtSearch').val("").trigger('change');
+        rows_selected = [];
+        LimparFiltros();
+        TableManageButtons.init();
+    });
+
+    function ConverterData(data) {
+
+        let parts = data.split("/");
+
+        let month = parseInt(parts[0]) - 1;
+        let year = parseInt(parts[1]);
+
+        let dateObject = new Date(year, month, 1);
+
+        return dateObject;
+    }
+
+    const HandleCliente = async function () {
+        $("#iComboCliente").off("select2:select select2:unselecting");
+        $("#iComboCliente").on("select2:select select2:unselecting", async function (e) {
+            if (e.params.data != null) {
+                if ($("#iComboCliente").val() != id_cliente_anterior) {
+                    id_cliente_anterior = $("#iComboCliente").val();
+                    LimparInformacoesAlteracaoPlano(false);
+                }
+            }
+
+            if (e.params._type == "select") {
+                cliente = e.params.data;
+                idCliente = cliente.id;
+                cpfCliente = cliente.cpf;
+                $("#iCPFValue").text(cpfCliente);
+                $("#iDivConsultarResultado").addClass("d-none");
+                $("#rowConsultaPendenciaFinanceira").removeClass("d-none");
+
+                $("#btnConsultaPendenciaFinanceira").off("click");
+                $("#btnConsultaPendenciaFinanceira").on("click", async function () {
+                    if (!cpfCliente) {
+                        Notificar("@RsBase.ATENCAO_", "Cliente inválido para a consulta de pendencia financeira", "warning");
+                        return;
+                    }
+
+                    let requestConsultaPendenciaFinanceira = {};
+
+                    if (cpfCliente.length == 11) {
+                        requestConsultaPendenciaFinanceira.Cpf = cpfCliente;
+                    }
+                    else {
+                        requestConsultaPendenciaFinanceira.Cnpj = cpfCliente;
+                    }
+
+                    const result =
+                        await $.ajax({
+                            url: "@String.Concat(CONSTANTES.URLPortal, "/api/PendenciaFinanceiraIntegracaoApi/ExecutarConsultaPendenciaFinanceira")",
+                            type: 'POST',
+                            dataType: 'json',
+                            data: requestConsultaPendenciaFinanceira,
+                            beforeSend: function () {
+                                $("#divProgress").show();
+                            },
+                            complete: function () {
+                                $("#divProgress").hide();
+                            }
+                        });
+
+                    if (result != null && result.ok && result.objeto != null) {
+                        const possuiPendencia = result.objeto.possuiPendencia;
+                        if (possuiPendencia) {
+                            AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_REPROVADA);
+                        }
+                        else {
+                            AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_APROVADA);
+                        }
+                        existe_consulta = !possuiPendencia;
+                        $("#iRadioContrato").prop("checked", true);
+                        $("#iRadioContrato").trigger("change");
+
+                    @if (AcessoHelper.TemAcesso(_areas, "322"))
+                    {
+                    <text>
+                        @* Adiciona o botão de exibição dos resultados caso ainda não tenha sido criado *@
+                        $("#iDivConsultarResultado").removeClass("d-none");
+                    </text>
+                    }
+
+                        Notificar("@RsBase.INFORMACAO", "Consulta de pendência financeira concluída", "info");
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a consulta de pendência financeira", "warning");
+                    }
+                });
+                let pendenciasPrevias = await GetConsultaPendenciaFinanceiraByCpfCnpj(cpfCliente);
+                if (pendenciasPrevias != null && pendenciasPrevias.ok && pendenciasPrevias.objeto.existeConsulta) {
+                    if (pendenciasPrevias.objeto.dados != null) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_REPROVADA);
+                    }
+                    else {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_APROVADA);
+                    }
+
+                    $("#iDivConsultarResultado").removeClass("d-none");
+                }
+                $("#iDivContratoPlano").removeClass("d-none");
+
+                existe_consulta = pendenciasPrevias.objeto.existeConsulta;
+                $("#iRadioContrato").trigger("change");
+            }
+            else {
+                LimparInformacoesAlteracaoPlano(true);
+            }
+        });
+    }
+
+    $("#btnResultadoConsultaPendenciaFinanceira").on("click", function () {
+        $("#iModalPendenciaFinanceira").modal("show");
+
+        if (oDatatableFinanceiro == null) {
+            TableManageButtonsFinanceiro.init();
+        }
+        else {
+            oDatatableFinanceiro.draw();
+        }
+    });
+
+    $('#iModalPendenciaFinanceira').on('shown.bs.modal', function () {
+        if (!$.fn.DataTable.isDataTable('#datatableFinanceiro')) {
+            TableManageButtonsFinanceiro.init();
+        } else {
+            oDatatableFinanceiro.columns.adjust().draw();
+        }
+    });
+
+    $("#iRadioContrato").on("change", async function (e) {
+        if (existe_consulta) {
+            var checked = e.target.checked;
+            if (checked) {
+                await DisableSelect("iComboPlano");
+                $("#iComboPlano").val(null);
+                $("#iComboPlano").text("Selecione");
+                await AddSelect("iComboContrato", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboContrato",@CONSTANTES.PaginacaoRegistros, idCliente, null, null, "@RsBase.SELECIONE", false, HandleContrato);
+            }
+            else {
+                await DisableSelect("iComboContrato");
+                await AddSelect("iComboPlano", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboPlanoByClienteContrato",@CONSTANTES.PaginacaoRegistros, idCliente, null, null, "@RsBase.SELECIONE", false, HandlePlano);
+            }
+        }
+    });
+
+    $("#iRadioPlano").on("change", async function (e) {
+        if (existe_consulta) {
+            var checked = e.target.checked;
+            if (checked) {
+                await DisableSelect("iComboContrato");
+                $("#iComboContrato").val(null);
+                $("#iComboContrato").text("Selecione");
+                await AddSelect("iComboPlano", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboPlanoByClienteContrato",@CONSTANTES.PaginacaoRegistros, idCliente, null, null, "@RsBase.SELECIONE", false, HandlePlano);
+            }
+            else {
+                await DisableSelect("iComboPlano");
+                await AddSelect("iComboContrato", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboContrato",@CONSTANTES.PaginacaoRegistros, idCliente, null, null, "@RsBase.SELECIONE", false, HandleContrato);
+            }
+        }
+    });
+
+    const HandleContrato = async function () {
+        $("#iComboContrato").unbind("select2:select select2:unselecting")
+        $("#iComboContrato").on("select2:select select2:unselecting", async function (e) {
+            if (e.params.data != null && e.params.data != undefined) {
+                let contrato = e.params.data;
+                if (!$("#iComboPlano").val()) {
+                    await AddSelect("iComboPlano", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboPlanoByClienteContrato",@CONSTANTES.PaginacaoRegistros, cliente.id, contrato.id, null, "@RsBase.SELECIONE", false, HandlePlano);
+                }
+            } else {
+                await DisableSelect("iComboPlano");
+            }
+        })
+    }
+    const HandlePlano = async function () {
+        $("#iComboPlano").unbind("select2:select select2:unselecting");
+        $("#iComboPlano").on("select2:select select2:unselecting", async function (e) {
+            if (e.params.data != null && e.params.data != undefined) {
+                let plano = e.params.data;
+                idPlano = plano.plano;
+                let idClienteContrato = plano.idClienteContrato;
+                await AddSelect("iComboContrato", "@CONSTANTES.URLPortal/api/AlteracaoPlanoContratoapi/GetComboContrato",@CONSTANTES.PaginacaoRegistros, null, null, idClienteContrato, "@RsBase.SELECIONE", true);
+            }
+            else {
+                await DisableSelect("iComboContrato");
+                $("#iRadioPlano").prop("checked", true);
+            }
+        });
+    };
+
+    let rows_selected = [];
+    let oDatatable = null;
+    var handleDataTableButtons = async function () {
+
+        "use strict";
+        oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+            columnDefs: [{
+                targets: 0,
+                searchable: false,
+                orderable: false,
+                width: '1%',
+                className: 'dt-body-center',
+                render: function (data, type, full, meta) {
+                    return "<input type='checkbox'></input>";
+                }
+            },
+            {
+                targets: 1,
+                searchable: false,
+                orderable: false,
+                width: '1%',
+                className: 'dt-body-center'
+            }],
+            select: 'multi',
+            order: [[1, 'desc']],
+            serverSide: true,
+            searching: true,
+            ordering: true,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '79vh',
+            stateSave: false,
+            scrollX: true,
+            destroy: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/AlteracaoPlanoContratoapi/GetAll',
+                type: 'POST',
+                data: function (data) {
+                    let assinado = $("#iTermoAssinado option:selected").val();
+                    data.IdContrato = $("#iContrato option:selected").val();
+                    data.IdVendedor = $("#iVendedor option:selected").val();
+                    data.IdSupervisor = $("#iSupervisor option:selected").val();
+                    data.StatusVenda = $("#iStatusVenda option:selected").val();
+                    data.TermoAdesaoAssinado = assinado == "1" ? true : assinado == "2" ? false : null;
+                    data.DataInicial = $("#iMesInicio").val();
+                    data.DataFinal = $("#iMesFim").val();
+                },
+                error: function (e) {
+                    var errorMessage = "Ocorreu um erro.";
+                    try {
+                        var response = JSON.parse(e.responseText);
+                        if (response && response.exceptionMessage) {
+                            errorMessage = response.exceptionMessage;
+                        }
+                    } catch (ex) {
+                        console.error("Erro: ", ex);
+                    }
+                    Notificar("@RsBase.ATENCAO_", errorMessage, "warning");
+                    $("#divProgress").hide();
+                },
+                dataSrc: function (d) {
+                    //Mostrar o Total de Ordens de Serviços encontradas
+                    if ($('#Count_listing').length === 0)
+                        $('.dataTables_length').append($('<label id="Count_listing"></label>'));
+
+                    $("#Count_listing").html(`<div class="form-group col-sm-push-1 ml-2 mt-1">
+                                         Total de Registros encontrados: <span style="font-weight:bold; margin-right:0px;" id="Total_OS">  &nbsp; `+ d.recordsFiltered + ` </span>
+                                      </div> `);
+
+                    return d.data;
+                }
+            },
+            beforeSend: function () {
+                $("#divProgress").show();
+            },
+            complete: function () {
+                $("#divProgress").hide();
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+                return "";
+            },
+            preDrawCallback: function () {
+                $("#divProgress").show();
+            },
+            drawCallback: function () {
+
+                if (oDatatable)
+                    oDatatable.columns.adjust();
+
+                $("#divProgress").hide();
+            },
+            rowCallback: function (row, data, dataIndex) {
+                // Get row ID
+                var rowId = data.id;
+
+                // If row ID is in the list of selected row IDs
+                if ($.inArray(rowId, rows_selected) !== -1) {
+                    $(row).find('input[type="checkbox"]').prop('checked', true);
+                    $(row).addClass('selected');
+                }
+            },
+            pageLength: 10,
+            language: traducaoDataTable,
+            buttons: buttonsDataTable,
+            columns: [
+
+                { title: "<input name='select_all' value='1' type='checkbox'>" },
+
+                { data: "id", title: "@RsCadastros.NUMERO_VENDA", orderable: false },
+                { data: "nomeFantasia", title: "@RsCadastros.NOMEFANTASIA", orderable: false },
+                { data: "documento", title: "@RsCadastros.CPFCNPJ", orderable: false },
+                { data: "categoriaCliente", title: "@RsCadastros.CATEGORIA_CLIENTE", orderable: false },
+                { data: "vendedor", title: "@RsCadastros.VENDEDOR", orderable: false },
+                { data: "supervisor", title: "@RsCadastros.SUPERVISOR", orderable: false },
+                { data: "departamento", title: "@RsCadastros.SETOR_DEPARTAMENTO", orderable: false },
+                { data: "termoAdesaoAssinado", title: "@RsCadastros.TERMO_ADESAO_ASSINADO", orderable: false },
+                { data: "dataAssinatura", title: "@RsCadastros.DATA_TERMO_ASSINADO", orderable: false },
+                { data: "dataHoraCriacao", title: "@RsCadastros.DATAHORA_CRIACAO", orderable: false },
+                { data: "dataHoraAprovacao", title: "@RsCadastros.DATAHORA_APROVACAO", orderable: false },
+                { data: "dataHoraCancelamento", title: "@RsCadastros.DATAHORA_CANCELAMENTO", orderable: false },
+                { data: "numeroContrato", title: "N° @RsCadastros.CONTRATO", orderable: false },
+                { data: "tipoAlteracao", title: "@RsCadastros.TIPO_ALTERACAO", orderable: false },
+                { data: "status", title: "@RsCadastros.STATUS_VENDA", orderable: false },
+
+            ]
+        });
+        //setTimeout(function () {
+        //    oDatatable.columns.adjust().draw();
+        //}, 2000)
+
+
+        $('#txtSearch').val(oDatatable.search());
+        $('#txtSearch').keypress(function (e) {
+            if (e.which == 13) {
+                rows_selected = [];
+                oDatatable.search($(this).val()).draw();
+            }
+        });
+        $("#btnInativar").on("click", function () {
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            //Alterando para Inativo
+            AlterarStatusObj(0);
+
+        });
+
+        $("#btnAtivar").on("click", function () {
+
+            if (rows_selected.length == 0) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.NENHUMREGISTROSELECIONADO", "info");
+                return;
+            }
+
+            //Alterando para Inativo
+            AlterarStatusObj(1);
+        });
+
+        $("#iPesquisar").on("click", function () {
+
+            $("#iModalFiltros").modal('hide');
+
+
+
+            $("#iDataInicial").val($("#iDataInicial").val().replace(/\//g, "."));
+            $("#iDataFinal").val($("#iDataFinal").val().replace(/\//g, "."));
+
+            var _data_ini = $("#iDataInicial").val().split(".");
+            var _data_fim = $("#iDataFinal").val().split(".");
+
+            var data_ini = new Date(_data_ini[2], _data_ini[1] - 1, _data_ini[0]);
+            var data_fim = new Date(_data_fim[2], _data_fim[1] - 1, _data_fim[0]);
+
+            if ($('input[name = "iTipoData"]:checked').val() != "3") {
+                if ($("#iDataInicial").val() == "" || $("#iDataFinal").val() == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.SELECIONE_DATAINICIAL_DATAFINAL)", "warning");
+                    return false;
+                }
+            }
+
+            if (data_ini > data_fim) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+            }
+            else {
+                rows_selected = [];
+                oDatatable.search($('#txtSearch').val()).draw();
+            }
+
+            return true;
+
+        });
+        // Handle click on checkbox
+        $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+            var $row = $(this).closest('tr');
+
+            // Get row data
+            var rowId = oDatatable.row($row).data().id;
+
+            var index = $.inArray(rowId, rows_selected);
+
+            // If checkbox is checked and row ID is not in list of selected row IDs
+            if (this.checked && index === -1) {
+                rows_selected.push(rowId);
+
+                // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+            } else if (!this.checked && index !== -1) {
+                rows_selected.splice(index, 1);
+            }
+
+            if (this.checked) {
+                $row.addClass('selected');
+            } else {
+                $row.removeClass('selected');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        $('#datatable tbody').on('click', 'tr', async function (e) {
+
+            let registro = oDatatable.row(this).data();
+            if (oDatatable.row(this).data() != null) {
+                let parametros = { id: registro.id, newRecord: false };
+                window.location.href = await Cadastro(parametros);
+                $("#divProgress").show();
+                e.stopPropagation();
+            }
+
+        });
+
+        // Handle click on table cells with checkboxes
+        $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+            $(this).parent().find('input[type="checkbox"]').trigger('click');
+        });
+
+        // Handle click on "Select all" control
+        $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+            if (this.checked) {
+                $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+            } else {
+                $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+            }
+
+            // Prevent click event from propagating to parent
+            e.stopPropagation();
+        });
+
+        // Handle table draw event
+        oDatatable.on('draw', function () {
+            // Update state of "Select all" control
+            updateDataTableSelectAllCtrl(oDatatable);
+
+        });
+
+    },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+    TableManageButtons.init();
+
+    $("#iIncluir").on("click", async function () {
+        $("#iModalAdicionar").modal("show");
+    });
+
+    function Cadastro(parametros) {
+        /*long? IdCliente, long? IdClienteContrato, long? IdClientePlano, long? IdVenda*/
+        let ok = false;
+        let path = "@Url.Action("cadastro", "AlteracaoPlanoContrato")";
+        if (parametros.newRecord) {
+            if (parametros.idCliente && parametros.idContrato) {
+                path += "?IdCliente=_cliente&IdClienteContrato=_contrato";
+                if (parametros.idPlano) {
+                    path += "&IdPlano=_plano";
+                    path += "&IdClientePlanoProduto=_planoProduto";
+                }
+                path = path.replace("_cliente", parametros.idCliente).replace("_contrato", parametros.idContrato).replace("_plano", parametros.idPlano).replace("_planoProduto", $("#iComboPlano").val());
+                ok = true;
+            }
+        }
+        else if (!parametros.newRecord && parametros.id) {
+            path += "?IdVenda=_id";
+
+            path = path.replace("_id", parametros.id);
+            ok = true;
+        }
+
+        return path;
+    }
+     @* Ações da Consulta de Pendência Financeira *@
+    function AtualizarIndicadorStatusConsulta(consulta, status) {
+        let statusClass = null;
+        switch (status) {
+            case STATUS_CONSULTA_PENDENTE:
+                statusClass = "circle-consulta-pendente";
+                break;
+            case STATUS_CONSULTA_APROVADA:
+                statusClass = "circle-consulta-aprovada";
+                break;
+            case STATUS_CONSULTA_REPROVADA:
+            case STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR:
+                statusClass = "circle-consulta-reprovada";
+                break;
+        }
+
+        if (statusClass != null) {
+            let statusElemSelector = null;
+
+            switch (consulta) {
+                case CONSULTA_VIABILIDADE:
+                    statusElemSelector = "#statusConsultaViabilidade";
+                    //AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_VIABILIDADE, statusClass);
+
+                    statusConsultaViabilidade = status;
+                    $("#iStatusConsultaViabilidade").val(status);
+                    break;
+                case CONSULTA_PENDENCIA_FINANCEIRA:
+                    statusElemSelector = "#statusConsultaPendenciaFinanceira";
+                    AtualizaStatusConsulta(statusElemSelector, configVisualizaPendenciaFinanceira, statusClass);
+
+                    $("#iStatusConsultaPendenciaFinanceira").val(status);
+                    break;
+                case CONSULTA_PENDENCIA_ENDERECO:
+                    statusElemSelector = "#statusConsultaPendenciaEndereco";
+                    //AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_PENDENCIA_ENDERECO, statusClass);
+
+                    $("#iStatusConsultaPendenciaEndereco").val(status);
+                    break;
+                case CONSULTA_CREDITO:
+                    statusElemSelector = "#statusConsultaCredito";
+                    //AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_CREDITO, statusClass);
+
+                    $("#iStatusConsultaCredito").val(status);
+                    break;
+            }
+        }
+    }
+
+    function AtualizaStatusConsulta(element, visualiza, classe) {
+        $(element).removeClass("circle-consulta-pendente");
+        $(element).removeClass("circle-consulta-aprovada");
+        $(element).removeClass("circle-consulta-reprovada");
+
+        if (@Html.Raw(Json.Encode(AcessoHelper.TemAcesso(_areas, "322")))) {
+            $(element).addClass(classe);
+        }
+        else if (visualiza) {
+            $(element).addClass(classe);
+        }
+        else {
+            $(element).addClass("circle-consulta-pendente");
+        }
+    }
+
+    async function GetConsultaPendenciaFinanceiraByCpfCnpj(cpf) {
+        let url = "@CONSTANTES.URLPortal/api/PendenciaFinanceiraIntegracaoApi/ExisteConsultaPendenciaFinanceira";
+
+        if (cpf.length == 11) {
+            url = url + "?Cpf=" + cpf;
+        }
+        else {
+            url = url + "?Cnpj=" + cpf;
+        }
+
+        return await $.ajax({
+            url: url,
+            type: 'GET',
+            dataType: 'json',
+            beforeSend: function () {
+                $("#divProgress").show();
+            },
+            complete: function () {
+                $("#divProgress").hide();
+            }
+        });
+    }
+
+    $("#iConfirmar").on("click", async function () {
+
+        if (!$("#iComboCliente").val()) {
+            Notificar("@RsBase.ATENCAO_", "Selecione o Titular!", "warning");
+            return false;
+        }
+
+        $("#divProgress").show();
+        if ($("#iComboCliente").val() && $("#iComboContrato").val() && $("#iComboPlano").val()) {
+            var link = "@CONSTANTES.URLPortal/api/VendaApi/Get_MudancaPlanoProduto_Venda?IdPlanoProduto_Troca=" + $("#iComboPlano").val();
+            const _data = await $.ajax({
+                url: link,
+                type: 'GET',
+                dataType: 'json',
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                }
+            });
+
+            if (_data.ok) {
+                Notificar("@RsBase.ATENCAO_", _data.mensagem, "warning");
+                return false;
+            }
+
+            $("#divprogress").show();
+            let comboCliente = $("#iComboCliente").val();
+            let comboContrato = $("#iComboContrato").val();
+            let parametros = {
+                newRecord: true,
+                idCliente: comboCliente,
+                idContrato: comboContrato,
+                idPlano: idPlano,
+                id: null,
+            };
+            const _url = Cadastro(parametros);
+            window.location.href = _url;
+            //AddAba(_url, "@Html.Raw(RsCadastros.ALTERACAO_PLANO_CONTRATO)");
+        } else {
+            const texto = $("#iComboContrato").val() == "" || $("#iComboContrato").val() == null || $("#iComboContrato").val() == 0 || $("#iComboContrato").val() == undefined ? "Contrato" : "Plano";
+            Notificar("@RsBase.ATENCAO_", `Necessário informar o campo ${texto}, pois está vazio.`, "warning");
+        }
+    });
+
+</script>
+}
+<div class="container-fluid" id="divTitle">
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page"><i class="fas fa-retweet"></i>@ViewBag.Title</h4>
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">
+                            @RsCadastros.COMERCIAL
+
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto mb-3">
+            <div class="row title-page">
+                <div class="pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="@RsCadastros.NOMEOUDOCUMENTO" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+                @if (AcessoHelper.TemAcesso(_areas, "135"))
+                {
+                    <a class="btn btn-success btn-add" id="iIncluir" title="@RsBase.INCLUIR"><i class="la la-plus" style="color: #fff"></i></a>
+                }
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#iModalFiltros" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;">@RsBase.EXPORTAR_PARA_O_EXCEL</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="divTable" style="width: 97.5vw; margin: auto">
+    <table class="table table-hover nowrap display" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div class="modal fade" id="iModalFiltros" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLongTitle"><b>Filtros</b></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row form-group">
+                    <div class="col-2">
+                        <label><b>Data Criação:</b></label>
+                    </div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-auto">
+                        <label for="iMesInicio">Data Inicial:</label> <br />
+                        <input id="iMesInicio" type="text" class="form-control datepicker" data_provide = "datepicker" value="@DateTime.Now.AddDays(-30).ToString("dd/MM/yyyy")"/>
+                    </div>
+                    <div class="col-auto">
+                        <label for="iMesFim">Data Final:</label><br />
+                        <input id="iMesFim" type="text" class="form-control datepicker" data_provide = "datepicker" value="@DateTime.Now.ToString("dd/MM/yyyy")"/>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Vendedor:</b></label>
+                        <select id="iVendedor" class="form-control">
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label><b>Supervisor:</b></label>
+                        <select id="iSupervisor" class="form-control">
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Contrato:</b></label>
+                        <select id="iContrato" class="form-control">
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label><b>Termo de Adesão Assinado:</b></label>
+                        <select id="iTermoAssinado" class="form-control">
+                            <option value="3">Todos</option>
+                            <option value="1">Sim</option>
+                            <option value="2">Não</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row form-group mt-3">
+                    <div class="col-6">
+                        <label><b>Status da Venda:</b></label>
+                        <select id="iStatusVenda" class="form-control">
+                            <option value="">Selecione</option>
+                            <option value="1">Análise Cliente</option>
+                            <option value="2">Avaliação Aprovada</option>
+                            <option value="3">Avaliação Reprovada</option>
+                            <option value="4">Venda Cancelada</option>
+                            <option value="5">Aguardando Avaliação Comercial</option>
+                            <option value="6">Venda Aprovada</option>
+                            <option value="7">Venda Reprovada</option>
+                            <option value="8">Aguardando Liberação</option>
+                            <option value="9">Liberação Reprovada</option>
+                            <option value="10">Liberação Aprovada</option>
+                            <option value="11">Aguardando Pagamento</option>
+                            <option value="12">Pagamento Rejeitado</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-danger" onclick="LimparFiltros();">Limpar Filtro</button>
+                <button type="button" class="btn btn-success" id="iPesquisar" onclick="PesquisarAlteracoes();">Pesquisar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="iModalAdicionar" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="exampleModalLongTitle"><b>Alteração de Plano</b></h4>
+                <button type="button" class="close" onclick="FecharModal()" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row mt-3">
+                    <div class="col-sm-4">
+                        <label for="iComboCliente"><span style="font-weight:bold;"> Selecione o Titular:</span></label>
+                    </div>
+                </div>
+                <div class="row mt-2 mb-4 pb-4">
+                    <div class="col-sm-10">
+                        <select id="iComboCliente"></select>
+                    </div>
+                </div>
+
+                <div id="iDivContratoPlano" class="d-none">
+
+                    <div class="d-inline" id="rowConsultaPendenciaFinanceira">
+                        <div class="row inherit-width">
+                            <div class="col-1"><i id="statusConsultaPendenciaFinanceira" class="fas fa-circle circle-consulta-pendente"></i></div>
+                            <div class="col-5">Consulta de Pendência Financeira</div>
+                            <div class="col-3"><a href="javascript:void(0)" id="btnConsultaPendenciaFinanceira" class="btn btn-primary">Consultar</a></div>
+                            <div class="col-3 d-none" id="iDivConsultarResultado"><a href="javascript:void(0)" id="btnResultadoConsultaPendenciaFinanceira" class="btn btn-success">Resultado</a></div>
+                        </div>
+                    </div>
+
+                    <div class="row justify-content-start mb-4">
+                        <div class="col-sm-4">
+                            <span style="font-weight:bold;"> Buscar Por:</span>
+                        </div>
+                    </div>
+                    <div class="row justify-content-center mt-2 mb-3">
+                        <div class="col-sm-4 ">
+                            <input name="radioAlteracaoPlanoContrato" type="radio" id="iRadioContrato" checked /><label for="iRadioContrato"> Contrato</label>
+                        </div>
+                        <div class="col-sm-4 ">
+                            <input name="radioAlteracaoPlanoContrato" type="radio" id="iRadioPlano" /><label for="iRadioPlano"> Plano</label>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-sm-6 mb-4" id="iDivComboContrato">
+                            <label for="iComboContrato"> Selecione o Contrato:</label>
+                            <select class="form-control" id="iComboContrato"></select>
+                        </div>
+                        <div class="col-sm-6" id="iDivComboPlano">
+                            <label for="iComboPlano"> Selecione o Plano:</label>
+                            <select class="form-control" id="iComboPlano"></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content:center">
+                <button type="button" class="btn btn-danger" id="iCancelar">Cancelar</button>
+                <button type="button" class="btn btn-success" id="iConfirmar">Confirmar</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@*Modal Consulta Financeira*@
+<div class="modal fade" id="iModalPendenciaFinanceira" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Consulta de Pendência Financeira</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row border-bottom border-primary">
+                            <label>Documento de Consulta: </label>
+                            <label id="iCPFValue" class="pl-2 font-weight-bold"></label>
+                            <hr />
+                            <br />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label class="font-weight-bold">
+                                    Resumo Consulta
+                                </label>
+                                <div id="divTableFinanceiro">
+                                    <table class="table table-hover nowrap" id="datatableFinanceiro" style="width:100%"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>

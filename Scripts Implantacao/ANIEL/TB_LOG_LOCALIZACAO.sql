@@ -1,0 +1,7 @@
+alter table TB_LOG_LOCALIZACAO add DIA                TIMESTAMP;
+alter table TB_LOG_LOCALIZACAO add VALOR_ANT          VARCHAR(800);
+alter table TB_LOG_LOCALIZACAO add ALTERACAO          VARCHAR(200);
+alter table TB_LOG_LOCALIZACAO add DATA_MAXIMA        TIMESTAMP;
+alter table TB_LOG_LOCALIZACAO add COD_TIPO_SERV      SMALLINT;
+alter table TB_LOG_LOCALIZACAO add MOTIVO_EXCLUSAO    VARCHAR(50);
+

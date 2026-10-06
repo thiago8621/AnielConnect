@@ -1,0 +1,553 @@
+﻿@model Aniel.Connect.Models.Comercial_MapaModel
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models
+@using Sinapse.Model.enumerados;
+
+@{
+    /**/
+
+    ViewBag.Title = RsCadastros.ROTA_VENDEDOR;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+
+<script src="~/bin/Scripts/jquery-3.3.1.min.js"></script>
+
+<link href="~/Content/leaflet.css" rel="stylesheet" />
+<link href="~/Content/map.css" rel="stylesheet" />
+<script src="~/Scripts/leaflet.js"></script>
+<script src="~/Scripts/leaflet_awesome_number_markers.js"></script>
+<script src="~/Scripts/L.Polyline.SnakeAnim.js"></script>
+
+<link rel="stylesheet" href="~/Content/MarkerCluster.css" />
+<link rel="stylesheet" href="~/Content/MarkerCluster.Default.css" />
+<link href="~/Content/leaflet.css" rel="stylesheet" />
+<link href="~/Content/map.css" rel="stylesheet" />
+<link rel="stylesheet" href="~/Content/leaflet_awesome_number_markers.css">
+<link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+
+<style>
+    .dot {
+        height: 35px;
+        width: 35px;
+        background-color: #ddd;
+        border-radius: 50%;
+        display: inline-block;
+        border-color: #333;
+        border-bottom-style: solid;
+        border-width: unset;
+        padding-top: 9px;
+    }
+</style>
+
+
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+<script>
+
+
+    $(document).ready(function () {
+
+        //DATEPICKER
+        $("#iData_Busca").val('@Model.Data_Busca');
+
+
+        $(".datepicker").mask("00/00/0000");
+        $(".datepicker")
+            .datepicker({
+                format: "dd/mm/yyyy",
+                language: "pt-BR",
+                todayHighlight: "true",
+                autoclose: true
+            })
+            .on("changeDate", function (e) {
+                if ($(this).val().length === 10) return $(this).trigger("focusout");
+                else return true;
+            })
+            .after(function () {
+                var nameLink = `${$(this)[0].id}_dp`;
+            });
+
+
+            @if (Model.PontoVenda_CheckPoint_Mapa == null || Model.PontoVenda_CheckPoint_Mapa.Count() == 0)
+            {
+                <text>
+
+        Swal.fire({
+            title: "Nenhum registro para ser apresentado!",
+            type: 'warning',
+            showCancelButton: false,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'OK'
+        }).then((result) => {
+            if (result.value)
+                AddAba("@Url.Action("Dashboard_Vendas", "Venda")");
+            else if (result.dismiss == "cancel")
+                AddAba("@Url.Action("Dashboard_Vendas", "Venda")");
+        });
+
+        </text>
+            }
+            else
+            {
+                 <text>
+                $(".divCorpo").show();
+                </text>
+                }
+            });
+</script>
+}
+
+
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+
+            <div class="row">
+
+                <div class="col-sm-6">
+                    <h4 class="title-page"><i class="fas fa-map-marked  style=" color: #008000""></i> @ViewBag.Title</h4>
+
+                    <nav aria-label="breadcrumb" style="font-size:12px" class="mb-3">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item" style="margin-left:22px; margin-top:-18px">
+                                <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-top:-18px">
+                                <a href="@Url.Action("Dashboard_Vendas", "Venda")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.DASHBOARD_VENDA</a>
+                            </li>
+                            <li class="breadcrumb-item" style="margin-top:-18px">
+                                <span> @RsCadastros.ROTA_VENDEDOR </span>
+                            </li>
+
+                        </ol>
+                    </nav>
+                    <span style="font-size:11px;margin-left: 15px;" id="dtLegend"></span>
+                </div>
+
+            </div>
+
+            @*@if (Model.PontoVenda_CheckPoint_Mapa == null)
+                    {
+
+                        <text>
+                            <script>
+                                $(document).ready(function () {
+
+                                    alert("Não existe movimentação neste dia.");
+                                    return false;
+                                });
+
+
+            </script>
+        </text>
+                        }
+                        else
+                        {
+                        if (Model.PontoVenda_CheckPoint_Mapa.Count() == 0)
+                        {
+
+            @*<text>
+                <script>
+                                    $(document).ready(function () {
+
+                                        Notificar("@RsCadastros.ATENCAO", "Não existe movimentação neste dia.", "warning");
+                                        return false;
+                                    });
+                </script>
+            </text>
+            }
+            else
+            {*@
+
+            <div id="accordion" class="divCorpo" style="display:none">
+                <div class="card div-card-accord">
+                    <div class="card-header title-card" id="heading-1">
+
+                        <div class="col-auto">
+                            <div class="row">
+                                <div class="pr-2 pl-2" id="iDivData">
+                                    <label style="font-size:12px">@RsCadastros.DATA:</label>
+                                    <div class="input-group mb-1">
+                                        @Html.TextBoxFor(m => m.Data_Busca, new { @class = "form-control datepicker", @style = "background: #fff;color: #000;", @data_provide = "datepicker", @id = "iData_Busca", @autocomplete = "off", @required = true })
+                                    </div>
+                                </div>
+                                <div class="pr-2 pl-2" id="iDivEquipe">
+                                    <label for="iVendedor_Busca" style="font-size:12px">@RsCadastros.VENDEDOR:</label>
+
+                                    @Html.DropDownListFor(model => model.Vendedor_Busca, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), new { @class = "form-control", @id = "iVendedor_Busca" })
+                                </div>
+
+                                <div class="" id="iBtnAtualizar">
+                                    <div class="mt-3">
+                                        <a class="btn btn-success btn-add-2" href="#" title="Atualizar" onclick="recarregaFiltro(); return true;"><i class="fas fa-sync-alt" style="color: #fff"></i></a>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body body-card-accord">
+                            <div class="form-group panel">
+
+                                <div class="row">
+                                    <!-- Div Mapa Novo -->
+                                    <div id="map-rotas" class="col">
+                                        <img src="~/Images/map-leafletjs.png" class="img-fluid" style="height: 100%; width: 100%;">
+                                    </div>
+
+                                    <div class='sidebar col-sm-4' style="@(String.IsNullOrEmpty(Request.Params["id_Vendedor"]) ? "display:none;" : "" )">
+
+
+
+                                        <div class='heading form-inline mt-1 pb-2'>
+                                            <!-- <img src="..." alt="..." class="rounded-circle"> -->
+                                            <div class="row">
+                                                <div class="">
+                                                    <div id="idImg" class="text-center" style="height: 140%;">
+                                                        <img id="iFotoLoading" src="~/Images/loading-spinner-grey.gif" />
+                                                    </div>
+                                                </div>
+
+                                                <div class="col align-vertical">
+                                                    @Html.DisplayFor(m => m.Vendedor)<br>
+                                                    <span id="iCircleStatusEquipe" class="" style="font-size:12px">
+                                                        <i class="fas fa-circle mr-2 mt-2" style="color: @Model.Cor_StatusEquipe_Mapa"></i>
+                                                        @*@Model.Tipo*@
+                                                        <span> @RsCadastros.SUPERVISRO_VENDEDOR: @Model.Supervisor </span><br>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class='listings fs-12'>
+
+                                            <div class="div-contact">
+                                                <span> <i class="fas fa-phone mr-2"></i>@Model.Telefone </span><br>
+                                                <span> <i class="fas fa-envelope mr-2"></i>@Model.Email </span><br>
+                                                <span> <i class="fas fa-battery-full mr-2"></i>@Model.Bateria</span><br>
+                                                <span> <i class="fas fa-walking mr-2"></i>Localização Atual: @Model.Atualizado_Em </span><br><br>
+
+                                            </div>
+                                            <div class="input-group">
+                                                <span class="">Distância Rota Realizada: </span>
+                                                <span class="" id="iDistanciaRealizada"></span>
+
+                                            </div><br>
+                                            <br>
+                                            <p class="p-legend"><b>Legenda Mapa Rota Vendedor:</b></p>
+
+                                            <!--LEGENDAS-->
+                                            <div class="div-legend" style="border: 1px solid rgb(199, 199, 199);padding: 10px;">
+
+                                                @*<p class="p-legend"><i class="fas fa-map-marker-alt mr-3 text-success"></i>Checkpoint</p>*@
+                                                <p class="p-legend"><i class="fas fa-home mr-3 text-primary"></i>Pontos de Partida</p>
+                                                <p class='p-legend'><i class='mr-3 icofont-location-pin' style='color:#2D2D2D'></i>Ponto de venda</p>
+                                                <p class='p-legend'><i class='mr-3 icofont-location-pin' style='color:#EC1418'></i>Check-in e Check-out realizados</p>
+                                                <p class='p-legend'><i class='mr-3 icofont-location-pin' style='color:#207D0A'></i>Check-in realizado</p>
+                                                <p class='p-legend'><i class='mr-3 fas fa-map-pin' style='color: #851C39; margin-left: 0.15rem'></i>Checkpoint </p>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+
+                                </div>
+
+                                <!-- Div do Mapa -->
+                                <div id="map"></div>
+
+                                <script>
+
+                                            $('#iDistanciaRealizada').text("0.00KM");
+                                            polylineRealizada = undefined;
+                                            var polylineRealizadaPoints = [];
+
+                                             async function PolyLineRealizada(polylineRealizadaPoints, lista) {
+
+                                            for (data of lista) {
+                                             try {
+
+                                                     if ($('#iDistanciaRealizada').text() == "") $('#iDistanciaRealizada').text(0);
+                                                         distanciaRealizada = $('#iDistanciaRealizada').text().replace("KM", "");
+                                                         distanciaRealizada = Number((parseFloat(distanciaRealizada)).toFixed(2));
+                                                         $('#iDistanciaRealizada').text(((distanciaRealizada + (data.routes[0].distance / 1000)).toFixed(2)) + "KM");
+
+                                                        for (var y = 0; y < data.routes[0].legs.length; y++) {
+
+                                                        for (var z = 0; z < data.routes[0].legs[y].steps.length; z++) {
+
+                                                        for (var i = 0; i < data.routes[0].legs[y].steps[z].geometry.coordinates.length; i++) {
+                                                        //new L.LatLng(-22.884809, -43.499205),
+                                                        polylineRealizadaPoints.push(new L.LatLng(data.routes[0].legs[y].steps[z].geometry.coordinates[i][1], data.routes[0].legs[y].steps[z].geometry.coordinates[i][0]));
+                                                        if (latInicial == null) {
+                                                            latInicial = data.routes[0].legs[y].steps[z].geometry.coordinates[i][1];
+                                                            lonInicial = data.routes[0].legs[y].steps[z].geometry.coordinates[i][0];
+                                                        }
+                                                            latFinal = data.routes[0].legs[y].steps[z].geometry.coordinates[i][1];
+                                                            lonFinal = data.routes[0].legs[y].steps[z].geometry.coordinates[i][0];
+                                                        }
+                                                        }
+
+                                                        };
+                                                        }
+                                             catch (ex) {
+                                                         var mensagem = '@RsCadastros.NAO_FOI_POSSIVEL_ESTABELCER_ROTA_PLANEJADA';
+                                                        Notificar("@RsBase.ATENCAO_", mensagem, "warning");
+                                                         console.log(e.responseText)
+                                                }
+                                                }
+
+                                            }
+
+
+                                                var fotoAjaxUrl = '@String.Concat(CONSTANTES.URLPortal, "/api/Acompanhamento_Servicoapi/FotoAjax")' + '?num_fre=@Model.Num_Fre';
+                                                $.ajax({
+                                                 url: fotoAjaxUrl,
+                                                 type: "GET",
+                                                 dataType: "json"
+                                                })
+                                                    .done(function (data) {
+                                                    $("#iFotoLoading").hide();
+                                                    if (data.objeto) {
+                                                                       $("#idImg").html('<img id="iFoto" width="80%" height="100%" style="height: 80% !important;" src="data:image/jpeg;base64,' + data.objeto + '" class="rounded-circle img-fluid" alt="@RsCadastros.FUNCIONARIO" />');
+                                                                     }
+                                                    else {
+                                                         $("#idImg").html('<i id="iFoto" class="fas fa-user-circle fa-3x"></i>');
+                                                          }
+                                                 });
+
+                                    $(document).ready(function () {
+
+
+
+
+                                                                            AddSelect("iVendedor_Busca", "@CONSTANTES.URLPortal/api/Funcionarioapi/GetComboVendedor", @CONSTANTES.PaginacaoRegistros, null, null, "@Request.Params["id_Vendedor"]", "@RsBase.SELECIONE", false);
+
+                                                                             $('#iData_Busca').val('@Request.Params["data"]');
+
+                                                                             if($('#iData_Busca').val()) {
+                                                                                                         $('#iData_Busca').val('@Request.Params["data"]');
+                                                                                                        var tempdate = new $('#iData_Busca').val();
+                                                                                                        var partesData = tempdate.split("/");
+                                                                                                        var tempdate = partesData[1] + '/' + partesData[0] + "/" + partesData[2];
+                                                                                                        $('#iData_Busca').val(tempdate);
+                                                                             }
+
+
+                                            });
+
+                                            function recarregaFiltro() {
+
+
+                                                                        if (!$('#iVendedor_Busca').val() || !$('#iData_Busca').val()) {
+                                                                                Notificar("@RsBase.ATENCAO_","@String.Format(RsBase.REQUIRED, RsCadastros.DATA_EQUIPE)","warning");
+                                                                                return false;
+                                                                        }
+
+                                                                     var tempdate = new $('#iData_Busca').val();
+                                                                     //var partesData = tempdate.split("/");
+                                                                     //var tempdate = partesData[1] + '/' + partesData[0]  + "/" + partesData[2];
+
+                                                                        var url = "@Url.Action("Comercial", "Mapa")" + "?id_Vendedor=" + $('#iVendedor_Busca').val()
+                                                                      + "&Data=" + tempdate + "&nome_equipe=" /*+ $('#iMatricula_Nome').val() */+ "&Pagina=@Request.Params["pagina"]";
+                                                                     window.location.href = url;
+                                                                    ShowPageLoading();
+
+                                             }
+
+                                            //Aqui
+
+
+                                            var map = new L.Map('map-rotas', { maxZoom: 18 });
+
+                                            /******************
+                                            tratando bug zoom
+                                            ******************/
+                                            var mapZoomLevel = localStorage.theZoom;
+                                            if (isNaN(mapZoomLevel)) {
+                                                mapZoomLevel = 15;  //default
+                                            }
+                                            map.on('load', function (e) {
+                                                map.setZoom(mapZoomLevel);
+                                            },
+                                                //store
+                                                map.on('moveend', function (e) {
+                                                    localStorage.theZoom = map.getZoom();
+                                                }));
+                                            /**fim bug zoom**/
+
+                                            L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                                attribution: '&copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+                                                maxZoom: 20
+                                            }).addTo(map);
+
+                                            map.attributionControl.setPrefix(''); // Don't show the 'Powered by Leaflet' text.
+
+                                            @{
+                                                List<String> latlongRealizadaLista = new List<String>();
+
+                                                latlongRealizadaLista = (from o in Model.PontoVenda_CheckPoint_Mapa
+                                                                         where o.Latitude.HasValue && o.Latitude != 0
+                                                                         select String.Format("{0}|{1}", o.Longitude, o.Latitude)).ToList();
+                                            }
+
+                                            var polylinePoints_RotaRealizada = []
+
+                                            @foreach (var item in Model.PontoVenda_CheckPoint_Mapa)
+                                            {
+                                                if (item.CheckIn || item.Checkpoint)
+                                                {
+
+                                                    <text>
+                                                    polylinePoints_RotaRealizada.push(
+                                                        new L.LatLng(@Json.Encode(item.Latitude.Value), @Json.Encode(item.Longitude.Value))
+                                                    )
+                                                    </text>
+                                                }
+                                            }
+
+                                            var polyline_RotaRealizadaOptions = {
+                                                color: '#007bff',
+                                                weight: 6,
+                                                opacity: 0.9
+                                            }
+
+                                            var polyline_Rota_Realizada = new L.Polyline(polylinePoints_RotaRealizada, polyline_RotaRealizadaOptions);
+
+                                            map.addLayer(polyline_Rota_Realizada);
+
+                                            @if (Model.PontoVenda_CheckPoint_Mapa.Count() > 0)
+                                            {
+                                                foreach (var item in Model.PontoVenda_CheckPoint_Mapa)
+                                                {
+                                                    if (
+                                                        (item.Latitude_CheckIn == null && item.Longitude_CheckIn == null)
+                                                        && (item.Latitude_CheckOut == null && item.Longitude_CheckOut == null)
+                                                        && item.Ponto_Venda
+                                                    )
+                                                    {
+                                                        <text>
+                                                            L.marker([@item.Latitude.Value.ToString().Replace(",","."), @item.Longitude.Value.ToString().Replace(",",".")], {
+                                                                icon: L.divIcon({
+                                                                    html:
+                                                                    @if (item.CheckIn && item.CheckOut)
+                                                                    {
+                                                                        <text> '<i class="icofont-location-pin icofont-2x" style="color:#EC1418"></i>' </text>
+                                                                    }
+                                                                    else if(item.CheckIn)
+                                                                    {
+                                                                        <text> '<i class="icofont-location-pin icofont-2x" style="color:#207D0A"></i>' </text>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <text> '<i class="icofont-location-pin icofont-2x" style="color:#2D2D2D"></i>' </text>
+                                                                    },
+                                                                    iconSize: [40, 40],
+                                                                    className: 'myDivIcon'
+                                                                })
+                                                            }).addTo(map).bindPopup(
+
+                                                                @if (item.CheckIn)
+                                                                {
+                                                                    <text>
+                                                                       '<span> <b> @item.Vendedor </b> </span><br><br>' +
+                                                                       '<span> <b> Descrição: </b>  @item.Desc_Nome_Venda </span><br>' +
+                                                                       '<span> <b> Endereço: </b> @item.Endereco </span><br>' +
+                                                                       '<span> <b> Atualizado: </b> @item.Atualizado_Em </span><br>' +
+                                                                       '<span> <b> Precisão: </b> @item.Precisao </span><br>' +
+                                                                       '<span> <b> Bateria: </b> @item.Bateria</span><br>' +
+                                                                       '<span> <b> Status GPS: </b> @item.Status_Gps </span><br>' +
+                                                                       '<span> <b> Dispositivo Móvel: </b> @item.Dispositivo </span><br>' +
+                                                                       '<span> <b> Versão Android: </b> @item.Versao_Android </span><br>' +
+                                                                       '<span> <b> Versão App: </b> @item.Versao_App </span><br><br>' +
+                                                                       '<span> <b> Check-in Realizado: </b> @(item.CheckIn ? "Sim" : "Não") </span><br>' +
+                                                                       '<span> <b> Check-out Realizado: </b> @(item.CheckOut ? "Sim" : "Não") </span><br>'
+                                                                    </text>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <text>
+                                                                       '<span> <b> @item.Vendedor </b> </span><br><br>' +
+                                                                       '<span> <b> Descrição: </b>  @item.Desc_Nome_Venda </span><br>' +
+                                                                       '<span> <b> Endereço: </b> @item.Endereco </span><br>' +
+                                                                       '<span> <b> Atualizado: </b> - </span><br>' +
+                                                                       '<span> <b> Precisão: </b> - </span><br>' +
+                                                                       '<span> <b> Bateria: </b> - </span><br>' +
+                                                                       '<span> <b> Status GPS: </b> - </span><br>' +
+                                                                       '<span> <b> Dispositivo Móvel: </b> - </span><br>' +
+                                                                       '<span> <b> Versão Android: </b> - </span><br>' +
+                                                                       '<span> <b> Versão App: </b> - </span><br>' +
+                                                                       '<span> <b> Check-in Realizado: </b> @(item.CheckIn ? "Sim" : "Não") </span><br>' +
+                                                                       '<span> <b> Check-out Realizado: </b> @(item.CheckOut ? "Sim" : "Não") </span><br>'
+                                                                    </text>
+                                                                }
+
+                                                            ).openPopup();
+                                                        </text>
+                                                    }
+                                                    else if (item.Checkpoint == true)
+                                                    {
+                                                        <text>
+                                                            L.marker([@item.Latitude.Value.ToString().Replace(",","."), @item.Longitude.Value.ToString().Replace(",",".")], {
+                                                                icon: L.divIcon({
+                                                                    html: '<i class="fas fa-map-pin fa-2x" style="color: #008000"></i>',
+                                                                    iconSize: [40, 40],
+                                                                    className: 'myDivIcon'
+                                                                })
+                                                            }).addTo(map).bindPopup(
+
+                                                                '<span> <b> @item.Vendedor </b> </span><br><br>' +
+                                                                '<span> <b> Endereço: </b>  @item.Endereco</span><br>' +
+                                                                '<span> <b> Atualizado: </b> @item.Atualizado_Em</span><br>' +
+                                                                '<span> <b> Precisão: </b> @item.Precisao</span><br>' +
+                                                                '<span> <b> Bateria: </b> @item.Bateria</span><br>' +
+                                                                '<span> <b> Status GPS: </b> @item.Status_Gps</span><br>' +
+                                                                '<span> <b> Dispositivo Móvel: </b> @item.Dispositivo</span><br>' +
+                                                                '<span> <b> Versão Android: </b> @item.Versao_Android</span><br>' +
+                                                                '<span> <b> Versão App: </b> @item.Versao_App</span><br>' +
+                                                                '<span> <b> Tipo de Check Point: </b> @item.Tipo</span><br>'+
+                                                                '<span> <b> Observação do Check Point: </b> @item.Obs_Checkpoint</span><br>'
+                                                            ).openPopup();
+                                                        </text>
+                                                    }
+                                                }
+                                            }
+
+                                            @if(latlongRealizadaLista.Count > 0)
+                                            {
+                                                var latlng = latlongRealizadaLista.FirstOrDefault().Replace(",", ".").Replace("|", ",").Split(',');
+                                                <text>
+                                                try {
+                                                    map.setView(new L.LatLng(@latlng[1],@latlng[0]), 1);
+                                                }
+                                                catch(ex){
+
+                                                }
+                                                </text>
+                                            }
+                                    setTimeout(() => { map.invalidateSize() }, 500);
+                                </script>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @*}
+            }*@
+        </div>
+    </div>
+}

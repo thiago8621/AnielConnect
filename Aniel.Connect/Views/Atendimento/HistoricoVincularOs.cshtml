@@ -1,0 +1,336 @@
+﻿@model Aniel.Connect.Models.HistoricoVincularResponse_DataTableRequest
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_FATURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+
+    <script>
+
+        $(document).ready(function () {
+
+            AddSelect("iCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        });
+
+        var link = baseUrl + "/api/AtendimentoApi/HistoricoVincular";
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        function switchTabInIframe() {
+            if (oDatatable != null) {
+                TableManageButtons.init();
+            }
+        };
+
+        function ProtocoloLink(codCt, projeto, num_Obra, num_Doc) {
+
+            var _url = `@Url.Action("Index", "Acompanhamento_Servico")?CodCt=${codCt}&Projeto=${projeto}&Num_Obra=${num_Obra}&Num_Doc=${num_Doc}`;
+            parent.AddAba(_url, "Cadastro");
+
+        };
+
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty();
+                oDatatable = null;
+            }
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+
+                    url: link,
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.numeroAtendimento = @Model.NumeroAtendimento;
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: () => {
+
+
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    {
+                        data: null,
+                        title: "", // ou "Ação"
+                        orderable: false,
+                        searchable: false,
+                        className: 'dt-body-center',
+                        render: function (data, type, row) {
+                            return `
+                         <a href="#" onclick="confirmarDesvinculo('${row.codCt}', '${row.projeto}', '${row.num_Os}', '${row.num_Doc}')">
+                             <i class='icofont-link-broken'  title="Desvincular OS"></i>
+                         </a>`;
+                        }
+                    },
+
+                    {
+                        data: "num_Os", title: "@RsCadastros.NUMERO_OS", orderable: false, render: function (data, type, row, meta) {
+
+
+                            return `<a href="#" onclick="ProtocoloLink('${row.codCt}', '${row.projeto}', '${row.num_Os}', '${row.num_Doc}')">${row.num_Os}</a>`;
+                        }
+                    },
+
+                    { data: "tipoServico", title: "@RsCadastros.TIPO_SERVICO", orderable: false },
+                    { data: "subTipoServico", title: "@RsCadastros.SUB_TIPO_SERVICO", orderable: false },
+                    { data: "cliente", title: "@RsCadastros.CLIENTE", orderable: false },
+                    { data: "dataCriacao", title: "@RsCadastros.DATAHORA_CRIACAO", orderable: false },
+                    { data: "dataSla", title: "@RsCadastros.DATA_HORA_SLA", orderable: false },
+                    { data: "usuario", title: "@RsCadastros.RESPONSAVEL", orderable: false },
+                    { data: "status", title: "@RsCadastros.STATUS", orderable: false },
+
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+            $("#btnFiltro").on("click", function () {
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {
+
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                //updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+               function confirmarDesvinculo(codCt,projeto,num_Obra,num_Doc) {
+                   
+                   var link = '@String.Concat(CONSTANTES.URLPortal, "/api/AtendimentoApi/DesvincularOS")';
+
+                   var requestData = {
+                    codCt: codCt,
+                    projeto: projeto,
+                    Num_Obra: num_Obra,
+                    Num_Doc: num_Doc,
+                    idAtendimento: "@Model.NumeroAtendimento"
+
+                   };
+
+                   Swal.fire({
+                       title: `Deseja realmente desvincular o atendimento ?`,
+                       icon: 'question',
+                       showCancelButton: true,
+                       confirmButtonColor: '#3085d6',
+                       cancelButtonColor: '#d33',
+                       confirmButtonText: 'Sim',
+                       cancelButtonText: 'Não'
+                   }).then(async (result) => {
+                       if (result.value) {
+                           DesncularAtendimento(codCt, projeto, num_Obra, num_Doc);
+                       }
+                   });
+               }
+
+                async function DesncularAtendimento(codCt, projeto, num_Obra, num_Doc) {
+
+
+                    $("#divProgress").show();
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/AtendimentoApi/DesvincularOS")';
+
+                    var requestData = {
+                     codCt: codCt,
+                     projeto: projeto,
+                     Num_OS: num_Obra,
+                     Num_Doc: num_Doc,
+                     idAtendimento: "@Model.NumeroAtendimento",
+                     dataType: 'json',
+                     data: requestData
+
+                    };
+
+                    await $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        data: requestData
+                    }).done(function (data) {
+                        if (data.ok) {
+                           ShowPageLoading();
+                           Notificar("@RsBase.INFORMACAO", "@RsBase.OPERACAOBEMSUCEDIDA", "info");
+                           rows_selected = [];
+                            oDatatable.ajax.reload();
+
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                 $("#divProgress").hide();
+                 HidePageLoading();
+         }
+
+
+
+
+    </script>
+}
+
+
+@*@Html.HiddenFor(model => model.NumeroAtendimento, new { @id = "NumeroAtendimento" })*@
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            
+
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">      
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+
+
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,1120 @@
+﻿@model Aniel.Connect.Models.ProgramacaoRoteirizacaoAutomaticaCadastroModel
+@using Resources
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_PROGRAMACAO_AUTOMATICA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    //List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    <style>
+        .toggle btn btn-success {
+            height: 23px !important;
+        }
+    </style>
+
+}
+
+@section scripts
+{
+
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    <script>
+        ///<reference path="../../../../AnielConnectCore/Aniel.Connect.Core/Scripts/connect.js" />
+
+    $(".hora").mask('00:00', { reverse: true });
+    $(document).ready(function () {
+
+        AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleGrupo);
+        AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+        AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        AddSelect("iCategoriaCliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, @Html.Raw(Json.Encode(Model.Categorias.Select(p => p.IdCategoria))), "@RsBase.SELECIONE", false);
+        AddSelect("iNaturezaServico", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, @Html.Raw(Json.Encode(Model.Naturezas.Select(p => p.IdNaturezaProducao))), "@RsBase.SELECIONE", false, HandleNaturezaServico);
+        AddSelect("iEquipe", "@CONSTANTES.URLPortal/api/EquipeApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, @Html.Raw(Json.Encode(Model.Tecnicos.Select(p => p.Equipe))), "@RsBase.SELECIONE", false);
+        AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, @Html.Raw(Json.Encode(Model.Supervisores.Select(p => p.Numfre))), "@RsBase.SELECIONE", false);
+        AddSelect("iEmpresa", "@CONSTANTES.URLPortal/api/Empresaapi/GetComboEmpresaAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE",false, handleEmpresa);
+        AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        AddSelect("iCodCt", "@CONSTANTES.URLPortal/api/ContratoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleContrato);
+        AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/Projetoapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        $("input[name='NosPrimeiros']").trigger('change');
+        $("#iFormatoDisparoAutomaticoRoteirizacao").trigger('change');
+        $("#iProgramacaoExpira").trigger('change');
+    });
+
+
+    $("#iFormatoDisparoAutomaticoRoteirizacao").change(function () {
+        if ($(this).val() == "2") {
+            $(`#iDiasSemana`).show();
+            $(`#iMesesAno`).hide();
+            $(`#iDiasMes`).hide();
+        }
+        else if ($(this).val() == "3") {
+            $(`#iMesesAno`).show();
+            $(`#iDiasMes`).hide();
+            $(`#iDiasSemana`).hide();
+        }
+        else if ($(this).val() == "1") {
+            $(`#iDiasMes`).show();
+            $(`#iMesesAno`).hide();
+            $(`#iDiasSemana`).hide();
+        }
+        else
+        {
+            $(`#iDiasMes`).hide();
+            $(`#iMesesAno`).hide();
+            $(`#iDiasSemana`).hide();
+        }
+    });
+
+        $("#iProgramacaoExpira").change(function () {
+            if ($("#iProgramacaoExpira").is(":checked")) {
+                $('#iDivDataExpira').show();
+            }
+            else
+            {
+                $('#iDivDataExpira').hide();    
+            }
+            
+        });
+
+    $("input[name='NosPrimeiros']").change(function () {
+        if ($(this).val() == 'True') {
+            $(`#iNumUltimosDias`).attr("disabled", true);
+            $(`#iNumUltimosDias`).val("");
+            $(`#iNumPrimeirosDias`).attr("disabled", false);
+        }
+        else if ($(this).val() == 'False')
+        {
+            $(`#iNumUltimosDias`).attr("disabled", false);
+            $(`#iNumPrimeirosDias`).attr("disabled", true);
+            $(`#iNumPrimeirosDias`).val("");
+        }
+    });
+
+
+    const handleEmpresa = function () {
+        $("#iEmpresa").on("select2:select select2:unselecting", function (e) {
+            const empresaSelecionada = e.params.data
+
+            if (!empresaSelecionada) {
+                AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+            else {
+                AddSelect("iFilial", "@CONSTANTES.URLPortal/api/FilialApi/GetComboFilialAniel", @CONSTANTES.PaginacaoRegistros, null, empresaSelecionada.id, null, "@RsBase.SELECIONE", false);
+            }
+        })
+    };
+
+    const handleContrato = function () {
+        $("#iCodCt").on("select2:select select2:unselecting", function (e) {
+            const contratoSelecionado = e.params.data
+
+            if (!contratoSelecionado) {
+                AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/ProjetoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+            else {
+                AddSelect("iProjeto", "@CONSTANTES.URLPortal/api/ProjetoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, contratoSelecionado.id, null, "@RsBase.SELECIONE", false);
+            }
+        })
+    };
+
+    let HandleNaturezaServico = function () {
+        $('#iNaturezaServico').on('select2:select select2:unselecting', function (e) {
+            let alturaSelect2 = $(".select2-selection--multiple").height();
+            $("#iRowMultipleNatureza").height(alturaSelect2 + 30);
+
+        });
+    };
+
+    var HandleGrupo = function () {
+        $('#iGrupoArea').unbind('select2:select select2:unselecting');
+        $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+
+            GrupoSelecionado = e.params.data
+            if (GrupoSelecionado) {
+                AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(GrupoSelecionado.id), null, "@RsBase.SELECIONE", false, HandleArea);
+                AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+
+            else {
+                AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+                AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+
+        });
+    };
+
+    var HandleArea = function () {
+        $('#iArea').on('select2:select select2:unselecting', function (e) {
+
+            AreaSelecionada = e.params.data
+            if (AreaSelecionada) {
+                AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id), null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            }
+
+        });
+    };
+
+    var handleDataTableButtonsLocalidade = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Localidades));
+
+            var nome_lista = "Localidades";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatableLocalidade = $("#datatableLocalidade").length && $("#datatableLocalidade").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirLocalidade" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__CodArea" name="' + nome_lista + '[' + meta.row + '].CodArea" type="hidden" value="' + TrataNulo(row.CodArea) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__CodEscritorio" name="' + nome_lista + '[' + meta.row + '].CodEscritorio" type="hidden" value="' + TrataNulo(row.CodEscritorio) + '">';
+
+                        }
+                    },
+                    {
+                        data: "DescricaoEscritorio",
+                        title: "@RsCadastros.GRUPO_AREA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__DescricaoEscritorio" name="' + nome_lista + '[' + meta.row + '].DescricaoEscritorio" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "DescricaoArea",
+                        title: "@RsCadastros.AREA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__DescricaoArea" name="' + nome_lista + '[' + meta.row + '].DescricaoArea" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Localidade",
+                        title: "@RsCadastros.LOCALIDADE",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Localidade" name="' + nome_lista + '[' + meta.row + '].Localidade" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ],
+                paging:false
+            });
+
+            function handleExcluirLocalidade() {
+                $(".btnExcluirLocalidade").unbind('click');
+                $(".btnExcluirLocalidade").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableLocalidade.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/ProgramacaoRoteirizacaoAutomaticaApi/ExcluirGridLocalidade?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableLocalidade.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+            handleExcluirLocalidade();
+
+            $("#btnAdicionarLocalidade").on('click', function () {
+
+                var erro = false;
+
+
+                if (ValidaObrigatoriosPorClasse("obrigatorioLocalidade", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+
+                for (var i = 0; i < oDatatableLocalidade.rows().data().length; i++) {
+                    if (oDatatableLocalidade.rows().data()[i].Cod_Area == $("#iArea option:selected").val() && oDatatableLocalidade.rows().data()[i].Cod_Escritorio == $("#iGrupoArea option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.LOCALIDADE)", "warning");
+                        erro = true;
+                        i = oDatatableLocalidade.rows().data().length;
+                    }
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+
+                oDatatableLocalidade.row.add({
+                    CodEscritorio: $("#iGrupoArea option:selected").val(),
+                    CodArea: $("#iArea option:selected").val(),
+                    DescricaoEscritorio: $("#iGrupoArea option:selected").text(),
+                    DescricaoArea: $("#iArea option:selected").text(),
+                    Localidade: $("#iLocalidade option:selected").text(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iGrupoArea").val(null).trigger('change');
+                $("#iArea").val(null).trigger('change');
+                $("#iLocalidade").val(null).trigger('change');
+
+                handleExcluirLocalidade();
+            });
+
+
+        },
+            TableManageButtonsLocalidade = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsLocalidade();
+                    }
+                }
+            }();
+
+    TableManageButtonsLocalidade.init();
+
+    var handleDataTableButtonsContratoProjeto = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Projetos));
+
+            var nome_lista = "Projetos";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+        var oDatatableContratoProjeto = $("#datatableContratoProjeto").length && $("#datatableContratoProjeto").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirContratoProjeto" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__CodCt" name="' + nome_lista + '[' + meta.row + '].CodCt" type="hidden" value="' + TrataNulo(row.CodCt) + '">';
+
+
+                        }
+                    },
+                    {
+                        data: "DescricaoCodCt",
+                        title: "@RsCadastros.CONTRATO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__DescricaoCodCt" name="' + nome_lista + '[' + meta.row + '].DescricaoCodCt" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "Projeto",
+                        title: "@RsCadastros.PROJETO",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Projeto" name="' + nome_lista + '[' + meta.row + '].Projeto" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ],
+                paging:false
+            });
+
+            function handleExcluirContratoProjeto() {
+                $(".btnExcluirContratoProjeto").unbind('click');
+                $(".btnExcluirContratoProjeto").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableContratoProjeto.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/ProgramacaoRoteirizacaoAutomaticaApi/ExcluirGridProjeto?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableContratoProjeto.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+            handleExcluirContratoProjeto();
+
+            $("#btnAdicionarContratoProjeto").on('click', function () {
+
+                var erro = false;
+
+
+                if (ValidaObrigatoriosPorClasse("obrigatoriodatatableContratoProjeto", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+
+                for (var i = 0; i < oDatatableContratoProjeto.rows().data().length; i++) {
+                    if (oDatatableContratoProjeto.rows().data()[i].CodCt == $("#iCodCt option:selected").val() && oDatatableContratoProjeto.rows().data()[i].Projeto == $("#iProjeto option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.LOCALIDADE)", "warning");
+                        erro = true;
+                        i = oDatatableContratoProjeto.rows().data().length;
+                    }
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+
+                oDatatableContratoProjeto.row.add({
+                    CodCt: $("#iCodCt option:selected").val(),
+                    DescricaoCodCt: $("#iCodCt option:selected").text(),
+                    Projeto: $("#iProjeto option:selected").val(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iCodCt").val(null).trigger('change');
+                $("#iProjeto").val(null).trigger('change');
+
+                handleExcluirContratoProjeto();
+            });
+
+
+        },
+        TableManageButtonsContratoProjeto = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsContratoProjeto();
+                    }
+                }
+            }();
+
+    TableManageButtonsContratoProjeto.init();
+
+    var handleDataTableButtonsEmpresaFilial = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.Filiais));
+
+        var nome_lista = "Filiais";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+        var oDatatableEmpresaFilial = $("#datatableEmpresaFilial").length && $("#datatableEmpresaFilial").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+                columns: [
+                    {
+                        data: "Id",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluirDatatableEmpresaFilial" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__CodEmpresa" name="' + nome_lista + '[' + meta.row + '].CodEmpresa" type="hidden" value="' + TrataNulo(row.CodEmpresa) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__CodFilial" name="' + nome_lista + '[' + meta.row + '].CodFilial" type="hidden" value="' + TrataNulo(row.CodFilial) + '">';
+
+
+                        }
+                    },
+                    {
+                        data: "DescricaoEmpresa",
+                        title: "@RsCadastros.EMPRESA",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__DescricaoEmpresa" name="' + nome_lista + '[' + meta.row + '].DescricaoEmpresa" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    },
+                    {
+                        data: "DescricaoFilial",
+                        title: "@RsCadastros.FILIAL",
+                        render: function (data, type, row, meta) {
+                            if (type === 'display') {
+                                data = data + ' <input id="' + nome_lista + '_' + meta.row + '__DescricaoFilial" name="' + nome_lista + '[' + meta.row + '].DescricaoFilial" type="hidden" value="' + TrataNulo(data) + '">';
+                            }
+                            return data;
+                        }
+                    }
+                ],
+                paging:false
+            });
+
+        function handleExcluirEmpresaFilial() {
+                $(".btnExcluirDatatableEmpresaFilial").unbind('click');
+                $(".btnExcluirDatatableEmpresaFilial").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatableEmpresaFilial.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/ProgramacaoRoteirizacaoAutomaticaApi/ExcluirGridFilial?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatableEmpresaFilial.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+
+                });
+            }
+
+
+
+        handleExcluirEmpresaFilial();
+
+            $("#btnAdicionarEmpresaFilial").on('click', function () {
+
+                var erro = false;
+
+
+                if (ValidaObrigatoriosPorClasse("obrigatoriodatatableEmpresaFilial", false)) {
+                    Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                    return false;
+                }
+
+
+                for (var i = 0; i < oDatatableEmpresaFilial.rows().data().length; i++) {
+                    if (oDatatableEmpresaFilial.rows().data()[i].CodEmpresa == $("#iEmpresa option:selected").val() && oDatatableEmpresaFilial.rows().data()[i].Projeto == $("#iEmpresa option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.LOCALIDADE)", "warning");
+                        erro = true;
+                        i = oDatatableEmpresaFilial.rows().data().length;
+                    }
+                }
+
+                if (erro) {
+                    return false;
+                }
+
+
+                oDatatableEmpresaFilial.row.add({
+                    CodEmpresa: $("#iEmpresa option:selected").val(),
+                    CodFilial: $("#iFilial option:selected").val(),
+                    DescricaoEmpresa: $("#iEmpresa option:selected").text(),
+                    DescricaoFilial: $("#iFilial option:selected").text(),
+                    Id: 0
+                }).draw(false);
+
+                $("#iEmpresa").val(null).trigger('change');
+                $("#iFilial").val(null).trigger('change');
+
+                handleExcluirEmpresaFilial();
+            });
+
+
+        },
+        TableManageButtonsEmpresaFilial = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtonsEmpresaFilial();
+                    }
+                }
+            }();
+
+    TableManageButtonsEmpresaFilial.init();
+
+    var clicked = false;
+    function ValidaSubmit()
+    {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+
+
+        erro = false;
+
+	    if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+        return true;
+    }
+
+    </script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "ProgramacaoRoteirizacaoAutomatica", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <!--main-->
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page">
+                            <i class="fas fa-cog"></i> @ViewBag.Title
+                        </h4>
+                        <nav class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Painel_Roteirizacao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.PAINEL_ROTEIRIZACAO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index","ProgramacaoRoteirizacaoAutomatica")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_PROGRAMACOES_AUTOMATICAS</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+
+            <div id="accordion">
+                <div class="card div-card-accord">
+                    <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                        <div class="card-body">
+                            <div class="row">
+
+                                <div class="col-sm-1">
+                                    <div class="form-group">
+                                        <label for="iCodigo">@RsCadastros.CODIGO:</label>
+                                        @Html.TextBoxFor(model => model.Id, new { @class = "form-control", @id = "iCodigo", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iNome">@RsCadastros.DESCRICAO:</label>
+                                        @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @maxlength = "100" })
+                                        @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iDataInicio">@RsCadastros.DATA_INICIO:</label><br />
+                                        @Html.TextBoxFor(model => model.DataInicio, new { @class = "form-control datepicker", @id = "iDescricao", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.DataInicio, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    <div class="form-group">
+                                        <label for="iHoraInicio">@RsCadastros.HORARIO_INICIO:</label>
+                                        @Html.TextBoxFor(model => model.HoraInicio, new { @class = "form-control hora", @id = "iHoraInicio", @autocomplete = "off", placeholder = "00:00" })
+                                        @Html.ValidationMessageFor(model => model.HoraInicio, "", new { @class = "text-danger" })
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-2">
+                                    @if (Model.Id != 0)
+                                    {
+                                        <div class="form-group">
+                                            <label class="mr-3">@RsFinanceiro.STATUS:</label><br>
+                                            @Html.CheckBoxFor(model => model.Status, new { @class = "form-control", @id = "iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <h4 class="text-left mt-3">
+                                Defina os parâmetros da execução:
+                            </h4>
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+                                        <label for="iFormatoDisparoAutomaticoRoteirizacao">@RsCadastros.FORMATO:</label>
+                                        @Html.EnumDropDownListFor(model => model.FormatoDisparoAutomaticoRoteirizacao, RsBase.SELECIONE, new { @class = "form-control col-sm-12 col-md-4 col-lg-2", @id = "iFormatoDisparoAutomaticoRoteirizacao", @autocomplete = "off" })
+                                        @Html.ValidationMessageFor(model => model.FormatoDisparoAutomaticoRoteirizacao, "", new { @class = "text-danger" })
+                                    </div>
+
+                                    <div id="iDiasSemana" style="display:none">
+                                        <label for="iDiasSemana">Seleciones os dias:</label>
+                                        <div class="form-inline form-group">
+                                            @Html.CheckBoxFor(p => p.Domingo, new { @class = "form-control", @id = "iDomingo" }) <label class="m-2" for="iDomingo">@RsBase.DOMINGO</label>
+                                            @Html.CheckBoxFor(p => p.Segunda, new { @class = "form-control", @id = "iSegunda" }) <label class="m-2" for="iSegunda">@RsBase.SEGUNDA</label>
+                                            @Html.CheckBoxFor(p => p.Terca, new { @class = "form-control", @id = "iTerca" }) <label class="m-2" for="iTerca">@RsBase.TERCA</label>
+                                            @Html.CheckBoxFor(p => p.Quarta, new { @class = "form-control", @id = "iQuarta" }) <label class="m-2" for="iQuarta">@RsBase.QUARTA</label>
+                                            @Html.CheckBoxFor(p => p.Quinta, new { @class = "form-control", @id = "iQuinta" }) <label class="m-2" for="iQuinta">@RsBase.QUINTA</label>
+                                            @Html.CheckBoxFor(p => p.Sexta, new { @class = "form-control", @id = "iSexta" }) <label class="m-2" for="iSexta">@RsBase.SEXTA</label>
+                                            @Html.CheckBoxFor(p => p.Sabado, new { @class = "form-control", @id = "iSabado" }) <label class="m-2" for="iSabado">@RsBase.SABADO</label>
+                                        </div>
+                                    </div>
+
+                                    <div id="iMesesAno" style="display:none">
+                                        <label for="iMeses">Seleciones os meses:</label>
+                                        <div class="form-inline form-group">
+                                            @Html.CheckBoxFor(p => p.Janeiro, new { @class = "form-control", @id = "iJaneiro" }) <label class="m-2" for="iJaneiro">@RsBase.JANEIRO</label>
+                                            @Html.CheckBoxFor(p => p.Fevereiro, new { @class = "form-control", @id = "iFevereiro" }) <label class="m-2" for="iFevereiro">@RsBase.FEVEREIRO</label>
+                                            @Html.CheckBoxFor(p => p.Marco, new { @class = "form-control", @id = "iMarco" }) <label class="m-2" for="iMarco">@RsBase.MARCO</label>
+                                            @Html.CheckBoxFor(p => p.Abril, new { @class = "form-control", @id = "iAbril" }) <label class="m-2" for="iAbril">@RsBase.ABRIL</label>
+                                            @Html.CheckBoxFor(p => p.Maio, new { @class = "form-control", @id = "iMaio" }) <label class="m-2" for="iMaio">@RsBase.MAIO</label>
+                                            @Html.CheckBoxFor(p => p.Junho, new { @class = "form-control", @id = "iJunho" }) <label class="m-2" for="iJunho">@RsBase.JUNHO</label>
+                                            @Html.CheckBoxFor(p => p.Julho, new { @class = "form-control", @id = "iJulho" }) <label class="m-2" for="iJulho">@RsBase.JULHO</label>
+                                            @Html.CheckBoxFor(p => p.Agosto, new { @class = "form-control", @id = "iAgosto" }) <label class="m-2" for="iAgosto">@RsBase.AGOSTO</label>
+                                            @Html.CheckBoxFor(p => p.Setembro, new { @class = "form-control", @id = "iSetembro" }) <label class="m-2" for="iSetembro">@RsBase.SETEMBRO</label>
+                                            @Html.CheckBoxFor(p => p.Outubro, new { @class = "form-control", @id = "iOutubro" }) <label class="m-2" for="iOutubro">@RsBase.OUTUBRO</label>
+                                            @Html.CheckBoxFor(p => p.Novembro, new { @class = "form-control", @id = "iNovembro" }) <label class="m-2" for="iNovembro">@RsBase.NOVEMBRO</label>
+                                            @Html.CheckBoxFor(p => p.Dezembro, new { @class = "form-control", @id = "iDezembro" }) <label class="m-2" for="iDezembro">@RsBase.DEZEMBRO</label>
+                                        </div>
+                                    </div>
+
+                                    <div id="iDiasMes" style="display:none">
+                                        <label for="iDiasMes">Seleciones os dias:</label>
+                                        <div class="form-inline form-group">
+                                            @Html.CheckBoxFor(p => p.Dia01, new { @class = "form-control", @id = "iDia01" }) <label class="m-2" for="iDia01">1</label>
+                                            @Html.CheckBoxFor(p => p.Dia02, new { @class = "form-control", @id = "iDia02" }) <label class="m-2" for="iDia02">2</label>
+                                            @Html.CheckBoxFor(p => p.Dia03, new { @class = "form-control", @id = "iDia03" }) <label class="m-2" for="iDia03">3</label>
+                                            @Html.CheckBoxFor(p => p.Dia04, new { @class = "form-control", @id = "iDia04" }) <label class="m-2" for="iDia04">4</label>
+                                            @Html.CheckBoxFor(p => p.Dia05, new { @class = "form-control", @id = "iDia05" }) <label class="m-2" for="iDia05">5</label>
+                                            @Html.CheckBoxFor(p => p.Dia06, new { @class = "form-control", @id = "iDia06" }) <label class="m-2" for="iDia06">6</label>
+                                            @Html.CheckBoxFor(p => p.Dia07, new { @class = "form-control", @id = "iDia07" }) <label class="m-2" for="iDia07">7</label>
+                                            @Html.CheckBoxFor(p => p.Dia08, new { @class = "form-control", @id = "iDia08" }) <label class="m-2" for="iDia08">8</label>
+                                            @Html.CheckBoxFor(p => p.Dia09, new { @class = "form-control", @id = "iDia09" }) <label class="m-2" for="iDia09">9</label>
+                                            @Html.CheckBoxFor(p => p.Dia10, new { @class = "form-control", @id = "iDia10" }) <label class="m-2" for="iDia10">10</label>
+                                            @Html.CheckBoxFor(p => p.Dia11, new { @class = "form-control", @id = "iDia11" }) <label class="m-2" for="iDia11">11</label>
+                                            @Html.CheckBoxFor(p => p.Dia12, new { @class = "form-control", @id = "iDia12" }) <label class="m-2" for="iDia12">12</label>
+                                            @Html.CheckBoxFor(p => p.Dia13, new { @class = "form-control", @id = "iDia13" }) <label class="m-2" for="iDia13">13</label>
+                                            @Html.CheckBoxFor(p => p.Dia14, new { @class = "form-control", @id = "iDia14" }) <label class="m-2" for="iDia14">14</label>
+                                            @Html.CheckBoxFor(p => p.Dia15, new { @class = "form-control", @id = "iDia15" }) <label class="m-2" for="iDia15">15</label>
+                                            @Html.CheckBoxFor(p => p.Dia16, new { @class = "form-control", @id = "iDia16" }) <label class="m-2" for="iDia16">16</label>
+                                            @Html.CheckBoxFor(p => p.Dia17, new { @class = "form-control", @id = "iDia17" }) <label class="m-2" for="iDia17">17</label>
+                                            @Html.CheckBoxFor(p => p.Dia18, new { @class = "form-control", @id = "iDia18" }) <label class="m-2" for="iDia18">18</label>
+                                            @Html.CheckBoxFor(p => p.Dia19, new { @class = "form-control", @id = "iDia19" }) <label class="m-2" for="iDia19">19</label>
+                                            @Html.CheckBoxFor(p => p.Dia20, new { @class = "form-control", @id = "iDia20" }) <label class="m-2" for="iDia20">20</label>
+                                            @Html.CheckBoxFor(p => p.Dia21, new { @class = "form-control", @id = "iDia21" }) <label class="m-2" for="iDia21">21</label>
+                                            @Html.CheckBoxFor(p => p.Dia22, new { @class = "form-control", @id = "iDia22" }) <label class="m-2" for="iDia22">22</label>
+                                            @Html.CheckBoxFor(p => p.Dia23, new { @class = "form-control", @id = "iDia23" }) <label class="m-2" for="iDia23">23</label>
+                                            @Html.CheckBoxFor(p => p.Dia24, new { @class = "form-control", @id = "iDia24" }) <label class="m-2" for="iDia24">24</label>
+                                            @Html.CheckBoxFor(p => p.Dia25, new { @class = "form-control", @id = "iDia25" }) <label class="m-2" for="iDia25">25</label>
+                                            @Html.CheckBoxFor(p => p.Dia26, new { @class = "form-control", @id = "iDia26" }) <label class="m-2" for="iDia26">26</label>
+                                            @Html.CheckBoxFor(p => p.Dia27, new { @class = "form-control", @id = "iDia27" }) <label class="m-2" for="iDia27">27</label>
+                                            @Html.CheckBoxFor(p => p.Dia28, new { @class = "form-control", @id = "iDia28" }) <label class="m-2" for="iDia28">28</label>
+                                            @Html.CheckBoxFor(p => p.Dia29, new { @class = "form-control", @id = "iDia29" }) <label class="m-2" for="iDia29">29</label>
+                                            @Html.CheckBoxFor(p => p.Dia30, new { @class = "form-control", @id = "iDia30" }) <label class="m-2" for="iDia30">30</label>
+                                            @Html.CheckBoxFor(p => p.Dia31, new { @class = "form-control", @id = "iDia31" }) <label class="m-2" for="iDia31">31</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-1">
+                                    <div class="form-group">
+                                        <label class="mr-3">Programação Expira:</label><br>
+                                        @Html.CheckBoxFor(model => model.ProgramacaoExpira, new { @class = "form-control", @id = "iProgramacaoExpira", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                                <div class="col-2" id="iDivDataExpira">
+                                    <div class="form-group">
+                                        <label class="mr-3">Programação Expira:</label><br>
+                                        @Html.TextBoxFor(model => model.DataExpira, new { @class = "form-control datepicker", @id = "iDataExpira", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-2">
+                                    <div class="form-group">
+                                        <label for="iNumeroMaxAtendimento" class="mr-3">@RsCadastros.NUMERO_MAX_ATENDIMENTO:</label><br>
+                                        @Html.TextAreaFor(model => model.NumeroMaximoAtendimento, new { @class = "form-control", @id = "iNumeroMaxAtendimento", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label class="mr-3">Alterar data e hora dos serviços que não foram agendados pelo Aniel Connect e que ainda não foram vencidos.:</label><br>
+                                        @Html.CheckBoxFor(model => model.AlterarDataHoraSemAgendamentoAniel, new { @class = "form-control", @id = "iProgramacaoExpira", @data_toggle = "toggle", @data_on = "Sim", @data_off = "Não", @data_onstyle = "success", @data_offstyle = "light" })
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h4 class="text-left mt-3">
+                                Defina as ações que está programação executará:
+                            </h4>
+
+                            <div class="row mt-3 justify-content-center">
+                                <div class="col-sm-12 col-md-4 col-lg-2">
+                                    <div class="form-group form-inline">
+                                        @Html.CheckBoxFor(p => p.Servico_SemAgendamento, new { @class = "form-control checkboxFiltro", @id = "iServ_SemAgendamento" })
+                                        <label for="iServ_SemAgendamento" class="pl-1">@RsFinanceiro.SERVICOS_NAO_AGENDADOS_ROTEIRIZACAO:</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12 col-md-4 col-lg-2">
+                                    <div class="form-group form-inline">
+                                        @Html.CheckBoxFor(p => p.Servico_Agendados, new { @class = "form-control checkboxFiltro", @id = "iServ_Agendados" })
+                                        <label for="iServ_Agendados" class="pl-1">@RsFinanceiro.SERVICOS_AGENDADOS</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12 col-md-4 col-lg-2">
+                                    <div class="form-group form-inline">
+                                        @Html.CheckBoxFor(p => p.Servico_Paralisados, new { @class = "form-control checkboxFiltro", @id = "iServ_Paralisados" })
+                                        <label for="iServ_Paralisados" class="pl-1">@RsFinanceiro.SERVICOS_PARALISADOS</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12 col-md-4 col-lg-2">
+                                    <div class="form-group form-inline">
+                                        @Html.CheckBoxFor(p => p.Servico_Nao_Executados, new { @class = "form-control checkboxFiltro", @id = "iServ_Nao_Executado" })
+                                        <label for="iServ_Nao_Executado" class="pl-1">@RsFinanceiro.SERVICOS_NAO_EXECUTADOS</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-12 col-md-4 col-lg-2">
+                                    <div class="form-group form-inline">
+                                        @Html.CheckBoxFor(p => p.Servico_Roteirizados, new { @class = "form-control checkboxFiltro", @id = "iServ_Roteirizados" })
+                                        <label for="iServ_Roteirizados" class="pl-1">@RsCadastros.SERVICOS_ROTEIRIZADOS</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @RsBase.TODOS
+                                </div>
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @Html.RadioButtonFor(p => p.NoDia, true) No Dia
+                                </div>
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @Html.RadioButtonFor(p => p.NaSemana, true) Na Semana
+                                </div>
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @Html.RadioButtonFor(p => p.NoMes, true) No Mês
+                                </div>
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @Html.RadioButtonFor(p => p.NosPrimeiros, false) Os Últimos @Html.TextBoxFor(model => model.NumUltimosDias, new { @class = "form-control mr-2 ml-2", @id = "iNumUltimosDias", @autocomplete = "off" })
+                                </div>
+                                <div class="col-12 justify-content-center form-group form-inline">
+                                    @Html.RadioButtonFor(p => p.NosPrimeiros, true) Os Primeiros @Html.TextBoxFor(model => model.NumPrimeirosDias, new { @class = "form-control mr-2 ml-2", @id = "iNumPrimeirosDias", @autocomplete = "off" })
+                                </div>
+                            </div>
+
+
+
+                            <div class="row mt-4">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iSupervisor">@RsCadastros.SUPERVISOR:</label>
+                                        @Html.DropDownListFor(model => model.Supervisor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSupervisor", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+
+                                    </div>
+                                </div>
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for=" iEquipe">@RsCadastros.EQUIPE:</label>
+                                        @Html.DropDownListFor(model => model.Equipe, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iEquipe", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div class="row mt-4" id="iRowMultipleNatureza">
+                                <div class="col-sm-4">
+                                    <div class="form-group">
+                                        <label for="iCategoriaCliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                        @Html.DropDownListFor(m => m.Id_Categoria_Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaCliente", @autocomplete = "off", @style = "width:100%;", multiple = "multiple" })
+
+                                    </div>
+
+                                </div>
+                                <div class="col-sm-8">
+                                    <div class="form-group">
+                                        <label for="iNaturezaServico">@RsCadastros.NATUREZA_SERVICO:</label>
+                                        <select class="form-control" name="Id_Natureza_Servico[]" id="iNaturezaServico" multiple="multiple" style="width:100% !important">
+                                            <option value="">@RsBase.SELECIONE</option>
+                                        </select>
+                                        @*@Html.DropDownListFor(m => m.Id_Natureza_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iNaturezaServico", @multiple = "multiple", @autocomplete = "off", @style = "width:100%;" })*@
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-4">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_5">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Localidade</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+
+
+                                            <label for="iGrupoArea">@RsCadastros.GRUPO_AREA:</label>
+                                            <div class="form-group">
+                                                <select class="form-control obrigatorioLocalidade" id="iGrupoArea">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+
+                                            </div>
+                                            <label for="iArea">@RsCadastros.AREA:</label>
+                                            <div class="form-group">
+                                                <select class="form-control obrigatorioLocalidade" id="iArea">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+                                            <label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                                            <div class="form-group">
+                                                <select class="form-control obrigatorioLocalidade" id="iLocalidade">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+
+
+                                            <div class="text-right mt-3">
+                                                <input type="button" id="btnAdicionarLocalidade" value="Adicionar" class="btn btn-success" />
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_5">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Localidades</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+
+                                            <table class="table table-hover nowrap" id="datatableLocalidade" style="width:100%"></table>
+
+                                        </div>
+
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_6">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Contrato/Projeto</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <label for="iCodCt">@RsCadastros.CONTRATO:</label>
+                                            <div class="form-group">
+                                                <select class="form-control" id="iCodCt">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+                                            <label for="iProjeto">@RsCadastros.PROJETO:</label>
+                                            <div class="form-group">
+                                                <select class="form-control" id="iProjeto">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+                                            <div class="text-right mt-3">
+                                                <input type="button" id="btnAdicionarContratoProjeto" value="Adicionar" class="btn btn-success" />
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_7">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Contratos/Projetos</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableContratoProjeto" style="width:100%"></table>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_8">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Empresa/Filial</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <label for="iEmpresa">@RsCadastros.EMPRESA:</label>
+                                            <div class="form-group">
+                                                <select class="form-control" id="iEmpresa">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+                                            <label for="iFilial">@RsCadastros.FILIAL:</label>
+                                            <div class="form-group">
+                                                <select class="form-control" id="iFilial">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                </select>
+                                            </div>
+                                            <div class="text-right mt-3">
+                                                <input type="button" id="btnAdicionarEmpresaFilial" value="Adicionar" class="btn btn-success" />
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card" id="heading_9">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Empresas/Filiais</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableEmpresaFilial" style="width:100%"></table>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "ProgramacaoRoteirizacaoAutomatica")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+
+
+    </div>
+
+}

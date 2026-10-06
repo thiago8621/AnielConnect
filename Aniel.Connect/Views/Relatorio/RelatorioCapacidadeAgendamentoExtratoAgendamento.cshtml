@@ -1,0 +1,557 @@
+﻿@using Microsoft.AspNet.Identity
+@{
+    ViewBag.Title = RsCadastros.EXTRATO_AGENDAMENTO_SERVICOS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <script>
+        var oDatatable = null;
+        let natureza = null;
+
+        var handleGrupo = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+                const grupoSelecionado = e.params.data
+                if (grupoSelecionado)
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoSelecionado.id), null, "@RsBase.SELECIONE", false);
+                else
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleArea);
+            });
+        };
+
+        var handleTipoServico = function () {
+            $('#iTipoServico').on('select2:select select2:unselecting', function (e) {
+                const tipoSelecionado = e.params.data
+
+                if (tipoSelecionado)
+                    natureza = tipoSelecionado.codNatureza;
+                else
+                    natureza = null;
+
+                if (tipoSelecionado && $('#iLocalidade').val()) {
+                    let consultaPerfil = {
+                        Cod_Natureza: natureza,
+                        Cod_Escritorio: $("#iGrupoArea").val(),
+                        Cod_Area: $("#iArea").val(),
+                        LocalidadeStr: $("#iLocalidade option:selected").text(),
+                        Cod_Localidade: $("#iLocalidade").val()
+                    };
+
+                    AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetComboParametrosServico", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null, consultaPerfil);
+
+                }
+                else {
+                    AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetComboParametrosServico", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+
+            });
+        };
+
+        var HandleArea = function () {
+            $('#iArea').on('select2:select select2:unselecting', function (e) {
+
+                AreaSelecionada = e.params.data
+                if (AreaSelecionada) {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, $('#iGrupoArea').val(), String(AreaSelecionada.id), null, "@RsBase.SELECIONE", false, HandleLocalidade);
+                }
+                else {
+                    AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+        var HandleLocalidade = function () {
+            $('#iLocalidade').on('select2:select select2:unselecting', function (e) {
+
+                AreaSelecionada = e.params.data
+                if (AreaSelecionada && natureza) {
+
+                    let consultaPerfil = {
+                        Cod_Natureza: natureza,
+                        Cod_Escritorio: $("#iGrupoArea").val(),
+                        Cod_Area: $("#iArea").val(),
+                        LocalidadeStr: $("#iLocalidade option:selected").text(),
+                        Cod_Localidade: $("#iLocalidade").val()
+                    };
+
+                    AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetComboParametrosServico", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, null, null, null, consultaPerfil);
+                }
+                else {
+                    AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetComboParametrosServico", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+                }
+
+            });
+        };
+
+
+
+        var HandleContrato = function () {
+
+            $('#iContrato').unbind('select2:select select2:unselecting');
+            $('#iContrato').on('select2:select select2:unselecting', function (e) {
+
+                ContratoSelecionado = e.params.data
+                if (ContratoSelecionado) {
+                    AddSelect("iTipoServico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, ContratoSelecionado.id, null, "@RsBase.SELECIONE", false, handleTipoServico);
+                }
+                else {
+                    AddSelect("iTipoServico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+                }
+
+            });
+
+        };
+
+        var filter_state = {
+            data: {
+                label: "@RsCadastros.DATA",
+                getDisplay: () => { return Boolean($('#iDataInicio').val()) ? $('#iDataInicio').val() : "" },
+                removable: false
+            },
+            contrato: {
+                label: "@RsCadastros.CONTRATO",
+                getDisplay: () => { return Boolean($('#iContrato').val()) ? $('#iContrato option:selected').text() : "" },
+                removable: false
+            },
+            tipoServico: {
+                label: "@RsCadastros.TIPO_SERVICO",
+                getDisplay: () => { return Boolean($('#iTipoServico').val()) ? $('#iTipoServico option:selected').text() : "" },
+                removable: false
+            },
+            grupoArea: {
+                label: "@RsCadastros.GRUPO_AREA",
+                getDisplay: () => { return Boolean($('#iGrupoArea').val()) ? $('#iGrupoArea option:selected').text() : "" },
+                removable: false
+            },
+            area: {
+                label: "@RsCadastros.AREA",
+                getDisplay: () => { return Boolean($('#iArea').val()) ? $('#iArea option:selected').text() : "" },
+                removable: false
+            },
+            localidade: {
+                label: "@RsCadastros.LOCALIDADE",
+                getDisplay: () => { return Boolean($('#iLocalidade').val()) ? $('#iLocalidade option:selected').text() : "" },
+                removable: false
+            },
+            periodo: {
+                label: "@RsCadastros.PERIODO",
+                getDisplay: () => { return Boolean($('#iPeriodo').val()) ? $('#iPeriodo option:selected').text() : "" },
+                onclick: () => {
+                    $('#iPeriodo').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            tipoImovel: {
+                label: "@RsCadastros.TIPO_IMOVEL",
+                getDisplay: () => { return Boolean($('#iTipoImovel').val()) ? $('#iTipoImovel option:selected').text() : "" },
+                onclick: () => {
+                    $('#iTipoImovel').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+
+        };
+
+        function carregaSelect2()
+        {
+            AddSelect("iTipoServico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleGrupo);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, HandleArea);
+            AddSelect("iLocalidade", "@CONSTANTES.URLPortal/api/Localidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+            AddSelect("iPeriodo", "@CONSTANTES.URLPortal/api/PeriodoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iContrato", "@CONSTANTES.URLPortal/api/Contratoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleContrato);
+            AddSelect("iTipoImovel", "@CONSTANTES.URLPortal/api/Tipo_ImovelAnielapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iPerfil", "@CONSTANTES.URLPortal/api/PerfilAgendamentoapi/GetComboParametrosServico", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        }
+
+
+
+        $("#iLimparFiltro,#iLimparFiltroModal").click(() => {
+
+
+
+            carregaSelect2()
+            if (oDatatable != null) {
+                oDatatable.draw()
+            }
+        });
+
+        $(document).ready(async () => {
+            $('#modal-filter').modal('show')
+            carregaSelect2()
+        });
+
+        "use strict";
+
+        var handleDataTableButtons = function () {
+
+            let dadosPerfil;
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                serverSide: true,
+                searching: true,
+                ordering: false,
+                paging: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: () => {
+
+                    dados = oDatatable.ajax.json();
+                    dadosPerfil = dados.dadosPerfil
+                    $('#iCapacidadePlena').text(dados.capacidadePlena);
+                    $('#iCapacidade').text(dados.capacidadeUtilHoras);
+                    $('#iQtdeTecnicos').text(dados.qtdeTecnicosEscalados);
+                    
+                    $('#iCapacidadeRestante').text(dados.minutosCapacidadeRestante);
+                    $('#iTempoExecucao').text(dados.tempoExecucaoTipoServico);
+                    $('#iTempoDeslocamentoPadrao').text(dados.tempoDeslocamentoPadrao);
+                    $('#iCapacidadeRestanteEmServicos').text(dados.capacidadeRestanteServicos);
+
+                    $('#iDentroFaixa').text(dados.minutosAgendamentoDentroFaixa);
+                    $('#iForaFaixa').text(dados.minutosAgendamentoForaFaixa);
+
+                    TagFilter("FiltrosUtilizados", filter_state, "Filtrado por:");
+                    ResizeTable('divTable');
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/Agendamento_Equipeapi/GetDetalhamentoDisponibilidade',
+                    type: 'POST',
+                    async: true,
+                    data: function (data) {
+                        data.Data = $('#iDataInicio').val();
+                        data.Cod_Tipo_Serv = $('#iTipoServico').val();
+                        data.Cod_Grupo_Area = $('#iGrupoArea').val();
+                        data.Cod_Area = $('#iArea').val();
+                        data.LocalidadeStr = $('#iLocalidade').text();
+                        data.Cod_Localidade = $('#iLocalidade').val();
+                        data.IdPeriodo = $('#iPeriodo').val();
+                        data.IdTipoImovel = $('#iTipoImovel').val();
+                        data.IdPerfil = $('#iPerfil').val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                pageLength: 5,
+                order: [],
+                language: traducaoDataTableSimples,
+                processing: true,
+                buttons: buttonsDataTableRelatorio({
+                    title: "@Html.Raw(ViewBag.Title)",
+                    pageSize: "A3"
+                }),
+                columns: [
+                    {
+                        data: "numObra", className: "text-center", title: "@RsCadastros.NUMERO_OS", orderable: false,
+                        render: function (data, type) {
+                            return type === 'export' ? '\u200C' + data : data;
+                        }
+                    },
+                    { data: "dataInicioAgendamento", className: "text-center", title: "@RsCadastros.DATA_HORA_INI_AGEND", orderable: false },
+                    { data: "dataFimAgendamento", className: "text-center", title: "@RsCadastros.DATA_HORA_FIM_AGEND", orderable: false },
+                    { data: "periodo", className: "text-center", title: "@RsCadastros.PERIODO", orderable: false },
+                    { data: "origemAgendamento", className: "text-center", title: "@RsCadastros.ORIGEM_AGENDAMENTO", orderable: false },
+                    ////{ data: "usuarioCriacao", className: "text-center", title: "@RsCadastros.USUARIO", orderable: false },
+                    { data: "usuarioAgendamento", className: "text-center", title: "@RsCadastros.USUARIO", orderable: false },
+                    { data: "dataHoraCriacao", className: "text-center", title: "@RsCadastros.DATAHORA_CRIACAO", orderable: false },
+                    { data: "tipoServico", className: "text-center", title: "@RsCadastros.TIPO_SERVICO", orderable: false },
+                    { data: "natureza", className: "text-center", title: "@RsCadastros.NATUREZA", orderable: false },
+                    { data: "grupoArea", className: "text-center", title: "@RsCadastros.GRUPO_AREA", orderable: false },
+                    { data: "area", className: "text-center", title: "@RsCadastros.AREA", orderable: false },
+                    { data: "localidade", className: "text-center", title: "@RsCadastros.LOCALIDADE", orderable: false },
+                    { data: "tecnico", className: "text-center", title: "@RsCadastros.MATRICULA_TECNICO", orderable: false },
+                    { data: "tecnicoTemporario", className: "text-center", title: "@RsCadastros.MATRICULA_TECNICO Temporário", orderable: false },
+                    { data: "status", className: "text-center", title: "@RsCadastros.STATUS", orderable: false },
+                    { data: "horasAgendadas", className: "text-center", title: "Tempo de Serviço", orderable: false },
+                    { data: "tempoDeslocamento", className: "text-center", title: "@RsCadastros.TEMPO_DESLOCAMENTO", orderable: false },
+                    { data: "capacidadeRestante", className: "text-center", title: "Capacidade Restante", orderable: false }
+                ],
+                rowGroup: {
+                    dataSrc: 'perfilAgendamento',
+                    startRender: function (rows, group) {
+
+                        if (group == "Manual")
+                            return group;
+
+
+                        let dadosPerfilFiltrado = dadosPerfil.filter(p => p.perfilAgendamento == group);
+                        if (dadosPerfilFiltrado.length > 0) {
+                            return group + " - Qtde. Técnicos: " + dadosPerfilFiltrado[0].forcaTrabalho +
+                                " - Capacidade Útil em Horas: " + dadosPerfilFiltrado[0].capacidadeUtilHoras +
+                                " - Capacidade Restante em Horas: " + dadosPerfilFiltrado[0].capacidadeRestante +
+                                " -  Capacidade Restante em Serviços: " + dadosPerfilFiltrado[0].capacidadeRestanteServicos;
+                        }
+                        else {
+                            return group;
+                        }
+
+                    }
+                }
+
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                rows_selected = [];
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        function oDatatableFunction() {
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@RsBase.PREENCHA_CAMPOS_OBRIGATORIOS", "warning");
+                $('.invalid-feedback').remove();
+                return false;
+            }
+
+            if ($('#iDataInicio').val() && $('#iDataFim').val()) {
+
+                const momentInicio = moment($('#iDataInicio').val(), "DD/MM/YYYY")
+                const momentFinal = moment($('#iDataFim').val(), "DD/MM/YYYY")
+
+                if ((momentFinal.diff(momentInicio, 'days') + 1) > 30) {
+                    Notificar("@RsBase.ATENCAO_", "Periodo deve atender limite de 30 dias", "warning");
+                    return false
+                }
+            }
+
+            if (oDatatable == null) {
+                TableManageButtons.init();
+            }
+            else {
+                oDatatable.draw()
+            }
+
+            $('#modal-filter').modal('hide')
+
+
+        }
+
+    </script>
+}
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="far fa-clock"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Relatorio" )" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+                @*<button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>*@
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); return false;"><i class="fas fa-file-excel"></i> @RsBase.EXPORTAREXCEL</a>
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-pdf').click(); return false;"><i class="fas fa-file-pdf"></i> @RsBase.EXPORTARPDF</a>
+                </div>
+                <div class="text-right">
+                    <div class="form-group col-sm-push-1 pl-2">
+                        <a href="#" data-toggle="popover" data-html="true" title="Ajuda"
+                           data-content="Coluna Km Percorrido calcula a distância entre a latitude e longitude do local aonde o técnico estava quando pressionou início deslocamento (pela última vez) até a latitude e longitude correspondente ao endereço do serviço."><i style="color: #2092EC" class="fas fa-question-circle fa-2x"></i></a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    <div id="divSubTitle">
+        <div id="FiltrosUtilizados" class="mr-2 ml-2 form-inline"></div>
+        <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+        <div class="accordion div-card-accord mr-2 ml-2 fs-12 mt-3">
+            <div class="card-body" style="padding: 0.75rem">
+                <div class="row">
+                    <div class="col-md-3 col-sm-12">
+                        <b>Qtde de Técnicos Escalados: </b><label id="iQtdeTecnicos"></label><br />
+                        <b>Capacidade Plena em Horas: </b><label id="iCapacidadePlena"></label><br />
+                        <b>Capacidade Útil em Horas: </b><label id="iCapacidade"></label><br />
+                    </div>
+                    <div class="col-md-3 col-sm-12">
+                        <b>Capacidade Restante: </b><label id="iCapacidadeRestante"></label><br />
+                        <b>Capacidade Restante em Serviços: </b><label id="iCapacidadeRestanteEmServicos"></label><br />
+                        @*<b>Dentro Faixa: </b><label id="iDentroFaixa"></label><br />
+                        <b>Fora Faixa: </b><label id="iForaFaixa"></label><br />*@
+                    </div>
+                    <div class="col">
+                        <b>Tempo de Serviço: </b><label id="iTempoExecucao"></label><br />
+                        <b>Tempo de Deslocamento: </b><label id="iTempoDeslocamentoPadrao"></label><br />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="divTable">
+
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+<!--Modal Filters-->
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group border_radius">
+                    <div class="row">
+                        <div class="col form-inline text-center mt-1" style="display:block">
+                            <span class="text-danger">* </span><input class="form-control datepicker-period obrigatorio mb-1"
+                                                                      id="iDataInicio"
+                                                                      type="text"
+                                                                      data-startdate="@(DateTime.Now.ToString("dd/MM/yyyy"))"
+                                                                      data-enddate="@(DateTime.MaxValue.ToString("dd/MM/yyyy"))"
+                                                                      autocomplete="off"
+                                                                      placeholder="00/00/0000" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <span class="text-danger">* </span><label for="iContrato">@RsCadastros.CONTRATO:</label>
+                                <select class="form-control obrigatorio" id="iContrato"></select>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <span class="text-danger">* </span><label for="iTipoServico">@RsCadastros.TIPO_SERVICO:</label>
+                                <select class="form-control obrigatorio" id="iTipoServico"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <span class="text-danger">* </span><label for="iGrupoArea">@RsCadastros.GRUPO_AREA</label>
+                                <select class="form-control obrigatorio" id="iGrupoArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <span class="text-danger">* </span><label for="iArea">@RsCadastros.AREA</label>
+                                <select class="form-control obrigatorio" id="iArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <span class="text-danger">* </span><label for="iLocalidade">@RsCadastros.LOCALIDADE:</label>
+                                <select class="form-control obrigatorio" id="iLocalidade"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col mr-2">
+                            <div class="form-group">
+                                <label for="iPerfil">@RsCadastros.PERFIL_AGENDAMENTO_ROTEIRIZACAO:</label>
+                                <select class="form-control" id="iPerfil"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iPeriodo">@RsCadastros.PERIODO:</label>
+                                <select class="form-control" id="iPeriodo"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iTipoImovel">@RsCadastros.TIPO_IMOVEL:</label>
+                                <select class="form-control" id="iTipoImovel"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" onclick="oDatatableFunction(); $('#modal-filter').modal('hide');" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div><!-- /.modal-->

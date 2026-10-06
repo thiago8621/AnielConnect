@@ -1,0 +1,625 @@
+@model Aniel.Connect.Models.BuscarGeolocalizacaoModels
+
+﻿
+@using Aniel.Connect.Models
+@using Aniel.Connect.Model.enumerado
+
+<script>
+    let marcadorAutoComplete;
+    let marcadorAutoCompleteConfirmacao;
+    let autocomplete
+    let atendimento = Boolean(@Html.Raw(Convert.ToInt16(Model.OrigemDialog)));
+
+    async function PesquisaMapaEndereco() {
+        try {
+
+
+            let pesquisa = $("#iPesquisaMap").val();
+
+            var service = new google.maps.places.PlacesService(map);
+
+            var request = {
+                query: pesquisa,
+                fields: ['name', 'geometry'],
+            };
+
+            service.findPlaceFromQuery(request, function (results, status) {
+
+
+                if (marcadorAutoComplete) {
+                    marcadorAutoComplete.setMap(null);
+                    $('#iConfirmarLocalizacao').hide();
+                }
+
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                    if (results.length > 0) {
+
+                        let latlng = {
+                            lat: results[0].geometry.location.lat(),
+                            lng: results[0].geometry.location.lng()
+                        };
+
+                        marcadorAutoComplete = new google.maps.Marker({
+                            position: latlng,
+                            map: map,
+                            draggable: true,
+                            title: "Resultado da Busca"
+                        });
+
+                        marcadorAutoComplete.addListener('dragend', handleDragEnd);
+                        $('#iConfirmarLocalizacao').show();
+
+
+                        map.setCenter(results[0].geometry.location);
+                    }
+                } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                    Notificar("@RsBase.ATENCAO_", "Nenhum resultado foi encontrado para a solicitação. Por favor, verifique a localização.", "warning");
+                } else if (status === google.maps.places.PlacesServiceStatus.UNKNOWN_ERROR) {
+                    Notificar("@RsBase.ATENCAO_", "Não foi possível processar a solicitação. Tente novamente mais tarde!", "warning");
+                } else if (status === google.maps.places.PlacesServiceStatus.NOT_FOUND) {
+                    Notificar("@RsBase.ATENCAO_", "O lugar referenciado não foi encontrado! Por favor, verifique a localização.", "warning");
+                }
+            });
+
+        }
+        catch (e) { console.log(e) }
+    }
+
+    async function PesquisaMapaConfirmacao() {
+        try {
+
+            let pesquisa = `${$("#iLogradouroConfirmacao").val()} ${$("#iNumeroConfirmacao").val()} ${$("#iCidadeConfirmacao").val()} ${$("#iUFConfirmacao").val()} ${$("#iPaisConfirmacao").val()}`;
+            var service = new google.maps.places.PlacesService(mapConfirmacao);
+
+            var request = {
+                query: pesquisa,
+                fields: ['name', 'geometry'],
+            };
+
+            service.findPlaceFromQuery(request, function (results, status) {
+
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+
+                    if (results.length > 0) {
+
+                        let latlng = {
+                            lat: results[0].geometry.location.lat(),
+                            lng: results[0].geometry.location.lng()
+                        };
+
+                        marcadorAutoCompleteConfirmacao = new google.maps.Marker({
+                            position: latlng,
+                            map: mapConfirmacao,
+                            draggable: true,
+                            title: "Resultado da Busca"
+                        });
+
+                        latAntigo = results[0].geometry.location.lat();
+                        longAntigo = results[0].geometry.location.lng();
+
+                        marcadorAutoCompleteConfirmacao.addListener('dragend', handleDragEndConfirmacao);
+
+                        mapConfirmacao.setCenter(results[0].geometry.location);
+
+
+                        fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${results[0].geometry.location.lat()},${results[0].geometry.location.lng()}&key=@CONSTANTES.TokenGoogleAPI`)
+                            .then((response) => {
+                                return response.json();
+                            })
+                            .then((data) => {
+                                atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+                            })
+
+                    }
+                    else {
+                        Notificar("@RsBase.ATENCAO_", "Não foi possível localizar endereço", "warning");
+                    }
+                }
+            });
+
+        }
+        catch (e) { console.log(e) }
+    }
+
+    async function PesquisaMapaLatitudeLongitude() {
+        try {
+            let latlng = {
+                lat: parseFloat($('#iLatitudeMap').val().replace(",", ".")),
+                lng: parseFloat($('#iLongitudeMap').val().replace(",", "."))
+            };
+
+            if (marcadorAutoComplete) {
+                marcadorAutoComplete.setMap(null);
+                $('#iConfirmarLocalizacao').hide();
+            }
+
+            const geocoder = new google.maps.Geocoder();
+            geocoder
+                .geocode({ location: latlng })
+                .then(async (response) => {
+                    if (response.results[0]) {
+                        map.setZoom(15);
+
+                        marcadorAutoComplete = new google.maps.Marker({
+                            position: latlng,
+                            map: map,
+                            draggable: true,
+                            title: "Resultado da Busca"
+                        });
+                        marcadorAutoComplete.addListener('dragend', handleDragEnd);
+                        $('#iConfirmarLocalizacao').show();
+                        map.setCenter(latlng);
+                    }
+                    else {
+                        window.alert("No results found");
+                    }
+                })
+
+        }
+        catch (e) { console.log(e) }
+    }
+
+    function showPosition(position) {
+        let latlng = { lat: position.coords.latitude, lng: position.coords.longitude };
+        map.setCenter(latlng);
+    }
+
+    async function getLocation() {
+
+        let latlng = { lat: Number($('#iLatitudeMap').val().replace(',', '.')), lng: Number($('#iLongitudeMap').val().replace(',', '.')) };
+
+        if (latlng.lat && latlng.lng) {
+
+            map.setCenter(latlng);
+            marcadorAutoComplete = new google.maps.Marker({
+                position: latlng,
+                map: map,
+                draggable: true,
+                title: "Resultado da Busca"
+            });
+
+            mapConfirmacao.setCenter(latlng);
+            marcadorAutoCompleteConfirmacao = new google.maps.Marker({
+                position: latlng,
+                map: mapConfirmacao,
+                draggable: true,
+                title: "Resultado da Busca"
+            });
+
+            latAntigo = latlng.lat;
+            longAntigo = latlng.lng;
+
+            marcadorAutoComplete.addListener('dragend', handleDragEnd);
+            marcadorAutoCompleteConfirmacao.addListener('dragend', handleDragEndConfirmacao);
+        }
+        else {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition);
+            } else {
+                Notificar("@RsBase.ATENCAO_", "A geolocalização não é suportada por este navegador", "warning");
+            }
+        }
+    }
+
+    function handleDragEnd(event) {
+
+        if ($('input[name=buscarEndereco]:checked').val() == "latitudeLongitude") {
+            $('#iLatitudeMap').val(marcadorAutoComplete.position.lat())
+            $('#iLongitudeMap').val(marcadorAutoComplete.position.lng())
+        }
+
+        $('#iConfirmarLocalizacao').show();
+    }
+
+        async function confirmarLocalizacao() {
+
+        let tipo = $('#iTipoModalEndereco').val();
+
+        $('#iConfirmarLocalizacao').hide();
+        let latlng = {
+            lat: parseFloat(marcadorAutoComplete.position.lat()),
+            lng: parseFloat(marcadorAutoComplete.position.lng())
+        };
+
+
+            if ($('input[name=buscarEndereco]:checked').val() == "endereco") {
+                $("#iLatitude" + tipo).val(marcadorAutoComplete.position.lat())
+                $("#iLongitude" + tipo).val(marcadorAutoComplete.position.lng())
+            }
+            else if ($('input[name=buscarEndereco]:checked').val() == "latitudeLongitude") {
+                latlng = {
+                    lat: parseFloat($('#iLatitudeMap').val().replace(",", ".")),
+                    lng: parseFloat($('#iLongitudeMap').val().replace(",", "."))
+                };
+
+                $("#iLatitude" + tipo).val(marcadorAutoComplete.position.lat())
+                $("#iLongitude" + tipo).val(marcadorAutoComplete.position.lng())
+
+
+                $("#iLatitudeManut").val(marcadorAutoComplete.position.lat())
+                $("#iLongitudeManut").val(marcadorAutoComplete.position.lng())
+            }
+
+
+        const geocoder = new google.maps.Geocoder();
+        geocoder
+            .geocode({ location: latlng })
+            .then(async (response) => {
+                if (response.results[0]) {
+                    map.setZoom(15);
+
+                    marcadorAutoComplete = new google.maps.Marker({
+                        position: latlng,
+                        map: map,
+                        draggable: true,
+                        title: "Resultado da Busca"
+                    });
+                    marcadorAutoComplete.addListener('dragend', handleDragEnd);
+                    $('#iConfirmarLocalizacao').show();
+                    map.setCenter(latlng);
+
+                    if (response.results[0].address_components.filter(p => p.types.contains("route")).length > 0) {
+                        $("#iLogradouro" + tipo).val(response.results[0].address_components.filter(p => p.types.contains("route"))[0].long_name);
+                    }
+                    if (response.results[0].address_components.filter(p => p.types.contains("street_number")).length > 0) {
+                       $("#iNumero" + tipo).val(response.results[0].address_components.filter(p => p.types.contains("street_number"))[0].long_name);
+                    }
+                    if (response.results[0].address_components.filter(p => p.types.contains("sublocality_level_1")).length > 0) {
+                       $("#iBairro" + tipo).val(response.results[0].address_components.filter(p => p.types.contains("sublocality_level_1"))[0].long_name);
+                    }
+
+                    if (response.results[0].address_components.filter(p => p.types.contains("postal_code")).length > 0) {
+                        $("#iCEP" + tipo).val(response.results[0].address_components.filter(p => p.types.contains("postal_code"))[0].long_name);
+                    }
+
+                    if (response.results[0].address_components.filter(p => p.types.contains("country")).length > 0) {
+                        let pais = response.results[0].address_components.filter(p => p.types.contains("country"))[0].long_name;
+
+                        await AddSelect("iPais" + tipo, "@CONSTANTES.URLPortal/api/enderecoapi/GetComboPaisDescricaoId",@CONSTANTES.PaginacaoRegistros, null, null, pais, "@RsBase.SELECIONE", false);
+
+                    }
+
+                    if (response.results[0].address_components.filter(p => p.types.contains("administrative_area_level_1")).length > 0) {
+                        let uf = response.results[0].address_components.filter(p => p.types.contains("administrative_area_level_1"))[0].short_name;
+                        @*await AddSelect("@( "iUF" + Model.Tipo)", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboUfDesc",@CONSTANTES.PaginacaoRegistros, null, null, uf, "@RsBase.SELECIONE", false, handleUf);*@
+                        $("#iUF" + tipo).val(uf);
+                    }
+
+                    console.log(response.results);
+
+                    if (response.results[0].address_components.filter(p => p.types.contains("administrative_area_level_2")).length > 0) {
+                        let cidade = response.results[0].address_components.filter(p => p.types.contains("administrative_area_level_2"))[0].long_name;
+                        let uf = response.results[0].address_components.filter(p => p.types.contains("administrative_area_level_1"))[0].short_name;
+                        await AddSelect("iCidade" + tipo, "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadesDescId",@CONSTANTES.PaginacaoRegistros, null, uf, cidade, "@RsBase.SELECIONE", false);
+
+                        var descCidade = $("#iCidade" + tipo + " option:selected").text();
+                        $("#iDesc_Cidade" + tipo).val(descCidade);
+                    }
+
+                }
+                else {
+                    window.alert("No results found");
+                }
+            })
+
+        $('#modal-localizacao').modal('hide');
+    }
+
+    @*const handleUf = function () {
+
+        $("@( "#iUF" + Model.Tipo)").on("select2:select select2:unselecting", function (e) {
+            const ufSelecionado = e.params.data
+            if (ufSelecionado) {
+                AddSelect("@( "iCidade" + Model.Tipo)", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadesDescId",@CONSTANTES.PaginacaoRegistros, null, ufSelecionado.id, null, "@RsBase.SELECIONE", false);
+            }
+            else {
+                AddSelect("@( "iCidade" + Model.Tipo)", "@CONSTANTES.URLPortal/api/enderecoapi/GetComboCidadesDescId",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            }
+        })
+    }*@
+
+        let iniciando = true;
+        var mapConfirmacao;
+
+    async function initMapBuscarGeolocalizacao(tipo) {
+
+        $('#iTipoModalEndereco').val(tipo);
+
+
+        let enderecoCompleto = "";
+
+        let logradouro = $("#iLogradouro" + tipo).val();
+        let numero = $("#iNumero" + tipo).val();
+        let bairro = $("#iBairro" + tipo).val();
+        let cidade = "";
+        if (!$("#iCidadeText" + tipo)) {
+            cidade = $("#iCidade" + tipo + " option:selected").text();
+        }
+        else {
+            cidade = $("#iCidadeText" + tipo).val();
+        }
+        let Valorcidade = $("#iCidade" + tipo).val();
+
+        if (logradouro) {
+            enderecoCompleto += logradouro;
+        }
+
+        if (numero) {
+            enderecoCompleto += " " + numero;
+        }
+
+        if (bairro) {
+            enderecoCompleto += " " + bairro;
+        }
+
+        if (Valorcidade) {
+            enderecoCompleto += " " + cidade;
+        }
+
+        /*Hide transit and poi*/
+        var myStyles = [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            },
+            {
+                featureType: "transit",
+                elementType: "labels",
+                stylers: [
+                    { visibility: "off" }
+                ]
+            }
+        ];
+
+        $('#iLatitudeMap').val( $("#iLatitude" + tipo).val());
+        $('#iLongitudeMap').val( $("#iLongitude" + tipo).val());
+
+        var lat = -22.8690004;
+        var lng = -43.4790957;
+
+        if (($('#iLatitudeMap').val() != "") && ($('#iLongitudeMap').val() != "") &&
+            ($('#iLatitudeMap').val() != undefined) && ($('#iLongitudeMap').val() != undefined)) {
+            lat = parseFloat($("#iLatitudeMap").val().replace(/,/g, '.'));
+            lng = parseFloat($("#iLongitudeMap").val().replace(/,/g, '.'));
+        }
+
+        let latlng = {
+            lat: lat,
+            lng: lng
+        };
+
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: latlng,
+            zoom: 15,
+            styles: myStyles,
+            disableDefaultUI: false,
+        });
+
+
+        map.addListener("idle", () => {
+            //console.log("O mapa foi totalmente carregado.");
+            if (atendimento) {
+                $("#map").children().css({ position: "relative", height: "34vh" });
+                $("#map").children().css({ position: "" });
+            }
+        });
+
+        $('#iPesquisaMap').val(enderecoCompleto);
+        $('#iConfirmarLocalizacao').hide();
+
+
+        marcadorAutoComplete = new google.maps.Marker({
+            position: latlng,
+            map: map,
+            draggable: true,
+            title: "Resultado da Busca"
+        });
+
+        marcadorAutoComplete.addListener('dragend', handleDragEnd);
+
+        if (typeof results === 'undefined') {
+            map.setCenter(latlng.lat, latlng.lng);
+        }
+        else {
+            map.setCenter(results[0].geometry.location);
+        }
+
+        mapConfirmacao = new google.maps.Map(document.getElementById("mapConfirmacao"), {
+            center: latlng,
+            zoom: 15,
+            styles: myStyles,
+            disableDefaultUI: false,
+        });
+
+        getLocation();
+    }
+
+    async function getGoogleLatLong() {
+        let link = 'https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&address=';
+
+        if ($('#iNumeroManut').val()) {
+
+            link = link.concat(GetEnderecoManut());
+
+            try {
+                return await $.getJSON(link, async function (data) {
+
+                    if (data.results[0]) {
+                        if (!data.results[0].geometry.location.lat || !data.results[0].geometry.location.lng) {
+                            Notificar("@RsBase.ATENCAO_", "@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", "warning");
+                            $("#iLatitudeManut").val(null);
+                            $("#iLongitudeManut").val(null);
+
+                        }
+                    }
+
+                    let latitude = data.results[0].geometry.location.lat.toString().replace(".", ",");
+                    let longitude = data.results[0].geometry.location.lng.toString().replace(".", ",");
+
+                    $("#iLatitudeManut").val(latitude);
+                    $("#iLongitudeManut").val(longitude);
+
+                })
+            }
+            catch (e) {
+                Notificar("@RsPontoEletronico.NAO_FOI_POSSIVEL_LOCALIZAR_LATITUDE", e, "warning");
+                $("#iErroApiMaps").val(e);
+            }
+        }
+    }
+
+
+    function GetEnderecoManut() {
+
+        let endereco = "";
+
+        if ($("#iNumeroManut").val()) {
+            endereco += " " + $("#iNumeroManut").val();
+        }
+        else {
+            return false;
+        }
+
+        if ($("#iBairroManut").val() != "")
+            endereco += " " + $("#iBairroManut").val();
+        if ($("#iCidadeManut").val() != "")
+            endereco += " " + $("#iCidadeManut option:selected").text();
+        if ($("#iUFManut").val() != "")
+            endereco += " " + $("#iUFManut option:selected").text();
+        if ($("#iLogradouroManut").val() != "")
+            endereco += " " + $("#iLogradouroManut").val();
+        return endereco;
+    }
+
+    function confirmaEndereco() {
+        $('#confirmacaoEndereco').modal('show')
+
+        var center = mapConfirmacao.getCenter();
+        google.maps.event.trigger(mapConfirmacao, 'resize');
+        mapConfirmacao.setCenter(center);
+    }
+
+        var latAntigo;
+        var longAntigo;
+
+    function handleDragEndConfirmacao(event) {
+        Swal.fire({
+            title: 'Deseja alterar o endereço de acordo com o mapa?',
+            showDenyButton: false,
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar',
+            cancelButtonText: `Cancelar`,
+            icon: 'question',
+            reverseButtons: true,
+        }).then((result) => {
+            if (result.isConfirmed) {
+                //pega info do novo endereço selecionado
+                fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${event.latLng.lat()},${event.latLng.lng()}&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`)
+                    .then((response) => {
+                        return response.json();
+                    })
+                    .then((data) => {
+                        atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+                        var latlng = new google.maps.LatLng(parseFloat(event.latLng.lat()), parseFloat(event.latLng.lng()));
+                        mapConfirmacao.setCenter(latlng)
+                    })
+
+            } else {
+                var latlng = new google.maps.LatLng(parseFloat(latAntigo), parseFloat(longAntigo));
+                mapConfirmacao.setCenter(latlng)
+                marcadorAutoCompleteConfirmacao.setPosition(latlng);
+            }
+        })
+    }
+
+    function getAddressObject(address_components) {
+        var ShouldBeComponent = {
+            home: ["street_number"],
+            postal_code: ["postal_code"],
+            street: ["street_address", "route"],
+            region: [
+                "administrative_area_level_1",
+            ],
+            city: [
+                "administrative_area_level_2",
+            ],
+            country: ["country"]
+        };
+
+        var address = {
+            home: "",
+            postal_code: "",
+            street: "",
+            region: "",
+            city: "",
+            country: ""
+        };
+        address_components.forEach(component => {
+            for (var shouldBe in ShouldBeComponent) {
+                if (ShouldBeComponent[shouldBe].indexOf(component.types[0]) !== -1) {
+                    if (shouldBe === "region") {
+                        address[shouldBe] = component.short_name;
+                    } else {
+                        address[shouldBe] = component.long_name;
+                    }
+                }
+            }
+        });
+        return address;
+    }
+
+    function atualizaCamposConfirmacao(endereco) {
+        $("#iCidadeConfirmacao").val(endereco.city);
+        $("#iPaisConfirmacao").val(endereco.country);
+        $("#iNumeroConfirmacao").val(endereco.home);
+        $("#iCEPConfirmacao").val(endereco.postal_code);
+        $("#iUFConfirmacao").val(endereco.region);
+        $("#iLogradouroConfirmacao").val(endereco.street);
+
+        $("#iLatitudeConfirmacao").val(marcadorAutoCompleteConfirmacao.position.lat());
+        $("#iLongitudeConfirmacao").val(marcadorAutoCompleteConfirmacao.position.lng());
+    }
+
+    $("#iLatitudeConfirmacao").focusout(function () {
+
+        fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${$(this).val()},${$("#iLongitudeConfirmacao").val()}&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`)
+            .then((response) => {
+                return response.json();
+            })
+            .then((data) => {
+                var latlng = new google.maps.LatLng(parseFloat($(this).val()), parseFloat($("#iLongitudeConfirmacao").val()))
+
+                mapConfirmacao.setCenter(latlng)
+                marcadorAutoCompleteConfirmacao.setPosition(latlng)
+                atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+            })
+
+    });
+
+    $("#iLongitudeConfirmacao").focusout(function () {
+
+        fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${$("#iLatitudeConfirmacao").val()},${$(this).val()}&key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g`)
+            .then((response) => {
+                return response.json();
+            })
+            .then((data) => {
+                var latlng = new google.maps.LatLng(parseFloat($("#iLatitudeConfirmacao").val()), parseFloat($(this).val()))
+
+                mapConfirmacao.setCenter(latlng)
+                marcadorAutoCompleteConfirmacao.setPosition(latlng)
+                atualizaCamposConfirmacao(getAddressObject(data.results[0].address_components))
+            })
+
+    });
+
+    function enviaConfirmacao() {
+        ShowPageLoading()
+        $("#form").submit()
+
+    }
+
+</script>

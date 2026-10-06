@@ -1,0 +1,365 @@
+﻿@model Aniel.Connect.Models.VincularAtendimento_DataTableRequest
+
+@using Resources
+@using Sinapse.Model.enumerados
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Core
+@using Aniel.T5.Model.enumerado
+@using Resources
+@using Microsoft.AspNet.Identity;
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Models.T5
+
+
+@{
+    ViewBag.Title = RsCadastros.HISTORICO_FATURA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+
+}
+
+@section scripts{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+    <script src="~/bin/Scripts/download.js"></script>
+
+    <script>
+
+        $(document).ready(function () {
+
+            AddSelect("iCliente", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+        });
+
+        var link = baseUrl + "/api/Acompanhamento_ServicoApi/HistoricoAtendimento";
+
+        var oDatatable = null;
+        var rows_selected = [];
+
+        function switchTabInIframe() {
+            if (oDatatable != null) {
+                TableManageButtons.init();
+            }
+        };
+
+        function FiltrarDataTable() {
+
+            var date1 = new Date(parseInt($("#iDtInicialFiltro").val().substring(6, 10)), parseInt($("#iDtInicialFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtInicialFiltro").val().substring(0, 2)));
+            var date2 = new Date(parseInt($("#iDtFinalFiltro").val().substring(6, 10)), parseInt($("#iDtFinalFiltro").val().substring(3, 5)) - 1, parseInt($("#iDtFinalFiltro").val().substring(0, 2)));
+
+            const diffTime = Math.abs(date2 - date1);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 30) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido (menor que 30 dias)", "info");
+                return false;
+            }
+
+            if ($("#iDtInicialFiltro").val() == "" || $("#iDtFinalFiltro").val() == "") {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+            if ((date2 - date1) < 0) {
+                Notificar("@RsBase.INFORMACAO", "Atenção! Por favor filtrar um período válido", "info");
+                return false;
+            }
+
+            TableManageButtons.init();
+            return true;
+        }
+
+        function ProtocoloLink(id) {
+
+            var _url = `@Url.Action("Cadastro", "Atendimento")?Numero_Protocolo=${id}`;
+            parent.AddAba(_url, "Cadastro");
+
+        };
+
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty();
+                oDatatable = null;
+            }
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                columnDefs: [
+                    {
+                        targets: 0,
+                        searchable: false,
+                        orderable: false,
+                        width: '1%',
+                        className: 'dt-body-center',
+                        render: function (data, type, full, meta) {
+
+                            return "<input type='checkbox'></input>";
+                        }
+                    }
+                ],
+                select: {
+                    style: 'multi'
+                },
+                order: [[1, 'asc']],
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                deferRender: true,
+                scrollY: '73vh',
+                scroller: {
+                    loadingIndicator: true,
+                    rowHeight: 40,
+                    boundaryScale: 0.5,
+                    displayBuffer: 3
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+
+                    url: link,
+                    type: 'POST',
+                    data: function (data) {
+
+                        data.id_Cliente = $('#iCliente').val();
+                        data.dataInicial = $('#iDtInicialFiltro').val();
+                        data.dataFinal = $('#iDtFinalFiltro').val();
+                        data.status = $('#iStatusAtendimento').val();
+                        data.id_Tipo_Atendimento = $('#iTipoAtendimento').val();
+                        data.responsavel = $('#iResponsavel').val();
+
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                drawCallback: () => {
+
+
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+
+                    { title: "<input name='select_all' value='1' type='checkbox'>" },                    
+
+                    {
+                        data: "numero", title: "@RsCadastros.PROTOCOLO", orderable: false, render: function (data, type, row, meta) {
+
+
+                            return `<a href="#" onclick="ProtocoloLink(${row.protocolo})">${row.protocolo}</a>`;
+                        }
+                    },
+
+                    { data: "tipoAtendimento", title: "@RsCadastros.TIPOATENDIMENTO", orderable: false },
+                    { data: "assunto", title: "@RsCadastros.ASSUNTO", orderable: false },
+                    { data: "cliente", title: "@RsCadastros.CLIENTE", orderable: false },
+                    { data: "dataHoraCriacao", title: "@RsCadastros.DATAHORA_CRIACAO", orderable: false },                       
+                    { data: "dataSla", title: "@RsCadastros.DATA_HORA_SLA", orderable: false },                     
+                    { data: "responsavel", title: "@RsCadastros.RESPONSAVEL", orderable: false },
+                    { data: "status", title: "@RsCadastros.STATUS", orderable: false },
+                    { data: "motivoStatus", title: "@RsCadastros.MOTIVOS_STATUS_ATENDIMENTO", orderable: false },
+
+                ]
+            });
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+            $("#btnFiltro").on("click", function () {
+            });
+
+            // Handle click on checkbox
+            $('#datatable tbody').on('click', 'input[type="checkbox"]', function (e) {
+                var $row = $(this).closest('tr');
+
+                // Get row data
+                var rowId = oDatatable.row($row).data().id;
+
+                var index = $.inArray(rowId, rows_selected);
+
+                // If checkbox is checked and row ID is not in list of selected row IDs
+                if (this.checked && index === -1) {                  
+                    
+                    rows_selected.push(rowId);
+
+                    // Otherwise, if checkbox is not checked and row ID is in list of selected row IDs
+                } else if (!this.checked && index !== -1) {
+                    rows_selected.splice(index, 1);
+                }
+
+                if (this.checked) {
+                    $row.addClass('selected');
+                } else {
+                    $row.removeClass('selected');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            $('#datatable').on('click', 'tbody td, thead th:first-child', function (e) {
+                $(this).parent().find('input[type="checkbox"]').trigger('click');
+            });
+
+            // Handle click on "Select all" control
+            $('thead input[name="select_all"]', oDatatable.table().container()).on('click', function (e) {
+                if (this.checked) {
+                    $('#datatable tbody input[type="checkbox"]:not(:checked)').trigger('click');
+                } else {
+                    $('#datatable tbody input[type="checkbox"]:checked').trigger('click');
+                }
+
+                // Prevent click event from propagating to parent
+                e.stopPropagation();
+            });
+
+            // Handle table draw event
+            oDatatable.on('draw', function () {
+                // Update state of "Select all" control
+                updateDataTableSelectAllCtrl(oDatatable);
+
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+
+    </script>
+}
+
+
+@Html.HiddenFor(model => model.Id_Cliente, new { @id = "iIdClienteHisFat" })
+
+
+<div style="padding:10px;">
+    <div class="card" style="box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.1); border:none;">
+        <div class="card-body" style="padding-top: 0">
+            <!--main-->
+            <!--Filtros-->
+
+
+            <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#heading_5">
+
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <label class="" for="iNome"><span class="text-danger">*</span>@RsCadastros.PERIODOABERTURA:</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-sm-2 col-md-2">
+                        <div class="form-group" style="margin-bottom:0px !important">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.DE:</label>
+                        </div>
+                        @*<input type="text" class="form-control datepicker" value="@DateTime.Today.AddDays(-30).Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDtInicialFiltro">*@
+                        @Html.TextBoxFor(model => model.DataInicial, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDtInicialFiltro", @autocomplete = "off" })
+
+                    </div>
+
+                    <div class="col-sm-2 col-md-2">
+                        <div class="form-group" style="margin-bottom:0px !important">
+                            <label for="iAssunto" class="mr-3">@RsCadastros.ATE:</label>
+                        </div>
+                        @*<input type="text" class="form-control datepicker" value="@DateTime.Today.Date.ToString("dd/MM/yyyy")" data_provide="datepicker" id="iDtFinalFiltro">*@
+                        @Html.TextBoxFor(model => model.DataFinal, new { @tabindex = "1", @class = "form-control filtro col-sm-3 ml-2 mr-2 datepicker", @id = "iDtFinalFiltro", @autocomplete = "off" })
+                    </div>
+
+                    <div class="col-sm-8 col-md-8 text-right mt-3 pb-2 pr-5">
+                        <input type="button" class="btn btn-primary" style="font-size:0.8rem" value="Carregar" id="btnFiltro" onclick="return FiltrarDataTable()" />
+                    </div>
+
+                </div>
+                <div class="row">
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iCliente" class="mr-3">@RsCadastros.CLIENTE:</label>
+                        </div>
+                        @Html.DropDownListFor(m => m.Id_Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCliente", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Id_Cliente, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iTipoAtendimento" class="mr-3">@RsCadastros.TIPOATENDIMENTO</label>
+                        </div>
+                        @Html.DropDownListFor(m => m.Id_Tipo_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoAtendimento", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Id_Tipo_Atendimento, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iStatusAtendimento" class="mr-3">@RsCadastros.STATUS_ATEDIMENTO</label>
+                        </div>
+                        @Html.EnumDropDownListFor(m => m.Status, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Status, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="col-sm-2">
+                        <div class="form-group">
+                            <label for="iResponsavel" class="mr-3">@RsCadastros.RESPONSAVEL</label>
+                        </div>
+                        @Html.DropDownListFor(m => m.Responsavel, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iResponsavel", @autocomplete = "off" })
+                        @Html.ValidationMessageFor(model => model.Responsavel, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="pl-4 pr-2 ">
+                        <div class="form-group">
+                            <label for="txtSearch">@RsCadastros.PROTOCOLO</label>
+                            <div class="input-group">
+                                <input type="text" class="input-search" id="txtSearch" placeholder="Digite aqui o protocolo de atendimento" autocomplete="off">
+                                <i id="iSearchButton" class="la la-search la-2x" style="color: #999"></i>
+                            </div>
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!--.Filtros-->
+
+                <table class="table table-hover nowrap" id="datatable" style="width:100%">
+                    <thead class="tb-head">
+
+                    </thead>
+                </table>
+
+
+            </div>
+        </div>
+    </div>
+</div>

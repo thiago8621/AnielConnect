@@ -1,0 +1,155 @@
+﻿@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.LOG_ATUALIZACAO_LOGINS;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+    <style>
+        .popover {
+            max-width: 45%; /* Max Width of the popover (depending on the container!) */
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.Render("~/bundles/jsDataTable")
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+
+    <script>
+
+        $("#iCheck").change(function (e) {
+            if (e.target.checked) {
+                $("#iData").prop("disabled", false);
+            }
+            else {
+                $("#iData").prop("disabled", true);
+                $("#iData").val(null);
+            }
+        });
+
+        let colunasDatatable =
+            [   
+                { data: "login", title: "Login" },
+                { data: "data", title: "Data Importação" },
+                { data: "hora", title: "Hora Importação" },
+                { data: "usuario", title: "Usuário Importou" },
+                { data: "detalhe", title: "Detalhe" },
+                { data: "sucesso", title: "Sucesso" },
+            ];
+
+        var oDatatable;        
+
+        function criarDataTable() {
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+            dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+            select: {
+                style: 'multi'
+            },
+            serverSide: true,
+            searching: true,
+            ordering: false,
+            paging: true,
+            deferRender: true,
+            scrollResize: true,
+            scrollY: '66vh',
+            stateSave: true,
+            scrollX: true,
+            fixedHeader: true,
+            initComplete: dataTableInitComplete,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+            ajax: {
+                url: baseUrl + '/api/LoginRadiusapi/LogAtualizacaoLogins',
+                type: 'POST',
+                data: function (data) {
+                    ShowPageLoading();
+                    data.data = $('#iData').val();
+                },
+                error: function (e) {
+                    console.log(e);
+                    Notificar("@RsCadastros.ERRO", "Falha na comunicação com o servidor", "warning");
+                    HidePageLoading();
+                },
+                dataSrc: function (d) {
+                    HidePageLoading();
+                    return d.data;
+                }
+            },
+            infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+            },
+            pageLength: 10,
+            order: [],
+            language: traducaoDataTableSimples,
+            columns: colunasDatatable
+            });
+        }
+
+        $('#btnFiltrar').on('click', function () {
+            if (oDatatable == null || oDatatable == undefined)
+                criarDataTable();
+            else
+                oDatatable.draw();
+        });
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-8 mt-3">
+
+            <h4 class="title-page"><i class="fas fa-clipboard-list"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("AtualizaLogins", "LoginRadius")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.ATUALIZAR_LOGINS_EM_MASSA</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col title-page form-group float-right mt-5 p-1">
+
+            <div class="row">
+                <span class="pl-3">Data Atualização :</span>
+            </div>
+            <div class="row">
+                <input id="iCheck" type="checkbox" class="mr-2 mt-1" />
+                <input disabled class="form-control obrigatorio datepicker-period mb-1" id="iData" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+                <button id="btnFiltrar" class="btn btn-info ml-3">Filtrar</button>
+                <button class="btn btn-success ml-3" onclick="$('.buttons-excel').click()">Exportar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="divTable" class="ml-3 mr-3">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>

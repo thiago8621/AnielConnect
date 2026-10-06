@@ -1,0 +1,317 @@
+﻿@model Aniel.Connect.Models.CircuitoTelefoniaDetalhesModel
+@using Aniel.Connect.Model.enumerado
+
+
+@{
+    ViewBag.Title = RsCadastros.DETALHES.Insert(RsCadastros.DETALHES.Length, " da Telefonia");
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+
+    <style>
+
+        th.sorting_asc::after {
+            display: none !important;
+        }
+
+        th.sorting_asc::before {
+            display: none !important;
+        }
+
+        th.sorting::after {
+            display: none !important;
+        }
+
+        th.sorting::before {
+            display: none !important;
+        }
+    </style>
+
+}
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+<script>
+
+        var handleDataTableButtons = function () {
+            "use strict";
+
+            var array = @Html.Raw(Json.Encode(Model.DidsVinculados));
+
+            var nome_lista = "Dids_Vinculados";//Nome_utilizado para enganar o razor
+
+            //"Blfrtip"
+            var oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                language: traducaoDataTableSimples,
+                data: array,
+
+                columns: [
+                    {
+                        data: "Id",
+                        title: "Excluir",
+                        render: function (data, type, row, meta) {
+                            return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.IdDid + '"><i class="far fa-trash-alt" style="font-size:16px; padding-right:2px;"></i></a>' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                    },
+                    {
+                        data: "Did",
+                        title: "DID"
+                    },
+                    {
+                        data: "Ddr",
+                        title: "DDR"
+                    },
+                    {
+                        data: "PlanoVinculado",
+                        title: "Plano Vinculado"
+                    },
+                    {
+                        data: "Mensalidade",
+                        title: "Mensalidade"
+                    },
+                    {
+                        data: "Sigame",
+                        title: "Siga-me Ativado?"
+                    },
+                    {
+                        data: "BlackList",
+                        title: "BlackList Ativado?"
+                    },
+                    {
+                        data: "Chamada_Cobrar",
+                        title: "Chamada a Cobrar Ativado?"
+                    }
+                ],
+
+            });
+            @if (Model.Tipo_Numero == numero_Virtual.DID)
+            {
+                <text>
+                let teste = 2;
+                </text>
+            }
+            else if (Model.Tipo_Numero == numero_Virtual.DDR)
+            {
+                <text>
+                let teste = 2;
+                </text>
+            }
+
+
+            function handleExcluir() {
+                $(".btnExcluir").unbind('click');
+                $(".btnExcluir").click(function (e) {
+                    e.preventDefault();
+
+                    var idArquivo = $(this).attr("excluir");
+
+                    var trLinkButton = $(this).parents('tr');
+
+                    if (idArquivo === "0") {
+                        oDatatable.row(trLinkButton).remove().draw(false);
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                    }
+                    else {
+
+                        var link = '@String.Concat(CONSTANTES.URLPortal, "/api/CircuitoTelefoniaApi/ExcluirDid?value=")' + idArquivo;
+
+                        $.ajax({
+                            url: link,
+                            type: 'GET',
+                            dataType: 'json',
+
+                        })
+                            .done(function (data) {
+
+                                if (data.ok) {
+                                    oDatatable.row(trLinkButton).remove().draw(false);
+                                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                                }
+                                else {
+                                    Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                                }
+                            })
+                            .fail(function () {
+
+                            })
+                            .always(function () {
+
+                            });
+                    }
+                });
+            }
+
+            handleExcluir();
+
+            $("#btnAdicionar").on("click", function () {
+
+
+                if (!$("#iDid").val())
+                {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.DID)", "warning");
+                    return false;
+                }
+                if (!$("#iPlano").val())
+                {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PLANO)", "warning");
+                    return false;
+                }
+                if (!$("#iMensalidade").val())
+                {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MENSALIDADE)", "warning");
+                    return false;
+                }
+
+                const link = '@String.Concat(CONSTANTES.URLPortal, "/api/CircuitoTelefoniaApi/AdicionarDid")';
+                $.ajax({
+                    url: link,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        IdVenda : @Model.IdVenda,
+                        IdDid: $("#iDid").val(),
+                        Mensalidade: $('#iMensalidade').val(),
+                        IdPlano: $("#iPlano").val()
+                    },
+                    beforeSend: function () {
+                        ShowPageLoading();
+                    },
+                    complete: function () {
+                        HidePageLoading();
+                    }
+                }).done(function (data) {
+                    if (!data.ok) {
+                        Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                    }
+                });
+
+
+                oDatatable.row.add({
+                    IdCircuito: 0,
+
+                    IdDid: $("#iDid").val(),
+                    Did: $('#iDid option:selected').text(),
+                    Ddr : "",
+                    IdPlanoVinculado: $('#iPlano').val(),
+                    PlanoVinculado: $('#iPlano option:selected').text(),
+                    Chamada_Cobrar: "",
+                    Sigame: "",
+                    BlackList:"",
+                    Mensalidade: $('#iMensalidade').val(),
+                }).draw(false);
+
+                $("#iDid").val("").trigger("change");
+                $("#iPlano").val("").trigger("change");
+                $("#iMensalidade").val("");
+
+                handleExcluir();
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+        TableManageButtons.init();
+
+        AddSelect("iRota", "@CONSTANTES.URLPortal/api/RotaTelefoniaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id", "@RsBase.SELECIONE", false);
+
+    $('input[type=radio][name=Tipo_Numero]').change(function () {
+
+        const src = `@Url.Action("Detalhes", "CircuitoTelefonia")?IdVenda=@Model.IdVenda&&TelefoniaType=${$(this).val()}`;
+        window.location.href = src;
+    });
+
+        $(document).ready(function () {
+            var handleDid = function () {
+                $("#iDid").unbind("select2:select select2:unselecting");
+                $("#iDid").on("select2:select select2:unselecting", async function (e) {
+                    const didSelecionado = e.params.data;
+                    $("#iMensalidade").val(didSelecionado.valor);
+                });
+            }
+
+            let tipoNumero = $('input[type=radio][name=Tipo_Numero]:checked').val();
+
+            AddSelect("iPlano", "@CONSTANTES.URLPortal/api/PlanoApi/GetComboTelefoniaVenda",@CONSTANTES.PaginacaoRegistros, null, @Model.IdVenda, null, "@RsBase.SELECIONE", false);
+            AddSelect("iDid", "@CONSTANTES.URLPortal/api/DidApi/GetComboNum_Did",@CONSTANTES.PaginacaoRegistros, null, tipoNumero, null, "@RsBase.SELECIONE", false, handleDid);
+        });
+
+
+</script>
+}
+
+@using (Html.BeginForm("CadastroDidManual", "CircuitoTelefonia", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(p => p.IdVenda)
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row mt-3">
+
+                    <div class="col-sm-3">
+                        @if (this.Model.Tipo_Numero == numero_Virtual.DID)
+                        {
+                            @Html.RadioButtonFor(model => model.Tipo_Numero, numero_Virtual.DID, new { @id = "iTypeDid", @checked = "" });
+                        }
+                        else
+                        {
+                            @Html.RadioButtonFor(model => model.Tipo_Numero, numero_Virtual.DID, new { @id = "iTypeDid" });
+                        }
+                        <label for="iTypeDid " class="ml-2 mr-4">
+                            @RsCadastros.DID
+                        </label>
+
+                        <label for="iTypeDdr " class="ml-2">
+                            @if (this.Model.Tipo_Numero == numero_Virtual.DDR)
+                            {
+                                @Html.RadioButtonFor(model => model.Tipo_Numero, numero_Virtual.DDR, new { @id = "iTypeDdr", @checked = "" });
+                            }
+                            else
+                            {
+                                @Html.RadioButtonFor(model => model.Tipo_Numero, numero_Virtual.DDR, new { @id = "iTypeDdr" });
+                            }
+                            @RsCadastros.DDR
+                        </label>
+                    </div>
+                    <div class="col-sm-2 mt-3">
+                        <label for="iCliente" style="font-size:13px" class="fs-8">@RsCadastros.DID.Insert(0, @RsBase.SELECIONE + " o "):</label>
+                        <div class="form-group">
+                            @Html.DropDownListFor(model => model.Selecione_Did, new SelectList(new List<Aniel.Connect.Core.ObjCombo<long?>>(), "Id", "Text"), @RsBase.SELECIONE, new { @class = "form-control", @id = "iDid", @autocomplete = "off", @Maxlength = 100 })
+                        </div>
+                    </div>
+                    <div class="col-sm-2 ">
+                        <label for="iPlanoProduto" style="font-size:13px">@RsCadastros.PLANO.Insert(0, @RsBase.SELECIONE + " o "):</label>
+                        <div class="form-group">
+                            @Html.DropDownListFor(model => model.Selecione_Plano, new SelectList(new List<Aniel.Connect.Core.ObjCombo<long?>>(), "Id", "Text"), @RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano", @autocomplete = "off", @Maxlength = 100 })
+                        </div>
+                    </div>
+                    <div class="col-sm-2 mt-3">
+                        <label for="iMensalidade" style="font-size:13px">@RsCadastros.MENSALIDADE:</label>
+                        <div class="form-group">
+                            @Html.TextBoxFor(model => model.Valor_Mensalidade, new { @class = "form-control money", @id = "iMensalidade", @autocomplete = "off", @placeholder = "0,00" })
+                        </div>
+                    </div>
+                    <div class="col-sm-2  mt-3 pt-3 text-center">
+                        <input type="button" id="btnAdicionar" value="Adicionar" class="btn btn-success" onclick="" />
+                    </div>
+                </div>
+
+                <div class="row-mt-3">
+                    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+}

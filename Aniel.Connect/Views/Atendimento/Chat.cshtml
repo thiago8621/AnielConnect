@@ -1,0 +1,1058 @@
+﻿@model Aniel.Connect.Models.AtendimentoCadastroModel
+@using Microsoft.AspNet.Identity;
+@using System.Web.Mvc;
+@using Aniel.Connect.Models.T5
+
+@{
+    ViewBag.Title = RsCadastros.CHAT;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.AreasAcesso;
+    //var campos = (List<CamposObrigatoriosAtendimentoModel>)ViewBag.CamposObrigatorios;
+    var camposObrigatorios = (Dictionary<string,bool>)ViewBag.CamposObrigatorios;
+    var camposBloqueados = (  Dictionary<string,bool>)ViewBag.CamposBloqueados;
+}
+@section styles{
+    <style>
+
+      /*  #chatFrame {
+            background-image: url('../../Images/bg-telecom2.jpg');
+            background-size: 130px;
+        }
+*/
+       
+        /*cadastro*/
+        .swal2-popup {
+            padding: 0.25em !important;
+        }
+
+        button.swal2-cancel.swal2-styled {
+            width: 135px !important;
+        }
+
+        button.swal2-confirm.swal2-styled {
+            width: 135px !important;
+        }
+        /*Resolvendo o zindex do select2*/
+        .select2-container--open {
+            z-index: 9999999
+        }
+
+        .ml-input {
+            margin-left: -18px;
+        }
+
+
+        #left {
+            /*background-color: #2ecc71;*/
+            /*text-align: center;*/
+            height: 100%;
+            position: absolute;
+            top: 0px;
+            bottom: 0;
+            left: 0;
+            overflow-y: scroll;
+            padding-top: 100px;
+            padding-bottom: 50px;
+            padding-left: 35px;
+        }
+
+        #right {
+            height: 100%;
+            /*background-color: #f1c40f;*/
+            /*text-align: center;*/
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            overflow-y: scroll;
+            padding-top: 100px;
+            padding-bottom: 70px;
+            padding-left: 35px;
+        }
+
+        .fixed-bottom {
+            left: initial;
+        }
+
+        .input-group {
+            width: 65%;
+        }
+        /*end cadastro*/
+
+
+        ::placeholder {
+            color: black !important;
+        }
+
+        .type_msg {
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            height: 60px !important;
+            overflow-y: auto;
+        }
+
+            .type_msg:focus {
+                box-shadow: none !important;
+                outline: 0px !important;
+            }
+
+        .attach_btn {
+            border-radius: 15px 0 0 15px !important;
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            cursor: pointer;
+        }
+
+        .send_btn {
+            border-radius: 0 15px 15px 0 !important;
+            background-color: gray !important;
+            border: 0 !important;
+            color: white !important;
+            cursor: pointer;
+        }
+
+        .input-group > .custom-select:not(:first-child), .input-group > .form-control:not(:first-child) {
+            border-top-left-radius: 0em !important;
+            border-bottom-left-radius: 0em !important;
+        }
+
+        .msg_time {
+            position: absolute;
+            left: 0;
+            bottom: -15px;
+            color: black;
+            font-size: 10px;
+        }
+
+        .msg_container {
+            min-width: 100px;
+            word-wrap: break-word;
+            margin-top: auto;
+            margin-bottom: auto;
+            margin-left: 10px;
+            border-radius: 25px;
+            background-color: #82ccdd;
+            padding: 10px;
+            position: relative;
+        }
+
+        .msg_container_end {
+            min-width: 100px;
+            word-wrap: break-word;
+            margin-top: auto;
+            margin-bottom: auto;
+            margin-left: 10px;
+            border-radius: 25px;
+            background-color: #78F498;
+            padding: 10px;
+            position: relative;
+        }
+    </style>
+}
+@section scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+<script>
+
+        var HandleDepartamento = function () {
+            $('#iSetor').on('select2:select select2:unselecting', function (e) {
+                DepartamentoSelecionado = e.params.data;
+                AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, DepartamentoSelecionado.id, "@Model.Id_Responsavel", "@RsBase.SELECIONE", false);
+            });
+        }
+
+        $(document).ready(async function () {
+
+             $(window).resize(function () {
+                $("#Chat").css({
+                    height: $(window).height() - $(window).height()/6
+                });
+            });
+
+            var mensagens_string = await parent.getChatMessages('@Request.Params["Numero_Protocolo"]')
+            var mensagens = Boolean(mensagens_string) ? JSON.parse(mensagens_string) : [];
+            $('#chatFrame').on('load', function() {
+                for (message of mensagens) {
+                    renderMessage(message.mensagem, message.dataHora, message.enviadoPeloSuporte ? true : false);
+                }
+            });
+
+
+            $("#Chat").css({
+                height:  $(window).height() - $(window).height()/6
+            });
+
+            await  AddSelect("iSetor", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Setor", "@RsBase.SELECIONE", false,HandleDepartamento);
+            await  AddSelect("iResponsavel", "@CONSTANTES.URLPortal/api/Identity_UserApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Responsavel", "@RsBase.SELECIONE", false );
+            await  AddSelect("iTipoAtendimento", "@CONSTANTES.URLPortal/api/Tipo_Atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Tipo_Atendimento", "@RsBase.SELECIONE", false);
+            await  AddSelect("iCategoriaAtendimento", "@CONSTANTES.URLPortal/api/categoria_atendimentoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Categoria_Atendimento", "@RsBase.SELECIONE", false);
+
+        })
+
+        $('#btnGravar').click(async  function () {
+
+            const categoria_atendimento = $('#iCategoriaAtendimento').val();
+            const tipo_atendimento = $('#iTipoAtendimento').val();
+            const responsavel = $('#iResponsavel').val();
+            const setor = $('#iSetor').val();
+
+            await $.ajax({
+                url: '@String.Concat(CONSTANTES.URLPortal, "/api/atendimentoapi/GravarDadosAtendimentoChat")',
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    id: "@Model.Id",
+                    id_Categoria_Atendimento: categoria_atendimento,
+                    id_Tipo_Atendimento: tipo_atendimento,
+                    id_Responsavel: responsavel,
+                    id_Setor: setor,
+                    nome_Cliente: "",
+                    cpf:"",
+                    categoria_Cliente:"",
+                    plano_Produto:""
+                }
+            })
+
+            window.location.reload()
+        })
+
+    function renderMessage(message, datetime, fromClient) {
+
+        if (!fromClient) {
+            const messageSound = new Audio('@CONSTANTES.URLPortal/sounds/notification-1-269296.mp3');
+            messageSound.play().catch(e => console.error("Erro ao reproduzir som:", e));
+        }
+
+            datetime = moment().format("HH:mm")
+
+            $('#messages', $('#chatFrame').contents()).html($('#messages', $('#chatFrame').contents()).html() +
+
+                `<div class="row justify-content-${fromClient == true ? "start" : "end"}">
+                    <div class="card mb-3 mt-3" style="width:50%; border-radius: 1rem;">
+                        <div style="border-radius: 1rem;" class="card-body ${fromClient == true ? "alert-secondary text-left" : "alert-info text-left"} ">
+                           <div class="row" style="font-size: 14px;">
+                              <div class="col text-capitalize text-truncate">
+                                ${fromClient == true ? "<i class='icofont-ui-head-phone'></i><strong style='text-transform: capitalize !important;'> @User.Identity.GetUserName().ToLowerInvariant()</strong>" : "<i class='icofont-ui-user'></i><strong> @Model.Nome_Cliente</strong>" }
+                              </div>
+                            <div class="col text-right">
+                                <span class="ml-5">${datetime}</span>
+                            </div>
+                          </div>
+                          <hr style="margin-top: 5px;margin-bottom: 5px; background-color: #000;">
+                          <div class="row" style="font-size: 14px;">
+                              <div class="col">
+                                ${message}
+                              </div>
+                          </div>
+                    </div>
+                </div>
+                `)
+        const messagesContainer = $('#messages', $('#chatFrame').contents())[0];
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+             //${fromClient ? "<i class='icofont-ui-head-phone'></i>" : "<i class='icofont-ui-user'></i>"}
+
+        }
+
+        async function sendMessage() {
+
+           // const datetime = moment().format("DD/MM/YYYY HH:mm")
+            const datetime = moment().format("HH:mm")
+            const message = {
+                mensagem: $('#inlineFormInputGroupUsername2').val(),
+                dataHora: datetime,
+                enviadoPeloSuporte: true,
+                statusEnvio: 1,
+                idConexao: parent.chat.connection.id
+            }
+
+            parent.chat.server.enviarMensagem('@Request.Params["Numero_Protocolo"]', JSON.stringify(message))
+            renderMessage(message.mensagem, message.dataHora, true)
+
+            $('#inlineFormInputGroupUsername2').val("")
+        }
+
+        $('#inlineFormInputGroupUsername2').keyup(function (event) {
+            if (event.keyCode === 13) {
+                event.preventDefault();
+                sendMessage()
+            }
+        })
+
+        async function finalizarAtendimento() {
+
+            var result = await Swal.fire({
+              title: 'Desejar concluir o atendimento junto ao término do atendimento por chat ?',
+              text: "",
+              icon: 'warning',
+              showCancelButton: true,
+              confirmButtonColor: '#3085d6',
+              cancelButtonColor: '#d33',
+              confirmButtonText: '@Html.Raw(RsBase.SIM)',
+              cancelButtonText: '@Html.Raw(RsBase.NAO)'
+            })
+
+            if (result.dismiss != "backdrop") {
+                if (result.value) {
+                    await parent.chat.server.finalizarAtendimento('@Request.Params["Numero_Protocolo"]',true);
+                }
+                else {
+                    await parent.chat.server.finalizarAtendimento('@Request.Params["Numero_Protocolo"]',false);
+                }
+                window.location.reload();
+            }
+        }
+
+</script>
+
+}
+
+<div class="container-fluid">
+
+    <!--main-->
+    <div class="sticky-top bg-white" style=" z-index: 1021 !important;">
+        <div class="row bg-white">
+            <div class="col main-title mr-auto">
+                <h4 class="title-page">
+                    <i class="fas fa-headset"></i>
+                    @if (Model.Id != 0)
+                    {
+                        @RsCadastros.ACOMPANHAMENTO_ATENDIMENTO
+                    }
+                    else
+                    {
+                        @ViewBag.Title
+                    }
+
+                </h4>
+
+                <nav class="mb-20">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="@Url.Action("Listagem_Atendimento", "Atendimento")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_ATENDIMENTO</a>
+                        </li>
+                        <li class="breadcrumb-item active">
+                            <span>@ViewBag.Title</span>
+                        </li>
+                    </ol>
+                </nav>
+
+            </div>
+
+
+
+            <!--Button Menu-->
+            <div class="col-auto">
+
+                @if (Model.Id_Tipo_Atendimento != null && Model.Id_Categoria_Atendimento != null)
+                {
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+
+                        @if (Model.Id != 0)
+                        {
+                            <a class="dropdown-item" id="btnHistorico" href="#" onclick="AbrirHistorio();"><i class="far fa-clock"></i> @RsCadastros.HISTORICO_ATENDIMENTO</a>
+                        }
+
+
+                        @if (Model != null && Model.Id != 0)
+                        {
+                            if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                            {
+
+                                @Html.HiddenFor(model => model.Id, new { @id = "iId" })
+
+                                <a class="dropdown-item" id="btnCriarOs"><i class="fas fa-wrench"></i> @RsCadastros.CRIAR_OS</a>
+
+                            }
+                        }
+
+
+                        @*<a href="@Url.Action("Criar_Ordem_Servico", "Painel_Servicos", new { Id_Atendimento = Model.Id })" class="dropdown-item" id="btnCriarOs" onclick=""><i class="fas fa-wrench"></i> @RsCadastros.CRIAR_OS</a>*@
+
+
+                        @if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                        {
+                            <a class="dropdown-item" id="btnAtalhoCadCli" href="@Url.Action("CadastroClientePasso1", "Cliente")" onclick=""><i class="fas fa-user"></i> @RsCadastros.ATALHO_CADASTRO_CLIENTE</a>
+                        }
+
+                        @if (Model != null && Model.Id != 0)
+                        {
+                            if (Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                            {
+
+                                <a class="dropdown-item" id="btnEnviarPesqSat" href="#" onclick='return EnviarPesquisa();'><i class="far fa-smile"></i> @RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+
+                            }
+                            else
+                            {
+                                <a class="dropdown-item" id="btnEnviarPesqSat" href="#" onclick='javascript:void(0);'><i class="far fa-smile"></i> @RsCadastros.ENVIAR_PESQUISA_SATISFACAO</a>
+
+                            }
+                        }
+
+                        @if (Model.Id != 0)
+                        {
+                            <a class="dropdown-item" id="btnEnviarEmailAss" href="#" onclick=""><i class="fas fa-envelope"></i> @RsCadastros.ENVIAR_EMAIL_AO_ASSINANTE</a>
+                        }
+
+                        @if (Model.Status_Atendimento != Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido)
+                        {
+                            <a class="dropdown-item" id="btnTrocarEnderecoInstalacao" href="#" onclick="AlterarEndereco($('#idEnderecoCliente').val())"><i class="fas fa-map-marker-alt"></i> @RsCadastros.TROCAR_ENDERECO_INSTALACAO</a>
+                        }
+
+
+
+                        @if (Model.Id != 0 && (Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Cancelado || Model.Status_Atendimento == Aniel.Connect.Model.enumerado.Status_Atendimento.Concluido))
+                        {
+                            <a class="dropdown-item" id="btnReabrirAtendimento" href="#" onclick="return swalReabrirAtendimento($('#iId').val());"><i class="fas fa-headset"></i> @RsCadastros.REABRIR_ATENDIMENTO</a>
+                        }
+
+                    </div>
+
+                    <a id="botao_ellipsis" class="btn-default" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                    </a>
+                }
+            </div>
+        </div>
+
+        <!--Número Atendimento-->
+        <div class="row bg-white">
+            <div class="col form-group ml-3">
+                <label for="iNome" class="text-bold-card" style="font-size: 20px;">@RsCadastros.PROTOCOLO: #@Request.Params["Numero_Protocolo"]</label>
+                @Html.HiddenFor(model => model.Numero, new { Id = "iNumeroAtendimento" })
+                <span id="iNumeroAtendimentoHtml" style="font-size: 20px;">@Model.Numero</span>
+            </div>
+        </div>
+
+    </div><!--.stick-top-->
+
+
+    <div class="row pl-3 pr-3">
+        <!--COLUNA ESQUERDA - SOBRE O ATENDIMENTO-->
+        <div class="col-4" id="left">
+            <!--Titular-->
+            <div class="form-group">
+                <label for="iNome" class="text-bold-card">@RsCadastros.TITULAR </label>
+                <div class="ml-input">
+                    @if (Model.Id == 0)
+                    {
+
+
+                        @Html.HiddenFor(model => model.Nome_Cliente, new { Id = "iCpfClienteHidden" })
+                        @Html.TextBoxFor(model => model.Nome_Cliente, new { @class = "form-control", @id = "iCpfCliente", @autocomplete = "off", @required = true, @placeholder = RsCadastros.NOMEOUDOCUMENTO })
+                        @Html.ValidationMessageFor(model => model.Nome_Cliente, "", new { @class = "text-danger" })
+
+
+                    }
+                    else
+                    {
+                        <br />
+                        <span id="iNomeCliente">@Model.Nome_Cliente</span>
+                        @Html.ValidationMessageFor(model => model.Nome_Cliente, "", new { @class = "text-danger" })
+                        @Html.HiddenFor(model => model.Nome_Cliente)
+                    }
+                </div>
+            </div>
+            <!--Plano-->
+            <div class="form-group">
+                <label for="iPlano_Produto" class="text-bold-card">@RsCadastros.PLANO_PRODUTO:</label>
+
+                <div class="ml-input">
+                    @Html.HiddenFor(m => m.Id_Cliente_Plano_Produto, new { @id = "iCliente_Plano_Produto" })
+                    @if (Model.Id == 0 || (!Model.Id_Cliente_Plano_Produto.HasValue))
+                    {
+                        @Html.HiddenFor(model => model.Id_Plano_Produto)
+                        @Html.DropDownListFor(m => m.Id_Plano_Produto, new SelectList(ViewBag.Planos_Produtos, "Value", "Label"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano_Produto", @autocomplete = "off", @required = true })
+                        @Html.ValidationMessageFor(model => model.Id_Plano_Produto, "", new { @class = "text-danger" })
+                    }
+                    else
+                    {
+                        @Html.HiddenFor(model => model.Id_Plano_Produto)
+                        <span>@Model.Nome_Plano_Produto</span>
+
+                        @Html.HiddenFor(m => m.Nome_Plano_Produto, new { @id = "iNome_Plano_ProdutoHidden" })
+                    }
+                </div>
+            </div>
+            <!--Pessoa que entrou em contato-->
+            <div class="form-group">
+                <label for="iPessoaContato" class="text-bold-card">@RsCadastros.PESSOA_QUE_ENTROU_EM_CONTATO</label>
+                <div class="ml-input">
+                    @Html.RadioButtonFor(m => m.Tipo_Pessoa_Contato, "Titular", new { @id = "iRdTitular", @style = "margin-top: 2px;" })
+                    <label for="iRdTitular" class="pl-1 mr-2">@RsCadastros.TITULAR</label>
+
+                    @Html.RadioButtonFor(m => m.Tipo_Pessoa_Contato, "Outros", new { @id = "iRdOutros", @style = "margin-top: 2px;" })
+                    <label for="iRdOutros" class="pl-1">@RsCadastros.OUTROS</label>
+                </div>
+            </div>
+            <!--Sobre o Atendimento-->
+            <div class="mt-4 mb-4">
+                <p class="text-bold-card">@RsCadastros.SOBRE_O_ATENDIMENTO</p>
+            </div>
+            <!--Tipo de Atendimento-->
+            <div class="form-group">
+                <label for="iTipoAtendimento" class="text-bold-card">@RsCadastros.TIPO_ATENDIMENTO:</label>
+                <div class="ml-input">
+                    @Html.DropDownListFor(m => m.Id_Tipo_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ml-input", @id = "iTipoAtendimento", @autocomplete = "off" })
+                    @Html.ValidationMessageFor(model => model.Id_Tipo_Atendimento, "", new { @class = "text-danger" })
+                </div>
+            </div>
+            <!--Categoria de Atendimento-->
+            <div class="form-group">
+                <label for="iCategoriaAtendimento" class="text-bold-card">@RsCadastros.CATEGORIA_ATENDIMENTO:</label>
+                <div class="ml-input">
+                    @Html.DropDownListFor(m => m.Id_Categoria_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCategoriaAtendimento", @autocomplete = "off" })
+                    @Html.ValidationMessageFor(model => model.Id_Categoria_Atendimento, "", new { @class = "text-danger" })
+                </div>
+            </div>
+            <!--Prioridade-->
+            <div class="form-group">
+                @if (camposBloqueados.ContainsKey(RsCadastros.PRIORIDADE))
+                {
+                    Html.HiddenFor(m => m.Prioridade);
+                }
+                else
+                {
+
+
+                    <div class="form-group">
+                        <label for="iPrioridade_Atendimento" class="text-bold-card">@RsCadastros.PRIORIDADE_ATENDIMENTO:</label>
+                        <div class="ml-input">
+                            @Html.EnumDropDownListFor(m => m.Prioridade, RsBase.SELECIONE, new { @class = "form-control", @id = "iPrioridade_Atendimento" })
+                            @Html.ValidationMessageFor(model => model.Prioridade, "", new { @class = "text-danger" })
+                        </div>
+                    </div>
+
+
+                    @*<div class="btn-group btn-group-toggle btn-group-sm" data-toggle="buttons">
+                            <label for="iPrioridadeAlto" id="labelPrioridadeAlta" class="btn btn-danger @(@Model.Prioridade == Prioridade_Atendimento.Alto ? "active" : "")">
+                                @Html.RadioButtonFor(m => m.Prioridade, "Alto")<span>@RsBase.ALTO</span>
+                            </label>
+                            <label id="labelPrioridadeMedia" class="btn btn-danger  @(@Model.Prioridade == Prioridade_Atendimento.Medio ? "active" : "")">
+                                @Html.RadioButtonFor(m => m.Prioridade, "Medio")<span>@RsBase.MEDIO</span>
+                            </label>
+                            <label id="labelPrioridadeBaixa" class="btn btn-danger  @(@Model.Prioridade == Prioridade_Atendimento.Baixo ? "active" : "")">
+                                @Html.RadioButtonFor(m => m.Prioridade, "Baixo")<span>@RsBase.BAIXO</span>
+                            </label>
+                        </div>*@
+
+
+                    <div class="col-sm-9 text-right">
+                        <div class="mt-3">
+                            <a id="iLink_Script_Atendimento" class="btn btn-outline-info" href="#" onclick="Script_Atendimento()" style="display:none;"><i class="icofont-live-support icofont-2x"></i> @RsCadastros.SCRIPT_ATENDIMENTO</a>
+                        </div>
+                    </div>
+
+                }
+            </div>
+            <!--SLA de Atendimento-->
+            <div class="">
+                <label class="text-bold-card">@RsCadastros.SLA_ATENDIMENTO</label>
+            </div>
+            <!--Origem do Atednimento-->
+            <div class="form-group">
+                <label for="iNome" class="text-bold-card">@RsCadastros.ORIGEM:</label>
+                <div class="ml-input">
+                    @Html.DropDownListFor(m => m.Id_Origem_Atendimento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ml-input", @id = "iOrigem", @autocomplete = "off" })
+                    @*@Html.ValidationMessageFor(model => model.Id_Origem_Atendimento, "", new { @class = "text-danger" })*@
+                </div>
+            </div>
+            <!--Setor-->
+            <div class="form-group">
+                <label for="iDepartamento" class="text-bold-card">@RsCadastros.SETOR:</label>
+                <div class="ml-input">
+                    @Html.DropDownListFor(m => m.Id_Setor, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ml-input", @id = "iDepartamento", @autocomplete = "off" })
+                    @Html.ValidationMessageFor(model => model.Id_Setor, "", new { @class = "text-danger" })
+                </div>
+            </div>
+            <!--Responsável-->
+            <div class="form-group">
+                <label for="iResponsavel" class="text-bold-card">@RsCadastros.RESPONSAVEL:</label>
+                <div class="ml-input">
+                    @Html.DropDownListFor(m => m.Id_Responsavel, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control ml-input", @id = "iResponsavel", @autocomplete = "off" })
+                </div>
+            </div>
+            <!--Status do Atendimento-->
+            <div class="form-group">
+                <label for="iStatusAtendimento" class="text-bold-card">@RsCadastros.STATUS_ATEDIMENTO:</label>
+                <div class="ml-input">
+                    @Html.EnumDropDownListFor(m => m.Status_Atendimento, RsBase.SELECIONE, new { @class = "form-control", @id = "iStatusAtendimento" })
+                    @Html.ValidationMessageFor(model => model.Status_Atendimento, "", new { @class = "text-danger" })
+                </div>
+            </div>
+            <!--Motivo do Status-->
+            <div class="form-group" id="iDivMotivoStatus">
+
+                <label for="iMotivoStatus" class="text-bold-card">@RsCadastros.MOTIVOS_STATUS_ATENDIMENTO:</label>
+                <div class="ml-input">
+                    @Html.HiddenFor(model => model.Id_Motivo_Status, new { @id = "iHiddenMotivo" })
+                    @Html.DropDownListFor(m => m.Id_Motivo_Status, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), String.Concat(RsBase.SELECIONE, " ", RsCadastros.MOTIVOS_STATUS_ATENDIMENTO), new { @class = "form-control ml-input", @id = "iDescMotivoStatus", @autocomplete = "off" })
+                </div>
+            </div>
+            <!--Cliente-->
+            <div id="divAlterarEndereco"></div>
+            <span id="iTipoCliente" hidden="hidden"></span>
+
+        </div> <!--./Esquerda-->
+        <!--COLUNA DIREITA - CHAT-->
+        <div class="col-8" id="right">
+
+            <!--Nav Tabs-->
+            <div class="row bg-white sticky-top bg-white">
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="chat-tab" data-toggle="tab" href="#iTabChat" role="tab" aria-controls="chat" aria-selected="true"><i class="fas fa-comment-alt"></i> @RsCadastros.CHAT</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="atendimento-tab" data-toggle="tab" href="#iTabAtendimento" role="tab" aria-controls="atendimento" aria-selected="false"><i class="fa fa-headset"></i> @RsCadastros.ATENDIMENTO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="clienteProspect-tab" data-toggle="tab" href="#iTabClienteProspect" role="tab" aria-controls="clienteProspect" aria-selected="false"><i class="fa fa-user"></i> @RsCadastros.CLIENTE__PROSPECTO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="planoProduto-tab" data-toggle="tab" href="#iTabPlanoProduto" role="tab" aria-controls="PlanoProduto" aria-selected="true"><i class="fa fa-wifi"></i> @RsCadastros.PLANO_PRODUTO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="scriptAtendimento-tab" data-toggle="tab" href="#iTabScriptAtendimento" role="tab" aria-controls="scriptAtendimento" aria-selected="false"><i class="fa fa-code"></i> @RsCadastros.SCRIPT_ATENDIMENTO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="historicoFatura-tab" data-toggle="tab" href="#iTabHistoricoFatura" role="tab" aria-controls="historicoFatura" aria-selected="false"><i class="fa fa-file-archive"></i> @RsCadastros.HISTORICO_FATURA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="ordemServico-tab" data-toggle="tab" href="#iTabOrdemServico" role="tab" aria-controls="ordemServico" aria-selected="true"><i class="fas fa-file-contract"></i> @RsCadastros.ORDEM_SERVICO_ABA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="historicoAtendiemnto-tab" data-toggle="tab" href="#iTabHistoricoAtendiemnto" role="tab" aria-controls="historicoAtendiemnto" aria-selected="false"><i class="fa fa-file-audio"></i> @RsCadastros.HISTORICO_ATENDIMENTO</a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Tab Content Master-->
+            <div class="row">
+                <div class="col tab-content" id="myTab">
+                    <!--CHAT-->
+                    <div role="tabpanel" class="tab-pane active" id="iTabChat">
+
+                        <!--Chat-->
+                        <div class="accordion mb-3" id="accordion_10">
+                            <div class="card div-card-accord" style="height: 59vh;">
+                                <div class="card-header title-card" id="heading_10">
+
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_10" aria-expanded="true" aria-controls="collapse_10">
+                                            <span class="text-bold-card"><i class="far fa-comments"></i> @ViewBag.Title #@Request.Params["Numero_Protocolo"]</span>
+                                        </a>
+                                    </h5>
+                                    
+                                </div>
+                                <div id="collapse_10" class="collapse show" aria-labelledby="heading_10" data-parent="#accordion_10">
+                                    <div class="card-body" style="margin-top: -20px; height: 45vh;">
+
+                                        <!--Botões-->
+                                        <div class="col">
+                                            <div class="row mb-3">
+                                                <div class="col-4 pl-0">
+                                                    <div class="form-group" style=" height: 20px;">
+                                                        <select class="form-control btn-outline-secondary" id="exampleFormControlSelect1" style="height:28px;">
+                                                            <option>Convidar outro Atendente</option>
+                                                            <option>2</option>
+                                                            <option>3</option>
+                                                            <option>4</option>
+                                                            <option>5</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col text-right">
+                                                    <button type="button" class="btn btn-outline-secondary">Transferir Atendimento</button>
+                                                    <input type="button" id="btnGravar" value="Gravar" class="btn btn-outline-secondary ml-3" />
+                                                    <a class="btn btn-outline-secondary ml-3" href="#" onclick="finalizarAtendimento()">Concluir Chat</a>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!--Chat-->
+                                        <!--Messages Chat iFrame-->
+                                        <iframe id="chatFrame" frameBorder="0" src="@Url.Action("Chat_iFrame","Atendimento")" class="mt-1" scrolling="yes" style="width:100%;height:86%"></iframe>
+                                      
+                                        <!--Footer Send Message-->
+                                        <div class="input-group mb-2 mr-sm-2 mt-3" style="width: auto;">
+                                            <div class="input-group-prepend">
+                                                <div class="input-group-text" style="background-color: transparent !important;border: none !important" ;>
+                                                    <a href="#" class="text-dark"><i class="far fa-smile"></i></a>
+                                                </div>
+                                            </div>
+                                            <input type="text" class="form-control" id="inlineFormInputGroupUsername2" placeholder="Escreva aqui...">
+                                            <div class="input-group-apend">
+                                                <div class="input-group-text" style="background-color: transparent;border: none" ;>
+                                                    <a href="#" onclick="sendMessage()" class="text-dark"> <i class="fas fa-paper-plane"></i> </a>
+                                                    <a href="#" onclick="sendMessage()" class="text-dark pl-3"> <i class="fas fa-paperclip"></i> </a>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                    </div>
+                    <!--ATENDIMENTO-->
+                    <div role="tabpanel" class="tab-pane" id="iTabAtendimento">
+                        <!--Atendimento-->
+                        <div class="accordion mb-3" id="accordion_20">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_20">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_20" aria-expanded="true" aria-controls="collapse_20">
+                                            <span class="text-bold-card">@RsCadastros.ATENDIMENTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_20" class="collapse show" aria-labelledby="heading_20" data-parent="#accordion_20">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        <!--Assunto Atendimento-->
+                                        <div class="ml-3">
+                                            <label for="iAssuntoAtendimento" class="text-bold-card">@RsCadastros.ASSUNTO:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(model => model.Assunto, new { @class = "form-control ml-input" + (camposBloqueados.ContainsKey(RsCadastros.ASSUNTO) ? "readonly" : ""), @id = "iAssuntoAtendimento", @autocomplete = "off", @required = true, @Maxlength = 100 })
+                                                @Html.ValidationMessageFor(model => model.Assunto, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <!--Editor de Texto-->
+                                        <form method="post">
+                                            <textarea id="mytextarea">Hello, World!</textarea>
+                                        </form>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Histórico de Atividades-->
+                        <h4><i class="far fa-clock"></i> @RsCadastros.HISTORICO_ATIVIDADES</h4>
+                        <div id="iDivHistoricoAtividade">
+                            <div class="card">
+                                <div class="card-header" style="padding-bottom: 0px; padding-top: 0;">
+                                    <div class="row">
+                                        <div class="col-10">
+                                            <div>Nome:</div>
+                                            <div style="font-size: 12px;">Adicionado:</div>
+                                        </div>
+                                        <div class="col">
+
+                                            <div class="text-right" style="margin-top: 18px; padding-left: 18px; padding-right: 18px;">
+                                                <a href="#"><i class="far fa-edit"></i></a>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    lorem ipsum
+                                </div>
+                            </div>
+
+
+
+                        </div>
+
+                    </div>
+                    <!--CLIENTE/PROSPECT-->
+                    <div role="tabpanel" class="tab-pane" id="iTabClienteProspect">
+
+                        <!--Dados Gerais - Dados Pessoais-->
+                        <div class="accordion mb-3" id="accordion_31">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_31">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_31" aria-expanded="true" aria-controls="collapse_31">
+                                            <span class="text-bold-card">@RsCadastros.DADOS_BASICOS</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_31" class="collapse show" aria-labelledby="heading_31" data-parent="#accordion_31">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        <!--Dados Pessoais-->
+                                        <div class="form-group panel">
+                                            <div class="form-group">
+                                                <label for="iCpf_Cnpj_Cliente" class="font-weight-bold">@RsCadastros.CPFCNPJ:</label>
+                                                <span id="iCpf_Cnpj_Cliente">@Model.CPF_CNPJ_Cliente</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iNomeCliente" class="font-weight-bold">@RsCadastros.NOMECOMPLETO:</label>
+                                                <span id="iNomeCliente">@Model.Nome_Cliente</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iCategoriaCliente" class="font-weight-bold">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                                <span id="iCategoriaCliente">@Model.Categoria_Cliente</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iIdentificacaoCliente" class="font-weight-bold">@RsCadastros.IDENTIFICACAO_CLIENTE:</label>
+                                                <span id="iIdentificacaoCliente">@Model.Id_Cliente</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iTelefoneFixo" class="font-weight-bold">@RsCadastros.TELEFONEFIXO:</label>
+                                                <span id="iTelefoneFixo">@Model.Telefone_Fixo</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iTelefoneCelular" class="font-weight-bold">@RsCadastros.TELEFONECELULAR:</label>
+                                                <span id="iTelefoneCelular">@Model.Telefone_Celular</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iTelefoneRecado" class="font-weight-bold">@RsCadastros.TELEFONERECADO:</label>
+                                                <span id="iTelefoneRecado">@Model.Telefone_Recado</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iNomeRecado" class="font-weight-bold">@RsCadastros.NOMERECADO:</label>
+                                                <span id="iNomeRecado">@Model.Nome_Outra_Pessoa_Contato</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iEmail" class="font-weight-bold">@RsCadastros.EMAIL:</label>
+                                                <span id="iEmail">@Model.Email_Principal</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iClienteHa" class="font-weight-bold">@RsCadastros.CLIENTE_HA:</label>
+                                                <span id="iClienteHa">@Model.Cliente_Ha</span>
+                                            </div>
+                                            <button class="btn btn-outline-dark"><i class="fa fa-sync-alt mr-2"></i>@RsCadastros.ATUALIZAR_DADOS_CLIENTE</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Dados Gerais - Endereço de Instalação-->
+                        <div class="accordion mb-3" id="accordion_32">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_32">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_32" aria-expanded="true" aria-controls="collapse_32">
+                                            <span class="text-bold-card">@RsCadastros.ENDERECO_DE_INSTALACAO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_32" class="collapse show" aria-labelledby="heading_32" data-parent="#accordion_32">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.ENDERECO_DE_INSTALACAO:</label>
+                                            <span id="iEnderecoInstalacao">@Model.Endereco_Instalacao</span>
+                                        </div>
+                                        <button class="btn btn-outline-dark"><i class="fa fa-map-marker-alt mr-2"></i>@RsCadastros.TROCAR_ENDERECO_INSTALACAO</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <!--PLANO/PRODUTO-->
+                    <div role="tabpanel" class="tab-pane" id="iTabPlanoProduto">
+
+                        <!--Plano/Produto-->
+                        <div class="accordion mb-3" id="accordion_41">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_41">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_41" aria-expanded="true" aria-controls="collapse_41">
+                                            <span class="text-bold-card">@RsCadastros.INFORMACOES_PLANO_PRODUTO</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_41" class="collapse show" aria-labelledby="heading_41" data-parent="#accordion_41">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        <!--Informações Plano/Produto-->
+                                        <div class="form-group panel">
+                                            <div class="form-group">
+                                                <label for="iNomePlanoProduto" class="font-weight-bold">@RsCadastros.NOMEPLANOPRODUTO:</label>
+                                                <span id="iNomePlanoProduto">@Model.Nome_Plano_Produto</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iStatusPlanoProduto" class="font-weight-bold">@RsCadastros.STATUS_PLANO_PRODUTO:</label>
+                                                <span id="iStatusPlanoProduto">@Model.Status_PlanoProduto</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iNumeroContrato" class="font-weight-bold">@RsCadastros.NUMERO_CONTRATO:</label>
+                                                <span id="iNumeroContrato">@Model.Numero_Contrato</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iValorFinalPlano" class="font-weight-bold">@RsCadastros.VALOR_FINAL_TOTAL_SER_PAGO:</label>
+                                                <span id="iValorFinalPlano">@Model.Valor_Final_Plano</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iFormaPagamento" class="font-weight-bold">@RsCadastros.FORMA_PAGAMENTO:</label>
+                                                <span id="iFormaPagamento">@Model.Forma_Pagamento_Utilizada</span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iBanco" class="font-weight-bold">@RsCadastros.BANCO:</label>
+                                                <span id="iBanco"></span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iDiaVencimento" class="font-weight-bold">@RsCadastros.DIA_VENCIMENTO:</label>
+                                                <span id="iDiaVencimento"></span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iFormaEnvioFatura" class="font-weight-bold">@RsCadastros.FORMA_ENVIO_FATURA:</label>
+                                                <span id="iFormaEnvioFatura"></span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iTesteGratis" class="font-weight-bold">@RsCadastros.TESTE_GRATIS:</label>
+                                                <span id="iTesteGratis"></span>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="iPeriodoCarencia" class="font-weight-bold">@RsCadastros.PERIODO_CARENCIA:</label>
+                                                <span id="iPeriodoCarencia"></span>
+                                            </div>
+
+                                            <div class="container">
+                                                <div class="row" style=" margin-left: -30px;">
+                                                    <div class="col"><button class="btn btn-outline-dark"><i class="fa fa-sync-alt mr-2"></i>@RsCadastros.ATUALIZAR_DADOS_PLANO_PRODUTO</button></div>
+                                                    <div class="col"><button class="btn btn-outline-dark"><i class="fa fa-exchange-alt mr-2"></i>@RsCadastros.MUDANCA_PLANO</button></div>
+                                                    <div class="w-100 p-1"></div>
+                                                    <div class="col"><button class="btn btn-outline-dark"><i class="fa fa-ban mr-2"></i>@RsCadastros.SUSPENDER_PLANOS</button></div>
+                                                    <div class="col"> <button class="btn btn-outline-dark"><i class="fa fa-times mr-2"></i>@RsCadastros.CANCELAR_PLANO</button></div>
+                                                </div>
+                                            </div>
+
+
+
+
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!--Informações Técnicas-->
+                        <div class="accordion mb-3" id="accordion_42">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading_42">
+                                    <h5 class="mb-0">
+                                        <a role="button" data-toggle="collapse" data-target="#collapse_42" aria-expanded="true" aria-controls="collapse_42">
+                                            <span class="text-bold-card">@RsCadastros.INFORMACOES_TECNICAS</span>
+                                        </a>
+                                    </h5>
+                                </div>
+                                <div id="collapse_42" class="collapse show" aria-labelledby="heading_42" data-parent="#accordion_42">
+                                    <div class="card-body" style="margin-top: -20px;">
+
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.LOGIN:</label>
+                                            <span id="iEnderecoInstalacao">@Model.Login_Radius</span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.SENHA:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.POP:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.ONU:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.OLT:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.SLOT:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.PON:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.CAIXA_FTTH:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.PORTA_FTTH:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.VELOCIDADE_DOWNLOAD:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.VELOCIDADE_UPLOAD:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.VELOCIDADE_NOMINAL:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.VELOCIDADE_DOWNLOAD_REDUZIDA:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="iEnderecoInstalacao" class="font-weight-bold">@RsCadastros.VELOCIDADE_UPLOAD_REDUZIDA:</label>
+                                            <span id="iEnderecoInstalacao"></span>
+                                        </div>
+
+                                        <div class="container">
+                                            <div class="row" style="margin-left: -30px;">
+                                                <div class="col">
+                                                    <button class="btn btn-outline-dark"><i class="icofont-power pr-1"></i>@RsCadastros.REINICIAR_ONU</button>
+                                                </div>
+                                                <div class="col">
+                                                    <button class="btn btn-outline-dark"><i class="icofont-globe pr-1"></i>@RsCadastros.TESTAR_CONEXAO</button>
+                                                </div>
+                                                <div class="col">
+                                                    <button class="btn btn-outline-dark"><i class="icofont-wifi-router pr-1"></i>@RsCadastros.RESET_ONU</button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!--SCRIPT DE ATENDIMENTO-->
+                    <div role="tabpanel" class="tab-pane" id="iTabScriptAtendimento">SCRIPT DE ATENDIMENTO</div>
+                    <!--HISTÓRICO DE FATURA-->
+                    <div role="tabpanel" class="tab-pane" id="iTabHistoricoFatura">HISTÓRICO DE FATURA</div>
+                    <!--ORDENS DE SERVIÇO-->
+                    <div role="tabpanel" class="tab-pane" id="iTabOrdemServico">ORDENS DE SERVIÇO</div>
+                    <!--HISTÓRICO DE ATENDIMENTO-->
+                    <div role="tabpanel" class="tab-pane" id="iTabHistoricoAtendiemnto">HISTÓRICO DE ATENDIMENTO</div>
+                </div>
+            </div>
+
+        </div><!--./Direita-->
+    </div>
+
+    <!--Button Float-->
+    <a href="@Url.Action("Index", "Atendimento")" class="float-cancel" onclick="ShowPageLoading(); return true;">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    <a href="#" class="float-save" onclick="return SweetAlertOs();">
+        <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+            <i class="fas fa-save fa-2x"></i>
+        </div>
+    </a>
+
+
+</div>
+
+

@@ -1,0 +1,506 @@
+@using Resources
+@using Aniel.Connect.Models.T5
+@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.PAINEL_PERFORMANCE;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    List<AreaModuloModel> _areas = ViewBag.Areas;
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+    <style>
+        @*Reduzindo um pouco a largura da p�gina para n�o gerar uma segunda barra
+          de rolagem para a p�gina inteira*@
+        html {
+            width: 98vw;
+            margin: auto;
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        td.dt-center {
+            text-align: center;
+        }
+
+        td.dividirBordaEsquerda {
+            border-left: 2px solid rgb(221, 221, 221) !important;
+        }
+
+    </style>
+}
+
+@section  scripts
+{
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTable11")
+
+<script>
+        let oDatatable = null;
+
+    function ResetarHeader() {
+            $("#divTable").empty();
+
+
+            $("#divTable").html(`<table class="table table-hover nowrap" id="datatable" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th colspan="4"></th>
+                                            <th class="text-center" colspan="5">VOLUME DE ORDENS DE SERVI&#199;O (QUANTIDADE)</th>
+                                            <th class="text-center" colspan="4">ROTA (KM)</th>
+                                            <th class="text-center" colspan="4">TEMPO DESLOCAMENTO ENTRE OS SERVI&#199;OS (h)</th>
+                                            <th class="text-center" colspan="4">TEMPO EXECU&#199;&#195;O DE SERVI&#199;OS (h)</th>
+                                            <th class="text-center" colspan="7">TEMPO VE&#205;CULO PARADO (h)</th>
+                                            <th class="text-center" colspan="4">PRODUTIVIDADE</th>
+                                        </tr>
+                                        <tr>
+                                            <th>@RsCadastros.MATRICULA</th>
+                                            <th>@RsCadastros.TECNICO</th>
+                                            <th>@RsCadastros.DATAINICIAL</th>
+                                            <th>@RsCadastros.DATAFINAL</th>
+                                            <th>Atribu&#237;das</th>
+                                            <th>@RsCadastros.ABERTAS</th>
+                                            <th>@RsCadastros.IMPRODUTIVO</th>
+                                            <th>@RsCadastros.PRODUTIVO</th>
+                                            <th>@RsCadastros.PERCENTUAL</th>
+                                            <th>Rota Planejada</th>
+                                            <th>Rota Realizada</th>
+                                            <th>Variacao de Rota</th>
+                                            <th>Desloc. DENTRO DA ROTA</th>
+                                            <th>Deslocamento Previsto</th>
+                                            <th>Deslocamento Real</th>
+                                            <th>Desperdicio de Deslocamento</th>
+                                            <th>Efetividade de deslocamento</th>
+                                            <th>Execu&#231;&#227;o Previsto (Servi&#231;os produtivos)</th>
+                                            <th>Execu&#231;&#227;o Real (Servi&#231;os produtivos)</th>
+                                            <th>Desperdicio de Execu&#231;&#227;o</th>
+                                            <th>Agilidade nas produtivas</th>
+                                            <th>Tempo At&#233; novo desloc.</th>
+                                            <th>Tempo em todos os Servi&#231;os</th>
+                                            <th>Intervalo na Jornada</th>
+                                            <th>Total parado leg&#237;timo</th>
+                                            <th>Motor Parado </th>
+                                            <th>Varia&#231;&#227;o </th>
+                                            <th>Efetividade das paradas leg&#237;timas </th>
+                                            <th>Jornada &#250;til (h)</th>
+                                            <th>Jornada Produtiva (h)</th>
+                                            <th>Desperdicio total de tempo</th>
+                                            <th>Produtividade</th>
+                                        </tr>
+                                    </thead>
+                                </table>`);
+        }
+
+        var handleGrupo = function () {
+            $('#iGrupoArea').on('select2:select select2:unselecting', function (e) {
+                const grupoSelecionado = e.params.data
+
+                if (grupoSelecionado)
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, String(grupoSelecionado.id), null, "@RsBase.SELECIONE", false);
+                else
+                    AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleArea);
+            });
+        };
+
+        $(document).ready(function () {
+            AddSelect("iGrupoArea", "@CONSTANTES.URLPortal/api/GrupoAreaapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleGrupo);
+            AddSelect("iArea", "@CONSTANTES.URLPortal/api/AreaApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iMonitor", "@CONSTANTES.URLPortal/api/IdentityUserApi/GetComboMonitor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iSupervisor", "@CONSTANTES.URLPortal/api/FuncionarioAnielapi/GetComboSupervisor", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iTecnico", "@CONSTANTES.URLPortal/api/Equipeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iNatureza", "@CONSTANTES.URLPortal/api/Natureza_ProducaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            $('#modal-filter').modal('show');
+        });
+
+        const filterState = {
+            periodo: {
+                label: "@RsFinanceiro.PERIODO",
+                getDisplay: function () {
+                    return $('#iDataInicio').val() ? $('#iDataInicio').val() + " a " + $('#iDataFim').val() : ""
+                },
+                onclick: function () {
+                    $("#iDataInicio").val("")
+                    $("#iDataFim").val("")
+                    oDatatable.draw()
+                }
+            },
+            grupoArea: {
+                label: "@RsCadastros.GRUPO_AREA",
+                getDisplay: function () {
+                    return $('#iGrupoArea').val() ? $('#iGrupoArea option:selected').text() : ""
+                },
+                onclick: function() {
+                    $('#iGrupoArea').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            area: {
+                label: "@RsCadastros.AREA",
+                getDisplay: function () {
+                    return $('#iArea').val() ? $('#iArea option:selected').text() : ""
+                },
+                onclick: function () {
+                    $('#iArea').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            monitor: {
+                label: "@RsCadastros.MONITOR",
+                getDisplay: function () {
+                    return $('#iMonitor').val() ? $('#iMonitor option:selected').text() : ""
+                },
+                onclick: function () {
+                    $('#iMonitor').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            },
+            supervisor: {
+                label: "@RsCadastros.SUPERVISOR",
+                getDisplay: function () {
+                    return $('#iSupervisor').val() ? $('#iSupervisor option:selected').text() : ""
+                },
+                onclick: function () {
+                    $('#iSupervisor').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            tecnico: {
+                label: "@RsCadastros.TECNICO",
+                getDisplay: function () {
+                    return $('#iTecnico').val() ? $('#iTecnico option:selected').text() : ""
+                },
+                onclick: function () {
+                    $('#iTecnico').val(null).trigger("change")
+                    oDatatable.draw()
+                }
+            },
+            natureza : {
+                label: "@RsCadastros.NATUREZA",
+                getDisplay: function () {
+                    return $('#iNatureza').val() ? $('#iNatureza option:selected').text() : ""
+                },
+                onclick: function () {
+                    $('#iNatureza').val(null).trigger("change")
+                    oDatatable.draw();
+                }
+            }
+        }
+
+    $("#iPesquisar").on("click", function () {
+        let erro = false;
+        console.log($("#iDataInicio").val() > 0, $("#iDataFim").val() > 0)
+
+        if ($("#iDataInicio").val() == "" || $("#iDataFim").val() == "") {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PERIODO)", "warning");
+            erro = true;
+        }
+
+        if (DateDiff($("#iDataInicio").val(), $("#iDataFim").val()) < 0) {
+            Notificar("@RsBase.ATENCAO_", "Informe um per&#237;odo v&#225;lido", "warning");
+            erro = true;
+        }
+
+        if (!erro) {
+            TableManageButtons.init();
+            $("#modal-filter").modal("hide");
+        }
+    });
+
+    $("#iLimparFiltros").on("click", function () {
+        $("#iGrupoArea").val(null).trigger("change");
+        $("#iArea").val(null).trigger("change");
+        $("#iMonitor").val(null).trigger("change");
+        $("#iSupervisor").val(null).trigger("change");
+        $("#iTecnico").val(null).trigger("change");
+        $("#iNatureza").val(null).trigger("change");
+
+        $("#iDataInicio").val("");
+        $("#iDataFim").val("");
+    })
+
+        const handleDataTableButtons = async function () {
+            "use strict";
+
+
+            const link = baseUrl + '/api/PainelPerfomanceProdutivaApiController/GetAll';
+            let resultado = await $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    grupoArea: $("#iGrupoArea").val(),
+                    area: $("#iArea").val(),
+                    monitor: $("#iMonitor").val(),
+                    supervisor: $("#iSupervisor").val(),
+                    equipe: $("#iTecnico").val(),
+                    natureza: $("#iNatureza").val(),
+                    dataInicio: $("#iDataInicio").val(),
+                    dataFim: $("#iDataFim").val()
+                },
+                beforeSend: function () {
+                    ShowPageLoading();
+                },
+                complete: function () {
+                    HidePageLoading();
+                }
+            });
+
+            ResetarHeader();
+
+            //"Blfrtip"
+            oDatatable = new DataTable("#datatable", {
+                dom: "Bfrti",
+                select: 'multi',
+                searching: true,
+                ordering: false,
+                paging: false,
+                deferRender: true,
+                scrollResize: true,
+                scrollX: true,
+                scrollY: "50vh",
+                scrollCollapse: true,
+                initComplete: dataTableInitComplete,
+                lengthMenu: [[10, 25, 50, 100, 250, 750, 1000], [10, 25, 50, 100, 250, 750, 1000]],
+                data: resultado.data.map(p => Object.values(p)),
+                preDrawCallback: function () {
+                    ShowPageLoading();
+                },
+                drawCallback: function () {
+                    HidePageLoading();
+                    TagFilter("divFilter", filterState, "Filtrado por:");
+                },
+                pageLength: 100,
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTableRelatorio({
+                title: "@Html.Raw(ViewBag.Title)"
+                })
+                ,
+
+                columnDefs: [
+                    { targets: [4, 9,13,17,21,28], className: "dividirBordaEsquerda text-center" },
+                    { targets: '_all', className: "text-center" }
+                ],
+
+                @*columns: [
+                    { data: "matricula", title: "@RsCadastros.MATRICULA" },
+                    { data: "tecnico", title: "@RsCadastros.TECNICO" },
+                    { data: "data", title: "@RsCadastros.DATA" },
+                    { data: "qtdServicosAbertos", title: "@RsCadastros.ABERTAS" },
+                    { data: "qtdServicosImprodutivos", title: "@RsCadastros.IMPRODUTIVO" },
+                    { data: "qtdServicosProdutivos", title: "@RsCadastros.PRODUTIVO" },
+                    {
+                        data: "percentualEfetividade", title: "@RsCadastros.PERCENTUAL",
+                        render: function (data, type, row, meta)
+                        {
+                            return data + "%";
+                        }
+                    },
+                    { data: "totalKmEsperado", title: "Rota Planejada" },
+                    { data: "totalKmReal", title: "Rota Realizada" },
+                    { data: "variacaoKm", title: "Variacao de Rota" },
+
+                    { data: "tempoDeslocamentoPrevisto", title: "Deslocamento Previsto" },
+                    { data: "tempoDeslocamentoReal", title: "Deslocamento Real" },
+                    { data: "desperdicioDeslocamento", title: "Desperdicio de Deslocamento" },
+
+                    { data: "tempoExecucaoPrevisto", title: "Execu��o Previsto (Servi�os produtivos)" },
+                    { data: "tempoExecucaoReal", title: "Execu��o Real (Servi�os produtivos)" },
+                    { data: "desperdicioExecucao", title: "Desperdicio de Execu��o" },
+
+                    { data: "tempoJornadaUtil", title: "jornada �til (h)" },
+                    { data: "tempoJornadaProdutiva", title: "Jornada Produtiva (h)" },
+                    { data: "desperdicioTotal", title: "Desperdicio total de tempo" },
+                ]*@
+            });
+
+
+            $('#txtSearch').val(oDatatable.search());
+            $('#txtSearch').keyup(function () {
+                oDatatable.search($(this).val()).draw();
+            });
+        },
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+
+</script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <div class="row">
+        <div class="col-auto mr-auto">
+            <h4 class="title-page">
+                <i class="fas fa-headset"></i>
+                @ViewBag.Title
+            </h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Relatorio")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.RELATORIO</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+
+            <span style="font-size:11px" id="dtLegend"></span>
+        </div>
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <div class="form-inline pl-4 pr-2">
+                    <input type="text" class="input-search" id="txtSearch" placeholder="Nome ou matr&#237;cula do t&#233;cnico" autocomplete="off">
+                    <i class="la la-search la-2x" style="color: #999"></i>
+                </div>
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO">
+                    <i class="la la-filter la-2x" style="color: #999"></i>
+                </button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" title="@RsBase.LIMPAR_FILTRO">
+                    <i class="la la-eraser la-2x" style="color: #999"></i>
+                </button>
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#" onclick="$('.buttons-excel').click(); ShowExportLoading();return false;">@RsBase.EXPORTAREXCEL</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+<div id="divTable">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%">
+    </table>
+</div>
+
+<div id="divSubTitle">
+    <div id="divFilter" class="mr-2 ml-2 form-inline"></div>
+    <div class="mr-2 ml-2 form-inline mt-1 fs-12">@(String.Format(RsFinanceiro.EMITIDO_POR_EM_AS, User.Identity.GetUserName(), DateTime.Now.ToString("dd/MM/yyyy"), DateTime.Now.ToString("HH:mm")))</div>
+</div>
+
+<div class="modal" id="modal-filter">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTROS</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="col">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iGrupoArea">@RsCadastros.GRUPO_AREA</label>
+                                <select class="form-control" id="iGrupoArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iArea">@RsCadastros.AREA</label>
+                                <select class="form-control" id="iArea">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iMonitor">@RsCadastros.MONITOR</label>
+                                <select class="form-control" id="iMonitor">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iSupervisor">@RsCadastros.SUPERVISOR</label>
+                                <select class="form-control" id="iSupervisor">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iTecnico">@RsCadastros.TECNICO</label>
+                                <select class="form-control" id="iTecnico">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="iNatureza">@RsCadastros.NATUREZA</label>
+                                <select class="form-control" id="iNatureza">
+                                    <option value>@RsBase.SELECIONE</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group mt-2">
+                                <label>@RsCadastros.PERIODO:</label>
+                                <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataInicio" />
+                                <span>@RsBase.A</span>
+                                <input type="text" class="form-control datepicker" placeholder="00/00/0000" id="iDataFim" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltros">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">PESQUISAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

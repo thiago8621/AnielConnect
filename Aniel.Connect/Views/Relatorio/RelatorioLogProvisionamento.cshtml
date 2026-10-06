@@ -1,0 +1,719 @@
+﻿@using Microsoft.AspNet.Identity
+
+@{
+    ViewBag.Title = RsCadastros.LOGS_PROVISIONAMENTO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    @Styles.RenderFormat(Aniel.Connect.SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/DataTables2.0/RowGroup-1.1.1/css/rowGroup.dataTables.css" rel="stylesheet" />
+    <link href="~/Content/datatable-group.css" rel="stylesheet" />
+
+    <style>
+        .popover {
+            max-width: 45%; /* Max Width of the popover (depending on the container!) */
+        }
+
+        .pagination {
+            position: relative;
+            margin-left: 30px !important;
+        }
+
+        #datatable_length {
+            margin-right: auto !important;
+        }
+
+
+        #dtLegend {
+            display: none !important;
+        }
+
+        select[name="datatable_length"] {
+            min-width: 65px !important;
+        }
+
+        div.dataTables_processing { 
+            z-index: 1; 
+
+        }
+    </style>
+}
+
+@section scripts
+{
+    @Scripts.RenderFormat(Aniel.Connect.SiteKeys.ScriptVersion, "~/bundles/jsDataTable")
+
+    <script src="~/bin/Content/DataTables2.0/RowGroup-1.1.1/js/dataTables.rowGroup.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
+
+    <script type="text/javascript" src="https://cdn.datatables.net/plug-ins/1.10.20/sorting/date-eu.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/plug-ins/1.13.7/api/sum().js"></script>
+
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+
+    <script>
+
+        $(document).ready(async function () {
+            AddSelect("iUsuario", "@CONSTANTES.URLPortal/api/EquipeApi/GetComboMobile", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iDescricao_OLT", "@CONSTANTES.URLPortal/api/OLTApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+
+
+            $('#modal-filter').modal('show');
+            if ($('#flexRadioOS').is(':checked')) {
+                $('#iFiltro_data').hide();
+                $('#iFiltro_os').show();
+
+            } else {
+                $('#iFiltro_data').show();
+                $('#iFiltro_os').hide();
+
+            }
+
+            $('input[name="flexRadioDefault"]').change(function () {
+                if ($('#flexRadioOS').is(':checked')) {
+                    $('#iFiltro_data').hide();
+                    $('#iFiltro_os').show();
+                    $('#iUsuario').val('').trigger('change');
+                    $('#iData_Inicio').val('');
+                    $('#iDescricao_OLT').val('').trigger('change');
+                    $('#iSerial').val('');
+                } else {
+                    $('#iFiltro_data').show();
+                    $('#iFiltro_os').hide();
+                    $('#iNum_OS').val('');
+                }
+            });
+        });
+
+        $("#iCheck").change(function (e) {
+            if (e.target.checked) {
+                $("#iData").prop("disabled", false);
+            }
+            else {
+                $("#iData").prop("disabled", true);
+                $("#iData").val(null);
+            }
+        });
+
+
+
+        var oDatatable;
+
+        function exibirModalXML(id, request, response) {
+            $("#iRequest_Modal").val(atob(request));
+            $("#iResponse_Modal").val(atob(response));
+            $("#modal-request-response").modal('show');
+
+            console.log("Teste");
+        }
+
+        let colunasDatatable = [];
+        var rows_selected = [];
+
+        function CarregaDataTable(agrupamento) {
+
+            if (oDatatable != null) {
+                oDatatable.destroy();
+                $("#datatable").empty()
+                //ShowPageLoading();
+            }
+
+            colunasDatatable = [
+                 { data : "id", title : '@RsCadastros.ID', className : "text-center", visible : true, orderable : false },
+                 { data : "servico", title : '@RsCadastros.SERVICO', className : "text-center", visible : true, orderable : false },
+                 { data : "detalhe", title : '@RsCadastros.OS', className : "text-center", visible : true, orderable : false },
+                 { data : "data_Hora_Str", title : '@RsCadastros.DATAHORA', className : "text-center", visible : true, orderable : false },
+                 { data : "usuario", title : '@RsCadastros.EQUIPE', className : "text-center", visible : true, orderable : false },
+                 { data : "etapa", title : '@RsCadastros.ETAPA', className : "text-center", visible : true, orderable : false },
+                 { data : "xml_Request_Response", title : "Requisição/Resposta", className : "text-center", visible : true, orderable : false },
+                 { data : "xml_Request", title : "Requisição", className : "text-left", visible : false, orderable : false },
+                 { data : "xml_Response", title : "Resposta", className : "text-left", visible : false, orderable : false },
+            ];
+
+            //Carrega os Headers Complexos
+            CarregaHeaderComplexaDataTable("datatable", colunasDatatable);
+
+            let datatableConf = {
+                dom: "<'row'<'col-sm-4'l><'col-sm-8'p>>" + "Bfrti",
+                buttons: [
+                    {
+                        extend: 'pdfHtml5',
+                        title: "@Html.Raw(ViewBag.Title)",
+                        footer: true,
+                        orientation: 'landscape',
+                        pageSize: 'TABLOID',//GetPageSizePDF(colunasDatatable),
+                        exportOptions: {
+                            //Oculta a coluna 5 (Etapa) e a 6 (Requisição/Reposta)
+                            //Exibe as colunas ocultas 7 (Requisição) e 8 (Resposta)
+                            columns: ['0','1','2','3','4','7','8']
+                        },
+                        customize: function (doc) {
+                            doc.content[1].table.widths = ['auto','auto','auto','auto','auto',250,420]
+                        },
+                    }
+                ],
+                //data: tableData,
+                ajax: {
+                   url: '@String.Concat(CONSTANTES.URLPortal, "/api/RelatorioLogProvisionamentoapi/GetAll")',
+                    type: 'POST',
+                    data: function (data) {
+                        data.data_Inicio = $('#iData_Inicio').val();
+                        //data.data_Fim = $('#iData_Fim').val();
+                        data.num_OS = $('#iNum_OS').val();
+                        data.usuario = $('#iUsuario').val();
+                        data.id_OLT = $('#iDescricao_OLT').val();
+                        data.serial = $('#iSerial').val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        if (d.data) {
+                            HidePageLoading();
+                        }
+                        else if (d.error) {
+                            Notificar('@RsBase.INFORMACAO', value.mensagem, 'info')
+                        }
+                        return d.data;
+                    }
+                },
+                scrollResize: true,
+                stateSave: false,
+                fixedHeader: true,
+                scrollY: '50vh',
+                scrollX: true,
+                serverSide: true,
+                processing: true,
+                paging: false,
+                initComplete: dataTableInitComplete,
+                ordering: false,
+                paging: true,
+                pageLength: 25,
+                deferRender: true,
+                //order: [],
+                lengthMenu: [[10, 25, 50, 100, 200], [10, 25, 50, 100, 200]],
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    // Get row ID
+                    var rowId = data.id;
+
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                language: traducaoDataTableSimples,
+                //language: {
+                //    "decimal": ","
+                //},
+                scrollResize: true,
+                columns: colunasDatatable,
+                columnDefs: [
+                    {
+                        targets: [6],
+                        render: function (data, type, row, meta) {
+                        var request = $('<div>').html(row.xml_Request).text();
+                        var response = $('<div>').html(row.xml_Response).text();
+                        //var input = `<a onclick="exibirModalXML('${row.id}','${row.xml_Request.replace(/"/g, '').replace(/'/g, '').replace(/;/g, '').replace(/<[^>]*>/g, "").replace(/\n/g, "").replace(/\r/g, "").replace(/\t/g, "").replace(/&#13/g, "")}','${response.replace(/"/g, '').replace(/'/g, '').replace(/;/g, '').replace(/<[^>]*>/g, "").replace(/\n/g, "").replace(/\r/g, "").replace(/\t/g, "")}')"><i class='far fa-eye'></i></a>`;
+                        var input2 = `<a onclick="exibirModalXML('${row.id}','${btoa(request)}','${btoa(response)}')"><i class='far fa-eye'></i></a>`;
+                        return input2;
+                        }
+                    }
+                ],
+                drawCallback: function () {
+                    //ordenouData = false;
+                    //HidePageLoading();
+                    //TagFilter("FiltrosUtilizados", filter_state);
+                    ResizeTable("divTable");
+                    if (oDatatable) {
+                        oDatatable.columns.adjust();
+                    }
+
+                },
+                footerCallback: function (row, data, start, end, display) {
+
+                    var api = this.api(), data;
+
+                    colunasDatatable.forEach((col, index) => {
+                        if (col.className && col.className.includes("somaFooter")) {
+                            const soma = api
+                                .column(index)
+                                .data()
+                                .reduce(function (a, b) {
+                                    return funcao_soma_dinero(a, b);
+                                }, 0);
+
+                            $(api.column(index).footer()).html(soma);
+                        }
+                    });
+                }
+            }
+
+
+            let colunasGroup = [];
+            let colDif = 0;
+
+            datatableConf["rowGroup"] = {
+                dataSrc: agrupamento,
+                startRender: function (rows, group, level) {
+
+                    const retorno = CalculaTotalColunaDataTable(rows, colunasGroup, group, colunasDatatable.filter(p => p.visible).length, level);
+
+                    if (rows.data()[0].erro_Provisionamento == true) {
+                        var color = 'style="color:red"';
+                        var msgErro = rows.data()[0].msg_Erro ?? 'Erro no Provisionamento';
+                        return $('<tr ' + color + '/>').append(retorno.string_append.replace(`${group}</td>`, `${group} - ${msgErro}</td>`));
+                    }
+                    else {
+                        return $('<tr>').append(retorno.string_append);
+                    }
+                },
+
+                endRender: function (rows, group) {
+                    if (oDatatable)
+                        oDatatable.columns.adjust();
+                    else
+                        $("#datatable").DataTable().columns.adjust();
+                },
+
+            }
+
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable(datatableConf);
+
+            $('#datatable tbody').on('click', 'tr.dtrg-level-0', function () {
+
+                var rowsCollapse = $(this).nextUntil('.dtrg-level-0');
+
+                if (!$(this).hasClass("collapsed") && !$(this).hasClass("not-collapsed")) {
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                else if ($(this).hasClass("collapsed")) {
+                    $(this).removeClass("collapsed");
+                    $(this).addClass("not-collapsed");
+                    rowsCollapse.removeClass("d-none");
+                }
+
+                else if ($(this).hasClass("not-collapsed")) {
+                    $(this).removeClass("not-collapsed");
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                oDatatable.columns.adjust();
+            });
+
+            $('#datatable tbody').on('click', 'tr.dtrg-level-1', function () {
+
+                var rowsCollapse = $(this).nextUntil('.dtrg-level-1').not('.dtrg-level-0');
+
+                if (!$(this).hasClass("collapsed") && !$(this).hasClass("not-collapsed")) {
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                else if ($(this).hasClass("collapsed")) {
+                    $(this).removeClass("collapsed");
+                    $(this).addClass("not-collapsed");
+                    rowsCollapse.removeClass("d-none");
+                }
+
+                else if ($(this).hasClass("not-collapsed")) {
+                    $(this).removeClass("not-collapsed");
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                oDatatable.columns.adjust();
+            });
+
+
+            $('#datatable tbody').on('click', 'tr.dtrg-level-2', function () {
+
+                var rowsCollapse = $(this).nextUntil('.dtrg-level-2').not('.dtrg-level-0,.dtrg-level-1');
+
+                if (!$(this).hasClass("collapsed") && !$(this).hasClass("not-collapsed")) {
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                else if ($(this).hasClass("collapsed")) {
+                    $(this).removeClass("collapsed");
+                    $(this).addClass("not-collapsed");
+                    rowsCollapse.removeClass("d-none");
+                }
+
+                else if ($(this).hasClass("not-collapsed")) {
+                    $(this).removeClass("not-collapsed");
+                    $(this).addClass("collapsed");
+                    rowsCollapse.addClass("d-none");
+                }
+
+                oDatatable.columns.adjust();
+            });
+
+
+            TableManageButtons = function () {
+                "use strict";
+                return {
+                    init: function () {
+                        handleDataTableButtons();
+                    }
+                }
+            }();
+
+            TableManageButtons.init();
+        }
+
+        $("#iPesquisar").on("click", function () {
+
+            if (ValidaCamposObrigatorios(false)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                return false
+            }
+
+            @*if (!$('#iData_Inicio').val() && !$('#iData_Fim').val() && !$('#iUsuario').val() && !$('#iNum_OS').val()) {
+                Notificar("@RsBase.ATENCAO_", "É necessário informar ao menos um dos campos no filtro.", "warning")
+                return false
+            }
+
+            if ($('#iUsuario').val() && !$('#iNum_OS').val() && (!$('#iData_Inicio').val() || !$('#iData_Fim').val())) {
+                Notificar("@RsBase.ATENCAO_", "É necessário informar ao menos um filtro de data.", "warning")
+                return false
+            }
+
+            var dataIni = moment($('#iData_Inicio').val(), "DD-MM-YYYY");
+            var dataFim = moment($('#iData_Fim').val(), "DD-MM-YYYY");
+
+            if (dataIni > dataFim) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.DATA_INVALIDA)", "warning");
+                return false;
+            }*@
+
+            if (!$('#iData_Inicio').val() && !$('#iUsuario').val() && !$('#iNum_OS').val() && !$('#iDescricao_OLT').val() && !$('#iSerial').val()) {
+                Notificar("@RsBase.ATENCAO_", "É necessário informar ao menos um dos campos no filtro.", "warning")
+                return false
+            }
+
+             if (!$('#iNum_OS').val() && !$('#iData_Inicio').val()) {
+                 Notificar("@RsBase.ATENCAO_", "É necessário informar uma data.", "warning")
+                 return false
+             }
+
+
+            //ShowPageLoading();
+            CarregaDataTable("detalhe");
+            oDatatable.columns.adjust();
+            ResizeTable("divTable");
+            @*const link = '@String.Concat(CONSTANTES.URLPortal, "/api/RelatorioLogProvisionamentoapi/GetAll")';
+
+            $.ajax({
+                url: link,
+                type: 'POST',
+                data: {
+                    Data_Inicio: $('#iData_Inicio').val(),
+                    Data_Fim: $('#iData_Fim').val(),
+                    Num_OS: $('#iNum_OS').val(),
+                    Usuario: $('#iUsuario').val(),
+                },
+                error: function (e) {
+                    console.log(e);
+                },
+                dataSrc: function (d) {
+                    return d.data;
+                }
+            })
+            .done(function (data) {
+
+                if (data.data) {
+                    const colunas = data.columns;
+                    const tabledata = data.data;
+
+                    CarregaDataTable(JSON.parse(colunas), tabledata, "detalhe");
+
+                    oDatatable.columns.adjust();
+                    ResizeTable("divTable");
+
+                    HidePageLoading();
+                }
+                else if (data.mensagens) {
+                    data.mensagens.forEach(function (value) {
+                        Notificar('@RsBase.INFORMACAO', value.mensagem, 'info')
+                    })
+                }
+            });*@
+
+            $('#modal-filter').modal('hide');
+        });
+
+        function limparFiltro() {
+            $('#iNum_OS').val('');
+            $('#iUsuario').val('').trigger('change');
+            $('#iData_Inicio').val('');
+            $('#iDescricao_OLT').val('').trigger('change');
+            $('#iSerial').val('');
+            @*$('#iData_Fim').val('');*@
+        }
+
+        const handleDataTableButtons = function () {
+            "use strict";
+
+            oDatatable.on('draw', function () {
+                HidePageLoading();
+            });
+        }
+
+    </script>
+}
+
+<div class="container-fluid" id="divTitle">
+    <!--main-->
+
+    <div class="row">
+        <div class="col-auto mr-auto">
+
+            <h4 class="title-page"><i class="fas fa-clipboard-list"></i> @ViewBag.Title</h4>
+
+            <nav aria-label="breadcrumb" class="mt-25">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="@Url.Action("Index", "Gerenciamento_Rede")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.GESTAO_CONEXOES</a></li>
+                    <li class="breadcrumb-item">
+                        <span>@ViewBag.Title</span>
+                    </li>
+                </ol>
+            </nav>
+        </div>
+        @*<div class="col title-page form-group float-right mt-5 p-1">
+
+            <div class="row">
+                <span class="pl-3">Data Importação :</span>
+            </div>
+            <div class="row">
+
+                <input class="form-control mb-1 mr-2" id="iNum_OS" type="text" autocomplete="off" maxlength="20" style="width:20%">
+                <input class="form-control mb-1 mr-2" id="iUsuario" type="text" autocomplete="off" maxlength="10" style="width:20%">
+                <input class="form-control datepicker-period mb-1" id="iData_Inicio" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+                <input class="form-control datepicker-period mb-1" id="iData_Fim" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+                <button class="btn btn-info ml-3" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+                <button class="btn btn-success ml-3" onclick="$('.buttons-pdf').click();">Exportar</button>
+            </div>
+        </div>*@
+
+        <div class="col-auto">
+            <div class="row title-page">
+                <!--<div class=" pl-4 pr-2">
+        <input type="text" class="input-search" id="txtSearch" placeholder="MAC ou Serial" autocomplete="off">
+        <i class="la la-search la-2x" style="color: #999"></i>
+    </div>  -->
+                <button tabindex="0" class="btn btn-default btn-add" role="button" data-toggle="popover" data-html="true" data-placement="left" data-trigger="focus" title="Informação"
+                data-content="
+                <ul>
+                <li><b>Operação realizada sem O.S</b> - Significa que a operação foi realizada pelo navegador (web) via Aniel Connect, sem vínculo com uma ordem de serviço.</li>
+                <li><b>GetSerialCompleto</b> - O Aniel seleciona o serial completo do equipamento no banco de dados. Se houver conversão de serial, o serial convertido será selecionado.</li>
+                <li><b>[Desprovisionamento Connect - GetIdONU]</b> - O Aniel verifica se a ONU existe no banco de dados e se está vinculada ao cliente correto. Se estiver, seleciona o número de identificação da ONU para uso nas etapas seguintes.</li>
+                <li><b>[Desprovisionamento Connect - DesautorizarONU]</b> - O Aniel conecta-se à OLT e executa os comandos necessários para desautorizar a ONU.</li>
+                <li><b>[Provisionamento Connect - AtualizarInfoWifiLogin]</b> - Após o técnico inserir o SSID e a senha do Wi-Fi no Aniel Touch, os valores são salvos no banco de dados.</li>
+                <li><b>[Provisionamento Connect - FindOLTsByGrupoArea]</b> - Na tela de Cadastro da OLT, é possível vincular o grupo/área à OLT. Durante esta etapa, o Aniel seleciona as OLTs que possuem o mesmo grupo/área vinculado à ordem de serviço, para realizar as consultas de ONUs que estejam pendentes de registro (disponíveis para provisionamento).</li>
+                <li><b>[Provisionamento Connect - ONUsPendentesRegistro]</b> - O Aniel conecta-se à OLT e consulta as ONUs disponíveis para provisionamento.</li>
+                <li><b>[Provisionamento Connect - FindOLTsByNumCaixa]</b> - Na tela de Cadastro de Elementos de Rede, no Aniel Connect, é possível vincular a caixa a uma OLT. Durante esta etapa, o técnico insere, no Aniel Touch, a caixa e a porta onde a ONU se encontra. Então, o Aniel buscará a OLT correspondente de acordo com o vínculo realizado, para realizar as consultas de ONUs que estejam pendentes de registro (disponíveis para provisionamento).</li>
+                <li><b>[Provisionamento Connect - AutorizarONU]</b> - Após encontrar a ONU na OLT, o Aniel executa o script de ativação e cadastra os dados do equipamento no banco de dados em caso de sucesso.</li>
+                <li><b>[AutorizarONUAsync]</b> - Responsável por conectar-se à OLT e executar o script de ativação da ONU.</li>
+                <li><b>[GetIDONU]</b> - Coleta o número de identificação (ONT ID) da ONU na OLT para cadastrá-lo no banco de dados.</li>
+                <li><b>[ONUsPendentesRegistro]</b> - Executa comandos na OLT para obter a lista de ONUs disponíveis para provisionamento.</li>
+                <li><b>[DesautorizarONU]</b> - Executa comandos na OLT para desautorizar a ONU e remove os dados correspondentes do banco de dados.</li>
+                <li><b><i class='far fa-eye'></i></b> - Clique para visualizar detalhes das operações, incluindo comandos executados e respostas da OLT.</li>
+                <li><b>ATIVAÇÃO DE SINAL COM TOUCH</b> - Ativação ou desautorização do equipamento realizada pelo Aniel Touch.</li>
+                <li><b>ATIVAÇÃO DE SINAL PELO CONNECT</b> - Ativação ou desautorização do equipamento realizada pelo navegador (web) via Aniel Connect.</li>
+                </ul>
+
+                ">
+                <i class="fas fa-info-circle icofont-1dot5x" style="color:#486B91;"></i>
+                </button>
+
+
+                <button class="btn btn-default btn-add" data-toggle="modal" data-target="#modal-filter" title="@RsBase.FILTRO"><i class="la la-filter la-2x" style="color: #999"></i></button>
+
+                <button class="btn btn-default btn-add" id="iLimparFiltro" onclick="limparFiltro()" title="@RsBase.LIMPAR_FILTRO"><i class="la la-eraser la-2x" style="color: #999"></i></button>
+
+                @*
+
+                <button class="btn btn-default btn-add" type="button" title="@RsBase.EXPORTAR" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                </button>
+
+        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+            <a class="dropdown-item" onclick="$('.buttons-pdf').click();">@RsBase.EXPORTARPDF</a>
+        </div>*@
+            </div>
+       </div>
+    </div>
+</div>
+
+<div id="divTable" class="ml-3 mr-3">
+    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+</div>
+
+
+<div class="modal fade" id="modal-request-response">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">Log Request / Response</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="col-sm-12">
+                    <div class="row">
+
+                        <div class="col-sm-6">
+                            <div class="row">
+                                <div class="form-group">
+                                    <label>Request:</label>
+                                    <div class="form-group" style="height: 100%; vertical-align: middle;">
+                                        <textarea id="iRequest_Modal" rows="30" cols="55" disabled>                                                
+                                                </textarea>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-6">
+                            <div class="row ml-1">
+                                <div class="form-group">
+                                    <label>Response:</label>
+                                    <div class="form-group" style="height:100%; vertical-align:middle;">
+                                        <textarea id="iResponse_Modal" rows="30" cols="55" disabled>                                                
+                                    </textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12 mt-2" style="padding: 15px;">
+                    <div class="text-center">
+                        @*<button type="button" class="btn btn-danger"  id="iLimparFiltroModal">@RsBase.LIMPAR_FILTRO</button>
+                            <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>*@
+
+                    </div>
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div>
+</div>
+
+<div class="modal fade" id="modal-filter">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-muted">@RsBase.FILTRO</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="col-sm-12">
+                    <div class="row">
+                        <div class="d-flex align-items-center gap-4 mb-3">
+                            <div class="form-check me-4">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioOS">
+                                <label class="form-check-label" for="flexRadioOS">
+                                    Filtrar por Número da O.S
+                                </label>
+                            </div>
+
+                            <div class="form-check ml-3">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioData" checked>
+                                <label class="form-check-label" for="flexRadioData">
+                                    Filtrar por Data
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-sm-7">
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+
+
+                                        <div id="iFiltro_os">
+                                            <label>@RsCadastros.NUMERO_OS:</label>
+                                            <div class="form-group" style="height: 100%; vertical-align: middle;">
+                                                <input class="form-control mb-1 mr-2" id="iNum_OS" type="text" autocomplete="off" maxlength="20" style="width:100%">
+                                            </div>
+                                        </div>
+
+
+                                        <div id="iFiltro_data">
+                                            <label>@RsCadastros.EQUIPE:</label>
+                                            <div class="form-group" style="height: 100%; vertical-align: middle;">
+                                                <select class="form-control" id="iUsuario" style="width: 100% ">
+                                                </select>
+                                            </div>
+
+                                            <label>@RsCadastros.OLT:</label>
+                                            <div class="form-group" style="height: 100%; vertical-align: middle;">
+                                                <select class="form-control" id="iDescricao_OLT" style="width: 100% ">
+                                                </select>
+                                            </div>
+
+                                            <label>@RsCadastros.SERIAL:</label>
+                                            <div class="form-group" style="height: 100%; vertical-align: middle;">
+                                                <input class="form-control mb-1 mr-2" id="iSerial" type="text" autocomplete="off" maxlength="20" style="width:100%">
+                                            </div>
+
+                                            <label>@RsCadastros.DATA_PROVISIONAMENTO:</label>
+
+                                            <div class="row" style="padding-left:10px">
+                                                <div class="form-group" vertical-align: middle;">
+                                                    <input class="form-control datepicker-period mb-1 mr-1 ml-1" id="iData_Inicio" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+                                                </div>
+                                                @*<i class="mt-1" style="margin-left:5px;margin-right:5px">a</i>
+
+            <div class="form-group" vertical-align: middle;">
+                <input class="form-control datepicker-period mb-1 ml-1 mr-1" id="iData_Fim" type="text" data-enddate="@DateTime.Now.Date" data-startdate="01/01/0001" autocomplete="off" placeholder="00/00/0000" maxlength="10">
+            </div> *@
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group col-sm-12 mt-2" style="padding: 15px;">
+                    <div class="text-center">
+                        <button type="button" class="btn btn-danger" id="iLimparFiltroModal" onclick="limparFiltro()">@RsBase.LIMPAR_FILTRO</button>
+                        <button type="button" class="btn btn-success" id="iPesquisar">@RsCadastros.PESQUISAR</button>
+
+                    </div>
+                </div>
+
+            </div><!-- /.modal-content -->
+        </div><!-- /.modal-dialog -->
+    </div>
+</div>
+

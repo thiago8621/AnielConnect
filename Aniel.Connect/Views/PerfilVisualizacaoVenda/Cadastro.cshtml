@@ -1,0 +1,1349 @@
+﻿@model Aniel.Connect.Repository.Model.PerfilVisualizacaoVendaCadastroModel
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Aniel.T5.Model.enumerado
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_PARAM_VISUALIZACAO_VENDA;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+
+    //listaTipoPessoa
+    List<Aniel.Connect.Core.ObjComboResult<String>> listaTipoPessoa = new List<Aniel.Connect.Core.ObjComboResult<String>>();
+    foreach (var valor in Enum.GetValues(typeof(Sinapse.Model.enumerados.Tipo_Pessoa)))
+    {
+        string descricao = HtmlEnumExtensions.GetEnumDescription(valor);
+        listaTipoPessoa.Add(new Aniel.Connect.Core.ObjComboResult<string>
+        {
+            Id = Convert.ToInt32(valor).ToString(),
+            Text = descricao
+        });
+    }
+    listaTipoPessoa = listaTipoPessoa.OrderBy(x => x.Text).ToList();
+
+
+}
+
+@section scripts
+{
+@Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script>
+
+            var UfSelecionado = null;
+    var HandleUf = function () {
+        $('#iUF').on('select2:select select2:unselecting', function (e) {
+            UfSelecionado = e.params.data;
+
+            if (UfSelecionado == undefined) {
+                AddSelect("iUF", "@CONSTANTES.URLPortal/api/Ufapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleUf);
+                $("#iCidade").prop("disabled", true);
+            } else {
+                $("#iCidade").prop("disabled", false);
+                AddSelect("iCidade", "@CONSTANTES.URLPortal/api/Cidadeapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, UfSelecionado.id, null, "@RsBase.SELECIONE", false);
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        AddSelect("iMeioCaptacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iCategoriaCliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iSetorDepto", "@CONSTANTES.URLPortal/api/FolhaDeptoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iEquipeVenda", "@CONSTANTES.URLPortal/api/EquipeVendasApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+        AddSelect("iUF", "@CONSTANTES.URLPortal/api/Ufapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, HandleUf);
+
+
+        $("#iPadraoVisualizaoLead").trigger("change");
+
+    });
+
+
+    $("#iPadraoVisualizaoLead").on("change", function () {
+        if ($(this).prop("checked")) {
+            $("#divQtdDiasBloqueioLead").hide();
+        }
+        else {
+            $("#divQtdDiasBloqueioLead").show();
+        }
+    });
+
+    @* DATATABLE TIPO PESSOA *@
+    let oDatatableTipoPessoa = null;
+
+    const handleDataTableTipoPessoa = function () {
+        "use strict";
+
+        const dataTipoPessoa = @Html.Raw(Json.Encode(Model.ParamsTipoPessoa));
+
+        @* Nome_utilizado para enganar o razor *@
+        const nomeLista = "ParamsTipoPessoa";
+
+        oDatatableTipoPessoa = $("#datatableTipoPessoa").length && $("#datatableTipoPessoa").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataTipoPessoa,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirTipoPessoa();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirTipoPessoa" id="btnExcluirTipoPessoa_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "TipoPessoa",
+                    title: "@RsCadastros.TIPOPESSOA",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodTipoPessoa" name="' + nomeLista + '[' + meta.row + '].CodTipoPessoa" type="hidden" value="' + TrataNulo(row.CodTipoPessoa) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirTipoPessoa() {
+            $(".btnExcluirTipoPessoa").unbind('click');
+            $(".btnExcluirTipoPessoa").click(function (e) {
+                e.preventDefault();
+
+                const idParamTipoPessoa = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamTipoPessoa !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamTipoPessoa?Id=")' + idParamTipoPessoa;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableTipoPessoa.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableTipoPessoa.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirTipoPessoa();
+
+        $("#btnAdicionarTipoPessoa").unbind('click');
+        $("#btnAdicionarTipoPessoa").on('click', function () {
+            let erro = false;
+
+            let dataTipoPessoa = oDatatableTipoPessoa.data().toArray();
+
+            if (!$("#iTipoPessoa").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CONTRATO)", "warning");
+                erro = true;
+            }
+            else {
+                if (dataTipoPessoa.find(x => x.TipoPessoa === $("#iTipoPessoa option:selected").text())) {
+                    Notificar("@RsBase.ATENCAO_", "Tipo de Pessoa já adicionado", "warning");
+                    erro = true;
+                }
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableTipoPessoa.row.add({
+                Id: 0,
+                CodTipoPessoa: $("#iTipoPessoa option:selected").val(),
+                TipoPessoa: $("#iTipoPessoa option:selected").text()
+            }).draw(false);
+
+            handleExcluirTipoPessoa();
+
+            $("#iTipoPessoa").val(null).trigger("change");
+        });
+    },
+        TableManageButtonsTipoPessoa = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableTipoPessoa();
+                }
+            }
+        }();
+
+    TableManageButtonsTipoPessoa.init();
+
+    @* DATATABLE CATEGORIA CLIENTE *@
+
+    let oDatatableCategoriaCliente = null;
+
+    const handleDataTableCategoriaCliente = function () {
+        "use strict";
+
+        const dataCategoriaCliente = @Html.Raw(Json.Encode(Model.ParamsCategoriaCliente));
+
+        @* Nome utilizado para enganar o razor *@
+        const nomeLista = "ParamsCategoriaCliente";
+
+        oDatatableCategoriaCliente = $("#datatableCategoriaClientes").length && $("#datatableCategoriaClientes").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataCategoriaCliente,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirCategoriaCliente();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirCategoriaCliente" id="btnExcluirCategoriaCliente_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "CategoriaCliente",
+                    title: "@RsCadastros.CATEGORIA_CLIENTE",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + '<input id="' + nomeLista + '_' + meta.row + '__CodCategoriaCliente" name="' + nomeLista + '[' + meta.row + '].CodCategoriaCliente" type="hidden" value="' + TrataNulo(row.CodCategoriaCliente) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirCategoriaCliente() {
+            $(".btnExcluirCategoriaCliente").unbind('click');
+            $(".btnExcluirCategoriaCliente").click(function (e) {
+                e.preventDefault();
+
+                const idParamCategoriaCliente = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamCategoriaCliente !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamCategoriaCliente?Id=")' + idParamCategoriaCliente;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableCategoriaCliente.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableCategoriaCliente.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirCategoriaCliente();
+
+        $("#btnAdicionarCategoriaCliente").unbind('click');
+        $("#btnAdicionarCategoriaCliente").on('click', function () {
+            let erro = false;
+
+            let dataCategoriaCliente = oDatatableCategoriaCliente.data().toArray();
+
+            if (!$("#iCategoriaCliente").val()) {
+                if (dataCategoriaCliente.find(x => x.CategoriaCliente === $("#iCategoriaCliente option:selected").text())) {
+                    Notificar("@RsBase.ATENCAO_", "Categoria de Cliente já adicionada", "warning");
+                    erro = true;
+                }
+            }
+
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableCategoriaCliente.row.add({
+                Id: 0,
+                CodCategoriaCliente: $("#iCategoriaCliente option:selected").val(),
+                CategoriaCliente: $("#iCategoriaCliente option:selected").text() ? $("#iCategoriaCliente option:selected").text() : "Todos",
+            }).draw(false);
+
+            handleExcluirCategoriaCliente();
+
+            $("#iCategoriaCliente").val(null).trigger('change');
+        });
+    },
+        TableManageButtonsCategoriaCliente = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableCategoriaCliente();
+                }
+            }
+        }();
+
+    TableManageButtonsCategoriaCliente.init();
+
+    @* Datatable Setor *@
+
+    let oDatatableSetor = null;
+
+    const handleDataTableSetor = function () {
+        "use strict";
+
+        const dataSetor = @Html.Raw(Json.Encode(Model.ParamsSetor));
+
+        @* Nome utilizado para enganar o razor *@
+        const nomeLista = "ParamsSetor";
+
+        oDatatableSetor = $("#datatableSetorDepto").length && $("#datatableSetorDepto").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataSetor,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirSetor();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirSetorDepto" id="btnExcluirSetorDepto_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "Setor",
+                    title: "@RsCadastros.SETOR_DEPARTAMENTO",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodDepto" name="' + nomeLista + '[' + meta.row + '].CodDepto" type="hidden" value="' + TrataNulo(row.CodDepto) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirSetor() {
+            $(".btnExcluirSetorDepto").unbind('click');
+            $(".btnExcluirSetorDepto").click(function (e) {
+                e.preventDefault();
+
+                const idParamSetor = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamSetor !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamSetor?Id=")' + idParamSetor;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableSetor.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableSetor.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirSetor();
+
+        $("#btnAdicionarSetorDepto").unbind('click');
+        $("#btnAdicionarSetorDepto").on('click', function () {
+            let erro = false;
+
+            if (!$("#iSetorDepto").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.SETOR_DEPARTAMENTO)", "warning");
+                erro = true;
+            }
+
+            let dataSetor = oDatatableSetor.data().toArray();
+
+            if (dataSetor.find(x => x.CodDepto === $("#iSetorDepto option:selected").val())) {
+                Notificar("@RsBase.ATENCAO_", "Setor/Departamento já adicionado", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableSetor.row.add({
+                Id: 0,
+
+                CodDepto: $("#iSetorDepto option:selected").val(),
+                Setor: $("#iSetorDepto option:selected").text()
+            }).draw(false);
+
+            handleExcluirSetor();
+
+            $("#iSetorDepto").val(null).trigger('change');
+        });
+    },
+        TableManageButtonsSetor = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableSetor();
+                }
+            }
+        }();
+
+    TableManageButtonsSetor.init();
+
+    @* Datatable MeioCaptacao *@
+
+    let oDatatableMeioCaptacao = null;
+
+    const handleDataTableMeioCaptacao = function () {
+        "use strict";
+
+        const dataMeioCaptacao = @Html.Raw(Json.Encode(Model.ParamsMeioCaptacao));
+
+        @* Nome utilizado para enganar o razor *@
+        const nomeLista = "ParamsMeioCaptacao";
+
+        oDatatableMeioCaptacao = $("#datatableMeioCaptacao").length && $("#datatableMeioCaptacao").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataMeioCaptacao,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirMeioCaptacao();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirMeioCaptacao" id="btnExcluirMeioCaptacao_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px; padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "MeioCaptacao",
+                    title: "@RsCadastros.MEIO_CAPTACAO",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodMeioCaptacao" name="' + nomeLista + '[' + meta.row + '].CodMeioCaptacao" type="hidden" value="' + TrataNulo(row.CodMeioCaptacao) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirMeioCaptacao() {
+            $(".btnExcluirMeioCaptacao").unbind('click');
+            $(".btnExcluirMeioCaptacao").click(function (e) {
+                e.preventDefault();
+
+                const idParamMeioCaptacao = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamMeioCaptacao !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamMeioCaptacao?Id=")' + idParamMeioCaptacao;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableMeioCaptacao.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableMeioCaptacao.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirMeioCaptacao();
+
+        $("#btnAdicionarMeioCaptacao").unbind('click');
+        $("#btnAdicionarMeioCaptacao").on('click', function () {
+            let erro = false;
+
+            if (!$("#iMeioCaptacao").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MEIO_CAPTACAO)", "warning");
+                erro = true;
+            }
+
+            let dataMeioCaptacao = oDatatableMeioCaptacao.data().toArray();
+
+            if (dataMeioCaptacao.find(x => x.MeioCaptacao === $("#iMeioCaptacao option:selected").text())) {
+                Notificar("@RsBase.ATENCAO_", "Meio de Captação já adicionado", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableMeioCaptacao.row.add({
+                Id: 0,
+
+                CodMeioCaptacao: $("#iMeioCaptacao option:selected").val(),
+                MeioCaptacao: $("#iMeioCaptacao option:selected").text()
+            }).draw(false);
+
+            handleExcluirMeioCaptacao();
+
+            $("#iMeioCaptacao").val(null).trigger('change');
+        });
+    },
+        TableManageButtonsMeioCaptacao = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableMeioCaptacao();
+                }
+            }
+        }();
+
+    TableManageButtonsMeioCaptacao.init();
+
+
+    @* Datatable Regiao *@
+
+    let oDatatableRegiao = null;
+
+    const handleDataTableRegiao = function () {
+        "use strict";
+
+        const dataRegiao = @Html.Raw(Json.Encode(Model.ParamsRegiao));
+
+        @* Nome utilizado para enganar o razor *@
+        const nomeLista = "ParamsRegiao";
+
+        oDatatableRegiao = $("#datatableRegiao").length && $("#datatableRegiao").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataRegiao,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirRegiao();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirRegiao" id="btnExcluirRegiao_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px; padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "UF",
+                    title: "@RsCadastros.UF",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodUF" name="' + nomeLista + '[' + meta.row + '].CodUF" type="hidden" value="' + TrataNulo(row.CodUF) + '">';
+                        }
+
+                        return data;
+                    },
+                },
+                {
+                    data: "Cidade",
+                    title: "@RsCadastros.CIDADE",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodCidade" name="' + nomeLista + '[' + meta.row + '].CodCidade" type="hidden" value="' + TrataNulo(row.CodCidade) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirRegiao() {
+            $(".btnExcluirRegiao").unbind('click');
+            $(".btnExcluirRegiao").click(function (e) {
+                e.preventDefault();
+
+                const idParamRegiao = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamRegiao !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamRegiao?Id=")' + idParamRegiao;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableRegiao.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableRegiao.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirRegiao();
+
+        $("#btnAdicionarRegiao").unbind('click');
+        $("#btnAdicionarRegiao").on('click', function () {
+            let erro = false;
+
+            if (!$("#iUF").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning");
+                erro = true;
+            }
+
+            if (!$("#iCidade").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.CIDADE)", "warning");
+                erro = true;
+            }
+
+            let dataRegiao = oDatatableRegiao.data().toArray();
+
+            if (dataRegiao.find(x => x.UF === $("#iUF option:selected").text() && x.Cidade === $("#iCidade option:selected").text())) {
+                Notificar("@RsBase.ATENCAO_", "Cidade e UF já adicionadas", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableRegiao.row.add({
+                Id: 0,
+
+                CodUF: $("#iUF option:selected").val(),
+                UF: $("#iUF option:selected").text(),
+                CodCidade: $("#iCidade option:selected").val(),
+                Cidade: $("#iCidade option:selected").text()
+            }).draw(false);
+
+            handleExcluirRegiao();
+
+            $("#iRegiao").val(null).trigger('change');
+        });
+    },
+        TableManageButtonsRegiao = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableRegiao();
+                }
+            }
+        }();
+
+    TableManageButtonsRegiao.init();
+
+
+        @* Datatable Equipe de Vendas *@
+
+    let oDatatableEquipeVenda = null;
+
+    const handleDataTableEquipeVenda = function () {
+        "use strict";
+
+        const dataEquipeVenda = @Html.Raw(Json.Encode(Model.ParamsEquipeVenda));
+
+        @* Nome utilizado para enganar o razor *@
+        const nomeLista = "ParamsEquipeVenda";
+
+        oDatatableEquipeVenda = $("#datatableEquipeVenda").length && $("#datatableEquipeVenda").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: dataEquipeVenda,
+            paging: false,
+            ordering: false,
+            drawCallback: function () {
+                handleExcluirEquipeVenda();
+            },
+            columns: [
+                {
+                    data: "Id",
+                    title: "",
+                    width: "1%",
+                    className: "dt-body-center",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirEquipeVenda" id="btnExcluirEquipeVenda_' + meta.row + '" excluir="' + data + '"><i class="far fa-trash-alt" style="font-size:16px; padding-right:2px;"></i></a>' +
+                               '<input id="' + nomeLista + '_' + meta.row + '__Id" name="' + nomeLista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "Equipe",
+                    title: "@RsCadastros.EQUIPE_VENDAS",
+                    width: 380,
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nomeLista + '_' + meta.row + '__CodEquipe" name="' + nomeLista + '[' + meta.row + '].CodEquipe" type="hidden" value="' + TrataNulo(row.CodEquipe) + '">';
+                        }
+
+                        return data;
+                    },
+                }
+            ]
+        });
+
+        function handleExcluirEquipeVenda() {
+            $(".btnExcluirEquipeVenda").unbind('click');
+            $(".btnExcluirEquipeVenda").click(function (e) {
+                e.preventDefault();
+
+                const idParamEquipeVenda = $(this).attr("excluir");
+                const trLinkButton = $(this).parents('tr');
+
+                if (idParamEquipeVenda !== "0") {
+                    const link = '@String.Concat(CONSTANTES.URLPortal, "/api/PerfilVisualizacaoVendaApi/ExcluirParamEquipeVenda?Id=")' + idParamEquipeVenda;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json'
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            oDatatableEquipeVenda.row(trLinkButton).remove().draw(false);
+                            Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                        }
+                        else {
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                        }
+                    });
+                }
+                else {
+                    oDatatableEquipeVenda.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+            });
+        }
+
+        handleExcluirEquipeVenda();
+
+        $("#btnAdicionarEquipeVenda").unbind('click');
+        $("#btnAdicionarEquipeVenda").on('click', function () {
+            let erro = false;
+
+            if (!$("#iEquipeVenda").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.EQUIPE_VENDAS)", "warning");
+                erro = true;
+            }
+
+            let dataEquipeVenda = oDatatableEquipeVenda.data().toArray();
+
+            if (dataEquipeVenda.find(x => x.CodEquipe === $("#iEquipeVenda option:selected").val())) {
+                Notificar("@RsBase.ATENCAO_", "Equipe de Venda já adicionada", "warning");
+                erro = true;
+            }
+
+            if (erro) {
+                return;
+            }
+
+            oDatatableEquipeVenda.row.add({
+                Id: 0,
+
+                CodEquipe: $("#iEquipeVenda option:selected").val(),
+                Equipe: $("#iEquipeVenda option:selected").text()
+            }).draw(false);
+
+            handleExcluirEquipeVenda();
+
+            $("#iEquipeVenda").val(null).trigger('change');
+        });
+    },
+        TableManageButtonsEquipeVenda = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableEquipeVenda();
+                }
+            }
+        }();
+
+    TableManageButtonsEquipeVenda.init();
+
+
+    let clicked = false;
+
+    function ValidaSubmit() {
+        if (clicked) {
+            return false;
+        }
+
+        clicked = true;
+        erro = false;
+
+        if (!$("#iDescricao").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsBase.DESCRICAO)", "warning")
+            erro = true
+        }
+
+        if (erro) {
+            clicked = false;
+            return false;
+        }
+
+        ShowPageLoading();
+        $('#form').submit();
+
+        return true;
+    }
+
+    $("#iQtdDiasBloqueioLead").on("keyup", function (e) {
+        var value = e.target.value;
+        // remove tudo que não for número
+        value = value.replace(/\D/g, "");
+
+        // atualiza o campo com o valor filtrado
+        e.target.value = value;
+
+        // valida: só aceita vazio ou maior que 1
+        if (value !== "" && parseInt(value) <= 0) {
+            e.target.value = ""; // limpa o campo
+        }
+    });
+</script>
+}
+
+@using (Html.BeginForm("Cadastro", "PerfilVisualizacaoVenda", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-cogs"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Comercial")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.COMERCIAL</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "PerfilVisualizacaoVenda")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_PARAM_VISU_GESTAO_VENDA</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+
+                @*Tabs do cadastro*@
+
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-toggle="tab" href="#btnDadosPerfil" role="tab" aria-controls="sobre" aria-selected="true"><i class="fa fa-edit"></i> @RsCadastros.DADOS_PERFIL</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnTipoPessoa" role="tab" aria-controls="filtros" aria-selected="false"><i class="fa fa-user"></i> @RsCadastros.TIPOPESSOA</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnMeioCaptacao" role="tab" aria-controls="filtros" aria-selected="false"><i class="fa fa-tags"></i> @RsCadastros.MEIO_CAPTACAO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnSetorDepto" role="tab" aria-controls="colunas" aria-selected="false"><i class="fa fa-suitcase"></i> @RsCadastros.SETOR_DEPARTAMENTO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnCategoriaCliente" role="tab" aria-controls="colunas" aria-selected="false"><i class="fa fa-id-badge"></i> @RsCadastros.CATEGORIA_CLIENTE</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnEquipeVendas" role="tab" aria-controls="colunas" aria-selected="false"><i class="fa fa-users"></i> @RsCadastros.EQUIPE_VENDAS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#btnRegiao" role="tab" aria-controls="colunas" aria-selected="false"><i class="fa fa-map-marker"></i> @RsCadastros.REGIOES</a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    @* Tab Dados do Perfil *@
+
+                    <div role="tabpanel" class="tab-pane active" id="btnDadosPerfil">
+                        <div class="card div-card-accord">
+                            <div class="card-header title-card" id="heading-1">
+                                <h5 class="mb-0">
+                                    <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                        <span class="text-bold-card">@RsCadastros.DADOS_PERFIL</span>
+                                    </a>
+                                </h5>
+                            </div>
+
+                            <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                <div class="card-body body-card-accord">
+                                    <div class="row mt-2 mb-2">
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-3">
+                                                <div class="form-group">
+                                                    <label for="iId" class="mr-3">@RsCadastros.CODIGO:</label>
+                                                    @Html.TextBoxFor(m => m.Id, new { @class = "form-control", id = "iId", disabled = "disabled" })
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <div class="col-sm-6">
+                                            <div class="form-group">
+                                                <label for="iDescricao" class="mr-3">@RsCadastros.DESCRICAO: <span class="text-danger">* </span></label>
+                                                @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao", @autocomplete = "off", @maxlength = "25", @required = true })
+                                                @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-3 pt-3">
+                                                <div class="form-group">
+                                                    <label for="iStatus" class="mr-3">@RsCadastros.STATUS:</label>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", id = "iStatus", name = " iStatus", data_toggle = "toggle", data_on = "Ativo", data_off = "Inativo", data_onstyle = "success", data_offstyle = "light" })
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-12 pt-3">
+                                            <div class="form-group">
+                                                <label for="iPerfilSolicitaAutorizacao">Perfil Solicita Autorização para criar vendas para pessoas que são clientes?</label><br />
+                                                @Html.CheckBoxFor(m => m.PerfilSolicitaAutorizacao, new { @class = "form-control", @id = "iPerfilSolicitaAutorizacao", @name = "iPerfilSolicitaAutorizacao", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-3 pt-3">
+                                            <div class="form-group">
+                                                <label for="iPadraoVisualizaoLead">Perfil visualiza somente os próprios Lead's cadastrados?</label><br />
+                                                @Html.CheckBoxFor(m => m.PadraoVisualizacaoLead, new { @class = "form-control", @id = "iPadraoVisualizaoLead", @name = "iPadraoVisualizaoLead", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3" id="divQtdDiasBloqueioLead" style="display: none">
+                                            <div class="form-group">
+                                                <label for="iQtdDiasBloqueioLead" class="mr-3">@RsCadastros.QTD_DIAS_OCULTAR_VISUALIZACAO_LEAD</label>
+                                                <i class="fa fa-question-circle text-info" data-toggle="tooltip" data-placement="top" title="Deixe em branco ou informe 1 ou mais dias." style="cursor: pointer; font-size: 16px"> </i><br>
+                                                @Html.TextBoxFor(model => model.Qtd_Dias_Bloqueio_Lead, new { @class = "form-control", @id = "iQtdDiasBloqueioLead", @type = "number",@min = "1", @value = "" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-2 mb-2">
+                                        <div class="col-sm-12 pt-3">
+                                            <div class="form-group">
+                                                <label for="iPadraoVisualizaoLead">Perfil visualiza somente as próprias vendas?</label><br />
+                                                @Html.CheckBoxFor(m => m.PadraoVisualizacaoVenda, new { @class = "form-control", @id = "iPadraoVisualizaoVenda", @name = "iPadraoVisualizaoVenda", @data_toggle = "toggle", @data_on = RsBase.SIM, @data_off = RsBase.NAO, @data_onstyle = "success", @data_offstyle = "light" })
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                                </div>
+                        </div>
+                    </div>
+
+                        @* Tab Tipo de Pessoa *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnTipoPessoa">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Tipo de Pessoa</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iTipoPessoa">@RsCadastros.TIPOPESSOA:</label>
+                                                        @Html.DropDownList("TipoPessoa", new SelectList(listaTipoPessoa, "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoPessoa", @autocomplete = "off" })
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarTipoPessoa" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Tipos de Pessoas Adicionados</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableTipoPessoa" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Tab Categoria Cliente *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnCategoriaCliente">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Categoria Cliente</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iCategoriaCliente">@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                                        <select class="form-control" id="iCategoriaCliente">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarCategoriaCliente" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Categorias Adicionadas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableCategoriaClientes" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Tab Setor/Departamento *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnSetorDepto">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Setor/Departamento</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iSetorDepto">@RsCadastros.SETOR_DEPARTAMENTO:</label>
+                                                        <select class="form-control" id="iSetorDepto">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarSetorDepto" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Setores/Departamentos Adicionados</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableSetorDepto" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Tab MeioCaptacao *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnMeioCaptacao">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Meio de Captação</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iMeioCaptacao">@RsCadastros.MEIO_CAPTACAO</label>
+
+                                                        <select class="form-control" id="iMeioCaptacao">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarMeioCaptacao" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Meio de Captação Adicionados</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableMeioCaptacao" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        @* Tab Regiao *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnRegiao">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Região</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iUF">@RsCadastros.UF:</label>
+
+                                                        <select class="form-control" id="iUF">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label for="iCidade">@RsCadastros.CIDADE:</label>
+
+                                                        <select class="form-control" id="iCidade">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarRegiao" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Regiões Adicionadas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableRegiao" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Tab Equipe de Vendas *@
+
+                        <div role="tabpanel" class="tab-pane" id="btnEquipeVendas">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Adicionar Equipe de Vendas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="form-group">
+                                                        <label for="iEquipeVenda">@RsCadastros.EQUIPE_VENDAS:</label>
+
+                                                        <select class="form-control" id="iEquipeVenda">
+                                                            <option value="">@RsBase.SELECIONE</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col">
+                                                    <div class="text-right mt-3">
+                                                        <input type="button" id="btnAdicionarEquipeVenda" class="btn btn-success" value="@RsCadastros.ADICIONAR" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+                                        <div class="card-header title-card">
+                                            <h5 class="mb-1">
+                                                <a role="button">
+                                                    <span class="text-bold-card">Lista de Equipes de Vendas Adicionadas</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-hover nowrap" id="datatableEquipeVenda" style="width:100%"></table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                            </div>
+        </div>
+
+        <a href="@Url.Action("Index", "PerfilVisualizacaoVenda")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+}
+

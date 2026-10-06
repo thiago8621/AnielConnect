@@ -1,0 +1,877 @@
+﻿@model Aniel.Connect.Models.Cobranca_ServicoCadastroModel
+
+@{
+    ViewBag.Title = RsCadastros.CONFIGURACAO_COBRANCA_SERVICO;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles
+{
+    @Styles.RenderFormat(SiteKeys.StyleVersion, "~/Content/cssDataTable")
+    <link href="~/bin/Content/preloaderbar.css" media="none" onload="if(media!='all')media='all'" rel="stylesheet" />
+    <style>
+        /*div#divPerfil {
+            height: 180px !important;
+        }*/
+    </style>
+}
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+<script>
+    $('a[data-toggle="tab"]').on('shown.bs.tab', () => {
+        $("#datatableTipoServico").DataTable().columns.adjust();
+        $("#datatablePlanoProduto").DataTable().columns.adjust();
+    })
+   let oDatatablePlanoProduto = null;
+    const handlePlanoProduto = function () {
+
+        $('#iPlano_Produto').on('select2:select select2:unselecting', function (e) {
+            PlanoProdutoSelecionado = e.params.data;
+
+            //if (PlanoProdutoSelecionado) {
+            //    alert("valor:" + PlanoProdutoSelecionado.valorPlanoProduto)
+
+            //}
+        });
+    };
+
+        let TipoSegmentoSelecionado = "";
+        const handleSegmentoServico = function () {
+            $('#iSegmento').on('select2:select select2:unselecting', async function (e) {
+                TipoSegmentoSelecionado = e.params.data;
+                if (TipoSegmentoSelecionado === undefined) {
+                    disabledFields();
+                } else {
+                    await AddSelect("iTipo_Servico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, TipoSegmentoSelecionado.id, null, "@RsBase.SELECIONE", false, handleTipoServico);
+                    await AddSelect("iCod_Encerramento", "@CONSTANTES.URLPortal/api/CodigoEncerramentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, TipoSegmentoSelecionado.id, null, "@RsBase.SELECIONE", false, handleCodEncerramento);
+                    $("#iEscolhaCobranca").prop("disabled", false);
+                    $("#iTodasCod_Encerramento").prop("disabled", false);
+                }
+            });
+        }
+
+        let TipoServicoSelecionado = "";
+        const handleTipoServico = function () {
+            $('#iTipo_Servico').on('select2:select select2:unselecting',async function (e) {
+                TipoServicoSelecionado = e.params.data;
+
+                if (TipoServicoSelecionado === undefined || TipoServicoSelecionado == "") {
+                    await AddSelect("iSub_Tipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true, handleTipoServico);
+                } else {
+                    await AddSelect("iSub_Tipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, TipoServicoSelecionado.id, null, "@RsBase.SELECIONE", false, handleTipoServico);
+                    $("#iTodasSubTipoServico").prop("disabled", false);
+                }
+            });
+        }
+
+        let TipoSubTipoSelecionado = "";
+        const handleSubTipoServico = function () {
+            $('#iSub_Tipo_Servico').on('select2:select select2:unselecting', function (e) {
+                TipoSubTipoSelecionado = e.params.data;
+            });
+        }
+
+        let TipoCodEncerramento = "";
+        const handleCodEncerramento = function () {
+            $('#iCod_Encerramento').on('select2:select select2:unselecting', function (e) {
+                TipoCodEncerramento = e.params.data;
+            });
+        }
+
+
+    $(document).ready(async function () {
+        await AddSelect("iSegmento", "@CONSTANTES.URLPortal/api/ContratoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handleSegmentoServico);
+        await AddSelect("iPlano_Produto", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false, handlePlanoProduto, null, "PLANO_COMERCIALIZAVEL_NAO");
+        disabledFields();
+
+        CalcularValorTotal();
+    });
+
+    async function disabledFields() {
+        await AddSelect("iTipo_Servico", "@CONSTANTES.URLPortal/api/Tipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        await AddSelect("iSub_Tipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        await AddSelect("iCod_Encerramento", "@CONSTANTES.URLPortal/api/CodigoEncerramentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        $("#iTodasSubTipoServico").prop("disabled", true);
+        $("#iTodasSubTipoServico").prop("checked", false);
+
+        $("#iTodasCod_Encerramento").prop("disabled", true);
+        $("#iTodasCod_Encerramento").prop("checked", false);
+
+        $("#iEscolhaCobranca").prop("disabled", true);
+        $("#iEscolhaCobranca").val("");
+    }
+
+    $("#iTodasSubTipoServico").on("change", async function (e) {
+        if ($("#iTodasSubTipoServico").is(":checked")) {
+            await AddSelect("iSub_Tipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        } else {
+            await AddSelect("iSub_Tipo_Servico", "@CONSTANTES.URLPortal/api/SubTipo_Servicoapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iTipo_Servico").val(), null, "@RsBase.SELECIONE", false);
+        }
+    });
+
+    $("#iTodasCod_Encerramento").on("change", async function (e) {
+        if ($("#iTodasCod_Encerramento").is(":checked")) {
+            await AddSelect("iCod_Encerramento", "@CONSTANTES.URLPortal/api/CodigoEncerramentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", true);
+        } else {
+            await AddSelect("iCod_Encerramento", "@CONSTANTES.URLPortal/api/CodigoEncerramentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, $("#iSegmento").val(), null, "@RsBase.SELECIONE", false);
+        }
+    });
+
+    var handleDataTableButtonsTipoServico= function () {
+    "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.TipoServico));
+        var nome_lista = "TipoServico";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        var oDatatable = $("#datatableTipoServico").length && $("#datatableTipoServico").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            data: array,
+            scrollX: true,
+            scrollCollapse: true,
+            paging: false,
+            autoPrint: false,
+            columns: [
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluir" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+
+                    data: "Segmento_Desc",
+                    title: "@RsCadastros.SEGMENTO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Segmento_Desc" name="' + nome_lista + '[' + meta.row + '].Segmento_Desc" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Segmento" name="' + nome_lista + '[' + meta.row + '].Segmento" type="hidden" value="' + TrataNulo(row.Segmento) + '">';
+                        }
+                        return data;
+                    }
+
+                },
+                {
+                    data: "Desc_Tipo_Servico",
+                    title: "@RsCadastros.TIPO_SERVICO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Tipo_Servico" name="' + nome_lista + '[' + meta.row + '].Desc_Tipo_Servico" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Tipo_Servico" name="' + nome_lista + '[' + meta.row + '].Tipo_Servico" type="hidden" value="' + TrataNulo(row.Tipo_Servico) + '">';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "Desc_Sub_Tipo_Servico",
+                    title: "@RsCadastros.SUBTIPO_SERVICO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            var valor = row.TodasSubTipoServico == 1 ? "@RsBase.TODAS" : data;
+
+                            data = valor + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Sub_Tipo_Servico" name="' + nome_lista + '[' + meta.row + '].Desc_Sub_Tipo_Servico" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Sub_Tipo_Servico" name="' + nome_lista + '[' + meta.row + '].Sub_Tipo_Servico" type="hidden" value="' + TrataNulo(row.Sub_Tipo_Servico) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__TodasSubTipoServico" name="' + nome_lista + '[' + meta.row + '].TodasSubTipoServico" type="hidden" value="' + TrataNulo(row.TodasSubTipoServico) + '">';
+                        }
+                        return data;
+                    },
+
+                },
+                {
+                    data: "Desc_Cod_Encerramento",
+                    title: "@RsCadastros.CODIGO_ENCERRAMENTO",
+                    render: function (data, type, row, meta) {
+                        var valor = row.TodasCod_Encerramento == 1 ? "@RsBase.TODAS" : data;
+
+                        if (type === 'display') {
+                            data = valor + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Cod_Encerramento" name="' + nome_lista + '[' + meta.row + '].Desc_Cod_Encerramento" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Encerramento" name="' + nome_lista + '[' + meta.row + '].Cod_Encerramento" type="hidden" value="' + TrataNulo(row.Cod_Encerramento) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__TodasCod_Encerramento" name="' + nome_lista + '[' + meta.row + '].TodasCod_Encerramento" type="hidden" value="' + TrataNulo(row.TodasCod_Encerramento) + '">';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    data: "Desc_Forma_Cobranca",
+                    title: "@RsCadastros.COBRANCA",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__" name="' + nome_lista + '[' + meta.row + '].Desc_Forma_Cobranca" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Cod_Cobranca" name="' + nome_lista + '[' + meta.row + '].Cod_Cobranca" type="hidden" value="' + TrataNulo(row.Cod_Cobranca) + '">';
+                        }
+                        return data;
+                    }
+                }
+            ]
+        });
+
+        function handleExcluir() {
+            $(".btnExcluir").unbind('click');
+            $(".btnExcluir").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("excluir");
+
+                var trLinkButton = $(this).parents('tr');
+
+                if (idArquivo === "0") {
+                    oDatatable.row(trLinkButton).remove().draw(false);
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Cobranca_Servicoapi/ExcluirPlanoGrid?value=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatable.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+
+            });
+        }
+
+        handleExcluir();
+
+        $("#btnAdicionarTipoServico").unbind('click');
+        $("#btnAdicionarTipoServico").on('click', async function () {
+
+           var erro = false;
+
+            if (!$("#iTodasSubTipoServico").is(":checked")) {
+                $("#iSub_Tipo_Servico").addClass("obrigatorioTipo_Servico");
+            }
+            else {
+                $("#iSub_Tipo_Servico").removeClass("obrigatorioTipo_Servico");
+            }
+
+            if (!$("#iTodasCod_Encerramento").is(":checked")) {
+                $("#iCod_Encerramento").addClass("obrigatorioSegmento");
+            }
+            else {
+                $("#iCod_Encerramento").removeClass("obrigatorioSegmento");
+            }
+
+            if (ValidaObrigatoriosPorClasse("obrigatorioTipo_Servico",erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if (ValidaObrigatoriosPorClasse("obrigatorioSegmento",erro)) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.PREENCHA_CAMPOS_OBRIGATORIOS)", "warning")
+                erro = true
+            }
+
+            if ($("#iTodasSubTipoServico").is(":checked")) {
+
+                for (var i = 0; i < oDatatable.rows().data().length; i++) {
+                    if (oDatatable.rows().data()[i].Sub_Tipo_Servico == $("#iSub_Tipo_Servico").val()) {
+                        oDatatable.row(oDatatable.rows().data()[i]).remove().draw(false);
+                    }
+                }
+            }
+
+            if ($("#iTodasCod_Encerramento").is(":checked")) {
+                for (var i = 0; i < oDatatable.rows().data().length; i++) {
+                    if (oDatatable.rows().data()[i].Cod_Encerramento == $("#iCod_Encerramento").val()) {
+                        oDatatable.row(oDatatable.rows().data()[i]).remove().draw(false);
+                    }
+                }
+            }
+
+            for (var i = 0; i < oDatatable.rows().data().length; i++) {
+
+                if (oDatatable.rows().data()[i].Segmento == $("#iSegmento").val() && oDatatable.rows().data()[i].Tipo_Servico == $("#iTipo_Servico").val() &&
+                    oDatatable.rows().data()[i].TodasSubTipoServico == true) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.SUBTIPO_SERVICO)", "warning");
+                    erro = true;
+                    break;
+                }
+                if (oDatatable.rows().data()[i].Segmento == $("#iSegmento").val() && oDatatable.rows().data()[i].Tipo_Servico == $("#iTipo_Servico").val() &&
+                    oDatatable.rows().data()[i].TodasCod_Encerramento == true) {
+
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.CODIGO_ENCERRAMENTO)", "warning");
+                    erro = true;
+                    break;
+                }
+
+                if (oDatatable.rows().data()[i].Segmento == $("#iSegmento").val() && oDatatable.rows().data()[i].Tipo_Servico == $("#iTipo_Servico").val() &&
+                    oDatatable.rows().data()[i].Sub_Tipo_Servico == $("#iSub_Tipo_Servico").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.SUBTIPO_SERVICO)", "warning");
+                    erro = true;
+                    break;
+                }
+
+                if (oDatatable.rows().data()[i].Sub_Tipo_Servico == $("#iCod_Encerramento").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.CODIGO_ENCERRAMENTO)", "warning");
+                    erro = true;
+                    break;
+                }
+
+                if (oDatatable.rows().data()[i].Cod_Cobranca == $("#iEscolhaCobranca").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.COBRANCA)", "warning");
+                    erro = true;
+                    break;
+                }
+            }
+
+            if (erro) {
+                return;
+            }
+
+            var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Cobranca_Servicoapi/ConsultaTipoServico")';
+            var model = {
+                Id_Segmento: $("#iSegmento").val(),
+                Id_Tipo_Servico: $("#iTipo_Servico option:selected").val(),
+                Id_Sub_Tipo_Servico: $("#iSub_Tipo_Servico").val(),
+                Id_Cod_Encerramento: $("#iCod_Encerramento").val()
+            };
+
+            const resultado = await $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                data: model,
+                beforeSend: function () {
+                    $("#divProgress").show();
+                },
+                complete: function () {
+                    $("#divProgress").hide();
+                }
+            });
+
+            if (resultado.ok) {
+                Notificar("@RsBase.ATENCAO_", resultado.mensagem, "warning");
+                return false;
+            }
+
+            oDatatable.row.add({
+                Id: 0,
+                Segmento_Desc: $("#iSegmento option:selected").text(),
+                Segmento: $("#iSegmento").val(),
+                Desc_Cod_Encerramento: $("#iCod_Encerramento option:selected").text(),
+                Cod_Encerramento: $("#iCod_Encerramento").val(),
+                Desc_Tipo_Servico: $("#iTipo_Servico option:selected").text(),
+                Tipo_Servico: $("#iTipo_Servico option:selected").val(),
+                Desc_Sub_Tipo_Servico: $("#iSub_Tipo_Servico option:selected").text(),
+                Sub_Tipo_Servico: $("#iSub_Tipo_Servico").val(),
+                TodasSubTipoServico: $('#iTodasSubTipoServico').is(':checked'),
+                TodasCod_Encerramento: $('#iTodasCod_Encerramento').is(':checked'),
+                Cod_Cobranca: $("#iEscolhaCobranca option:selected").val(),
+                Desc_Forma_Cobranca: $("#iEscolhaCobranca option:selected").text()
+            }).draw(false);
+
+            $("#iSegmento").val(null).trigger('change');
+            disabledFields();
+            handleExcluir();
+        });
+    },
+        TableManageButtonsTipoServico = function () {
+        "use strict";
+        return {
+            init: function () {
+                handleDataTableButtonsTipoServico();
+            }
+        }
+        }();
+
+    TableManageButtonsTipoServico.init();
+
+    var handleDataTableButtonsPlanoProduto= function () {
+    "use strict";
+
+        var array = @Html.Raw(Json.Encode(Model.PlanoProduto));
+        var nome_lista = "PlanoProduto";//Nome_utilizado para enganar o razor
+
+        //"Blfrtip"
+        oDatatablePlanoProduto = $("#datatablePlanoProduto").length && $("#datatablePlanoProduto").DataTable({
+            dom: "Bfrti",
+            language: traducaoDataTableSimples,
+            scrollX: true,
+            data: array,
+            columns: [
+                {
+                    data: "Id",
+                    render: function (data, type, row, meta) {
+                        return '<a href="#" class="btnExcluirPlano" id="btnExcluir_' + meta.row + '" excluir="' + row.Id + '"><i class="far fa-trash-alt" style="font-size:16px;;padding-right:2px;"></i></a>' +
+                            ' <input id="' + nome_lista + '_' + meta.row + '__Id" name="' + nome_lista + '[' + meta.row + '].Id" type="hidden" value="' + TrataNulo(data) + '">';
+                    }
+                },
+                {
+                    data: "Desc_Plano_Produto",
+                    title: "@RsCadastros.PLANOS_E_PRODUTOS",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Desc_Plano_Produto" name="' + nome_lista + '[' + meta.row + '].Desc_Plano_Produto" type="hidden" value="' + TrataNulo(data) + '">' +
+                                ' <input id="' + nome_lista + '_' + meta.row + '__Plano_Produto" name="' + nome_lista + '[' + meta.row + '].Plano_Produto" type="hidden" value="' + TrataNulo(row.Plano_Produto) + '">';
+                        }
+                        return data;
+                    }
+                },
+
+                 {
+                     data: "Valor_Cobrado",
+                     title: "@RsCadastros.VALOR_COBRADO",
+                    render: function (data, type, row, meta) {
+                        if (type === 'display') {
+                            data = data + ' <input id="' + nome_lista + '_' + meta.row + '__Valor_Cobrado" name="' + nome_lista + '[' + meta.row + '].Valor_Cobrado" type="hidden" value="' + TrataNulo(data) + '">';
+                        }
+                        return data;
+                    }
+                },
+
+            ]
+        });
+
+        function handleExcluir() {
+            $(".btnExcluirPlano").unbind('click');
+            $(".btnExcluirPlano").click(function (e) {
+                e.preventDefault();
+
+                var idArquivo = $(this).attr("excluir");
+
+                var trLinkButton = $(this).parents('tr');
+
+
+                if (idArquivo === "0") {
+                    oDatatablePlanoProduto.row(trLinkButton).remove().draw(false);
+                    CalcularValorTotal();
+                    Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                }
+                else {
+
+                    var link = '@String.Concat(CONSTANTES.URLPortal, "/api/Cobranca_Servicoapi/ExcluirGrid?value=")' + idArquivo;
+
+                    $.ajax({
+                        url: link,
+                        type: 'GET',
+                        dataType: 'json',
+
+                    })
+                        .done(function (data) {
+
+                            if (data.ok) {
+                                oDatatablePlanoProduto.row(trLinkButton).remove().draw(false);
+                                Notificar("@RsBase.OPERACAOBEMSUCEDIDA", "@RsBase.REGISTROREMOVIDO", "info");
+                            }
+                            else {
+                                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+                            }
+                            CalcularValorTotal();
+                        })
+                        .fail(function () {
+
+                        })
+                        .always(function () {
+
+                        });
+                }
+            });
+        }
+
+        handleExcluir();
+
+        $("#btnAdicionarPlanoProduto").unbind('click');
+        $("#btnAdicionarPlanoProduto").on('click', function () {
+
+            for (var i = 0; i < oDatatablePlanoProduto.rows().data().length; i++) {
+
+                if (oDatatablePlanoProduto.rows().data()[i].Plano_Produto == $("#iPlano_Produto option:selected").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.JA_EXISTE, RsCadastros.PLANO_PRODUTO)", "warning");
+                        erro = true;
+                    i = oDatatablePlanoProduto.rows().data().length;
+                }
+                if (!$("#iPlano_Produto").val()) {
+            Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.PLANO_PRODUTO)", "warning");
+            erro = true;
+        }
+
+            }
+
+
+            oDatatablePlanoProduto.row.add({
+                Id: 0,
+                Desc_Plano_Produto: $("#iPlano_Produto option:selected").text(),
+                Plano_Produto: $("#iPlano_Produto").val(),
+                Valor_Cobrado: PlanoProdutoSelecionado.valorPlanoProduto,
+
+            }).draw(false);
+
+            CalcularValorTotal();
+            handleExcluir();
+            $("#iPlano_Produto").val(null).trigger('change');
+
+        });
+
+    },
+        TableManageButtonsPlanoProduto = function () {
+        "use strict";
+        return {
+            init: function () {
+                handleDataTableButtonsPlanoProduto();
+                CalcularValorTotal();
+            }
+        }
+        }();
+
+        TableManageButtonsPlanoProduto.init();
+
+
+        function CalcularValorTotal () {
+            var valor_total = 0;
+
+            for (var i = 0; i < oDatatablePlanoProduto.data().count(); i++) {
+
+                var valor_row = typeof oDatatablePlanoProduto.row(i).data().Valor_Cobrado == "string"
+                    ?
+                    oDatatablePlanoProduto.row(i).data().Valor_Cobrado.replace(",", ".")
+                    :
+                    oDatatablePlanoProduto.row(i).data().Valor_Cobrado;
+
+                valor_row = parseFloat(valor_row);
+
+                valor_total += valor_row;
+            }
+
+            var valorStr = floatParaString(valor_total);
+
+            $("#iValorFinal").val(valorStr);
+            valorTotalInicial = valor_total;
+
+        };
+
+    var clicked = false;
+    function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+
+
+            erro = false;
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+            return true;
+        }
+
+</script>
+}
+
+
+@using (Html.BeginForm("Cadastro", "Cobranca_Servico", FormMethod.Post, htmlAttributes: new { @id = "form" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+                        <h4 class="title-page"><i class="fas fa-list-ol"></i> @ViewBag.Title</h4>
+
+                        <nav aria-label="breadcrumb" class="mb-20">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Configuracao")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.CONFIGURACOES</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="@Url.Action("Index", "Cobranca_Servico")" style="color:#367fa9" onclick="ShowPageLoading(); return true;">@RsCadastros.LISTAGEM_COBRANCA_SERVICO</a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <span>@ViewBag.Title</span>
+                                </li>
+
+                            </ol>
+                        </nav>
+
+                        @*<span style="font-size:11px" id="dtLegend"></span>*@
+                    </div>
+                </div>
+
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active"
+                           id="Cadastro-tab"
+                           data-toggle="tab"
+                           href="#iTabCadastro"
+                           role="tab"
+                           aria-selected="true"><i class="fas fa-edit"></i>@RsCadastros.CADASTRO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           id="TipoSevico-tab"
+                           data-toggle="tab"
+                           href="#iTipoServico"
+                           role="tab" aria-selected="false"><i class="fas fa-code-branch"></i>@RsCadastros.TIPO_SERVICO</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link"
+                           id="Plano-tab"
+                           data-toggle="tab"
+                           href="#iPlano"
+                           role="tab" aria-selected="false"><i class="fas fa-wifi"></i>@RsCadastros.PLANOS_E_PRODUTOS</a>
+                    </li>
+                </ul>
+
+                <div>
+                    <div class="tab-content">
+                        <!---Modal Cadastro-->
+                        <div role="tabpanel" class="tab-pane active" id="iTabCadastro" style=" width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; /*border: 1px solid #555;*/ outline: none;">
+                            <div class="card div-card-accord">
+                                <div class="card-header title-card" id="heading-1">
+                                    <h5 class="mb-0">
+                                        <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-1" aria-expanded="true" aria-controls="collapse-1">
+                                            <span class="text-bold-card">@ViewBag.Title</span>
+                                        </a>
+                                    </h5>
+                                </div>
+
+                                <div id="collapse-1" class="collapse show" data-parent="#accordion" aria-labelledby="heading-1">
+                                    <div class="card-body body-card-accord">
+                                        <div class="row mt-2 mb-2">
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label for="iDescricao" class="mr-3">@RsFinanceiro.DESCRICAO:</label>
+                                                    @Html.TextBoxFor(model => model.Descricao, new { @class = "form-control", @id = "iDescricao",@maxlength="100", @autocomplete = "off", @required = true })
+                                                    @Html.ValidationMessageFor(model => model.Descricao, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+
+                                            @if (Model.Id != 0)
+                                            {
+                                                <div class="col-sm-3 pt-3">
+                                                    <div class="form-group">
+                                                        <label for="iSaldo_Caixa" class="mr-3">@RsFinanceiro.STATUS:</label>
+                                                        @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = " iStatus", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            <div class="form-group col-sm-12" style="padding: 15px;">
+                                                <div class="text-left">
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!---Modal Tipo Serviço-->
+                        <div role="tabpanel" class="tab-pane" id="iTipoServico">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+
+                                        <div class="card-header title-card" id="heading-2">
+                                            <h5 class="mb-0">
+                                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-2" aria-expanded="true" aria-controls="collapse-2">
+                                                    <span class="text-bold-card">@RsCadastros.ADICIONAR_SERVICO</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div id="collapse-2" class="collapse show" data-parent="#accordion" aria-labelledby="heading-2">
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label for="iSegmento"><span class="text-danger">*</span> @RsCadastros.SEGMENTO:</label>
+                                                    <div class="input-group">
+                                                        @Html.DropDownListFor(model => model.Segmento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorioSegmento", @id = "iSegmento" })
+                                                        @Html.ValidationMessageFor(model => model.Segmento, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label><span class="text-danger">*</span> @RsCadastros.TIPO_SERVICO:</label>
+                                                    @Html.DropDownListFor(m => m.Tipo_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control obrigatorioTipo_Servico", @id = "iTipo_Servico", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Tipo_Servico, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            <div class="form-inline" style="padding: 0 0 0 16px;">
+                                                <div class="form-group mb-2" style="width: 30%;">
+                                                    <label><span class="text-danger">*</span> @RsCadastros.SUBTIPO_SERVICO:</label>
+                                                    @Html.DropDownListFor(m => m.Sub_Tipo_Servico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iSub_Tipo_Servico", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Sub_Tipo_Servico, "", new { @class = "text-danger" })
+                                                </div>
+
+                                                <div class="form-inline mx-sm-3 mb-2" style="padding: 16px 0 0 0;">
+                                                    @Html.CheckBoxFor(model => model.TodasSubTipoServico, new { @class = "form-control", @id = "iTodasSubTipoServico" })
+                                                    <label for="iTodasSubTipoServico" class="pl-1 pr-1">Todos</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-inline" style="padding: 0 0 0 16px;">
+                                                <div class="form-group mb-2" style="width: 30%;">
+                                                    <label><span class="text-danger">*</span> @RsCadastros.CODIGO_ENCERRAMENTO:</label>
+                                                    @Html.DropDownListFor(m => m.Cod_Encerramento, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iCod_Encerramento", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Cod_Encerramento, "", new { @class = "text-danger" })
+                                                </div>
+
+                                                <div class="form-inline mx-sm-3 mb-2" style="padding: 16px 0 0 0;">
+                                                    @Html.CheckBoxFor(model => model.TodasCod_Encerramento, new { @class = "form-control", @id = "iTodasCod_Encerramento" })
+                                                    <label for="iTodasCod_Encerramento" class="pl-1 pr-1">Todos</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-sm-4">
+                                                <div class="form-group">
+                                                    <label for="iEscolhaCobranca"><span class="text-danger">*</span> @RsCadastros.ESCOLHA_COBRANCA</label>
+                                                    @Html.EnumDropDownListFor(m => m.Escolha_Cobranca, RsBase.SELECIONE, new { @class = "form-control obrigatorioTipo_Servico", @id = "iEscolhaCobranca", @autocomplete = "off" })
+                                                    @Html.ValidationMessageFor(model => model.Escolha_Cobranca, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                            <div class="form-group col-sm-12" style="padding: 15px;">
+                                                <div class="text-left">
+
+                                                    <button type="button" class="btn btn-success" id="btnAdicionarTipoServico">Adicionar</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+
+                                        <div class="card-header title-card" id="heading-3">
+                                            <h5 class="mb-0">
+                                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-3" aria-expanded="true" aria-controls="collapse-3">
+                                                    <span class="text-bold-card">@RsCadastros.LISTA_SERVICO</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div id="collapse-3" class="collapse show" data-parent="#accordion" aria-labelledby="heading-3">
+                                            <div class="card-body">
+                                                <table class="table table-hover nowrap" id="datatableTipoServico" style="width:100%"></table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!---Modal Plano e Produto-->
+
+                        <div role="tabpanel" class="tab-pane" id="iPlano">
+                            <div class="row ">
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord" >
+
+                                        <div class="card-header title-card" id="heading-4">
+                                            <h5 class="mb-0">
+                                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-4" aria-expanded="true" aria-controls="collapse-4">
+                                                    <span class="text-bold-card">@RsCadastros.PLANO_PRODUTO</span>
+                                                </a>
+                                            </h5>
+                                        </div>
+                                        <div id="collapse-4" class="collapse show" data-parent="#accordion" aria-labelledby="heading-4">
+
+                                            <div class="col-sm-10">
+                                                <div class="form-group">
+                                                    <label for="iPlano_Produto">@RsCadastros.PLANOS_E_PRODUTOS:</label>
+                                                    <div class="input-group">
+                                                        @Html.DropDownListFor(model => model.Plano_Produto, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text", "ValorPlanoProduto"), RsBase.SELECIONE, new { @class = "form-control", @id = "iPlano_Produto" })
+                                                        @Html.ValidationMessageFor(model => model.Plano_Produto, "", new { @class = "text-danger" })
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                                <div class="form-group col-sm-12" style="padding: 15px;">
+                                                    <div class="text-left">
+
+                                                        <button type="button" @*onclick="return ValidaSubmit();"*@ class="btn btn-success" id="btnAdicionarPlanoProduto">Adicionar</button>
+                                                    </div>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
+                                    <div class="card div-card-accord">
+
+                                        <div class="card-header title-card" id="heading-5">
+                                            <h5 class="mb-0">
+                                                <a class="collapsed" role="button" data-toggle="collapse" href="#collapse-5" aria-expanded="true" aria-controls="collapse-5">
+                                                    <span class="text-bold-card">@RsCadastros.LISTA_PLANO_PRODUTO_ADICIONADOS</span>
+                                                </a>
+                                            </h5>
+                                        </div>                         
+                                            <div id="collapse-5" class="collapse show" data-parent="#accordion" aria-labelledby="heading-5">
+                                                <div class="row">
+                                                    <div class="col-sm-6">
+                                                        @*<div class="row mt-2 mb-2" align="center"style=" width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; /*border: 1px solid #555;*/ outline: none;">*@
+                                                            <table class="table table-hover nowrap" id="datatablePlanoProduto" style="width:100%"></table>
+                                                        @*</div>*@
+                                                    </div>
+                                                    <div class="col-sm-6">
+                                                        <div class="form-group">
+                                                            <h4>RESUMO TOTAL</h4>
+                                                            <input type="text" class="form-control readonly col-sm-6" style="display:inline" id="iValorFinal" />
+                                                        </div>
+                                                    </div>
+                                                </div>                                          
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--Button Float-->
+        <a href="@Url.Action("Index", "Cobranca_Servico")" class="float-cancel">
+            <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+                <i class="fas fa-times fa-2x"></i>
+            </div>
+        </a>
+
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    </div>
+
+}
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">@RsCadastros.PROCESSANDO ...</span>
+    </div>
+</div>

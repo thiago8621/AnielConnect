@@ -1,0 +1,3350 @@
+﻿@model Aniel.Connect.Repository.Model.Cliente_ProspectoDadosGeraisViewModel
+@using Sinapse.Model.enumerados;
+
+@using Aniel.Connect.Core.Helpers
+@using Aniel.Connect.Model.enumerado
+@using Aniel.Connect.Models
+@using Aniel.Connect.ControllersWebApi
+
+@using Aniel.Connect.Models.T5
+
+@using Aniel.Connect.Repository.Model
+
+@{
+    ViewBag.Title = RsCadastros.CADASTRO_DE_LEAD;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+    List<AreaModuloModel> _areas = (List<AreaModuloModel>)ViewBag.Areas;
+
+    var camposObrigatorios = (Dictionary<string, bool>)ViewBag.CamposObrigatorios;
+    var camposBloqueados = (Dictionary<string, bool>)ViewBag.CamposBloqueados;
+
+    var stringObrigatorio = Html.Raw("<span class=\"text-danger\">* </span>");
+
+    bool usuarioVendedor = Convert.ToBoolean(TempData["Usuario_Vendedor"]);
+    IEnumerable<bool> restricoes = new List<bool> { Model.ConsultaViabilidadeHabilitada, Model.ConsultaPendenciaFinanceiraHabilitada, Model.ConsultaPendenciaEnderecoHabilitada, Model.ConsultaCreditoHabilitada };
+    var VisualizaRestricoes = new Dictionary<string, bool>
+{
+        {"CONSULTA_VIABILIDADE", Model.ConsultaViabilidadeVendedorVisualiza},
+        {"CONSULTA_PENDENCIA_ENDERECO", Model.ConsultaPendenciaEnderecoVendedorVisualiza},
+        {"CONSULTA_PENDENCIA_FINANCEIRA", Model.ConsultaPendenciaFinanceiraVendedorVisualiza},
+        {"CONSULTA_CREDITO", Model.ConsultaCreditoVendedorVisualiza}
+    };
+    bool validaNumeroTelefone = ViewBag.ValidaNumeroTelefone;
+    bool validaDocumentoLead = ViewBag.ValidarDocumentoLead;
+
+    var stringHtml_LegendaStatus = Html.Raw(@"<div style='font-size: 12px'>
+<span class='p-3'><i class='fas fa-circle legenda-status-sem-acesso'></i> Pendente / Sem Acesso ao Status da Consulta</span><br />
+<span class='p-3'><i class='fas fa-circle legenda-status-aprovado'></i> Aprovado</span><br />
+<span class='p-3'><i class='fas fa-circle legenda-status-reprovado'></i> Reprovado</span><br />
+</div>");
+}
+
+
+@{
+    // var criada para bloquear o cadastro do  prospecto caso ele ja tenha sido efetivado para cliente
+    var efetivadobool = false;
+
+    if (Model.Id == 0)
+    {
+        Model.Status_Prospecto = Status_Prospecto.Lead_Nao_Qualificado;
+    }
+
+    if (Model.Status_Prospecto == Status_Prospecto.Efetivado)
+    {
+        efetivadobool = true;
+    }
+}
+@section styles
+{
+    <link href="~/bin/Content/preloaderbar.css" rel="stylesheet" />
+    <style>
+        .overlay {
+            z-index: 5900 !important;
+        }
+
+        .circle-consulta-pendente {
+            font-size: 1.5em;
+            color: #CCCCCC;
+        }
+
+        .circle-consulta-aprovada {
+            font-size: 1.5em;
+            color: #8BC53F;
+        }
+
+        .circle-consulta-reprovada {
+            font-size: 1.5em;
+            color: #FF0000;
+        }
+
+        .inherit-width {
+            width: inherit
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+
+        .legenda-status-sem-acesso {
+            color: #CCCCCC;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-aprovado {
+            color: #8BC53F;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-aprovado-manual {
+            color: #2db3eb;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-pedente {
+            color: #CCCCCC;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+
+        .legenda-status-reprovado {
+            color: #FF0000;
+            vertical-align: middle;
+            font-size: 16px;
+        }
+        /*Select com mesma apresentação de quando ele está desabilitado*/
+        .controlselect[readonly] {
+            background-color: #EEE;
+            pointer-events: none;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+}
+
+
+@section scripts
+{
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+    @Scripts.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/viabilidadejsPackage")
+    <script src="~/bin/Scripts/valida_cpf_cnpj.js"></script>
+    <script src="~/bin/Scripts/cliente.js"></script>
+    <script src="~/bin/Scripts/bootstrap-validate.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyACnVjpiRnap58taXa7eEQJIVmD8TkoL2g&libraries=places,geometry"></script>
+
+    <script>
+
+        const latitudeBanco = "@Model.EnderecoProspecto.Latitude";
+        const longitudeBanco = "@Model.EnderecoProspecto.Longitude";
+        let onready = true;
+        const USUARIO_VENDEDOR = @Html.Raw(Json.Encode(usuarioVendedor));
+        @*Objeto da configuracao para o vendedor visualizar o resultado das etapas da venda*@
+        const vendedorVisualiza = Object.freeze(@Html.Raw(Json.Encode(VisualizaRestricoes)));
+
+        @*Enumerado Status Consulta de viabilidade*@
+        const VIABILIDADE_APROVADA = @((int)StatusConsultaViabilidade.Aprovado);
+        const VIABILIDADE_APROVADA_RESSALVA = @((int)StatusConsultaViabilidade.Aprovado_Ressalva);
+        const VIABILIDADE_REPROVADA = @((int)StatusConsultaViabilidade.Reprovado);
+
+        let rows_selected = [];
+        let oDatatable = null;
+        let oDatatableFinanceiro = null;
+        let consultaViabilidadeResult = null;
+
+        @*region Modal de aviso ao sair sem salvar*@
+
+        var leadConsultadoValido = true;
+        var ModalPergunta = false;
+
+        const handleDataTableFinanceiro = function () {
+
+            oDatatableFinanceiro = $("#datatableFinanceiro").length && $("#datatableFinanceiro").DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                processing: true,
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                destroy: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: () => {
+                    if ($("#datatableFinanceiro").length == 0) {
+                        Notificar("@RsBase.ATENCAO_", "Não constam pendências internas para esse cpf/cnpj.", "warning");
+                    }
+
+                    ResizeTable('divTableFinanceiro');
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/PendenciaFinanceiraIntegracaoApi/GetFaturaByCpfCnpj',
+                    type: 'POST',
+                    data: function (data) {
+                        let documento = "";
+
+                        if ($("#iCPF").val()) {
+                            data.Cpf = $("#iCPF").val();
+                        }
+                        else if ($("#iCNPJ").val()) {
+                            data.Cnpj = $("#iCNPJ").val();
+                        }
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                infoCallback: function (oSettings, iStart, iEnd, iMax, iTotal, sPre) {
+
+                    var str = "@RsCadastros.INFODATATABLE";
+                    if (iTotal == 0) { iEnd = 0; iStart = 0; }
+                    str = str.replace("{0}", iStart).replace("{1}", iEnd).replace("{2}", iTotal);
+                    $("#dtLegend").html(str);
+
+                    return "";
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    var rowId = data.id;
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 5,
+                order: [],
+                language: traducaoDataTableSimples,
+                buttons: buttonsDataTable,
+                columns: [
+                    //{ data: "cod_Contrato", title: "@RsCadastros.CODIGO_CONTRATO", orderable: false },
+                    { data: "codConexao", title: "@RsCadastros.CODIGO_CONEXAO", orderable: false },
+                    { data: "cod_Cliente", title: "@RsCadastros.CLIENTE", orderable: false },
+                    { data: "cpfCnpj", title: "@RsCadastros.CPFCNPJ", orderable: false },
+                    //{ data: "contrato_Cancelado", title: "@RsCadastros.CONTRATO_CANCELADO", orderable: false },
+                    { data: "conexao_Bloqueada", title: "@RsCadastros.CONEXAO_BLOQUEADA", orderable: false },
+                    { data: "logradouro", title: "@RsCadastros.LOGRADOURO", orderable: false },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO", orderable: false },
+                    { data: "cidade", title: "@RsCadastros.CIDADE", orderable: false },
+                    { data: "codFatura", title: "@RsCadastros.CODIGO_FATURA", orderable: false },
+                    { data: "valor_Total", title: "@RsCadastros.VALOR_TOTAL", orderable: false },
+                    { data: "liquidado", title: "@RsCadastros.LIQUIDADO", orderable: false },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO", orderable: false },
+                    { data: "fatura_Suspensa", title: "@RsCadastros.FATURA_SUSPENSA", orderable: false },
+                    { data: "data_Vencimento", title: "@RsCadastros.VENCIMENTO", orderable: false },
+                    { data: "motivo_Suspensao", title: "@RsCadastros.MOTIVO_SUSPENSAO", orderable: false },
+                ]
+            });
+        },
+
+        TableManageButtonsFinanceiro = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableFinanceiro();
+                }
+            }
+        }();
+
+        const handleDataTableButtons = function() {
+
+            oDatatable = $("#datatable").length && $("#datatable").DataTable({
+                dom: "Bfrti",
+                select: {
+                    style: 'multi'
+                },
+                serverSide: true,
+                searching: true,
+                ordering: true,
+                paging: true,
+                destroy: true,
+                deferRender: true,
+                scrollResize: true,
+                scrollY: '66vh',
+                scroller: {
+                },
+                stateSave: true,
+                scrollX: true,
+                fixedHeader: true,
+                initComplete: dataTableInitComplete,
+                drawCallback: () => {
+                    if (oDatatable.rows().data().length == 0) {
+                        $(".dataTables_empty").text("Nenhuma pendência para esse endereço").css("color", "#ff0000");
+                        Notificar("@RsBase.ATENCAO_", "Não constam pendências para esse endereço.", "warning");
+                    }
+
+                    ResizeTable('divTable');
+                },
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todos"]],
+                ajax: {
+                    url: baseUrl + '/api/PendenciaEnderecoIntegracaoApi/GetFaturaByEndereco',
+                    type: 'POST',
+                    data: function (data) {
+                        data.Logradouro = $("#iLogradouroProspecto").val();
+                        data.Numero = $("#iNumeroProspecto").val();
+                    },
+                    error: function (e) {
+                        console.log(e);
+                    },
+                    dataSrc: function (d) {
+                        return d.data;
+                    }
+                },
+                rowCallback: function (row, data, dataIndex) {
+                    var rowId = data.id;
+                    // If row ID is in the list of selected row IDs
+                    if ($.inArray(rowId, rows_selected) !== -1) {
+                        $(row).find('input[type="checkbox"]').prop('checked', true);
+                        $(row).addClass('selected');
+                    }
+                },
+                pageLength: 5,
+                order: [],
+                language: {
+                    traducaoDataTableSimples,
+                },
+                buttons: buttonsDataTable,
+                columns: [
+                    { data: "cod_Contrato", title: "@RsCadastros.CODIGO_CONTRATO", orderable: false },
+                    { data: "codConexao", title: "@RsCadastros.CODIGO_CONEXAO", orderable: false },
+                    { data: "cod_Cliente", title: "@RsCadastros.CLIENTE", orderable: false },
+                    { data: "cpf", title: "@RsCadastros.CPF", orderable: false },
+                    { data: "contrato_Cancelado", title: "@RsCadastros.CONTRATO_CANCELADO", orderable: false },
+                    { data: "conexao_Bloqueada", title: "@RsCadastros.CONEXAO_BLOQUEADA", orderable: false },
+                    { data: "logradouro", title: "@RsCadastros.LOGRADOURO", orderable: false },
+                    { data: "bairro", title: "@RsCadastros.BAIRRO", orderable: false },
+                    { data: "cidade", title: "@RsCadastros.CIDADE", orderable: false },
+                    { data: "codFatura", title: "@RsCadastros.CODIGO_FATURA", orderable: false },
+                    { data: "valor_Total", title: "@RsCadastros.VALOR_TOTAL", orderable: false },
+                    { data: "liquidado", title: "@RsCadastros.LIQUIDADO", orderable: false },
+                    { data: "descricao", title: "@RsCadastros.DESCRICAO", orderable: false },
+                    { data: "fatura_Suspensa", title: "@RsCadastros.FATURA_SUSPENSA", orderable: false },
+                    { data: "data_Vencimento", title: "@RsCadastros.VENCIMENTO", orderable: false },
+                    { data: "motivo_Suspensao", title: "@RsCadastros.MOTIVO_SUSPENSAO", orderable: false },
+                ]
+            });
+        },
+
+        TableManageButtons = function () {
+            "use strict";
+            return {
+                init: function () {
+                    handleDataTableButtons();
+                }
+            }
+        }();
+
+        function NotificarCloseTab() {
+            $('form').on('change paste', 'input, select, textarea', function () {
+                ModalPergunta = true;
+               // parent.document.getElementsByClassName('menu_tab active')[0].children[1].setAttribute("onclick", "AvisoSemSalvar();");
+            });
+        }
+
+        $("#btnConcretizarVenda").on("click", async function () {
+
+            ShowPageLoading();
+            try {
+                let response = await $.ajax({
+                    url: baseUrl + '/api/Cliente_ProspectoApi/ConsultaRestricaoQualificativa',
+                    type: "POST",
+                    data: {
+                        id_Cliente: @Model.Id,
+                    }
+                });
+
+                if (!response.result) {
+                    Notificar("@RsBase.ATENCAO_", response.message, "warning");
+                    return;
+                }
+
+                var acesso = false;
+                if ("@AcessoHelper.TemAcesso(_areas, "348")" == "True") {
+                    acesso = true;
+                }
+
+                let cpfCnpj = $('#iCPF').val() ? $('#iCPF').val() : $('#iCNPJ').val()
+
+
+                if (cpfCnpj) {
+                    var link = `@String.Concat(CONSTANTES.URLPortal, "/api/VendaApi/verificaVendaDuplicadaCpfCnpj")?cpfCnpj=${cpfCnpj}`;
+                    const responseVendaDuplicada = await $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json'
+                    });
+
+                    if (responseVendaDuplicada.ok == false) {
+                        await Swal.fire({
+                            title: "Pendência encontrada!",
+                            type: "warning",
+                            text: response.mensagem,
+                            confirmButtonText: 'OK'
+                        });
+                        return false;
+                    }
+                    else if (responseVendaDuplicada.ok && acesso && responseVendaDuplicada.idObjeto > 0) {
+
+                        let criarVendaDuplicada = false;
+                        await Swal.fire({
+                            type: 'error',
+                            title: responseVendaDuplicada.mensagem,
+                            text: "Deseja criar uma nova venda para o cliente selecionado?",
+                            type: 'question',
+                            showCancelButton: true,
+                            confirmButtonColor: '#3085d6',
+                            cancelButtonColor: '#d33',
+                            confirmButtonText: 'Sim',
+                            cancelButtonText: 'Não'
+                        }).then(async (result) => {
+                            if (result.value) {
+                                criarVendaDuplicada = true
+                            }
+                        });
+
+                        if (!criarVendaDuplicada) {
+                            return false;
+                        }
+                    }
+                    else if (responseVendaDuplicada.idObjeto > 0 && !acesso) {
+                        await Swal.fire({
+                            title: "Venda duplicada!",
+                            type: "warning",
+                            text: responseVendaDuplicada.mensagem,
+                            confirmButtonText: 'OK'
+                        });
+                        return false;
+
+                    }
+                }
+            }
+            catch (error) {
+                console.error(error);
+            } finally {
+                HidePageLoading();
+            }
+
+            window.location.href = "@Url.Action("ClienteDadosGerais", "Venda")?Id_Cliente=@Model.Id"
+        });
+
+        async function AvisoSemSalvar(link) {
+
+            if (ModalPergunta) {
+                let result = await Swal.fire({
+                    title: 'Tem Certeza que deseja sair sem salvar?',
+                    text: "Os dados ainda não foram salvos. Ao sair as informações serão perdidas. Deseja sair sem antes gravar?",
+                    showCancelButton: true,
+                    cancelButtonText: 'Não',
+                    confirmButtonText: 'Sim',
+                    type: 'question',
+                    allowOutsideClick: () => !Swal.isLoading(),
+                });
+
+                if (!result.value)
+                  return true;
+
+            };
+
+            parent.document.getElementsByClassName('menu_tab active')[0].children[1].setAttribute("onclick", "closeTab(this);");
+            window.location = link;
+            ShowPageLoading();
+            return true;
+
+        };
+         //#endregion
+
+        $("#iValidar").click(async function () {
+
+            let dataRequest = {
+                TipoPessoa: $("#iTipoPessoa").val(),
+                CPF: $('#iCPF').val(),
+                CNPJ: $('#iCNPJ').val(),
+                DataNascimento: $('#iNascimento').val()
+            };
+
+            @if (!validaDocumentoLead)
+            {
+                <text>
+            if (validaCPFCNPJ() == false)
+                return false;
+
+                    let link = "@Url.Action("VerificarClienteReceita", "Cliente_Prospecto")";
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        data:dataRequest,
+                        beforeSend: function () {
+                            ShowPageLoading();
+                        }
+                        ,
+                        complete: function(){
+                            HidePageLoading();
+                        }
+                    })
+                    .done(function (data) {
+                        if (data.Mensagem) {
+                            Notificar("@RsBase.INFORMACAO",  data.Mensagem, "warning");
+                        }
+                        else {
+                            Notificar("@RsBase.INFORMACAO", "Dados Válidos", "info");
+                        }
+                    });
+                </text>
+            }
+            else {
+
+                if (!AcessoHelper.TemAcesso(_areas, "410"))
+                {
+                    <text>
+                        Notificar("Usuário não possuí a permissão de consultar documentos via API.")
+                        return false;
+                    </text>
+                }
+
+                <text>
+
+                    if ($("#iCPF").val().length === 0 && $("#iCPF").val() === "" && $("#iCNPJ").val().length === 0 && $("#iCNPJ").val() === "") {
+                        Notificar("ATENÇÃO!", "CPF ou CNPJ não pode ser vazio ou nulo")
+                        return false;
+                    }
+                    let link = baseUrl + "/api/Cliente_ProspectoApi/ConsultarDocumentoSERPRO";
+
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        data:dataRequest,
+                        beforeSend: function () {
+                            ShowPageLoading();
+                        }
+                        ,
+                        complete: function(){
+                            HidePageLoading();
+                        }
+                    })
+                    .done(async function (response) {
+
+                        if (!response.ok){
+                            leadConsultadoValido = false;
+
+                            Swal.fire({
+                                type: "error",
+                                title: "Lead inválido!",
+                                html: `${response.mensagem}` + `<br/> <br/>`,
+                                confirmButtonColor: "#3085d6",
+                                confirmButtonText: "OK"
+                            });
+                        }
+                        else {
+                            leadConsultadoValido = true;
+
+                            if (response.idObjeto.tipoPessoa == 0){
+                                 $("#iNome").text(response.idObjeto.nome);
+                                 $("#iNome").val(response.idObjeto.nome);
+                                 $("#iNascimento").text(response.idObjeto.nascimento)
+                                 $("#iNascimento").val(response.idObjeto.nascimento);
+                            }
+                            else{
+                                 $("#iFantasia").text(response.idObjeto.nomeFantasia);
+                                 $("#iFantasia").val(response.idObjeto.nomeFantasia);
+                                 $("#iAbertura").text(response.idObjeto.dataAbertura);
+                                 $("#iAbertura").val(response.idObjeto.dataAbertura);
+                                 $("#iRazao_Social").text(response.idObjeto.razaoSocial);
+                                 $("#iRazao_Social").val(response.idObjeto.razaoSocial);
+                            }
+
+                            Swal.fire({
+                                type: "success",
+                                title: "Lead válido!",
+                                html: `${response.mensagem}` + `<br/> <br/>`,
+                                confirmButtonColor: "#3085d6",
+                                confirmButtonText: "OK"
+                            });
+                        }
+                    });
+                </text>
+            }
+
+        });
+
+        $("#iValidarCnpj").click(async function () {
+
+            let dataRequest = {
+                TipoPessoa: $("#iTipoPessoa").val(),
+                CPF: $('#iCPF').val(),
+                CNPJ: $('#iCNPJ').val(),
+                DataNascimento: $('#iNascimento').val()
+            };
+
+            @if (!validaDocumentoLead)
+            {
+                <text>
+                    if (validaCPFCNPJ() == false)
+                        return false;
+
+            let link = "@Url.Action("VerificarClienteReceita", "Cliente_Prospecto")";
+            $.ajax({
+                url: link,
+                type: 'POST',
+                dataType: 'json',
+                        data:dataRequest,
+                beforeSend: function () {
+                    ShowPageLoading();
+                }
+                ,
+                complete: function(){
+                    HidePageLoading();
+                }
+            })
+            .done(function (data) {
+                if (data.Mensagem) {
+                    Notificar("@RsBase.INFORMACAO",  data.Mensagem, "warning");
+                }
+                else {
+                    Notificar("@RsBase.INFORMACAO", "Dados Válidos", "info");
+                }
+            });
+                </text>
+            }
+            else {
+
+                if (!AcessoHelper.TemAcesso(_areas, "410"))
+                {
+                    <text>
+                        Notificar("Usuário não possuí a permissão de consultar documentos via API.")
+                        return false;
+                    </text>
+                }
+
+                <text>
+
+                    if ($("#iCPF").val().length === 0 && $("#iCPF").val() === "" && $("#iCNPJ").val().length === 0 && $("#iCNPJ").val() === "") {
+                        Notificar("ATENÇÃO!", "CPF ou CNPJ não pode ser vazio ou nulo")
+                        return false;
+                    }
+                    let link = baseUrl + "/api/Cliente_ProspectoApi/ConsultarDocumentoSERPRO";
+
+                    $.ajax({
+                        url: link,
+                        type: 'POST',
+                        dataType: 'json',
+                        data:dataRequest,
+                        beforeSend: function () {
+                            ShowPageLoading();
+                        }
+                        ,
+                        complete: function(){
+                            HidePageLoading();
+                        }
+                    })
+                    .done(async function (response) {
+
+                        if (!response.ok){
+                            leadConsultadoValido = false;
+
+                            Swal.fire({
+                                type: "error",
+                                title: "Lead inválido!",
+                                html: `${response.mensagem}` + `<br/> <br/>`,
+                                confirmButtonColor: "#3085d6",
+                                confirmButtonText: "OK"
+        });
+                        }
+                        else {
+                            leadConsultadoValido = true;
+
+                            if (response.idObjeto.tipoPessoa == 0){
+                                 $("#iNome").text(response.idObjeto.nome);
+                                 $("#iNome").val(response.idObjeto.nome);
+                                 $("#iNascimento").text(response.idObjeto.nascimento)
+                                 $("#iNascimento").val(response.idObjeto.nascimento);
+                            }
+                            else{
+                                 $("#iFantasia").text(response.idObjeto.nomeFantasia);
+                                 $("#iFantasia").val(response.idObjeto.nomeFantasia);
+                                 $("#iAbertura").text(response.idObjeto.dataAbertura);
+                                 $("#iAbertura").val(response.idObjeto.dataAbertura);
+                                 $("#iRazao_Social").text(response.idObjeto.razaoSocial);
+                                 $("#iRazao_Social").val(response.idObjeto.razaoSocial);
+                            }
+
+                            Swal.fire({
+                                type: "success",
+                                title: "Lead válido!",
+                                html: `${response.mensagem}` + `<br/> <br/>`,
+                                confirmButtonColor: "#3085d6",
+                                confirmButtonText: "OK"
+                            });
+                        }
+                    });
+                </text>
+            }
+
+
+
+        });
+
+
+        $("#iTipoPessoa").on("change", async function () {
+           @if (Model.Id != 0)
+            {
+                <text>
+                if ($("#iTipoPessoa option:selected").val() == "") {
+                    $("#iPF").hide();
+                    $("#iPJ").hide();
+                }
+                else if ($("#iTipoPessoa option:selected").val() == 0 || $("#iTipoPessoa option:selected").val() == 2)
+                {
+                    $("#iPF").show();
+                    $("#iPJ").hide();
+                }
+                else if ($("#iTipoPessoa option:selected").val() == 1 || $("#iTipoPessoa option:selected").val() == 3) {
+                    $("#iPJ").show();
+                    $("#iPF").hide();
+                }
+
+                </text>
+            }
+            else
+            {
+           <text>
+            if ($("#iTipoPessoa option:selected").val() == "") {
+                $("#iPF").hide();
+                $("#iPJ").hide();
+            }
+            else if ($("#iTipoPessoa option:selected").val() == 0 || $("#iTipoPessoa option:selected").val() == 2)
+            {
+                $("#iCNPJ").val("");
+
+                $("#iPF").show();
+                $("#iPJ").hide();
+            }
+            else if ($("#iTipoPessoa option:selected").val() == 1 || $("#iTipoPessoa option:selected").val() == 3) {
+                $("#iCPF").val("");
+
+                $("#iPJ").show();
+                $("#iPF").hide();
+            }
+        </text>
+            }
+        });
+
+        // Click do botão validar do CNPJ
+        function validaCNPJ() {
+            if (!$("#iCNPJ").val()) {
+                Notificar("Atenção", "Para realizar a validação é necessário preencher o cnpj", "warning");
+                return false;
+            }
+            return true;
+        }
+
+        // Click do botão validar do CPF
+        function validaCPF() {
+            if ((!$("#iCPF").val()) || (!$("#iNascimento").val())) {
+                Notificar("Atenção", "Para realizar a validação é necessário preencher o cpf e a data de nascimento", "warning");
+                return false;
+            }
+            return true;
+        }
+
+        //Click do botão gravar
+        function validaCPFCNPJ() {
+
+            if ($("#iCPF").val().length > 0 && $("#iCPF").val() != "") {
+                return validaCPF();
+            }
+            else if ($("#iCNPJ").val().length > 0 && $("#iCNPJ").val() != "") {
+                return validaCNPJ();
+            }
+
+            Notificar("Atenção", "CPF/CNPJ não preenchido", "warning");
+            return false;
+        }
+
+        @if (Model.Id != 0) {
+        <text>
+            function listaContatos() {
+                ShowDialog(true, true, '@RsCadastros.ADICIONAR_CONTATOS', '@Url.Action("ListaContatos", "Cliente")' + '?Id_Cliente=' + @Model.Id, 'divListaContatos', '80%', 650, 'iframeListaContatos',
+                    function () {
+                    return true;
+                    }
+                );
+            }
+            </text>
+         }
+
+         var Id_AreacoberturaPlano = [];
+         var efetivadobool = @Json.Encode(efetivadobool);
+
+         if (efetivadobool) {
+            $('.form-control').addClass('readonly');
+            $('.form-control').prop("tabindex", -1);
+         }
+
+        somenteNumeros('iInscricao_Estadual');
+        somenteNumeros('iInscricao_Municipal');
+
+        bootstrapValidate(
+            '#iEmail',
+            'email:Insira um endereço de e-mail válido!'
+        );
+
+        bootstrapValidate(
+            '#iEmailAux',
+            'email:Insira um endereço de e-mail válido!'
+        );
+
+        function validateEmail($email) {
+            var emailReg = /^([\w-\.]+@@([\w-]+\.)+[\w-]{2,6})?$/;
+            return emailReg.test($email);
+        }
+
+        function AbrirAnexarArquivo() {
+            var url = '@Html.Raw(Url.Action("AnexarArquivo", "Cliente", new { Id_Cliente = Model.Id, Pagina = "Prospecto" }))';
+            window.location=url;
+            return false;
+        }
+
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        })
+
+
+        var alterandoViaCampanha = false;
+        var alterandoViaMeio = false;
+        var meiodacampanha;
+
+        var HandleMeio_Captacao = function() {
+
+            $('#idMeio_Captacao').unbind('select2:select select2:unselecting');
+            $("#idMeio_Captacao").on("select2:select select2:unselecting", function (e) {
+
+                if (e.params.programatico) return;
+                var idMeio = $(this).val()
+
+                if (idMeio == 4) {
+
+                    $("#idQuemIndicou").prop("disabled", false);
+                    $("#iQuemIndicou").prop("disabled", false);
+                    $("#divQuemIndicou").show();
+                    let quemIndicouSelecionado = $("#idQuemIndicou").val();
+                    AddSelect("iQuemIndicou", "@CONSTANTES.URLPortal/api/clienteapi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, quemIndicouSelecionado, "@RsBase.SELECIONE", null, handleQuemIndicou);
+                }
+                else {
+                        $("#idQuemIndicou").prop("disabled", true);
+                        $("#iQuemIndicou").prop("disabled", true);
+                        $("#divQuemIndicou").hide();
+
+                        /*return false;*/
+                }
+
+                if (idMeio == 0) {
+                    $("#divQualMeio").show();
+                }
+                else {
+                    $("#divQualMeio").hide();
+                }
+
+                if (onready == false) {
+
+                    if (alterandoViaCampanha) return;
+                    alterandoViaMeio = true;
+                    if (idMeio && idMeio != 0) {
+                        if (idMeio == meiodacampanha) {
+                            AddSelect("iCampanhaPF", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, idMeio, $('#iCampanhaPF').val(), "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                        }
+                        else {
+                            AddSelect("iCampanhaPF", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, idMeio, null, "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                        }
+                    }
+                    else {
+                        AddSelect("iCampanhaPF", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, null, $('#iCampanhaPF').val(), "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                    }
+                }
+
+            });
+
+        }
+
+
+        var HandleCampanha = function() {
+
+            $('#iCampanhaPF').unbind('select2:select');
+
+            $("#iCampanhaPF").on("select2:select", function (e) {
+
+                if (e.params.programatico) return;
+                if (alterandoViaMeio) return;
+
+                var idCampanha = e.params.data.id;
+
+                if (!idCampanha) return;
+
+                $.get("@CONSTANTES.URLPortal/api/campanhaapi/GetMeioByCampanha", { idCampanha: idCampanha })
+                    .done(function (idMeio) {
+
+                        if (idMeio && onready == false) {
+                            alterandoViaCampanha = true;
+                            AddSelect("idMeio_Captacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, idMeio, "@RsBase.SELECIONE", efetivadobool, HandleMeio_Captacao, function () { alterandoViaCampanha = false });
+                        }
+
+                        meiodacampanha = idMeio;
+
+                    });
+            });
+        }
+
+        var HandleCampanhaPJ = function() {
+
+            $('#iCampanhaPJ').unbind('select2:select');
+
+            $("#iCampanhaPJ").on("select2:select", function (e) {
+
+                if (e.params.programatico) return;
+                if (alterandoViaMeio) return;
+
+                var idCampanha = e.params.data.id;
+
+                if (!idCampanha) return;
+
+                $.get("@CONSTANTES.URLPortal/api/campanhaapi/GetMeioByCampanha", { idCampanha: idCampanha })
+                    .done(function (idMeio) {
+
+                        if (idMeio && onready == false) {
+                            alterandoViaCampanha = true;
+                            AddSelect("idMeio_CaptacaoJuridico", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, idMeio, "@RsBase.SELECIONE", efetivadobool, HandleMeio_CaptacaoJuridico, function () { alterandoViaCampanha = false });
+                        }
+
+                        meiodacampanha = idMeio;
+
+                    });
+            });
+        }
+
+        var HandleMeio_CaptacaoJuridico = function() {
+
+            $('#idMeio_CaptacaoJuridico').unbind('select2:select select2:unselecting');
+            $("#idMeio_CaptacaoJuridico").on("select2:select select2:unselecting", function (e) {
+                let idMeio = $(this).val();
+                if (e.params.programatico) return;
+                if (idMeio == 4) {
+                    $("#idQuemIndicouJuridico").prop("disabled", false);
+                    $("#iQuemIndicouJuridico").prop("disabled", false);
+                    $("#divQuemIndicouJuridico").show();
+
+                    let quemIndicouSelecionado = $("#idQuemIndicouJuridico").val();
+                    AddSelect("iQuemIndicouJuridico", "@CONSTANTES.URLPortal/api/ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, quemIndicouSelecionado, "@RsBase.SELECIONE", null, handleQuemIndicouJuridico);
+                }
+                else {
+                    $("#idQuemIndicouJuridico").prop("disabled", true);
+                    $("#iQuemIndicouJuridico").prop("disabled", true);
+                    $("#divQuemIndicouJuridico").hide();
+                }
+
+                if (idMeio == 0) {
+                    $("#divQualMeioJuridico").show();
+                }
+                else {
+                    $("#divQualMeioJuridico").hide();
+                }
+
+                if (onready == false) {
+
+                    if (alterandoViaCampanha) return;
+                    alterandoViaMeio = true;
+                    if (idMeio && idMeio != 0) {
+                        if (idMeio == meiodacampanha) {
+                            AddSelect("iCampanhaPJ", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, idMeio, $('#iCampanhaPJ').val(), "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                        }
+                        else {
+                            AddSelect("iCampanhaPJ", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, idMeio, null, "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                        }
+                    }
+                    else {
+                        AddSelect("iCampanhaPJ", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboMeioCaptacao",@CONSTANTES.PaginacaoRegistros, null, null, $('#iCampanhaPJ').val(), "@RsBase.SELECIONE", efetivadobool, function () { alterandoViaMeio = false });
+                    }
+                }
+
+
+            });
+        }
+
+        var handleQuemIndicou = function(){
+
+            $('#iQuemIndicou').unbind('change');
+            $("#iQuemIndicou").on("change", function () {
+                $("#idQuemIndicou").val($("#iQuemIndicou").val());
+            });
+        }
+
+        var handleQuemIndicouJuridico = function() {
+            $('#iQuemIndicouJuridico').unbind('change');
+            $("#iQuemIndicouJuridico").on("change", function () {
+                $("#idQuemIndicouJuridico").val($("#iQuemIndicouJuridico").val());
+            });
+        }
+
+        $("#iStatusProspecto").change(function () {
+
+            if ($("#iStatusProspecto").val() == "3") {
+                $('#iDivMotivoInviabilidade').show();
+
+                if (!$(`#iMotivoInviabilidade`).val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MOTIVO_INVIABILIDADE)", "warning");
+                }
+            }
+            else {
+                $('#iDivMotivoInviabilidade').hide();
+            }
+
+        });
+
+        // Cálculo da validade da consulta de viabilade de endereço
+        function calculaValidadeEndereco() {
+            var validadeDaConsultaPendenciaEndereco;
+            @if (ViewBag.consultaPendenciaEnderecoValidade != 0)
+            {
+                <text>
+                    validadeDaConsultaPendenciaEndereco = "@ViewBag.consultaPendenciaEnderecoValidade";
+                </text>
+            }
+            else if (Model.ConsultaPendenciaEnderecoValidade != 0)
+            {
+                <text>
+                    validadeDaConsultaPendenciaEndereco = "@Model.ConsultaPendenciaEnderecoValidade";
+                </text>
+            }
+            else
+            {
+                <text>
+                validadeDaConsultaPendenciaEndereco = Infinity;
+                </text>
+            }
+
+            // Formatando a data da última consulta para o formato MM/dd/yyyy
+            var getDataHoraCriacaoConsultaEndereco = "@Model.DataHoraCriacaoConsultaEndereco" != null ? "@Model.DataHoraCriacaoConsultaEndereco" : new Date();
+            var dataHoraCriacaoConsultaEndereco = getDataHoraCriacaoConsultaEndereco.split(' ');
+            var dataPartes = dataHoraCriacaoConsultaEndereco[0].split('/');
+            var dataFormatada = dataPartes[1] + '/' + dataPartes[0] + '/' + dataPartes[2];
+
+            // Realizando o cálculo
+            var dataDaUltimaConsultaEndereco = new Date(dataFormatada);
+            var dataDeHoje = new Date()
+            var diferencaEmTempo = dataDeHoje.getTime() - dataDaUltimaConsultaEndereco.getTime();
+            var diferencaEmDias = Math.floor(diferencaEmTempo / (1000 * 3600 * 24));
+
+            return diferencaEmDias <= validadeDaConsultaPendenciaEndereco;
+        }
+
+        $(document).ready(async function () {
+
+
+            @if (Model.ClientesAtrelados != null) {
+                if (Model.ClientesAtrelados.Count > 0) {
+                    <text>
+            $('#iDivCardCli').show();
+                    </text>
+                }
+            }
+
+            @if (validaDocumentoLead)
+            {
+                <text>
+            $("#iNome").addClass("readonly");
+            $("#iNascimento").addClass("readonly");
+            $("#iFantasia").addClass("readonly");
+            $("#iAbertura").addClass("readonly");
+            $("#iRazao_Social").addClass("readonly");
+                </text>
+            }
+
+            @if (!validaDocumentoLead)
+            {
+                <text>
+            $("#iNome").removeClass("readonly");
+            $("#iNascimento").removeClass("readonly");
+            $("#iFantasia").removeClass("readonly");
+            $("#iAbertura").removeClass("readonly");
+            $("#iRazao_Social").removeClass("readonly");
+                </text>
+            }
+
+            $("#iButtonConfirmarMap").on("click", function (data) {
+
+                confirmarLocalizacao()
+
+            });
+
+            $('input[type=radio][name=buscarEndereco]').change(function () {
+
+                if (this.value == 'endereco') {
+
+                    $('#iBuscarEnderecoInput').show();
+
+                    $('#iBuscarLatitudeLongitudeInput').hide();
+
+                }
+
+                else if (this.value == 'latitudeLongitude') {
+
+                    $('#iBuscarLatitudeLongitudeInput').show();
+
+                    $('#iBuscarEnderecoInput').hide();
+
+                }
+
+            });
+
+
+
+
+
+            $("#iButtonConfirmarMap").on("click", function (data) {
+                confirmarLocalizacao()
+            });
+
+
+            $('input[type=radio][name=buscarEndereco]').change(function () {
+                if (this.value == 'endereco') {
+                    $('#iBuscarEnderecoInput').show();
+                    $('#iBuscarLatitudeLongitudeInput').hide();
+                }
+                else if (this.value == 'latitudeLongitude') {
+                    $('#iBuscarLatitudeLongitudeInput').show();
+                    $('#iBuscarEnderecoInput').hide();
+                }
+            });
+
+            @*Verificar o tipo de pessoa*@
+
+            if ($("#iTipoPessoa option:selected").val() == "") {
+                $("#iPF").hide();
+                $("#iPJ").hide();
+            } else if ($("#iTipoPessoa option:selected").val() == 0 || $("#iTipoPessoa option:selected").val() == 2) {
+                $("#iPF").show();
+                $("#iPJ").hide();
+            } else if ($("#iTipoPessoa option:selected").val() == 1 || $("#iTipoPessoa option:selected").val() == 3) {
+                $("#iPJ").show();
+                $("#iPF").hide();
+
+            } else {
+                $("#iTipoPessoa").val(null);
+                $("#iPF").hide();
+                $("#iPJ").hide();
+            }
+
+            var validadeEndereco = calculaValidadeEndereco();
+
+            @if (Model.ConsultaViabilidadeHabilitada && Model.StatusConsultaViabilidade != StatusEtapaVenda.Pendente)
+            {
+                <text>
+                    AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, @((int)Model.StatusConsultaViabilidade));
+
+            consultaViabilidadeResult = await DadosConsultaViabilidade(Number(latitudeBanco.replace(",", ".")), Number(longitudeBanco.replace(",", ".")));
+
+                </text>
+
+                if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+            RenderResultadosConsultaViabilidade(consultaViabilidadeResult);
+                </text>
+                }
+            }
+
+            @if (Model.ConsultaPendenciaFinanceiraHabilitada && Model.StatusConsultaPendenciaFinanceira != StatusEtapaVenda.Pendente)
+            {
+                <text>
+            AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, @((int)Model.StatusConsultaPendenciaFinanceira));
+
+                </text>
+                if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+            RenderResultadosConsultaPendenciaFinanceira();
+                </text>
+                }
+            }
+
+            @if (Model.ConsultaPendenciaEnderecoHabilitada && Model.StatusConsultaPendenciaEndereco != StatusEtapaVenda.Pendente)
+            {
+                <text>
+            AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_ENDERECO, @((int)Model.StatusConsultaPendenciaEndereco));
+
+                </text>
+                if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+            if (validadeEndereco) {
+                RenderResultadosConsultaPendenciaEndereco();
+                Notificar("@RsBase.INFORMACAO", "Consultas válidas para o endereço foram carregadas", "info");
+            } else {
+                RenderResultadosConsultaPendenciaEndereco();
+            }
+                </text>
+                }
+            }
+
+            @if (Model.ConsultaCreditoHabilitada && Model.StatusConsultaCredito != StatusEtapaVenda.Pendente)
+            {
+                <text>
+
+            AtualizarIndicadorStatusConsulta(CONSULTA_CREDITO, @((int)Model.StatusConsultaCredito));
+
+                </text>
+                if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+            const cpfCnpj = $("#iCPF").val() || $("#iCNPJ").val();
+            RenderResultadosConsultaCredito(cpfCnpj, false);
+                </text>
+                }
+            }
+
+
+            $('#iNacionalidade').val('@Html.Raw(Model.Nacionalidade)');
+
+
+            @if (Request.Params["Sucesso"] == "S")
+            {
+                <text>
+                Notificar("@RsBase.INFORMACAO", "@RsCadastros.DADOS_GRAVADOS_SUCESSO", "info");
+                </text>
+            }
+
+            var descontoMeioCaptacao = @Html.Raw(Json.Encode(ViewBag.Desconto_Meio_Captacao));
+
+
+            AddSelect("iSelectCampanha", "@CONSTANTES.URLPortal/api/campanhaapi/GetCombo",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("iSelectCombo", "@CONSTANTES.URLPortal/api/PlanoProdutoApi/GetComboPlano",@CONSTANTES.PaginacaoRegistros, null, null, null, "@RsBase.SELECIONE", false);
+            AddSelect("idCategoria_Cliente", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Categoria_Cliente", "@RsBase.SELECIONE", efetivadobool);
+            AddSelect("idCategoria_ClienteJuridico", "@CONSTANTES.URLPortal/api/Categoria_ClienteApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Categoria_ClienteJuridico", "@RsBase.SELECIONE", efetivadobool);
+            await AddSelect("idMeio_Captacao", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Meio_Captacao", "@RsBase.SELECIONE", efetivadobool, HandleMeio_Captacao);
+            await AddSelect("idMeio_CaptacaoJuridico", "@CONSTANTES.URLPortal/api/Meio_CaptacaoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Meio_CaptacaoJuridico", "@RsBase.SELECIONE", efetivadobool, HandleMeio_CaptacaoJuridico);
+            await AddSelect("iCampanhaPF", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboAtivos", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Campanha", "@RsBase.SELECIONE", efetivadobool, HandleCampanha);
+            await AddSelect("iCampanhaPJ", "@CONSTANTES.URLPortal/api/campanhaapi/GetComboAtivos", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Campanha", "@RsBase.SELECIONE", efetivadobool, HandleCampanhaPJ);
+
+
+            if (@Model.Id == 0) {
+                AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@ViewBag.DepartamentoUsuarioLogado", "@RsBase.SELECIONE", efetivadobool);
+            }
+            else {
+                AddSelect("iDepartamento", "@CONSTANTES.URLPortal/api/DepartamentoApi/GetCombo", @CONSTANTES.PaginacaoRegistros, null, null, "@Model.Id_Departamento", "@RsBase.SELECIONE", efetivadobool);
+            }
+
+            $("#idMeio_Captacao").trigger("change");
+            $("#idMeio_CaptacaoJuridico").trigger("change");
+            $("#iStatusProspecto").trigger("change");
+
+            if ($("#iCPF").val().length > 14) {
+                $("#divRespFinanceiro").show();
+                $("#divTelefoneFixo2").show();
+                $("#divEmailAux").show();
+            }
+            else {
+                $("#divRespFinanceiro").hide();
+                $("#divTelefoneFixo2").hide();
+                $("#divEmailAux").hide();
+            }
+
+            $(".somentenumero").bind("keyup blur focus", function (e) {
+                e.preventDefault();
+                var expre = /[^\d]/g;
+                $(this).val($(this).val().replace(expre, ''));
+            });
+
+            if (@ViewBag.Identificacao_Cliente == 0) {
+                $('#iNumeroContrato').addClass('readonly');
+
+            @if (Model.Id == 0 || String.IsNullOrEmpty(Model.Numero_Contrato))
+            {
+                <text>
+                $('#iNumeroContrato').val('-');
+                </text>
+            };
+            }
+
+            @if(ViewBag.Identificacao_Cliente == 1 && Model.Id == 0)
+            {
+            <text>
+                somenteNumeros('iNumeroContrato');
+                $('#iNumeroContrato').removeClass('readonly');
+            </text>
+            }
+            else if(ViewBag.Identificacao_Cliente == 1 && Model.Id != 0)
+            {
+            <text>
+                somenteNumeros('iNumeroContrato');
+            $('#iNumeroContrato').addClass('readonly');
+            </text>
+            }
+
+            onready = false
+            setTimeout(NotificarCloseTab, 1000);
+        });
+        let clicked = false;
+        let erro = false;
+
+        function ValidaSubmit() {
+            if (clicked) {
+                return false;
+            }
+
+            clicked = true;
+            erro = false;
+
+            @if (validaDocumentoLead)
+            {
+                <text>
+                    if (!leadConsultadoValido){
+                        Notificar("ATENÇÃO!", "O lead consultado é inválido!", "warning");
+                        erro = true;
+                    }
+
+                </text>
+            }
+
+
+            let configuracaoValidaNumeroTelefone = Boolean(@Convert.ToInt32(validaNumeroTelefone));
+            let pessoa = $("#iTipoPessoa").val();
+
+            if (pessoa == '0' || pessoa == '2') {
+                if ($("#iCPF").val() && $("#iCPF").val().replace(/[\.\-]/g, "").length != 11) {
+                    Notificar("@RsBase.ATENCAO_", "O CPF informado é inválido", "warning");
+                    erro = true;
+                }
+
+                if ($("#iCPF").val() && !formata_cpf_cnpj($("#iCPF").val())) {
+                    Notificar("@RsBase.ATENCAO_", "O CPF informado é inválido", "warning");
+                    erro = true;
+                }
+
+
+                if (!$("#iNome").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NOMECOMPLETO)", "warning");
+                    erro = true;
+                }
+
+                if ($('#divQualMeio').is(":visible")) {
+                    if (!$('#iQualMeio').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.QUAL_MEIO)", "warning");
+                        erro = true;
+                    }
+                }
+
+                @if (camposObrigatorios.ContainsKey(RsCadastros.MEIO_CAPTACAO))
+                {
+                    <text>
+                    if (!$("#idMeio_Captacao").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, " os " + RsCadastros.MEIO_CAPTACAO)", "warning");
+                        erro = true;
+                    }
+                    </text>
+                }
+            }
+            else if (pessoa == '1' || pessoa == '3') {
+                if ($("#iCNPJ").val() && $("#iCNPJ").val().replace(/[\.\-\/]/g, "").length != 14) {
+                    Notificar("@RsBase.ATENCAO_", "O CNPJ informado é inválido", "warning");
+                    erro = true;
+                }
+
+                if ($("#iFantasia").val().length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.NOMEFANTASIA)", "warning");
+                    erro = true;
+                }
+
+                if ($('#divQualMeioJuridico').is(":visible")) {
+                    if (!$('#iQualMeioJuridico').val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.QUAL_MEIO)", "warning");
+                        erro = true;
+                    }
+                }
+
+                @if (camposObrigatorios.ContainsKey(RsCadastros.MEIO_CAPTACAO))
+                {
+                    <text>
+                    if (!$("#idMeio_CaptacaoJuridico").val()) {
+                        Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, " os " + RsCadastros.MEIO_CAPTACAO)", "warning");
+                        erro = true;
+                    }
+                    </text>
+                }
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.TIPO_IMOVEL) == true )
+            {
+                <text>
+                if (!$("#iTipo_ImovelProspecto").val()) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.TIPO_IMOVEL)", "warning");
+                    erro = true;
+            }
+                </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.LOGRADOURO) == true)
+            {
+                <text>
+                if ($("#iLogradouroProspecto").val().length == 0 && $("#iLogradouroProspecto").html().length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.LOGRADOURO)", "warning");
+                    erro = true;
+                }
+                </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.NUMERO) == true)
+            {
+                <text>
+                if ($("#iNumeroProspecto").val().length == 0) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED,RsCadastros.NUMERO," do Endereço")", "warning");
+                    erro = true;
+                }
+                </text>
+            }
+
+            @if (camposObrigatorios.ContainsKey(RsCadastros.UF) == true)
+            {
+                <text>
+
+                   var valorUF = $("#iUFProspecto").val();
+
+                   if (valorUF == null || valorUF == "") {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.UF)", "warning");
+                    erro = true;
+                }
+                </text>
+            }
+
+            if (!$("#iNumeroContrato").val()) {
+                Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.IDENTIFICACAO_CLIENTE)", "warning");
+                erro = true;
+            }
+
+            var campo = $("#iEmail");
+
+            if (campo.val()) {
+                validateEmail(campo);
+
+                var eValid = validateEmail(campo.val());
+
+                if (eValid == false) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.EMAIL)", "warning");
+                    erro = true;
+                }
+            }
+
+
+            let status = $("#iStatusProspecto").val(),
+                motivo = $("#iMotivoInviabilidade").val();
+
+            if (status != @((int?)Model.Status_Prospecto)) {
+
+                if (!status) {
+
+                    Notificar("@RsBase.ATENCAO_", '@String.Concat("Alteração de Status Não Permitida.",String.Format(RsBase.REQUIRED, RsCadastros.STATUS_LEAD))', "warning");
+                    erro = true;
+                }
+                else if (status == 2) {
+                    Notificar("@RsBase.ATENCAO_", "Alteração de Status não Permitida. Não Há Vendas com Restrição Comercial Vinculadas ao Prospect", "warning");
+                    erro = true;
+                }
+                else if (status == 3 && !motivo) {
+                    Notificar("@RsBase.ATENCAO_", "@String.Format(RsBase.REQUIRED, RsCadastros.MOTIVO_INVIABILIDADE)", "warning");
+                    erro = true;
+                }
+                else if (status == 4) {
+
+                    Notificar("@RsBase.ATENCAO_", "Alteração de Status não Permitida. Não Há Vendas Aguardando Aprovação Comercial Vinculadas ao Prospect", "warning");
+                    erro = true;
+                }
+            }
+
+            if (configuracaoValidaNumeroTelefone && !$("#iTelCelular").val()) {
+                Notificar("@RsBase.ATENCAO_", "Número de telefone ausente para configuração de envio de SMS", "warning");
+                erro = true;
+            }
+
+            @if(Model.Id == 0) {
+                <text>
+                    let dadosEnderecoCli = "";
+
+                    @if (!ViewBag.Utiliza_Cadastro_Endereco)
+                        {
+                          <text>
+                            dadosEnderecoCli = {
+                                Numero: $('#iNumeroProspecto').val(),
+                                CEP: $("#iCEPProspecto").val(),
+                                Latitude: $('#iLatitudeProspecto').val(),
+                                Longitude: $('#iLongitudeProspecto').val(),
+                                Bloco: $('#iBlocoSelectProspecto').val(),
+                                Apartamento: $('#iApartamentoSelectProspecto').val(),
+                                Id_Condominio_Predio: $('#iId_Condominio_PredioProspecto').val(),
+                                Logradouro: $('#iLogradouroProspecto').val()
+                            };
+                        </text>
+
+                    } else {
+                         <text>
+                            dadosEnderecoCli = {
+                                Id_Endereco_Logradouro: $('#iId_Endereco_LogradouroProspecto').val(),
+                                Id_Condominio_Predio:$('#iId_Condominio_PredioProspecto').val(),
+                                Numero: $('#iNumeroProspecto').val(),
+                                Bloco: $('#iBlocoSelectProspecto').val(),
+                                Apartamento: $('#iApartamentoSelectProspecto').val(),
+                            };
+                        </text>
+                    }
+
+                    $.ajax({
+                        method: 'POST',
+                        url: baseUrl + '/api/clienteapi/CheckEnderecoVinculado',
+                        data: dadosEnderecoCli
+                    }).done(function (result) {
+                            if (result.ok) {
+                                if (result.idObjeto.length > 0) {
+                                    $('#iClientesAdd').empty();
+
+                                    $.each(result.idObjeto, function (index, item) {
+                                        $('#iClientesAdd').append('<li>' + item.identificacaoCli + '</li>');
+                                    });
+
+                                    $('#iModalCliEnd').modal('show');
+                                }
+                            }
+                    });
+                 </text>
+             }
+
+            if (erro) {
+                clicked = false;
+                return false;
+            }
+
+            ShowPageLoading();
+            $('#form').submit();
+        }
+
+        if (efetivadobool) {
+            $("#iHiddenCategoria_Cliente").prop('disabled', false);
+            $("#iHiddenCategoria_ClienteJuridico").prop('disabled', false);
+            $("#iHiddenCaptacao").prop('disabled', false);
+            $("#iHiddenCaptacaoJuridico").prop('disabled', false);
+        }
+        else {
+            $("#iHiddenCategoria_Cliente").prop('disabled', true);
+            $("#iHiddenCategoria_ClienteJuridico").prop('disabled', true);
+            $("#iHiddenCaptacao").prop('disabled', true);
+            $("#iHiddenCaptacaoJuridico").prop('disabled', true);
+        }
+
+        const CONSULTA_VIABILIDADE = 0;
+        const CONSULTA_PENDENCIA_FINANCEIRA = 1;
+        const CONSULTA_PENDENCIA_ENDERECO = 2;
+        const CONSULTA_CREDITO = 3;
+
+        const STATUS_CONSULTA_PENDENTE = 0;
+        const STATUS_CONSULTA_APROVADA = 1;
+        const STATUS_CONSULTA_REPROVADA = 2;
+        const STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR = 3;
+
+        function AtualizarIndicadorStatusConsulta(consulta, status) {
+            let statusClass = null;
+            switch (status) {
+                case STATUS_CONSULTA_PENDENTE:
+                    statusClass = "circle-consulta-pendente";
+                    break;
+                case STATUS_CONSULTA_APROVADA:
+                    statusClass = "circle-consulta-aprovada";
+                    break;
+                case STATUS_CONSULTA_REPROVADA:
+                case STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR:
+                    statusClass = "circle-consulta-reprovada";
+                    break;
+            }
+
+            if (statusClass != null) {
+                let statusElemSelector = null;
+
+                switch (consulta) {
+                    case CONSULTA_VIABILIDADE:
+                        statusElemSelector = "#statusConsultaViabilidade";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_VIABILIDADE, statusClass);
+
+                        statusConsultaViabilidade = status;
+                        $("#iStatusConsultaViabilidade").val(status);
+                        break;
+                    case CONSULTA_PENDENCIA_FINANCEIRA:
+                        statusElemSelector = "#statusConsultaPendenciaFinanceira";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_PENDENCIA_FINANCEIRA, statusClass);
+
+                        $("#iStatusConsultaPendenciaFinanceira").val(status);
+                        break;
+                    case CONSULTA_PENDENCIA_ENDERECO:
+                        statusElemSelector = "#statusConsultaPendenciaEndereco";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_PENDENCIA_ENDERECO, statusClass);
+
+                        $("#iStatusConsultaPendenciaEndereco").val(status);
+                        break;
+                    case CONSULTA_CREDITO:
+                        statusElemSelector = "#statusConsultaCredito";
+                        AtualizaStatusConsulta(statusElemSelector, vendedorVisualiza.CONSULTA_CREDITO, statusClass);
+
+                        $("#iStatusConsultaCredito").val(status);
+                        break;
+                }
+            }
+        }
+
+        function AtualizaStatusConsulta(element, visualiza, classe) {
+            $(element).removeClass("circle-consulta-pendente");
+            $(element).removeClass("circle-consulta-aprovada");
+            $(element).removeClass("circle-consulta-reprovada");
+
+            if (@Html.Raw(Json.Encode(AcessoHelper.TemAcesso(_areas, "322")))) {
+                $(element).addClass(classe);
+            }
+            else if (visualiza) {
+                $(element).addClass(classe);
+            }
+            else {
+                $(element).addClass("circle-consulta-pendente");
+            }
+        }
+
+        @* Ações da Consulta de Viabilidade *@
+
+        function RenderResultadosConsultaViabilidade(consulta = null) {
+            $("#rowConsultaViabilidade").append(
+                `<div class="col-3 d-flex">
+                    <a href="javascript:void(0)"
+                       id="btnResultadoConsultaViabilidade"
+                       class="btn btn-success">Resultado</a>
+                </div>`
+            );
+
+            if (consulta != null) {
+            $("#btnResultadoConsultaViabilidade").on("click", function () {
+                    notificacaoViabilidade(consulta);
+                    $("#iModalConsultaViabilidade").modal("show");
+
+                });
+            }
+
+            $("#iVerificarMapa").on("click", function () {
+                let url = "@Url.Action("Index", "Viabilidade")";
+                let latitude = $("#iLatitudeProspecto").val().replace(",", ".");
+                let longitude = $("#iLongitudeProspecto").val().replace(",", ".");
+
+                url = `${url}?latitude=${latitude}&&longitude=${longitude}`;
+                AddAba(url);
+            })
+        }
+
+        async function ExecutarConsultaViabilidade(
+            latitude,
+            longitude,
+            logradouro = null,
+            numero = null,
+            logradouroStr = "",
+            cidade = null,
+            condominio,
+            bloco,
+            apto_numero
+        ) {
+
+            const requestConsultaViabilidade = {
+                Latitude: latitude,
+                Longitude: longitude
+            };
+
+            if (logradouro) {
+                requestConsultaViabilidade.IdEnderecoLogradouro = logradouro
+            }
+
+            if (numero) {
+                requestConsultaViabilidade.Numero = numero;
+            }
+
+            if (logradouroStr) {
+                requestConsultaViabilidade.Logradouro = logradouroStr;
+            }
+
+            if (cidade) {
+                requestConsultaViabilidade.IdCidade = cidade;
+            }
+
+            if (condominio) {
+                requestConsultaViabilidade.IdCondominio = condominio;
+            }
+
+            if (bloco) {
+                requestConsultaViabilidade.IdBloco = bloco;
+            }
+
+            if (apto_numero) {
+                requestConsultaViabilidade.IdApto_Numero = apto_numero;
+            }
+
+            return await $.ajax({
+                    type: "POST",
+                    url: "@CONSTANTES.URLPortal/api/Consulta_ViabilidadeApi/ExecutarConsultaViabilidade",
+                    dataType: "json",
+                    data: requestConsultaViabilidade
+                });
+        }
+
+        async function DadosConsultaViabilidade(latitudeBanco0, longitudeBanco0) {
+            let str = "";
+            let obj = {
+                lat: latitudeBanco0,
+                lon: longitudeBanco0,
+                idEnderecoLogradouro: $("#iId_Endereco_LogradouroProspecto").val(),
+                numero: String($("#iNumeroProspecto").val()),
+                logradouro: String($("#iLogradouroProspecto").val()),
+                idCidade: $("#iCidadeProspecto").val()
+                //bloco = $("#iBlocoSelectProspecto").val(),
+                //apto_numero = $("#iApartamentoSelectProspecto").val(),
+                //condominio = $("#iId_Condominio_PredioProspecto").val()
+            };
+            if (obj.lat == 0 && obj.lon == 0) {
+                obj.lat = Number($("#iLatitudeProspecto").val().replace(",", "."));
+                obj.lon = Number($("#iLongitudeProspecto").val().replace(",", "."));
+            }
+
+            //for (const [ key, value ] of Object.entries(obj)) {
+            //    if (value) {
+            //        str += `${key}=${value}&`;
+            //    }
+
+            //}
+            //str = str.substring(0, str.length - 1);
+
+            var link = "@CONSTANTES.URLPortal/api/Consulta_ViabilidadeApi/GetDadosViabilidadeByLatLong?lat="
+                + obj.lat + "&lon=" + obj.lon + "&idVenda=" + null + "&idClientePlanoProduto=" + null + "&idCliente=" + null + "&idEnderecoLogradouro=" + obj.idEnderecoLogradouro +
+                "&idCondominio=" + null + "&numero=" + String(obj.numero) + "&logradouro=" + String(obj.logradouro) + "&idCidade=" + obj.idCidade;
+
+            return await $.ajax({
+                url: link,
+                type: "GET",
+                dataType: "json"/*,
+                data: requestConsultaViabilidade*/
+            });
+        }
+
+        $("#btnConsultaViabilidade").on("click", async function () {
+            let latitude = Number(latitudeBanco.replace(",", "."));
+            let longitude = Number(longitudeBanco.replace(",", "."));
+
+            if (latitude == 0 && longitude == 0) {
+                latitude = Number($("#iLatitudeProspecto").val().replace(",", "."));
+                longitude = Number($("#iLongitudeProspecto").val().replace(",", "."));
+            }
+
+            const logradouro = $("#iId_Endereco_LogradouroProspecto").val();
+            const numero = $("#iNumeroProspecto").val();
+
+            const descricaoLogradouro = $("#iLogradouroProspecto").val();
+            const cidade = $("#iCidadeProspecto").val();
+
+            //Condomínio
+            const bloco = $("#iBlocoSelectProspecto").val();
+            const apto_numero = $("#iApartamentoSelectProspecto").val();
+            const condominio = $("#iId_Condominio_PredioProspecto").val();
+
+            try {
+                $("#divProgress").show();
+                const result = await ExecutarConsultaViabilidade(latitude, longitude, logradouro, numero, descricaoLogradouro, cidade, condominio, bloco, apto_numero);
+                consultaViabilidadeResult = result;
+                if (result != null && result.ok) {
+                    let possuiDisponibilidade = null;
+                    possuiDisponibilidade = result.objeto.possuiDisponibilidade;
+
+                    if (possuiDisponibilidade == VIABILIDADE_APROVADA) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_APROVADA);
+                    }
+                    else if (possuiDisponibilidade == VIABILIDADE_APROVADA_RESSALVA) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR)
+                    }
+                    else {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_VIABILIDADE, STATUS_CONSULTA_REPROVADA);
+                    }
+
+                    @if (AcessoHelper.TemAcesso(_areas, "322"))
+                    {
+                    <text>
+                    @*
+                        Renderiza o botão da exibição de resultados da consulta de viabilidade
+                        caso ele ainda não tenha sido renderizado
+                    *@
+                    if ($("#btnResultadoConsultaViabilidade").length == 0) {
+                        RenderResultadosConsultaViabilidade(result);
+                    }
+                    </text>
+                    }
+                }
+
+                Notificar("@RsBase.INFORMACAO", "Consulta de viabilidade concluída", "info");
+            }
+            catch {
+                Notificar("@RsBase.ATENCAO_", "Um erro ocorreu durante a consulta de viabilidade", "warning");
+            }
+            finally {
+                $("#divProgress").hide();
+            }
+        });
+
+        @* Ações da Consulta de Pendência Financeira *@
+
+        function RenderResultadosConsultaPendenciaFinanceira() {
+            $("#rowConsultaPendenciaFinanceira").append(
+                `<div class="col-3 d-flex">
+                    <a href="javascript:void(0)"
+                       id="btnResultadoConsultaPendenciaFinanceira"
+                       class="btn btn-success">Resultado</a>
+                </div>`
+            );
+
+            $("#btnResultadoConsultaPendenciaFinanceira").on("click", function () {
+                $("#iModalPendenciaFinanceira").modal("show");
+
+                if (oDatatableFinanceiro == null) {
+                    TableManageButtonsFinanceiro.init();
+                }
+                else {
+                    oDatatableFinanceiro.draw();
+                }
+            })
+        }
+
+        $("#btnConsultaPendenciaFinanceira").on("click", async function () {
+            if (!$("#iCPF").val() && !$("#iCNPJ").val()) {
+                Notificar("@RsBase.ATENCAO_", "Preencha o CPF ou CNPJ antes de fazer a consulta", "warning");
+                return;
+            }
+
+            let requestConsultaPendenciaFinanceira = { };
+
+            if ($("#iCPF").val()) {
+                requestConsultaPendenciaFinanceira.Cpf = $("#iCPF").val();
+            }
+            else {
+                requestConsultaPendenciaFinanceira.Cnpj = $("#iCNPJ").val();
+            }
+
+            const result =
+                await $.ajax({
+                    url: "@String.Concat(CONSTANTES.URLPortal, "/api/PendenciaFinanceiraIntegracaoApi/ExecutarConsultaPendenciaFinanceira")",
+                    type: 'POST',
+                    dataType: 'json',
+                    data: requestConsultaPendenciaFinanceira
+                });
+
+            if (result != null && result.ok && result.objeto != null) {
+                const possuiPendencia = result.objeto.possuiPendencia;
+
+                if (possuiPendencia) {
+                    AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_REPROVADA);
+                }
+                else {
+                    AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_FINANCEIRA, STATUS_CONSULTA_APROVADA);
+                }
+
+                @if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+                @* Adiciona o botão de exibição dos resultados caso ainda não tenha sido criado *@
+                if ($("#btnResultadoConsultaPendenciaFinanceira").length == 0) {
+                    RenderResultadosConsultaPendenciaFinanceira();
+                }
+                </text>
+                }
+
+                Notificar("@RsBase.INFORMACAO", "Consulta de pendência financeira concluída", "info");
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a consulta de pendência financeira", "warning");
+            }
+        });
+
+        @* Ações da Consulta de Pendência de Endereço *@
+
+        function RenderResultadosConsultaPendenciaEndereco() {
+            $("#rowConsultaPendenciaEndereco").append(
+                `<div class="col-3 d-flex">
+                        <a href="javascript:void(0)"
+                           id="btnResultadoConsultaPendenciaEndereco"
+                           class="btn btn-success">Resultado</a>
+                    </div>`
+            );
+
+            $("#btnResultadoConsultaPendenciaEndereco").on("click", function () {
+                $("#iModalPendenciaEndereco").modal("show");
+
+                if (oDatatable == null) {
+                    TableManageButtons.init();
+                }
+                else {
+                    oDatatable.draw();
+                }
+            })
+        }
+
+        $("#btnConsultaPendenciaEndereco").on("click", async function () {
+            if (!$("#iLogradouroProspecto").val()) {
+                Notificar("@RsBase.ATENCAO_", "Preencha o logradouro antes de fazer a consulta", "warning");
+                return;
+            }
+
+            if (!$("#iNumeroProspecto").val()) {
+                Notificar("@RsBase.ATENCAO_", "Preencha o número do endereço antes de fazer a consulta", "warning");
+                return;
+            }
+
+            let requestConsultaPendenciaEndereco = {
+                Logradouro: $("#iLogradouroProspecto").val(),
+                Numero: $("#iNumeroProspecto").val(),
+                Cidade: $("#iCidadeProspecto").text(),
+                Cpf: $('#iCPF').val(),
+                Cnpj: $('#iCNPJ').val(),
+                CEP: $("#iCEPProspecto").val()
+            };
+
+            let consultarCliEndereco = {
+                Numero: $('#iNumeroProspecto').val(),
+                CEP: $("#iCEPProspecto").val(),
+                Latitude: $('#iLatitudeProspecto').val(),
+                Longitude: $('#iLongitudeProspecto').val(),
+                Bloco: $('#iBlocoSelectProspecto').val(),
+                Apartamento: $('#iApartamentoSelectProspecto').val(),
+                Id_Condominio_Predio: $('#iId_Condominio_PredioProspecto').val(),
+                Logradouro: $('#iLogradouroProspecto').val(),
+                Id_Endereco_Logradouro: $('#iId_Endereco_LogradouroProspecto').val(),
+            };
+
+            const result =
+                await $.ajax({
+                    url: "@String.Concat(CONSTANTES.URLPortal, "/api/PendenciaEnderecoIntegracaoApi/ExecutarConsultaPendenciaEndereco")",
+                    type: 'POST',
+                    dataType: 'json',
+                    data: requestConsultaPendenciaEndereco
+                });
+
+            if (result != null && result.ok && result.objeto != null) {
+                const possuiPendencia = result.objeto.possuiPendencia;
+
+                if (possuiPendencia) {
+                    AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_ENDERECO, STATUS_CONSULTA_REPROVADA);
+                }
+                else {
+                    AtualizarIndicadorStatusConsulta(CONSULTA_PENDENCIA_ENDERECO, STATUS_CONSULTA_APROVADA);
+                }
+
+                @if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                <text>
+                @* Adiciona o botão de exibição dos resultados caso ainda não tenha sido criado *@
+                if ($("#btnResultadoConsultaPendenciaEndereco").length == 0) {
+                    RenderResultadosConsultaPendenciaEndereco();
+                }
+                </text>
+                }
+
+                $.ajax({
+                    method: 'POST',
+                    url: baseUrl + '/api/clienteapi/CheckEnderecoVinculado',
+                    data: consultarCliEndereco
+                }).done(function (result) {
+                    if (result.ok) {
+                        if (result.idObjeto.length > 0) {
+                            $('#iClientesAdd').empty();
+
+                            $.each(result.idObjeto, function (index, item) {
+                                $('#iClientesAdd').append('<li>' + item.identificacaoCli + '</li>');
+                            });
+
+                            $('#iModalCliEnd').modal('show');
+                        }
+                    }
+                });
+
+
+                Notificar("@RsBase.INFORMACAO", "Consulta de pendência no endereço concluída", "info");
+            }
+            else {
+                Notificar("@RsBase.ATENCAO_", "Ocorreu um erro durante a consulta de pendência no endereço", "warning");
+            }
+        });
+
+        @*Ações da Consulta de Crédito *@
+
+        async function ConsultarCpf(cpfCnpj) {
+            await $.ajax({
+                url: "@String.Concat(CONSTANTES.URLPortal, "/api/Vendaapi/GetConsultaCpf")",
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    cpf: cpfCnpj
+                }
+            });
+        }
+
+        async function Restricao(cpfCnpj) {
+            const data =
+                await $.ajax({
+                    url: "@String.Concat(CONSTANTES.URLPortal, "/api/Vendaapi/ResultParametrosRestricaoCredito")",
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        cpf: cpfCnpj
+                    }
+                });
+
+            if (data != null && data.ok) {
+                $("#iStatusConsultaCredito").html(data.objeto);
+            }
+            else if (data.mensagem)
+            {
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "warning");
+            }
+
+
+            return data;
+        }
+
+        async function TotalPontosRestricaoCredito(cpfCnpj){
+            const data =
+                await $.ajax({
+                    url: "@String.Concat(CONSTANTES.URLPortal, "/api/Vendaapi/TotalSomaPontosRestricaoCredito")",
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        cpf: cpfCnpj
+                    }
+                });
+
+            if (data != null && data.ok) {
+                $("#iTotalPontos").html(data.objeto);
+            }
+        };
+
+        async function DadosConsultadosSerasa(cpfCnpj) {
+            const data =
+                await $.ajax({
+                    url: "@String.Concat(CONSTANTES.URLPortal, "/api/Vendaapi/RetornoRestricaoCredito")",
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        cpf: cpfCnpj
+                    }
+                });
+
+            if (data != null && data.ok) {
+                retorno = data.objeto;
+                $("#iConsulta").html(retorno);
+            }
+        }
+
+        function RenderResultadosConsultaCredito(cpfCnpj, buttonExists) {
+            if (!buttonExists) {
+                $("#rowConsultaCredito").append(
+                    `<div class="col-3 d-flex">
+                        <a href="javascript:void(0)"
+                           id="btnResultadoConsultaCredito"
+                           class="btn btn-success">Resultado</a>
+                    </div>`
+                );
+            }
+            else {
+                @*
+                    Caso o botão de exibir resultados já exista é necessário fazer o unbind do evento do click
+                    para que os resultados exibam os resultados da consulta do CPF/CNPJ que está preenchido durante
+                    a última execução da consulta de crédito
+                *@
+                $("#btnResultadoConsultaCredito").unbind("click");
+            }
+
+            $("#btnResultadoConsultaCredito").on("click", async function () {
+                @*
+                    Executando todos os métodos assíncronos que pegam os dados da consulta de crédito
+                    simulataneamente e aguardando a conclusão de todos eles antes de exibir a modal com os detalhes
+                *@
+                await Promise.all([
+                    Restricao(cpfCnpj),
+                    TotalPontosRestricaoCredito(cpfCnpj),
+                    DadosConsultadosSerasa(cpfCnpj)
+                ]);
+
+                $("#iModalConsultaCredito").modal("show");
+            });
+        }
+
+        $("#btnConsultaCredito").on("click", async function () {
+            if (!$("#iCPF").val() && !$("#iCNPJ").val()) {
+                Notificar("@RsBase.ATENCAO_", "Preencha o CPF ou CNPJ antes de fazer a consulta", "warning");
+                return;
+            }
+
+            let mensagemErro;
+
+            try {
+                @* Caso o CPF não esteja preenchido, a variável recebe o CNPJ *@
+                let cpfCnpj = $("#iCPF").val() || $("#iCNPJ").val();
+                cpfCnpj = cpfCnpj.match(/\d/g).join("");
+
+                $("#divProgress").show();
+
+                await ConsultarCpf(cpfCnpj);
+
+                let result = await Restricao(cpfCnpj);
+                if (result.ok === false) {
+                    mensagemErro = retorno.mensagem;
+                    throw new Error(mensagemErro);
+                }
+
+                $("#divProgress").hide();
+
+                if (result != null) {
+                    if (result.objeto == "@Html.Raw(HtmlEnumExtensions.GetEnumDescription(AprovacaoCriterioParametroCredito.REPROVADO))") {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_CREDITO, STATUS_CONSULTA_REPROVADA);
+                    }
+                    else if (result.objeto == "@Html.Raw(HtmlEnumExtensions.GetEnumDescription(AprovacaoCriterioParametroCredito.APROVACAO_COM_INSTALACAO))" ||
+                        result.objeto == "@Html.Raw(HtmlEnumExtensions.GetEnumDescription(AprovacaoCriterioParametroCredito.APROVACAO_SEM_INSTALACAO))") {
+
+                        AtualizarIndicadorStatusConsulta(CONSULTA_CREDITO, STATUS_CONSULTA_APROVADA);
+                    }
+                    else if (result.objeto == "@Html.Raw(HtmlEnumExtensions.GetEnumDescription(AprovacaoCriterioParametroCredito.AGUARDA_AVALIACAO_GESTOR))") {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_CREDITO, STATUS_CONSULTA_AGUARDANDO_AVALIACAO_GESTOR);
+                    }
+                    else if (result.objeto == null) {
+                        AtualizarIndicadorStatusConsulta(CONSULTA_CREDITO, STATUS_CONSULTA_REPROVADA);
+                    }
+                }
+
+                @if (AcessoHelper.TemAcesso(_areas, "322"))
+                {
+                    <text>
+                    @*
+                        Mesmo se o botão de resultados já estiver renderizado ainda é necessário executar
+                        a rotina para que o CPF/CNPJ da exibição dos resultados da consulta seja atualizado
+                        caso o usuário altere o CPF/CNPJ no cadastro e realize uma nova consulta de crédito
+                    *@
+                    const buttonResultadosExists = $("#btnResultadoConsultaCredito").length > 0;
+                    RenderResultadosConsultaCredito(cpfCnpj, buttonResultadosExists);
+                </text>
+                }
+
+                Notificar("@RsBase.INFORMACAO", "Consulta de crédito concluída", "info");
+            }
+            catch {
+                $("#divProgress").hide();
+                Notificar("@RsBase.ATENCAO_", "<span style='font-weight:bold; font-size:1.3rem;'>Atenção! Integração não configurada ou dados incorretos.</span><br />Não conseguimos processar a consulta de crédito. Por favor verifique se está configurada a integração ou se os dados como usuário, token e etc estão corretos.", "warning");
+            }
+        });
+
+        async function validacaoTelefone(lead, numero) {
+            let ok = false;
+            @*Validação de número de telefone*@
+            try {
+                if (!lead) {
+                    throw "Lead não gravado no sistema para realizar a validação de telefone.";
+                }
+                if (!numero) {
+                    throw "Número de Telefone ausente.";
+                }
+
+                const urlconfig = "@CONSTANTES.URLPortal/api/Configuracoes_Geraisapi/FindById?Id=1";
+                const url = "@CONSTANTES.URLPortal/api/IntegracaoSMSApiController/EnviarSMS";
+                let numerovalidado = "@Model.NumeroValidado";
+
+                let config = await $.ajax({
+                    url: urlconfig,
+                    dataType: "json",
+                    type: "GET"
+                });
+
+                const urlmodeloMensagem = `@CONSTANTES.URLPortal/api/Configuracao_Envio_MensagensApi/FindById?Id=${config.objeto.idModeloMensagemSMS}`;
+                let modelo = await $.ajax({
+                    url: urlconfig,
+                    dataType: "json",
+                    type: "GET"
+                });
+
+                await $.ajax({
+                    data: {
+                        Salvar_Em_Banco: true,
+                        Mensagem: modelo.objeto.mensagem_SMS,
+                        Num_Celular: numero,
+                        isReenvio: numerovalidado ? true : false,
+                        Id_Integracao: null,
+                        Tipo_Integracao: config.objeto.tipo_Integracao_SMS,
+                    },
+                    url: url,
+                    dataType: "json",
+                    type: "POST"
+                }).done(function (data) {
+                    if (data.ok) {
+                        Notificar("@RsBase.OPERACAOBEMSUCEDIDA", `Mensagem enviada ao número correspondente: ${numero}`, "success");
+                    }
+                });
+            }
+            catch (exception) {
+                Notificar("@RsBase.ATENCAO_", exception, "warning");
+            }
+            return ok;
+        }
+
+        function notificacaoViabilidade(request = null) {
+            let mensagemRetorno = "";
+            let mensagens = [];
+            let motivos = [];
+
+                //Sem Viabilidade
+                for (var passo of request.objeto.passos) {
+                    mensagemRetorno = mensagemRetorno.concat(` <br> <span> ${passo} </span> `);
+                }
+                if ((request.objeto.possuiDisponibilidade == VIABILIDADE_REPROVADA)) {
+
+                    request.objeto.motivos.forEach(obj => motivos.push(obj.motivo));
+
+
+                    mensagemRetorno = mensagemRetorno.concat(` <br> <span> Resultado da consulta de viabilidade: ${motivos.join(" - ")} </span> `);
+
+                    @*Criação do div de alerta*@
+                }
+                else if (request.objeto.caixas.length > 0) {
+                    //Com Viabilidade
+                    mensagens.push(`Caixa reservada: ${request.objeto.caixas[0].descricao}`);
+                    mensagens.push(`Porta reservada: ${request.objeto.caixas[0].portasDisponiveis[0]}`);
+                }
+
+
+            $("#spanMotivoAprovManualViabiliadade").text("");
+
+            if (request?.objeto?.motivoAprovacaoManual) {
+                $("#divMotivoAprovManualViabilidade").show();
+                $("#spanMotivoAprovManualViabiliadade").text(request?.objeto?.motivoAprovacaoManual);
+            }
+
+            let div = $("#iResultadoViabilidade");
+            let alerta = $("#iAlertaViabilidade");
+
+            $("#iResultadoViabilidade").empty();
+            $("#iAlertaViabilidade").empty();
+
+            for (let mensagem of mensagens) {
+                if (!mensagemRetorno) {
+                    mensagemRetorno = mensagem;
+                }
+                else {
+                    mensagemRetorno = `${mensagemRetorno} <br> ${mensagem}`;
+                }
+            }
+            div.append($.parseHTML(mensagemRetorno));
+            alerta.append($.parseHTML(mensagemRetorno));
+
+            alerta.removeClass("d-none");
+            alerta.parent().removeClass("d-none");
+            $("#iVerificarMapa").attr("hidden", false);
+        }
+
+    </script>
+
+    @{ Html.RenderPartial("~/Views/Acompanhamento_Servico/BuscarGeolocalizacao.cshtml", new BuscarGeolocalizacaoModels()); }
+    @{ Html.RenderPartial("~/Views/Maps/BuscarGeolocalizacaoClientes_Scripts.cshtml", new BuscarGeolocalizacaoModels()); }
+    @{ Html.RenderPartial("~/Views/Cliente/EnderecoClienteViewModel_Scripts.cshtml", Model.EnderecoProspecto); }
+    @{ Html.RenderPartial("~/Views/Condominio_Predio/BuscarCondominio.cshtml"); }
+    @{ Html.RenderPartial("~/Views/Condominio_Predio/BuscarCondominio_Scripts.cshtml"); }
+}
+
+@using (Html.BeginForm("ClienteDadosGerais", "Cliente_Prospecto", FormMethod.Post, htmlAttributes: new { @id = "form", @autocomplete = "off" }))
+{
+    @Html.AntiForgeryToken()
+
+    @Html.HiddenFor(model => model.Id)
+    @Html.HiddenFor(model => model.StatusConsultaViabilidade, new { @id = "iStatusConsultaViabilidade" })
+    @Html.HiddenFor(model => model.StatusConsultaPendenciaFinanceira, new { @id = "iStatusConsultaPendenciaFinanceira" })
+    @Html.HiddenFor(model => model.StatusConsultaPendenciaEndereco, new { @id = "iStatusConsultaPendenciaEndereco" })
+    @Html.HiddenFor(model => model.StatusConsultaCredito, new { @id = "iStatusConsultaCredito" })
+
+    <div style="padding:10px">
+        <div class="card" style="border:none;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col main-title">
+
+                        <input type="hidden" id="iStatusConsultaViabilidade" value="0" />
+                        <input type="hidden" id="iStatusConsultaPendenciaFinanceira" value="0" />
+                        <input type="hidden" id="iStatusConsultaPendenciaEndereco" value="0" />
+                        <input type="hidden" id="iStatusConsultaCredito" value="0" />
+
+                        @if (@Model.Id == 0)
+                        {
+                            <h4 class="title-page">
+                                <i class="fas fa-user"></i> @RsCadastros.CADASTRO_LEAD
+                            </h4>
+
+
+                            <nav class="mt-25">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">
+                                        <a href="#" style="color:#367fa9" onclick="AvisoSemSalvar('@Url.Action("Index", "Comercial")');">@RsCadastros.COMERCIAL</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <a href="#" style="color:#367fa9" onclick="AvisoSemSalvar('@Url.Action("Index", "Cliente_Prospecto")');">@RsCadastros.PAINEL_LEAD</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <a href="#" style="color:#367fa9" onclick="AvisoSemSalvar('@Url.Action("Index", "Cliente_Prospecto")');">@RsCadastros.CADASTRO_LEAD</a>
+                                    </li>
+                                </ol>
+                            </nav>
+
+                            <ul class="nav nav-tabs" id="myTab" role="tablist" style="margin-top: -26px;">
+                                <li class="nav-item" style="margin-bottom: 22px;">
+                                    <a class="nav-link active mt-1" id="dadosgerais-tab" data-toggle="tab" href="#iTabDadosGerais" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.DADOSGERAIS</a>
+                                </li>
+                            </ul>
+
+                        }
+
+                        @if (@Model.Id != 0)
+                        {
+
+                            <h4 class="title-page"><i class="fas fa-user"></i> @RsCadastros.DADOSGERAIS_LEAD</h4>
+                            <nav class="mt-25">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item">
+                                        <a href="#" style="color:#367fa9" onclick="AvisoSemSalvar('@Url.Action("Index", "Comercial")');">@RsCadastros.COMERCIAL</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <a href="#" style="color:#367fa9" onclick="AvisoSemSalvar('@Url.Action("Index", "Cliente_Prospecto")');">@RsCadastros.PAINEL_LEAD</a>
+                                    </li>
+                                    <li class="breadcrumb-item">
+                                        <span>@ViewBag.Title</span>
+                                    </li>
+                                </ol>
+                            </nav>
+
+                            <ul class="nav nav-tabs" id="myTab" role="tablist" style="margin-top: -26px;">
+                                <li class="nav-item" style="margin-bottom: 22px;">
+                                    <a class="nav-link active mt-1" id="dadosgerais-tab" data-toggle="tab" href="#iTabDadosGerais" role="tab" aria-controls="dadosgerais" aria-selected="true"><i class="fas fa-pencil-alt"></i> @RsCadastros.DADOSGERAIS</a>
+                                </li>
+                            </ul>
+                        }
+
+                    </div>
+                    <div class="card" id="iDivCardCli" style="width: 18rem;display:none;color:darkorange">
+                        <div class="card-body" style="text-align:center">
+                            <h5 class="card-title"><b>Atenção!</b></h5>
+                            <p class="card-text">Endereço informado encontra-se associado a um ou mais clientes Ativo.</p>
+                            <h5 class="card-title"><b>O(s) Cliente(s):</b></h5>
+                            <ul id="iResultadoAdd">
+                                @if (Model.ClientesAtrelados != null)
+                                {
+                                    if (Model.ClientesAtrelados.Count > 0)
+                                    {
+                                        foreach (var client in Model.ClientesAtrelados)
+                                        {
+                                            <li><p class="mt-0">@client.IdentificacaoCli</p></li>
+                                        }
+                                    }
+                                }
+
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="row">
+                            @*Ajuste inserção de Legenda no lead*@
+                            <div class="col-sm-5 my-auto @(restricoes.Any(p => p) ? String.Empty : "d-none")" id="iDivLegendaStatus">
+                                <div class="form-inline">
+                                    <!--Info-->
+                                    <div class="mt-1" style="font-size: 14px;">
+                                        @*<i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" data-html="true" title="Legenda dos status das consultas"
+                                            data-content="@stringHtml_LegendaStatus"></i>*@
+                                        <i class="fas fa-question-circle fa-2x" style="color: #2092EC" data-toggle="popover" title="Legenda das Restrições" data-html="true" data-content="@stringHtml_LegendaStatus"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (Model.Id != 0 && (!String.IsNullOrEmpty(Model.Cpf) || !String.IsNullOrEmpty(Model.Cnpj)))
+                            {
+                                <button class="btn btn-default btn-add" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="la la-ellipsis-v la-2x" style="color: #999"></i>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                    <a class="dropdown-item" id="btnConcretizarVenda" style="cursor: pointer;"><i class="fas fa-shopping-cart"></i> @RsCadastros.CADASTRO_VENDAS</a>
+                                </div>
+                                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                    <a class="dropdown-item" id="btnReenvioSms" href='javascript:validacaoTelefone(@Model.Id, $("#iTelCelular").val())'><i class="fas fa-mobile-phone"></i>Reenviar SMS</a>
+                                </div>
+
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content">
+            <div role="tabpanel" class="tab-pane active" id="iTabDadosGerais">
+                @*Consultas de Restrição*@
+
+                <div class="accordion @(restricoes.Any(p => p) ? String.Empty : "d-none")" id="accordion_5">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_5">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_5" aria-expanded="true" aria-controls="collapse_5">
+                                    <span class="text-bold-card">Restrições</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_5" class="collapse show" aria-labelledby="heading_5" data-parent="#accordion_5">
+                            <div class="card-body body-card-accord">
+                                <div class="col">
+                                    @if (Model.ConsultaViabilidadeHabilitada)
+                                    {
+                                        <div class="row p-1" id="rowConsultaViabilidade">
+                                            <div class="col-3 d-flex">
+                                                <div class="row inherit-width">
+                                                    <div class="col-2">
+                                                        <i id="statusConsultaViabilidade"
+                                                           class="fas fa-circle circle-consulta-pendente"></i>
+                                                    </div>
+                                                    <div class="col-10">Consulta de Viabilidade</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3 d-flex">
+                                                <a href="javascript:void(0)"
+                                                   id="btnConsultaViabilidade"
+                                                   class="btn btn-primary">Consultar</a>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (Model.ConsultaPendenciaFinanceiraHabilitada)
+                                    {
+                                        <div class="row p-1" id="rowConsultaPendenciaFinanceira">
+                                            <div class="col-3 d-flex">
+                                                <div class="row inherit-width">
+                                                    <div class="col-2">
+                                                        <i id="statusConsultaPendenciaFinanceira"
+                                                           class="fas fa-circle circle-consulta-pendente"></i>
+                                                    </div>
+                                                    <div class="col-10">Consulta de Pendência Financeira</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3 d-flex">
+                                                <a href="javascript:void(0)"
+                                                   id="btnConsultaPendenciaFinanceira"
+                                                   class="btn btn-primary">Consultar</a>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (Model.ConsultaPendenciaEnderecoHabilitada)
+                                    {
+                                        <div class="row p-1" id="rowConsultaPendenciaEndereco">
+                                            <div class="col-3 d-flex">
+                                                <div class="row inherit-width">
+                                                    <div class="col-2">
+                                                        <i id="statusConsultaPendenciaEndereco"
+                                                           class="fas fa-circle circle-consulta-pendente"></i>
+                                                    </div>
+                                                    <div class="col-10">Consulta de Pendência no Endereço</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3 d-flex justify-content-start">
+                                                <a href="javascript:void(0)"
+                                                   id="btnConsultaPendenciaEndereco"
+                                                   class="btn btn-primary">Consultar</a>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (Model.ConsultaCreditoHabilitada)
+                                    {
+                                        <div class="row p-1" id="rowConsultaCredito">
+                                            <div class="col-3 d-flex">
+                                                <div class="row inherit-width">
+                                                    <div class="col-2">
+                                                        <i id="statusConsultaCredito"
+                                                           class="fas fa-circle circle-consulta-pendente"></i>
+                                                    </div>
+                                                    <div class="col-10">Consulta de Crédito</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-3 d-flex justify-content-start">
+                                                <a href="javascript:void(0)"
+                                                   id="btnConsultaCredito"
+                                                   class="btn btn-primary">Consultar</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @*Dados Gerais - Dados Pessoais*@
+                <div class="accordion" id="accordion_1">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_1">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_1" aria-expanded="true" aria-controls="collapse_1">
+                                    <span class="text-bold-card">@RsCadastros.DADOS_PESSOAIS</span>
+                                </a>
+                            </h5>
+                        </div>
+
+
+                        <div id="collapse_1" class="collapse show" aria-labelledby="heading_1" data-parent="#accordion_1">
+                            <div class="card-body body-card-accord">
+
+                                <div class="row mb-3">
+                                    <div class="col-sm-2">
+                                        <h5><label for="iTipoPessoa">@RsCadastros.TIPOPESSOA</label></h5>
+                                        @Html.EnumDropDownListFor(m => m.TipoPessoa, RsBase.SELECIONE, new { @class = "form-control", @id = "iTipoPessoa" })
+                                    </div>
+                                </div>
+
+                                @* Inicio PESSOA FISICA *@
+                                <div id="iPF">
+
+                                    <div class="row mb-3">
+                                        <div class="col-sm-2 mr-auto divPessoaFisica">
+                                            <div class="form-group">
+                                                <label for="iCPF">@RsCadastros.CPF</label>
+                                                @Html.TextBoxFor(m => m.Cpf, new { @id = "iCPF", @placeholder = "Informe o CPF", @class = "form-control cpf", @autocomplete = "off" })
+                                                <button id="iValidar" type="button" class="btn btn-primary m-2" name="validar">Validar</button>
+                                            </div>
+                                        </div>
+                                        @if (@Model.Id != 0 && !efetivadobool)
+                                        {
+
+                                            <div class="col-sm-2 text-right">
+
+                                                <div class="form-group">
+                                                    <label for="iStatus" style="margin-right: 55px;">@RsCadastros.STATUS:</label><br>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control", @id = "iStatus", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    @Html.ValidationMessageFor(model => model.Status, "", new { @class = "text-danger" })
+                                                </div>
+
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iNome">@RsCadastros.NOMECOMPLETO:</label>
+                                                @Html.TextBoxFor(model => model.NomeCompleto, new { @class = "form-control " + (efetivadobool ? "readonly" : ""), @id = "iNome", @Maxlength = 50 })
+                                                @Html.ValidationMessageFor(model => model.NomeCompleto, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+                                        <div class=" col-sm-2">
+                                            <label for="iNascimento">@((camposObrigatorios.ContainsKey(RsCadastros.DATANASCIMENTO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.DATANASCIMENTO:</label>
+                                            <div class="form-group">
+
+                                                @Html.TextBoxFor(m => m.DataNascimento, new { @class = "form-control " + (camposBloqueados.ContainsKey(RsCadastros.DATANASCIMENTO) ? "readonly" : "") + " datepicker" + (efetivadobool ? "readonly" : ""), @data_provide = "datepicker", @id = "iNascimento", @autocomplete = "off" })
+
+                                                @Html.ValidationMessageFor(model => model.DataNascimento, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iNacionalidade">@((camposObrigatorios.ContainsKey(RsCadastros.NACIONALIDADE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.NACIONALIDADE:</label>
+                                                <select name="Nacionalidade" class="form-control @((efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.NACIONALIDADE) ? "readonly" : "")) " id="iNacionalidade" autocomplete="off">
+                                                    <option value="">@RsBase.SELECIONE</option>
+                                                    <option value="Afegão">Afegão</option>
+                                                    <option value="Africano">Africano</option>
+                                                    <option value="Alemão">Alemão</option>
+                                                    <option value="Americano">Americano</option>
+                                                    <option value="Argentino">Argentino</option>
+                                                    <option value="Asiático">Asiático</option>
+                                                    <option value="Australiano">Australiano</option>
+                                                    <option value="Austríaco">Austríaco</option>
+                                                    <option value="Belga">Belga</option>
+                                                    <option value="Brasileiro">Brasileiro</option>
+                                                    <option value="Britânico">Britânico</option>
+                                                    <option value="Canadense">Canadense</option>
+                                                    <option value="Chileno">Chileno</option>
+                                                    <option value="Chinês">Chinês</option>
+                                                    <option value="Colombiano">Colombiano</option>
+                                                    <option value="Coreano">Coreano</option>
+                                                    <option value="Croata">Croata</option>
+                                                    <option value="Dinamarquês">Dinamarquês</option>
+                                                    <option value="Egípcio">Egípcio</option>
+                                                    <option value="Escocês">Escocês</option>
+                                                    <option value="Eslovaco">Eslovaco</option>
+                                                    <option value="Espanhol">Espanhol</option>
+                                                    <option value="Europeu">Europeu</option>
+                                                    <option value="Filipino">Filipino</option>
+                                                    <option value="Finlandês">Finlandês</option>
+                                                    <option value="Francesa">Francesa</option>
+                                                    <option value="Francês">Francês</option>
+                                                    <option value="Grego">Grego</option>
+                                                    <option value="Holandês">Holandês</option>
+                                                    <option value="Indiano">Indiano</option>
+                                                    <option value="Inglês">Inglês</option>
+                                                    <option value="Iraniano">Iraniano</option>
+                                                    <option value="Iraquiano">Iraquiano</option>
+                                                    <option value="Italiano">Italiano</option>
+                                                    <option value="Japonês">Japonês</option>
+                                                    <option value="Mexicano">Mexicano</option>
+                                                    <option value="Norueguês">Norueguês</option>
+                                                    <option value="Paquistanês">Paquistanês</option>
+                                                    <option value="Polonês">Polonês</option>
+                                                    <option value="Português">Português</option>
+                                                    <option value="Russo">Russo</option>
+                                                    <option value="Sueco">Sueco</option>
+                                                    <option value="Sul-Africano">Sul-Africano</option>
+                                                    <option value="Sul-Coreano">Sul-Coreano</option>
+                                                    <option value="Turco">Turco</option>
+                                                    <option value="Árabe">Árabe</option>
+                                                    <option value="Haitiano">Haitiano</option>
+                                                </select>
+                                                @Html.ValidationMessageFor(model => model.Nacionalidade, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iSexo">@((camposObrigatorios.ContainsKey(RsCadastros.SEXO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.SEXO:</label>
+                                                @Html.EnumDropDownListFor(m => m.Sexo, RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.SEXO) ? "readonly" : ""), @id = "iSexo" })
+                                                @Html.ValidationMessageFor(model => model.Sexo, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iEstadoCivil">@((camposObrigatorios.ContainsKey(RsCadastros.ESTADO_CIVIL) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.ESTADOCIVIL:</label>
+                                                @Html.EnumDropDownListFor(m => m.EstadoCivil, RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.ESTADO_CIVIL) ? "readonly" : ""), @id = "iEstadoCivil" })
+                                                @Html.ValidationMessageFor(model => model.EstadoCivil, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iRG">@((camposObrigatorios.ContainsKey(RsCadastros.RG) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.RG:</label>
+                                                @Html.TextBoxFor(m => m.RG, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.RG) ? "readonly" : ""), @id = "iRG", @autocomplete = "off", maxlength = 20 })
+                                                @Html.ValidationMessageFor(model => model.RG, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <label for="iDataEmissao">@((camposObrigatorios.ContainsKey(RsCadastros.DATAEMISSAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.DATAEMISSAO:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.DataEmissao, new { @class = "form-control  " + (camposBloqueados.ContainsKey(RsCadastros.DATAEMISSAO) ? "readonly" : "") + " datepicker " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.RG) ? "readonly" : ""), @data_provide = "datepicker", @id = "iDataEmissao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.DataEmissao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iOrgao">@((camposObrigatorios.ContainsKey(RsCadastros.ORGAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.ORGAO:</label>
+                                                @Html.TextBoxFor(m => m.Orgao, new { @class = "form-control  " + (camposBloqueados.ContainsKey(RsCadastros.ORGAO) ? "readonly" : "") + (efetivadobool ? "readonly " : ""), @id = "iOrgao", @autocomplete = "off", @Maxlength = 15 })
+                                                @Html.ValidationMessageFor(model => model.Orgao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            <div class="form-group">
+                                                <label for="iProfissao">@((camposObrigatorios.ContainsKey(RsCadastros.PROFISSAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.PROFISSAO:</label>
+                                                @Html.TextBoxFor(m => m.Profissao, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.PROFISSAO) ? "readonly" : ""), @id = "iProfissao", @autocomplete = "off", @Maxlength = 25 })
+                                                @Html.ValidationMessageFor(model => model.Profissao, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+                                    </div>
+
+
+                                    <div class="row">
+
+                                        <div class="col-sm-4">
+
+                                            <div class="form-group">
+                                                <label for="iPai">@((camposObrigatorios.ContainsKey(RsCadastros.NOME_PAI) || camposObrigatorios.ContainsKey(RsCadastros.NOME_MAE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.FILIACAO:</label>
+                                                @Html.TextBoxFor(m => m.Pai, new { @class = "form-control mb-1 " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.NOME_PAI) ? "readonly" : ""), @id = "iPai", @autocomplete = "off", @placeholder = "Pai", @Maxlength = 50, @type = "text" })
+                                                @Html.ValidationMessageFor(model => model.Pai, "", new { @class = "text-danger" })
+                                                @Html.TextBoxFor(m => m.Mae, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.NOME_MAE) ? "readonly" : ""), @id = "iMae", @autocomplete = "off", @placeholder = "Mãe", @Maxlength = 50 })
+                                                @Html.ValidationMessageFor(model => model.Mae, "", new { @class = "text-danger" })
+                                            </div>
+
+                                        </div>
+
+
+                                        <div class="col-sm-4">
+                                            <div class="form-group">
+                                                <label for="iInstrucao">@((camposObrigatorios.ContainsKey(RsCadastros.GRAU_DE_INSTRUCAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.GRAU_DE_INSTRUCAO:</label>
+                                                @Html.EnumDropDownListFor(m => m.Instrucao, RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.GRAU_DE_INSTRUCAO) ? "readonly" : ""), @id = "iInstrucao", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Instrucao, "", new { @class = "text-danger" })
+
+                                            </div>
+
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="idCategoria_Cliente">@((camposObrigatorios.ContainsKey(RsCadastros.CATEGORIA_CLIENTE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                                @Html.DropDownListFor(m => m.Id_Categoria_Cliente, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? " readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CATEGORIA_CLIENTE) ? "readonly" : ""), @id = "idCategoria_Cliente", @autocomplete = "off" })
+                                                @Html.HiddenFor(model => model.Id_Categoria_Cliente, new { @id = "iHiddenCategoria_Cliente" })
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="idMeio_Captacao">@((camposObrigatorios.ContainsKey(RsCadastros.MEIO_CAPTACAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.MEIO_CAPTACAO:</label>
+
+                                                @Html.DropDownListFor(m => m.Id_Meio_Captacao, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? " readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.MEIO_CAPTACAO) ? "readonly" : ""), @id = "idMeio_Captacao", @autocomplete = "off" })
+                                                @Html.HiddenFor(model => model.Id_Meio_Captacao, new { @id = "iHiddenCaptacao" })
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3" id="divQualMeio" style="display:none">
+                                            <div class="form-group">
+                                                <label for="iQualMeio">@RsCadastros.QUAL_MEIO:</label>
+                                                @Html.TextBoxFor(m => m.Qual_Meio, new { @class = "form-control", @id = "iQualMeio", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Qual_Meio, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3" id="divQuemIndicou" style="display:none">
+                                            <div class="form-group">
+                                                <label for="iQuemIndicou">@RsCadastros.QUEMINDICOU:</label>
+                                                @Html.HiddenFor(model => model.Id_Quem_Indicou, new { @id = "idQuemIndicou" })
+                                                @Html.DropDownListFor(m => m.Quem_Indicou, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iQuemIndicou", @autocomplete = "off" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iCampanhaPF">@((camposObrigatorios.ContainsKey(RsCadastros.CAMPANHA) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CAMPANHA:</label>
+
+                                                @Html.DropDownListFor(m => m.Id_Campanha, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? " readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CAMPANHA) ? "readonly" : ""), @id = "iCampanhaPF", @autocomplete = "off" })
+                                                @Html.HiddenFor(model => model.Id_Campanha, new { @id = "iCampanhaPF" })
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-3">
+                                            <label for="iNumeroContrato">@RsCadastros.IDENTIFICACAO_LEAD:</label>
+                                            @Html.TextBoxFor(model => model.Numero_Contrato, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iNumeroContrato", @maxlength = 9 })
+                                            @Html.ValidationMessageFor(model => model.Numero_Contrato, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+
+                                                <label for="iStatusProspecto">@RsCadastros.STATUS_LEAD:</label>
+                                                @Html.EnumDropDownListFor(model => model.Status_Prospecto, RsBase.SELECIONE, new { @class = "form-control readonly", @id = "iStatusProspecto" })
+
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <label for="iDepartamento">Departamento</label>
+                                            <div class="form-group">
+                                                @Html.DropDownListFor(model => model.Id_Departamento, new SelectList(new List<Aniel.Connect.Core.ObjBusca<Int64?>>()), RsBase.SELECIONE, new { @id = "iDepartamento", @class = "form-control", @style = "width: 100%" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4" id="iDivMotivoInviabilidade" style="display:none">
+                                            <div class="form-group">
+                                                <label for="iMotivoInviabilidade">Motivo Restrição Comercial:</label>
+                                                @Html.EnumDropDownListFor(model => model.MotivoRestricaoComercial, RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") })
+
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0 && !efetivadobool)
+                                        {
+
+                                            <div class="col">
+                                                <a href="#" onclick="return AbrirAnexarArquivo();" class="btn btn-outline-secondary" style="margin-top: 21px; font-size:0.8rem"><i class="fas fa-lock-open mr-2"></i>Anexar Arquivos</a>
+                                            </div>
+
+                                        }
+                                    </div>
+                                    <div>
+                                        <label for="Informacao_Complementares">Informações Complementares:</label>
+
+                                        @Html.TextAreaFor(m => Model.Informacao_Complementares, new { @class = "form-control", @rows = "10", @id = "Informacao_Complementares", @autocomplete = "off" })
+                                    </div>
+                                </div>
+                                @* Fim PESSOA FISICA *@
+
+                                @* Inicio PESSOA JURIDICA *@
+                                <div id="iPJ">
+                                    <div class="row">
+                                        <div class="col-sm-2 divPessoaJuridica">
+                                            <div class="form-group">
+                                                <label for="iCNPJ">@RsCadastros.CNPJ:</label><br>
+                                                @Html.TextBoxFor(m => m.Cnpj, new { @id = "iCNPJ", @placeholder = "Informe o CNPJ", @class = "form-control cnpj", @autocomplete = "off" })
+                                                <button type="button" id="iValidarCnpj" class="btn btn-primary m-2" name="iValidarCnpj">Validar</button>
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0 && !efetivadobool)
+                                        {
+                                            <div class="col-sm-2 text-right">
+
+                                                <div class="form-group">
+                                                    <label for="iStatus" style="margin-right: 55px;">@RsCadastros.STATUS:</label><br>
+                                                    @Html.CheckBoxFor(m => m.Status, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iStatus", @name = "my-checkbox", @data_toggle = "toggle", @data_on = "Ativo", @data_off = "Inativo", @data_onstyle = "success", @data_offstyle = "light" })
+                                                    @Html.ValidationMessageFor(model => model.Status, "", new { @class = "text-danger" })
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iNome">@RsCadastros.NOMEFANTASIA:</label>
+                                                @Html.TextBoxFor(model => model.NomeFantasia, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iFantasia", @Maxlength = 50 })
+                                                @Html.ValidationMessageFor(model => model.NomeFantasia, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class=" col-sm-2">
+                                            <label for="iAbertura">@((camposObrigatorios.ContainsKey(RsCadastros.DATA_ABERTURA) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.ABERTURA:</label>
+                                            <div class="form-group">
+                                                @Html.TextBoxFor(m => m.Data_Abertura, new { @class = "form-control  " + (camposBloqueados.ContainsKey(RsCadastros.DATA_ABERTURA) ? "readonly" : "") + " datepicker " + (efetivadobool ? "readonly " : ""), @data_provide = "datepicker", @id = "iAbertura", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Data_Abertura, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iRazao_Social">@RsCadastros.RAZAO_SOCIAL:</label>
+                                                @Html.TextBoxFor(model => model.Razao_Social, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iRazao_Social", @Maxlength = 50, @style = "display : inline-block;" })
+                                                @Html.ValidationMessageFor(model => model.Razao_Social, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iInscricao_Estadual">@((camposObrigatorios.ContainsKey(RsCadastros.INSCRICAO_ESTADUAL) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.INSCRICAO_ESTADUAL:</label>
+                                                @Html.TextBoxFor(m => m.Inscricao_Estadual, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.INSCRICAO_ESTADUAL) ? "readonly" : ""), @id = "iInscricao_Estadual", @Maxlength = 15 })
+                                                @Html.ValidationMessageFor(model => model.Inscricao_Estadual, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iInscricao_Municipal">@((camposObrigatorios.ContainsKey(RsCadastros.ESTADO_CIVIL) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.INSCRICAO_MUNICIPAL:</label>
+                                                @Html.TextBoxFor(m => m.Inscricao_Municipal, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.INSCRICAO_MUNICIPAL) ? "readonly" : ""), @id = "iInscricao_Municipal", @Maxlength = 15 })
+                                                @Html.ValidationMessageFor(model => model.Inscricao_Municipal, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iPorte">@((camposObrigatorios.ContainsKey(RsCadastros.PORTE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.PORTE:</label>
+                                                @Html.EnumDropDownListFor(m => m.Porte, RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.PORTE) ? "readonly" : ""), @id = "iPorte" })
+                                                @Html.ValidationMessageFor(model => model.Porte, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            <div class="form-group">
+                                                <label for="iRamo_Atividade">@((camposObrigatorios.ContainsKey(RsCadastros.RAMO_ATIVIDADE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.RAMO_ATIVIDADE:</label>
+                                                @Html.TextBoxFor(m => m.Ramo_Atividade, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.RAMO_ATIVIDADE) ? "readonly" : ""), @id = "iRamo_Atividade", @autocomplete = "off", @Maxlength = 50 })
+                                                @Html.ValidationMessageFor(model => model.Ramo_Atividade, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4">
+                                            <div class="form-group">
+                                                <label for="idCategoria_ClienteJuridico">@((camposObrigatorios.ContainsKey(RsCadastros.CATEGORIA_CLIENTE) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CATEGORIA_CLIENTE:</label>
+                                                @Html.DropDownListFor(m => m.Id_Categoria_ClienteJuridico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CATEGORIA_CLIENTE) ? "readonly" : ""), @id = "idCategoria_ClienteJuridico" })
+                                                @Html.HiddenFor(model => model.Id_Categoria_ClienteJuridico, new { @id = "iHiddenCategoria_ClienteJuridico" })
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div class="row">
+
+
+                                        <div id="divRespFinanceiro" class="col-sm-2">
+                                            <label for="iRespFinanceiro">@((camposObrigatorios.ContainsKey(RsCadastros.RESPONSAVEL_FINANCEIRO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.RESPONSAVEL_FINANCEIRO:</label>
+
+                                            @Html.TextBoxFor(model => model.Responsavel_Financeiro, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.RESPONSAVEL_FINANCEIRO) ? "readonly" : ""), @id = "iRespFinanceiro", @Maxlength = 50 })
+                                            @Html.ValidationMessageFor(model => model.Responsavel_Financeiro, "", new { @class = "text-danger" })
+                                        </div>
+
+                                        <div class="col-sm-4">
+
+                                            <div class="form-group">
+                                                <label for="iCPFResponsavel">@((camposObrigatorios.ContainsKey(RsCadastros.CPF_RESPONSAVEL_EMPRESA) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CPF_RESPONSAVEL:</label>
+                                                @Html.TextBoxFor(m => m.CPFResponsavel, new { @class = "form-control cpf " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CPF_RESPONSAVEL_EMPRESA) ? "readonly" : ""), @id = "iCPFResponsavel", @placeholder = "CPF Responsavel" })
+                                                @Html.ValidationMessageFor(model => model.CPFResponsavel, "", new { @class = "text-danger" })
+
+                                            </div>
+
+                                        </div>
+
+                                        <div class="col-sm-4">
+
+                                            <div class="form-group">
+                                                <label for="iCargo_Responsavel">@((camposObrigatorios.ContainsKey(RsCadastros.CARGO_RESPONSAVEL_EMPRESA) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CARGO_RESPONSAVEL:</label>
+
+                                                @Html.TextBoxFor(m => m.Cargo_Responsavel, new { @class = "form-control mb-1 " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CARGO_RESPONSAVEL_EMPRESA) ? "readonly" : ""), @id = "iCargo_Responsavel", @autocomplete = "off", @placeholder = "Cargo", @Maxlength = 30 })
+                                                @Html.ValidationMessageFor(model => model.Cargo_Responsavel, "", new { @class = "text-danger" })
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+
+                                        <div class="col-sm-4">
+                                            <div class="form-group">
+                                                <label for="idMeio_CaptacaoJuridico">@((camposObrigatorios.ContainsKey(RsCadastros.MEIO_CAPTACAO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.MEIO_CAPTACAO:</label>
+                                                @Html.DropDownListFor(m => m.Id_Meio_CaptacaoJuridico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "idMeio_CaptacaoJuridico", @autocomplete = "off" })
+                                                @Html.HiddenFor(model => model.Id_Meio_CaptacaoJuridico, new { @id = "iHiddenCaptacaoJuridico" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-4" id="divQualMeioJuridico" style="display:none">
+                                            <div class="form-group">
+                                                <label for="iQualMeioJuridico">@RsCadastros.QUAL_MEIO:</label>
+                                                @Html.TextBoxFor(m => m.Qual_MeioJuridico, new { @class = "form-control", @id = "iQualMeioJuridico", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Qual_MeioJuridico, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-sm-4" id="divQuemIndicouJuridico" style="display:none">
+                                            <div class="form-group">
+                                                <label for="iQuemIndicouJuridico">@RsCadastros.QUEMINDICOU:</label>
+                                                @Html.HiddenFor(model => model.Id_Quem_IndicouJuridico, new { @id = "idQuemIndicouJuridico" })
+                                                @Html.DropDownListFor(m => m.Quem_IndicouJuridico, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control", @id = "iQuemIndicouJuridico", @autocomplete = "off" })
+
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iCampanhaPJ">@((camposObrigatorios.ContainsKey(RsCadastros.CAMPANHA) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CAMPANHA:</label>
+
+                                                @Html.DropDownListFor(m => m.Id_Campanha, new SelectList(new List<Aniel.Connect.Core.ObjComboResult<String>>(), "Id", "Text"), RsBase.SELECIONE, new { @class = "form-control " + (efetivadobool ? " readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.CAMPANHA) ? "readonly" : ""), @id = "iCampanhaPJ", @autocomplete = "off" })
+                                                @Html.HiddenFor(model => model.Id_Campanha, new { @id = "iCampanhaPJ" })
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    <div class="row">
+
+
+                                        <div class="col-sm-2">
+                                            <label for="iNumeroContrato">@RsCadastros.IDENTIFICACAO_LEAD:</label>
+                                            @Html.TextBoxFor(model => model.Numero_Contrato, new { @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iNumeroContrato", @maxlength = 9 })
+                                            @Html.ValidationMessageFor(model => model.Numero_Contrato, "", new { @class = "text-danger" })
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+
+                                                <label for="iStatusProspecto">@RsCadastros.STATUS_LEAD:</label>
+                                                @Html.EnumDropDownListFor(model => model.Status_Prospecto, RsBase.SELECIONE, new { @class = "form-control readonly", @id = "iStatusProspecto" })
+
+                                            </div>
+                                        </div>
+
+
+                                        @if (Model.Id != 0 && !efetivadobool)
+                                        {
+                                            <div class="col">
+                                                <a href="#" onclick="return AbrirAnexarArquivo();" class="btn btn-outline-secondary" style="margin-top: 21px; font-size:0.8rem"><i class="fas fa-lock-open mr-2"></i>Anexar Arquivos</a>
+                                            </div>
+                                        }
+
+                                    </div>
+                                </div>
+                                @* Fim PESSOA JURIDICA *@
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @*Dados Gerais - Contato*@
+                <div class="accordion mb-3" id="accordion">
+                    <div class="card div-card-accord">
+                        <div class="card-header title-card" id="heading_3">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_3" aria-expanded="true" aria-controls="collapse_3">
+                                    <span class="text-bold-card">@RsCadastros.CONTATO</span>
+                                </a>
+                            </h5>
+                        </div>
+                        <div id="collapse_3" class="collapse show" aria-labelledby="heading_3" data-parent="#accordion_3">
+                            <div class="card-body body-card-accord">
+                                <span class="text-bold-card"></span>
+                                <div class="form-group panel">
+                                    <div class="row">
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iFixo">@((camposObrigatorios.ContainsKey(RsCadastros.TELEFONE1) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.TELEFONEFIXO1:</label>
+                                                @Html.TextBoxFor(m => m.TelefoneFixo, new { @class = "form-control phone " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.TELEFONE1) ? "readonly" : ""), @id = "iFixo", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TelefoneFixo, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iTelCelular">@((camposObrigatorios.ContainsKey(RsCadastros.TELEFONE_CELULAR) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.CELULAR:</label>
+                                                @Html.TextBoxFor(m => m.Telefone_Celular, new { @class = "form-control cellphone " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.TELEFONE_CELULAR) ? "readonly" : ""), @id = "iTelCelular", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.Telefone_Celular, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iEmail">@((camposObrigatorios.ContainsKey(RsCadastros.EMAIL_PRINCIPAL) ? Html.Raw(stringObrigatorio) : Html.Raw("")))E-mail:</label>
+                                                @Html.TextBoxFor(m => m.Email, new { @type = "email", @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.EMAIL_PRINCIPAL) ? "readonly" : ""), @id = "iEmail", @autocomplete = "off", @Maxlength = 150 })
+                                                @Html.ValidationMessageFor(model => model.Email, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div id="divEmailAux" class="col-sm-3">
+                                            <div class="form-group">
+                                                <label for="iEmailAux">@((camposObrigatorios.ContainsKey(RsCadastros.EMAIL_AUXILIAR) ? Html.Raw(stringObrigatorio) : Html.Raw("")))E-mail Auxiliar:</label>
+
+                                                @*@Html.TextBoxFor(m => m.Email_Aux, new { @type = "email", @class = "form-control " + (efetivadobool ? "readonly " : ""), @id = "iEmailAux", @autocomplete = "off", @Maxlength = 70 })*@
+                                                @Html.TextBoxFor(m => m.Email_Aux, new { @type = "email", @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.EMAIL_AUXILIAR) ? "readonly" : ""), @id = "iEmailAux", @autocomplete = "off", @Maxlength = 150 })
+                                                @Html.ValidationMessageFor(model => model.Email_Aux, "", new { @class = "text-danger" })
+
+                                            </div>
+                                        </div>
+
+
+
+                                    </div>
+                                    <div class="row">
+
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iRecado">@((camposObrigatorios.ContainsKey(RsCadastros.TELEFONERECADO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.TELEFONERECADO:</label>
+                                                @Html.TextBoxFor(m => m.TelefoneRecado, new { @class = "form-control cellphone " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.TELEFONERECADO) ? "readonly" : ""), @id = "iRecado", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.TelefoneRecado, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        <div class="col-sm-2">
+                                            <div class="form-group">
+                                                <label for="iNomeRecado">@((camposObrigatorios.ContainsKey(RsCadastros.NOMERECADO) ? Html.Raw(stringObrigatorio) : Html.Raw("")))@RsCadastros.NOMERECADO:</label>
+                                                @Html.TextBoxFor(m => m.NomeRecado, new { @class = "form-control " + (efetivadobool ? "readonly " : "") + (camposBloqueados.ContainsKey(RsCadastros.NOMERECADO) ? "readonly" : ""), @id = "iNomeRecado", @autocomplete = "off" })
+                                                @Html.ValidationMessageFor(model => model.NomeRecado, "", new { @class = "text-danger" })
+                                            </div>
+                                        </div>
+
+                                        @if (Model.Id != 0)
+                                        {
+                                            <div class="col-sm-3">
+                                                <a href="#" onclick="listaContatos();" class="btn btn-outline-secondary" style="margin-top: 18px; font-size:0.8rem;"><i class="fas fa-address-book mr-2"></i>@RsCadastros.ADICIONAR_CONTATOS</a>
+                                            </div>
+                                        }
+
+
+
+
+                                        @*<div class="col-sm-3">
+                                                <button class="btn btn-outline-secondary" style="margin-top: 21px; font-size:0.8rem"><i class="fas fa-lock-open mr-2"></i>Enviar Login App Cliente</button>
+                                            </div>*@
+
+                                    </div>
+
+
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @*Endereço Principal*@
+                <div class="accordion" id="accordion">
+                    <div class="card div-card-accord mb-3">
+                        <div class="card-header title-card" id="heading_4">
+                            <h5 class="mb-0">
+                                <a role="button" data-toggle="collapse" data-target="#collapse_4" aria-expanded="true" aria-controls="collapse_4">
+                                    <span class="text-bold-card">Endereço do Lead</span>
+                                </a>
+                            </h5>
+                        </div>
+
+                        <div id="collapse_4" class="collapse show" aria-labelledby="heading_4" data-parent="#accordion_4">
+                            <div class="card-body body-card-accord">
+
+                                @if (!ViewBag.Utiliza_Cadastro_Endereco)
+                                {
+                                    <div class="row mb-2">
+                                        <div class="col-sm-12">
+                                            <div class="form-inline">
+                                                @Html.CheckBoxFor(model => model.End_CadastroCondominioProspecto, new { @class = "form-control checkEnderecoCliente", tipoCliente = Tipo_EnderecoCliente.Prospecto })
+                                                <label class="form-check-label ml-1" for="End_CadastroCondominio">@RsCadastros.ENDERECO_PRESENTE_CONDOMINIO ? </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="bloco-contexto-endereco container-fluid px-3" data-tipo-contexto="Prospecto">
+                                    <div class="accordion" id="accordionPrincipal">
+                                @{ Html.RenderPartial("~/Views/Cliente/EnderecoClienteViewModel.cshtml", Model.EnderecoProspecto); }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+
+    <a href="#" onclick="BotaoCancelar('@Url.Action("Index", "Cliente_Prospecto")');" class="float-cancel">
+        <div class="text-btn-float-cancel" data-toggle="tooltip" data-placement="left" title="Cancelar">
+            <i class="fas fa-times fa-2x"></i>
+        </div>
+    </a>
+
+    if (!efetivadobool)
+    {
+        <a href="#" class="float-save" onclick="return ValidaSubmit();">
+            <div class="text-btn-float-save" data-toggle="tooltip" data-placement="left" title="Salvar">
+                <i class="fas fa-save fa-2x"></i>
+            </div>
+        </a>
+    }
+
+    <div id="mapa"></div>
+
+    <div id="divPlano"></div>
+    <div id="divProduto"></div>
+    <div id="divListaContatos"></div>
+    <div id="divConsultaCredito"></div>
+    <div id="divConsultaPendenciaEndereco"></div>
+}
+
+@*  --/Modal/-- **@
+@{var Titulo_Modal = String.Join(" e ", new List<String>
+{ RsCadastros.COMBO, RsCadastros.CAMPANHA }.Select(word => word + "s"));
+}
+<div class="modal fade" id="iModalConsultaViabilidade" data-backdrop="static" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle"> @RsCadastros.CONSULTA_VIABILIDADE</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label for="iResultadoViabilidade">Resumo Consulta:</label>
+                                <div id="iResultadoViabilidade"></div>
+
+                                <div class="row pt-3">
+                                    <div class="col">
+                                        <input id="iVerificarMapa"
+                                               class="btn btn-primary"
+                                               type="button"
+                                               value="Verificar Mapa de viabilidade"
+                                               hidden />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@*Modal Consulta Credito*@
+<div class="modal fade" id="iModalConsultaCredito" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Consulta de Crédito</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col">
+                                <div class="border-bottom border-primary">
+                                    <label><b>Consulta Critérios de Crédito: </b></label>
+                                    <label id="iStatusConsultaCredito"></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label><b>Total de Pontos de Parâmetros de Crédito:</b></label>
+                                <label id="iTotalPontos"></label>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <label><b>Consulta Serasa:</b></label>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <div id="iConsulta" style="height: 50vh; overflow: scroll;" class="pl-4 pt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@*Modal Consulta Endereço*@
+<div class="modal fade" id="iModalPendenciaEndereco" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Consulta de Pendência de Endereço</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row border-bottom border-primary">
+                            <label>Endereço de Consulta: </label>
+                            <label id="iLogradouroValue" class="pl-2"></label>
+                            <hr />
+                            <br />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label>
+                                    Resumo Consulta:
+                                </label>
+                                <div id="divTable">
+                                    <table class="table table-hover nowrap" id="datatable" style="width:100%"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@*Modal Consulta Financeira*@
+<div class="modal fade" id="iModalPendenciaFinanceira" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content ml-4">
+            <div class="modal-header">
+                <h4 class="modal-title text-center" id="exampleModalLongTitle">Consulta de Pendência Financeira</h4>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row border-bottom border-primary">
+                            <label>Documento de Consulta: </label>
+                            <label id="iCPFValue" class="pl-2"></label>
+                            <hr />
+                            <br />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 mt-2">
+                                <label>
+                                    Resumo Consulta:
+                                </label>
+                                <div id="divTableFinanceiro">
+                                    <table class="table table-hover nowrap" id="datatableFinanceiro" style="width:100%"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" tabindex="-1" role="dialog" id="iModalCliEnd">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div style="text-align:center;">
+                    <h3><b>Atenção!</b></h3><br />
+                    <h4>Endereço informado encontra-se associado a um ou mais clientes ativos.</h4> <br />
+                    <h4>O(s) Cliente(s):</h4> <br />
+                </div>
+                <ul id="iClientesAdd">
+                </ul>
+            </div>
+            <div class="modal-footer" style="justify-content:center;">
+                <button type="button" class="btn btn-primary" id="iConfirmar" data-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="divProgress" style="display:none;">
+    <div class="preloaderbar show active">
+        <span class="bar"></span>
+        <span class="text">Processando Consulta ...</span>
+    </div>
+</div>

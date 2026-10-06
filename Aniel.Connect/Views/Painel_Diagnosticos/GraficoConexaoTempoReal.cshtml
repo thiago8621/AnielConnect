@@ -1,0 +1,544 @@
+﻿@model Aniel.Connect.Models.ConexaoTempoReal_Request
+
+@{
+    ViewBag.Title = RsCadastros.GRAFICO_CONEXAO_TEMPO_REAL;
+    Layout = "~/Views/Shared/_LayoutLimpo.cshtml";
+}
+
+@section styles{
+    <style>
+        /*Download*/
+        .vis-graph-groupDownload {
+            fill: #57b96d !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            /*stroke: #47d200 !important;*/
+            stroke: #28a745 !important;
+        }
+
+        /*Upload*/
+        .vis-graph-groupUpload {
+            fill: #1e90ff !important;
+            fill-opacity: 0 !important;
+            stroke-width: 2px !important;
+            stroke: #11518f !important;
+        }
+
+        .vis-timeline .vis-fill {
+            fill-opacity: .1 !important;
+            stroke: none !important;
+        }
+    </style>
+}
+
+@section scripts {
+    @Styles.RenderFormat(SiteKeys.ScriptVersion, "~/bundles/jsDataTableSimples")
+
+
+
+    <script>
+        let model = @Html.Raw(Json.Encode(Model));
+        let objeto;
+        var array = [];
+        var dataset = new vis.DataSet();
+        let graph2d;
+        let isRunning = false;
+        let download_max = 0;
+        let download_total = 0;
+        let upload_max = 0;
+        let upload_total = 0;
+        const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+
+        let wsConexao;
+
+        function octetsToKbMbGb(valor, unidadeMedida, fixarDecimal = false) {
+            //TODO: Ajeitar decimais
+            if (fixarDecimal) {
+                valor = (Math.round(valor + "e+" + 3) + "e-" + 3);
+            }
+
+            if (unidadeMedida == "0")
+            {
+                return ((valor / 1000) + "Kb").replace('.',',');
+            }
+
+            if (unidadeMedida == "1")
+            {
+                return ((valor / 1000 / 1000) + "Mb").replace('.',',');
+            }
+
+            if (unidadeMedida == "2")
+            {
+                return ((valor / 1000 / 1000 / 1000) + "Gb").replace('.',',');
+            }
+
+            return (valor + "Kb").replace('.',',');
+        }
+
+        $(document).ready(async function () {
+            /*moment.updateLocale('pt-br', {
+                months : [
+                    "Janeiro", "Feveveiro", "Março", "Abril", "Maio", "Junho", "Julho",
+                    "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                ]
+            });*/
+            //await carregarDados();
+            ShowPageLoading();
+            desenharGrafico();
+            //console.log(objeto);
+            $('#iUnidadeMedida').trigger('change');
+        });
+
+        function renderStep(strategy) {
+            // move the window (you can think of different strategies).
+            var now = vis.moment();
+            var range = graph2d.getWindow();
+            var interval = range.end - range.start;
+            switch (strategy) {
+              case 'continuous':
+                // continuously move the window
+                graph2d.setWindow(now - interval, now, {animation: false});
+                requestAnimationFrame(renderStep(strategy));
+                break;
+
+              case 'discrete':
+                    graph2d.setWindow(moment(now - interval).format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss'), { animation: false });
+                    //setTimeout(renderStep(strategy), 3000);
+                break;
+
+                case 'static':
+                    // move the window 90% to the left when now is larger than the end of the window
+                    if (now > range.end) {
+                  graph2d.setWindow(now - 0.1 * interval, now + 0.9 * interval);
+                }
+                //setTimeout(renderStep, DELAY);
+                break;
+              default: // 'static'
+                graph2d.setWindow(moment(now - interval).format('YYYY-MM-DD HH:mm:ss'), now.format('YYYY-MM-DD HH:mm:ss'), { animation: false });
+            }
+            //graph2d.redraw();
+          }
+
+        function startWs() {
+            let websocket_url = "@CONSTANTES.URLPortalWebSocket/api/Relatorio_Conexaoapi/GraficoWebSocket?Tipo_grafico=1";
+            wsConexao = new WebSocket(websocket_url);
+
+            wsConexao.onopen = function () {
+                console.log("Websocket Conexão em Tempo Real Conectado.");
+                wsConexao.send(JSON.stringify({Id_Login_Radius: model.Id_Login_Radius, unidade_Medida_Velocidade: model.Unidade_Medida_Velocidade}));
+            };
+
+            wsConexao.onmessage = function (evt) {
+                console.log(evt.data);    
+                if (isRunning) {
+                    let retorno = JSON.parse(evt.data);
+                    objeto = retorno.Objeto
+                    if (graph2d === undefined || graph2d === null) {
+                        desenharGrafico();
+                        addItemGrafico(objeto);
+                    }
+                    else {
+                        addItemGrafico(objeto);
+                        //desenharGrafico();
+                    }
+                    renderStep('discrete');                    
+                    preencherDadosConsumo(objeto);
+                }
+            };
+
+            wsConexao.onclose = function () {
+                console.log("Websocket Conexão em Tempo Real Desconectado.");  
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');                
+            };       
+
+            wsConexao.onerror = function (t) {
+                console.log(t);
+                isRunning = false;               
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');
+                Notificar("@RsBase.ATENCAO_", data.mensagem, "info");
+            };
+        }
+
+        $('#iUnidadeMedida').change(function () {
+            var unidadeMedida = $('#iUnidadeMedida').val();
+
+            if (isRunning) {
+                model.Unidade_Medida_Velocidade = unidadeMedida;
+                graph2d.redraw();
+            }
+            else {
+                model.Unidade_Medida_Velocidade = unidadeMedida;
+                //graph2d.destroy();
+                //desenharGrafico();
+                graph2d.setItems(array);
+                graph2d.redraw();
+
+                if (objeto != null && objeto != undefined) {
+                    preencherDadosConsumo(objeto);
+                }
+                else {
+                    var tempObjeto = { Download: 0, Upload: 0 };
+                    preencherDadosConsumo(tempObjeto);
+                }
+
+            }
+
+        });
+
+        async function carregarDados() {
+            //ShowPageLoading();
+            //$('#divDadosConsumo').hide();
+            //while (isRunning) {
+                    $.ajax({
+                    url: "@CONSTANTES.URLPortal/api/Relatorio_Conexaoapi/GetGraficoConexaoTempoReal",
+                    type: "POST",
+                    data:{
+                        unidade_Medida_Velocidade: model.Unidade_Medida_Velocidade,
+                        id_Login_Radius: model.Id_Login_Radius,
+                        /*data_Inicial: model.Data_Inicial,
+                        data_Inicial_String: model.Data_Inicial_String,
+                        data_Fim: model.Data_Fim,
+                        data_Fim_String: model.Data_Fim_String*/
+                    }
+                    })
+                    .done(function (data) {
+                        if (data.ok) {
+                            if (isRunning) {
+                            objeto = data.objeto;
+                            if (graph2d === undefined || graph2d === null) {
+                                desenharGrafico();
+                                addItemGrafico(data.objeto);
+                            }
+                            else {
+                                addItemGrafico(data.objeto);
+                                //desenharGrafico();
+                            }
+                            preencherDadosConsumo(data.objeto);
+                            renderStep('discrete');
+
+                                setTimeout(carregarDados, 3000);
+                            }
+                        }
+                        else {
+                            HidePageLoading();
+                            isRunning = false;
+                            $('#iIniciar').removeClass('btn-danger');
+                            $('#iIniciar').text('@RsBase.INICIAR');
+                            $('#iIniciar').addClass('btn-success');
+                            Notificar("@RsBase.ATENCAO_", data.mensagem, "info")
+                        }
+                    })
+
+                //await sleep(3000);
+            //}
+        }
+
+        function preencherDadosConsumo(value) {
+            $("#iDownloadAtual").text(octetsToKbMbGb(value.Download, model.Unidade_Medida_Velocidade, true));
+
+            if (value.AtualizarConsumoTotal == true) {
+                download_total += value.Download;
+                upload_total += value.Upload;
+            }
+            
+            $("#iDownloadTotal").text(octetsToKbMbGb((download_total), model.Unidade_Medida_Velocidade, true));
+
+            if (value.download > download_max) {
+                download_max = value.Download;
+            }
+
+            $("#iDownloadMaximo").text(octetsToKbMbGb(download_max, model.Unidade_Medida_Velocidade, true));
+
+            $("#iUploadAtual").text(octetsToKbMbGb(value.Upload, model.Unidade_Medida_Velocidade, true));
+            
+            $("#iUploadTotal").text(octetsToKbMbGb((upload_total), model.Unidade_Medida_Velocidade, true));
+
+            if (value.upload > upload_max) {
+                upload_max = value.Upload;
+            }
+            $("#iUploadMaximo").text(octetsToKbMbGb(upload_max, model.Unidade_Medida_Velocidade, true));
+
+            $('#divDadosConsumo').show();
+        }
+
+        $('#iIniciar').click(function () {
+            var unidadeMedida = $('#iUnidadeMedida').val();
+
+            if (!isRunning) {
+                /*if (graph2d != undefined && graph2d != null) {
+                    graph2d.destroy();
+                }*/
+
+                model.Unidade_Medida_Velocidade = unidadeMedida;
+
+                download_max = 0;
+                download_total = 0;
+                upload_max = 0;
+                upload_total = 0;
+                preencherDadosConsumo({ Download: 0, Upload: 0 });
+                array = [];
+                addItemGrafico({ DataHoraConsumoFormatada: vis.moment().add(-3, 'seconds').format('YYYY-MM-DD HH:mm:ss'), Download: 0, Upload: 0 }); //Adiciona ponto inicial no gráfico e o redesenha.
+
+                isRunning = true;
+                startWs();
+
+                $('#iIniciar').removeClass('btn-success');
+                $('#iIniciar').text('@RsBase.PARAR');
+                $('#iIniciar').addClass('btn-danger');
+
+            }
+            else {
+
+                wsConexao.close();
+                isRunning = false;
+                $('#iIniciar').removeClass('btn-danger');
+                $('#iIniciar').text('@RsBase.INICIAR');
+                $('#iIniciar').addClass('btn-success');
+            }
+        });
+
+        function addItemGrafico(value) {
+            if (value != undefined) {
+                array.push({ x: moment(value.DataHoraConsumoFormatada), y: (value.Download), group: 'download' });
+                array.push({ x: moment(value.DataHoraConsumoFormatada), y: (value.Upload), group: 'upload' });
+                //array.push({ x: value.dataHoraConsumoFormatada, y: (value.download), group: 'download' });
+                //array.push({ x: value.dataHoraConsumoFormatada, y: (value.upload), group: 'upload' });
+            }
+
+            graph2d.setItems(array);
+            graph2d.redraw();
+            console.log(array);
+        }
+
+        function desenharGrafico() {
+            let hora_start = vis.moment().add(-60, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+            let hora_end = vis.moment().add(10, 'seconds').format('YYYY-MM-DD HH:mm:ss');
+
+            array.push({ x: hora_start, y: 0, group: 'upload' });
+            array.push({ x: hora_start, y: 0, group: 'download' });
+
+            var container = document.getElementById('iGrafico');
+
+            var options = {
+               // locale: 'pt_BR',
+                //style:'bar',
+               // barChart: {width:40, align:'center', sideBySide: false}, // align: left, center, right
+                locales: {
+                // create a new locale
+                'pt-br': {
+                      current: 'atual',
+                      time: 'tempo',
+                    }
+                  },
+
+              // use the new locale
+                locale: 'pt-br',
+                drawPoints: {
+                  style: 'circle' // square, circle
+                },
+                stack: false, //teste
+                dataAxis: {
+                    //icons: true,
+                    left: {
+                        range: { min: 0 },
+                        title: { text: "@Html.Raw(RsCadastros.BITS_SEGUNDO)" },
+                        format: function (value) {
+                            if (isRunning) {
+                                return octetsToKbMbGb(value, model.Unidade_Medida_Velocidade);
+                            }
+                            else {
+                                return octetsToKbMbGb(value, model.Unidade_Medida_Velocidade, true);
+                            }
+                        }
+                    }
+                },
+                shaded: {
+                  orientation: 'bottom' // top, bottom
+                },
+                legend: {left:{position:"top-left"}},
+                orientation: 'bottom',
+                timeAxis: {
+                    scale: 'second',
+                    step: 3
+                },
+                //autoResize: true,
+                min: hora_start,
+                //max: hora_end,
+                start: hora_start,
+                end: hora_end,
+                //height: '500px',
+                maxHeight: '500px',
+                zoomMin: 30000,
+                zoomMax: 180000,
+                //configure: true,
+                showCurrentTime: true,
+            };
+
+            var groups = new vis.DataSet();
+            groups.add({
+                id: 'download',
+                content: 'Download',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group7'
+                className: 'vis-graph-groupDownload',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });
+
+            groups.add({
+                id: 'upload',
+                content: 'Upload',
+                options: {
+                    style: 'line',
+                    interpolation: false,
+                },
+                dataAxis: { showMajorLabels: true, },
+                //classname: 'vis-graph-group6'
+                className: 'vis-graph-groupUpload',
+                // Optional: a field 'visible'
+                // Optional: a field 'className'
+                // Optional: options
+            });
+
+            graph2d = new vis.Graph2d(container, array, groups, options);
+
+            graph2d.fit();
+            graph2d.on('changed', function() {
+              HidePageLoading();
+            });
+        }
+
+        //$('#iframeGraficoConexaoTempoReal')
+
+
+    </script>
+}
+
+<div class="row" style="width:100%">
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iDescLoginRadius">@RsCadastros.LOGIN:</label>
+            @Html.TextBoxFor(model => model.Desc_Login_Radius, new { @class = "form-control", @id = "iDescLoginRadius", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iDescCliente">@RsCadastros.CLIENTE:</label>
+            @Html.TextBoxFor(model => model.Desc_Cliente, new { @class = "form-control", @id = "iDescCliente", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="form-group">
+            <label for="iNas">NAS:</label>
+            @Html.TextBoxFor(model => model.Nas, new { @class = "form-control", @id = "iNas", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="col-sm-2">
+        <div class="form-group">
+            <label for="iEnderecoIp">@RsCadastros.ENDERECO_IP:</label>
+            @Html.TextBoxFor(model => model.Ip_Login_Radius, new { @class = "form-control", @id = "iEnderecoIp", disabled = "disabled" })
+        </div>
+    </div>
+
+    <div class="form-group" style="padding-top: 15px; padding-bottom: 15px;">
+        <div class="text-center">
+            <button type="button" class="btn btn-success" id="iIniciar">@RsBase.INICIAR</button>
+        </div>
+    </div>
+</div>
+
+
+<div class="row" style="width:100%">
+    <div class="col-sm-10">
+        <div class="form-group">
+            <div id="iGrafico"></div>
+        </div>
+    </div>
+
+    <div id="divDadosConsumo" class="col-sm-2">
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUnidadeMedida">@RsCadastros.UNIDADE:</label>
+                @Html.EnumDropDownListFor(m => m.Unidade_Medida_Velocidade, RsBase.SELECIONE, new { @class = "form-control obrigatorio", @id = "iUnidadeMedida", @autocomplete = "off" })
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadAtual">@RsCadastros.DOWNLOAD_ATUAL: </label>
+                <div style="font-weight: bold
+    " id="iDownloadAtual">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadTotal">@RsCadastros.DOWNLOAD_TOTAL: </label>
+                <div style="font-weight:bold" id="iDownloadTotal">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iDownloadMaximo">@RsCadastros.DOWNLOAD_MAXIMO: </label>
+                <div style="font-weight:bold" id="iDownloadMaximo">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <hr style="text-align:left; width:100%" />
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadAtual">@RsCadastros.UPLOAD_ATUAL: </label>
+                <div style="font-weight:bold" id="iUploadAtual">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadTotal">@RsCadastros.UPLOAD_TOTAL: </label>
+                <div style="font-weight:bold" id="iUploadTotal">0Kb</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="form-group">
+                <label for="iUploadMaximo">@RsCadastros.UPLOAD_MAXIMO: </label>
+                <div style="font-weight:bold" id="iUploadMaximo">0Kb</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+
+
+
+<!--<table class="table table-hove nowrapr" id="datatableRelatorioConexao" style="width:100%">
+</table>-->
+
+<head>
+    <title>@ViewBag.Title</title>
+    <meta charset="utf-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.1/moment-with-locales.min.js"></script>
+    <!--<script type="text/javascript" src="~/Scripts/vis-timeline-graph2d.min.js"></script>
+    <script type="text/javascript" src="~/Scripts/moment-with-locales.min.js"></script>-->
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+</head>

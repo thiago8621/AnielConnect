@@ -1,0 +1,213 @@
+﻿using Aniel.Connect.Core;
+using Aniel.Connect.Model.nhibernate;
+using NHibernate;
+using Sinapse.DAO.repository;
+using Sinapse.JSON;
+using Sinapse.Model.enumerados;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Formatting;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Aniel.Connect.ExecucaoService.OlaCliente
+{
+    public class BusinessClientesOla : IDisposable
+    {
+        private Conexao<Cliente_PlanoProduto> repoPlanProd;
+        private Conexao<Configuracoes_Gerais> repoProv;
+        private Conexao<URL_Sistema> repoUrl;
+        private Conexao<Configuracoes_Gerais> repoConfig;
+        private List<Cliente_PlanoProduto> planos;
+
+        private string senhaApiOla;
+
+        public BusinessClientesOla(ISession session)
+        {
+            if (String.IsNullOrWhiteSpace(ConfigurationManager.AppSettings["senhaApiOla"]))
+                throw new Exception("senhaApiOla Não informado no appconfig");
+
+            repoPlanProd = new Conexao<Cliente_PlanoProduto>(session);
+            repoProv = new Conexao<Configuracoes_Gerais>(session);
+            repoUrl = new Conexao<URL_Sistema>(session);
+            repoConfig = new Conexao<Configuracoes_Gerais>(session);
+
+            this.senhaApiOla = Convert.ToString(ConfigurationManager.AppSettings["senhaApiOla"]);
+        }
+
+        public void AtualizarProvedor()
+        {
+            URL_Sistema url = repoUrl.selectFirst(s => s.Sistema == Model.enumerado.Sistema.OlaCliente).Result;
+
+            Response resposta = new BaseController("", "").GetOla(url.URL, $"api/Param/GetToken/{this.senhaApiOla}");
+
+            if (resposta.result)
+            {
+                foreach (Configuracoes_Gerais cg in repoProv.select(s => s.Atualiza_Ola == true).Result.ToList())
+                {
+                    ProvedorSetRequest psr = new ProvedorSetRequest();
+                    psr.caminhoLogo = cg.OLA_URL_Logo;
+                    psr.cnpj = cg.CNPJ;
+                    psr.colorAccents = cg.OLA_Cor_Assests;
+                    psr.colorFont = cg.OLA_Cor_Fonte;
+                    psr.colorPrinc = cg.OLA_Cor_Principal;
+                    psr.colorPrincDark = cg.OLA_Cor_Principal_Dark;
+                    psr.nome = cg.Nome_Cliente_Sinapse;
+                    psr.token = cg.Token;
+                    psr.tokenOperacao = resposta.message;
+                    psr.status = "A";
+
+                    try
+                    {
+                        psr.urlConnect = cg.Url_Sistemas.ToList().Find(u => u.Sistema == Model.enumerado.Sistema.Connect).URL;
+                    }
+                    catch { psr.urlConnect = ""; }
+
+                    try
+                    {
+                        psr.urlEva = cg.Url_Sistemas.ToList().Find(u => u.Sistema == Model.enumerado.Sistema.EVA).URL;
+                    }
+                    catch { psr.urlEva = ""; }
+
+                    try
+                    {
+                        psr.urlInnovation = cg.Url_Sistemas.ToList().Find(u => u.Sistema == Model.enumerado.Sistema.Innovation).URL;
+                    }
+                    catch { psr.urlInnovation = ""; }
+
+                    try
+                    {
+                        psr.urlTouch = cg.Url_Sistemas.ToList().Find(u => u.Sistema == Model.enumerado.Sistema.TOUCH).URL;
+                    }
+                    catch { psr.urlTouch = ""; }
+
+                    Response provedorResponse = new BaseController("", "").PostOla<ProvedorSetRequest>(url.URL, "api/Provedor/InsertOrUpdate", psr);
+
+                    if (provedorResponse.result)
+                    {
+                        cg.Atualiza_Ola = false;
+                        _ = repoProv.SaveOrUpdate(cg);
+                    }
+                    else throw new Exception(provedorResponse.message);
+                }
+            }
+            else
+            {
+                throw new Exception(resposta.message);
+            }
+        }
+
+        public List<Cliente> GetClientes()
+        {
+            planos = repoPlanProd.select(s => s.Cliente != null).Result.ToList();
+
+            List<Cliente> clientes = (from p in planos where p.Atualiza_Ola == true group p by p.Cliente into pg select pg.Key).ToList();
+
+            //foreach (Cliente cli in clientes)
+            //{
+            //    int planosAtivos = planos.FindAll(p => p.Cliente.CpfCnpj == cli.CpfCnpj).Where(w => w.Data_Desabilitado == null && w.Data_Habilitado != null).ToList().Count();
+            //    int planosInativos = planos.FindAll(p => p.Cliente.CpfCnpj == cli.CpfCnpj).Where(w => w.Data_Desabilitado != null).ToList().Count();
+
+            //    //if (planosAtivos == planosInativos)
+            //    //  //cli.Status = Model.enumerado.Status_Cliente.Inativo;
+            //    //else
+            //    //  //cli.Status = Model.enumerado.Status_Cliente.Ativo;
+            //}
+
+            return clientes;
+        }
+        
+        public void atualizarClientesOla(List<Cliente> clientes)
+        {
+            URL_Sistema url = repoUrl.selectFirst(s => s.Sistema == Model.enumerado.Sistema.OlaCliente).Result;
+
+            Response resposta = new BaseController("", "").GetOla(url.URL, $"api/Param/GetToken/{this.senhaApiOla}");
+
+            if (resposta.result)
+            {
+                UsuarioSetRequest usuarios = new UsuarioSetRequest();
+                usuarios.tokenOperacao = resposta.message;
+                usuarios.usuarios = new List<UsuarioSetModels>();
+
+                foreach (Cliente cli in clientes)
+                {
+                    usuarios.usuarios.Add(new UsuarioSetModels()
+                    {
+                        idCliente = cli.Id,
+                        cnpjProvedor = repoConfig.select().Result.First().CNPJ,
+                        cpf_cnpj = cli.CpfCnpj,
+                        nome = cli.NomeFantasia,
+                        email = cli.Email_Principal,
+                        telefone = cli.Telefone_Celular,
+                        status = cli.Status == Status_Cliente.Ativo ? "A" : "I"
+                    });
+                }
+
+                Response clienteResponse = new BaseController("", "").PostOla<UsuarioSetRequest>(url.URL, "api/Provedor/ManterUsuarios", usuarios);
+
+                if (!clienteResponse.result)
+                    throw new Exception(clienteResponse.message);
+            } else
+            {
+                throw new Exception(resposta.message);
+            }
+        }
+
+        public void clientesAtualizados()
+        {
+            planos.ForEach(p => p.Atualiza_Ola = false);
+
+            _ = repoPlanProd.SaveOrUpdate(planos);
+        }
+        
+        public void Dispose()
+        {
+            repoPlanProd.Dispose();
+            repoUrl.Dispose();
+        }
+    }
+
+    class UsuarioSetRequest
+    {
+        public String tokenOperacao { get; set; }
+        public List<UsuarioSetModels> usuarios { get; set; }
+    }
+
+    class UsuarioSetModels
+    {
+        public Int64  idCliente { get; set; }
+
+        public String cnpjProvedor { get; set; }
+
+        public String cpf_cnpj { get; set; }
+
+        public String nome { get; set; }
+
+        public String status { get; set; }
+
+        public String email { get; set; }
+        public String telefone { get; set; }
+    }
+
+    class ProvedorSetRequest
+    {
+        public String cnpj { get; set; }
+        public String nome { get; set; }
+        public String status { get; set; }
+        public String tokenOperacao { get; set; }
+        public String token { get; set; }
+        public String caminhoLogo { get; set; }
+        public String urlConnect { get; set; }
+        public String urlEva { get; set; }
+        public String urlTouch { get; set; }
+        public String urlInnovation { get; set; }
+        public String colorPrinc { get; set;  }
+        public String colorPrincDark { get; set; }
+        public String colorAccents { get; set; }
+        public String colorFont { get; set; }
+    }
+}
